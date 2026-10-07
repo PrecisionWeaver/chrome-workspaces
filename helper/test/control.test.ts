@@ -63,6 +63,18 @@ describe('control channel', () => {
     ws.close();
   });
 
+  it('removes a workspace and ends its terminal session', async () => {
+    const a = h.store.create({ name: 'a', cwd: h.defaultCwd });
+    const session = h.sessions.create({ id: a.id, command: '/bin/cat', args: [], cwd: h.defaultCwd });
+    const { ws } = connectControl(h);
+    await opened(ws);
+    ws.send(JSON.stringify({ type: 'remove', id: a.id }));
+    await waitFor(() => h.store.list().length === 0);
+    await waitFor(() => session.exited);
+    expect(h.sessions.get(a.id)).toBeUndefined();
+    ws.close();
+  });
+
   it('ignores malformed messages without dropping the connection', async () => {
     const a = h.store.create({ name: 'a', cwd: h.defaultCwd });
     const { ws } = connectControl(h);

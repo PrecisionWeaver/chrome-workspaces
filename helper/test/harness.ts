@@ -29,7 +29,7 @@ export async function startHarness(): Promise<Harness> {
   const store = new WorkspaceStore(join(dir, 'workspaces.json'));
   const sessions = new SessionManager(10_000);
   const statuses: Record<string, WorkspaceStatus> = {};
-  const control = new ControlHub({ store, defaultCwd, statuses: () => statuses });
+  const control = new ControlHub({ store, sessions, defaultCwd, statuses: () => statuses });
   const auth = { token: TOKEN, allowedOrigins: [ORIGIN] };
   const server = await startServer({
     host: '127.0.0.1',

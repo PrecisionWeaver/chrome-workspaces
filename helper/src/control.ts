@@ -1,9 +1,11 @@
 import type { WebSocket } from 'ws';
 import type { ControlToClient, ControlToHelper, WorkspaceStatus } from '../../shared/protocol';
+import type { SessionManager } from './session';
 import type { WorkspaceStore } from './workspace-store';
 
 export interface ControlHubOptions {
   store: WorkspaceStore;
+  sessions: SessionManager;
   defaultCwd: string;
   statuses: () => Record<string, WorkspaceStatus>;
 }
@@ -67,6 +69,10 @@ export class ControlHub {
         else store.pairWindow(workspace.id, message.windowId);
         break;
       }
+      case 'remove':
+        this.options.sessions.remove(message.id);
+        store.remove(message.id);
+        break;
     }
   }
 
@@ -89,6 +95,8 @@ function isControlToHelper(value: unknown): value is ControlToHelper {
       return isWindowId(m.windowId);
     case 'tabs':
       return isWindowId(m.windowId) && Array.isArray(m.urls) && m.urls.every((u) => typeof u === 'string');
+    case 'remove':
+      return typeof m.id === 'string';
     case 'create':
       return typeof m.name === 'string' && m.name.trim().length > 0 && m.name.length <= 80 && (m.windowId === null || isWindowId(m.windowId));
     default:

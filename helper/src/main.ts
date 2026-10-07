@@ -20,7 +20,7 @@ let mcStatus: Map<string, McWorkspaceStatus> = readMcStatus(MC_STATE_DIR);
 const statuses = (): Record<string, WorkspaceStatus> =>
   Object.fromEntries(store.list().map((ws) => [ws.id, mcStatus.get(ws.id)?.status ?? null]));
 
-const control = new ControlHub({ store, defaultCwd: config.defaultCwd, statuses });
+const control = new ControlHub({ store, sessions, defaultCwd: config.defaultCwd, statuses });
 const stopWatching = watchMcStatus(MC_STATE_DIR, () => {
   mcStatus = readMcStatus(MC_STATE_DIR);
   control.broadcastState();

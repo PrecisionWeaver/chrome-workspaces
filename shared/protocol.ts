@@ -42,4 +42,5 @@ export type ControlToHelper =
   | { type: 'pair'; id: string; windowId: number }
   | { type: 'unpair'; windowId: number }
   | { type: 'tabs'; windowId: number; urls: string[] }
-  | { type: 'create'; name: string; windowId: number | null };
+  | { type: 'create'; name: string; windowId: number | null }
+  | { type: 'remove'; id: string };
