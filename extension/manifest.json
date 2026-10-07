@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "Chrome Workspaces",
+  "version": "0.1.0",
+  "description": "A terminal per Chrome window, in the side panel.",
+  "permissions": [
+    "sidePanel",
+    "nativeMessaging",
+    "storage"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "side_panel": {
+    "default_path": "panel.html"
+  },
+  "action": {
+    "default_title": "Chrome Workspaces"
+  },
+  "commands": {
+    "_execute_action": {
+      "description": "Open the workspace panel"
+    },
+    "next-workspace": {
+      "description": "Next workspace"
+    },
+    "prev-workspace": {
+      "description": "Previous workspace"
+    }
+  },
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAn1k/soxwVQ6IJCzv+of8CiiRReQMIUQdwgO/xtW6f41V4qjbVEGYxuVtt4RnMLG3YG8C6bpkvaQfcrK5tUZl+0SiHZnSGHatnT/fgD8tZTmCKEjP+lw8XX2LnRE3/imCmbMsymrI7C4w9NIJ/1f3+zH6Hh8lspK08Cyn7RAoepNxBypvsveSU8HeRPDbvwI8bwf/ApJXa/8vf76UWPcJtsLFoFZcpHyn/i39TK1yFupdWelp+i0NEJdOGf4PzEFYnXZxSMrDee18tlwFKFwn/xvPDccdKO/f+Da6zjDpxIY1Fdr7CfrcpWKPEmXxagGCWhEaKJLOdkjoj0ZOh+eQFQIDAQAB"
+}
