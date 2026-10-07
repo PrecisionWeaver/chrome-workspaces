@@ -8,6 +8,8 @@ export interface NewWorkspace {
   ticket?: string | null;
   cwd: string;
   url?: string | null;
+  pr?: string | null;
+  prompt?: string | null;
 }
 
 export class WorkspaceStore {
@@ -30,6 +32,10 @@ export class WorkspaceStore {
     return this.list().find((ws) => ws.ticket?.toUpperCase() === ticket.toUpperCase());
   }
 
+  findByPr(url: string): Workspace | undefined {
+    return this.list().find((ws) => ws.pr === url);
+  }
+
   findByWindow(windowId: number): Workspace | undefined {
     return this.list().find((ws) => ws.windowId === windowId);
   }
@@ -43,6 +49,8 @@ export class WorkspaceStore {
       url: input.url ?? null,
       windowId: null,
       lastTabUrls: [],
+      pr: input.pr ?? null,
+      prompt: input.prompt ?? null,
       createdAt: new Date().toISOString(),
     };
     this.workspaces.push(workspace);
@@ -78,6 +86,13 @@ export class WorkspaceStore {
     this.save();
   }
 
+  clearPrompt(id: string): void {
+    const ws = this.require(id);
+    if (ws.prompt === null) return;
+    ws.prompt = null;
+    this.save();
+  }
+
   remove(id: string): void {
     this.workspaces = this.workspaces.filter((ws) => ws.id !== id);
     this.save();
@@ -97,7 +112,9 @@ export class WorkspaceStore {
   private load(): Workspace[] {
     if (!existsSync(this.file)) return [];
     try {
-      return (JSON.parse(readFileSync(this.file, 'utf8')) as { workspaces: Workspace[] }).workspaces;
+      const { workspaces } = JSON.parse(readFileSync(this.file, 'utf8')) as { workspaces: Workspace[] };
+      // Files written before a field existed load with it unset.
+      return workspaces.map((ws) => ({ ...ws, pr: ws.pr ?? null, prompt: ws.prompt ?? null }));
     } catch (error) {
       throw new Error(`cannot read ${this.file}: ${error instanceof Error ? error.message : String(error)}`);
     }

@@ -3,6 +3,7 @@
 export const PROTOCOL = 'cw.v1';
 export const TOKEN_PROTOCOL_PREFIX = 'token.';
 export const NATIVE_HOST_NAME = 'com.chrome_workspaces.helper';
+export const MAX_PROMPT_LENGTH = 8000;
 
 export type ClientMessage =
   | { type: 'input'; data: string }
@@ -28,6 +29,10 @@ export interface Workspace {
   windowId: number | null;
   /** Tab URLs last seen in its window; used to re-pair after Chrome restarts. */
   lastTabUrls: string[];
+  /** GitHub PR URL the workspace was created to work on. */
+  pr: string | null;
+  /** First message for claude; cleared once a session has started with it. */
+  prompt: string | null;
   createdAt: string;
 }
 

@@ -10,6 +10,8 @@ const workspace: Workspace = {
   url: null,
   windowId: 1,
   lastTabUrls: [],
+  pr: null,
+  prompt: null,
   createdAt: '2026-01-01T00:00:00Z',
 };
 const RESUME = '169128c8-8b10-48e0-993f-a743c8fad9ef';
