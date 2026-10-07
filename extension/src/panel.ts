@@ -1,8 +1,9 @@
 import { FitAddon } from '@xterm/addon-fit';
 import { Terminal } from '@xterm/xterm';
 import { similarity, workspaceOrder } from '../../shared/pairing';
-import type { ClientMessage, ServerMessage, Workspace, WorkspaceStatus } from '../../shared/protocol';
+import type { ClientMessage, ReviewsState, ServerMessage, Workspace, WorkspaceStatus } from '../../shared/protocol';
 import { connectControl, getHelper, openSocket } from './helper-client';
+import { createLauncher } from './launcher';
 import { switchTo } from './windows';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -11,6 +12,7 @@ const listEl = $<HTMLUListElement>('workspaces');
 const newButton = $<HTMLButtonElement>('new');
 const newForm = $<HTMLFormElement>('new-form');
 const newName = $<HTMLInputElement>('new-name');
+const newMenu = $<HTMLDivElement>('new-menu');
 const noticeEl = $<HTMLDivElement>('notice');
 const pickerEl = $<HTMLElement>('picker');
 const pickerOptions = $<HTMLUListElement>('picker-options');
@@ -26,17 +28,21 @@ term.open(terminalEl);
 let myWindowId: number | undefined;
 let workspaces: Workspace[] = [];
 let statuses: Record<string, WorkspaceStatus> = {};
+let reviews: ReviewsState = { items: [], error: null, fetchedAt: null };
 
 const control = connectControl(
   (message) => {
+    if (message.type === 'prompts') launcher.setPrompts(message.prompts, message.error);
     if (message.type !== 'state') return;
     workspaces = workspaceOrder(message.workspaces);
     statuses = message.statuses;
+    reviews = message.reviews;
     render();
   },
   (connected) => showNotice(connected ? null : 'Helper not running. Start it with: npm run agent:start'),
 );
 const send = control.send.bind(control);
+const launcher = createLauncher({ send, onToggle: render, openWorkspace });
 
 function current(): Workspace | undefined {
   return workspaces.find((ws) => ws.windowId === myWindowId);
@@ -51,13 +57,14 @@ function showNotice(text: string | null): void {
 
 function render(): void {
   renderList();
+  launcher.renderReviews(reviews, workspaces);
   const workspace = current();
-  pickerEl.hidden = workspace !== undefined;
-  terminalEl.hidden = workspace === undefined;
+  pickerEl.hidden = launcher.isOpen || workspace !== undefined;
+  terminalEl.hidden = launcher.isOpen || workspace === undefined;
   if (workspace) attach(workspace);
   else {
     detach();
-    void renderPicker();
+    if (!launcher.isOpen) void renderPicker();
   }
 }
 
@@ -107,14 +114,17 @@ function renderList(): void {
 
       item.append(badge, name, remove);
       item.addEventListener('click', () => {
-        if (ws.id === here?.id) return;
-        // Opening a panel needs a user gesture, so do it before anything awaits.
-        if (ws.windowId !== null) chrome.sidePanel.open({ windowId: ws.windowId }).catch(() => {});
-        void switchTo(ws, send);
+        if (ws.id !== here?.id) openWorkspace(ws);
       });
       return item;
     }),
   );
+}
+
+function openWorkspace(ws: Workspace): void {
+  // Opening a panel needs a user gesture, so do it before anything awaits.
+  if (ws.windowId !== null) chrome.sidePanel.open({ windowId: ws.windowId }).catch(() => {});
+  void switchTo(ws, send);
 }
 
 function startRename(ws: Workspace, nameEl: HTMLElement): void {
@@ -146,8 +156,18 @@ function startRename(ws: Workspace, nameEl: HTMLElement): void {
 }
 
 newButton.addEventListener('click', () => {
+  newMenu.hidden = !newMenu.hidden;
+});
+
+$<HTMLButtonElement>('new-blank').addEventListener('click', () => {
+  newMenu.hidden = true;
   newForm.hidden = false;
   newName.focus();
+});
+
+$<HTMLButtonElement>('new-prompt').addEventListener('click', () => {
+  newMenu.hidden = true;
+  launcher.show(null);
 });
 
 newName.addEventListener('blur', () => {
