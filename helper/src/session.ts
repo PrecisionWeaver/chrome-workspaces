@@ -102,6 +102,11 @@ export class SessionManager {
     return this.sessions.get(id);
   }
 
+  remove(id: string): void {
+    this.sessions.get(id)?.kill();
+    this.sessions.delete(id);
+  }
+
   killAll(): void {
     for (const session of this.sessions.values()) session.kill();
     this.sessions.clear();

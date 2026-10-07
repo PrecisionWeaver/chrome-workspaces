@@ -21,6 +21,7 @@ fit.fit();
 let connection = 'connecting';
 let lastShortcut = 'none';
 let socket: WebSocket | null = null;
+let sessionEnded = false;
 
 function renderStatus(): void {
   statusEl.textContent = `panel ${window.innerWidth}px · ${term.cols} cols · ${connection} · last shortcut: ${lastShortcut}`;
@@ -66,13 +67,17 @@ async function connect(): Promise<void> {
     if (message.type === 'output') {
       term.write(message.data);
     } else {
-      connection = `session exited (${message.code})`;
-      renderStatus();
+      // The shell is gone; close the panel. Reopening it attaches to a fresh shell.
+      sessionEnded = true;
+      if (windowId === undefined) window.close();
+      else void chrome.sidePanel.close({ windowId });
     }
   };
   ws.onclose = (event) => {
+    if (sessionEnded) return;
     connection = `disconnected (${event.code})`;
     renderStatus();
+    term.write('\r\n\x1b[33m[disconnected from helper — close and reopen the panel]\x1b[0m\r\n');
   };
 }
 

@@ -88,6 +88,20 @@ describe('helper server', () => {
     ws.close();
   });
 
+  it('replaces an exited session with a fresh one from onUnknownSession', async () => {
+    await start((id) => sessions.create({ id, command: '/bin/cat', args: [], cwd: tmpdir() }));
+    const old = sessions.create({ id: 'done', command: '/bin/sh', args: ['-c', 'exit 0'], cwd: tmpdir() });
+    await waitFor(() => old.exited);
+
+    const ws = connect('/attach?session=done');
+    await new Promise((resolve) => ws.on('open', resolve));
+    const fresh = sessions.get('done');
+    expect(fresh).toBeDefined();
+    expect(fresh).not.toBe(old);
+    expect(fresh?.exited).toBe(false);
+    ws.close();
+  });
+
   it('asks onUnknownSession for sessions it does not have', async () => {
     await start((id) => sessions.create({ id, command: '/bin/cat', args: [], cwd: tmpdir() }));
     const ws = connect('/attach?session=fresh');
