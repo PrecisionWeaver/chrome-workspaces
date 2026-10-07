@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">
+  <!-- Simplified icon.svg for 16/32px: no title-bar dots or text lines, which blur at this size. -->
+  <rect x="0.5" y="1.5" width="15" height="13" rx="2.5" fill="#2b2f36"/>
+  <rect x="8.5" y="3.5" width="5.5" height="9" rx="1" fill="#e8edf5"/>
+  <path d="M2.8 5.2 L5.2 7.5 L2.8 9.8" fill="none" stroke="#5fd38d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
