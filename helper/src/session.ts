@@ -28,7 +28,7 @@ export class Session {
       cols: 120,
       rows: 40,
       cwd: spec.cwd,
-      env: { ...process.env, ...spec.env },
+      env: { ...inheritedEnv(), ...spec.env },
     });
     this.pty.onData((data) => {
       this.scrollback.push(data);
@@ -73,6 +73,17 @@ export class Session {
   kill(): void {
     if (!this.exited) this.pty.kill();
   }
+}
+
+// If the helper was started from inside a Claude Code session, its markers would make
+// every `claude` in our shells think it is that session's child (transcripts off, etc).
+function inheritedEnv(): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (value === undefined || key === 'CLAUDECODE' || key.startsWith('CLAUDE_')) continue;
+    env[key] = value;
+  }
+  return env;
 }
 
 export class SessionManager {
