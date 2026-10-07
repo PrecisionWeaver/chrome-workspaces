@@ -10,7 +10,7 @@ export interface Pairing {
   windowId: number;
 }
 
-function similarity(a: readonly string[], b: readonly string[]): number {
+export function similarity(a: readonly string[], b: readonly string[]): number {
   const left = new Set(a);
   const right = new Set(b);
   let shared = 0;
