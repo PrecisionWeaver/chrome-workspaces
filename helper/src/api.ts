@@ -1,10 +1,11 @@
 import { timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { isAbsolute } from 'node:path';
-import type { WorkspaceStatus } from '../../shared/protocol';
+import { MAX_PROMPT_LENGTH, type WorkspaceStatus } from '../../shared/protocol';
 import type { AuthPolicy } from './auth';
 import { isDirectory } from './config';
-import type { ControlHub } from './control';
+import type { ControlHub, ReviewSource } from './control';
+import { isPullRequestUrl, prWorkspace } from './pr-workspace';
 import type { SessionManager } from './session';
 import type { WorkspaceStore } from './workspace-store';
 
@@ -15,6 +16,8 @@ export interface ApiOptions {
   sessions: SessionManager;
   defaultCwd: string;
   statuses: () => Record<string, WorkspaceStatus>;
+  reviews: Pick<ReviewSource, 'state'>;
+  repoDirs: Record<string, string>;
 }
 
 type Handler = (req: IncomingMessage, res: ServerResponse) => void;
@@ -56,8 +59,9 @@ async function handle(req: IncomingMessage, options: ApiOptions): Promise<{ stat
   }
 
   if (pathname === '/workspaces' && req.method === 'POST') {
-    const input = parseCreate(await readJson(req), options.defaultCwd);
-    const existing = input.ticket ? store.findByTicket(input.ticket) : undefined;
+    const input = parseCreate(await readJson(req), options);
+    // A PR workspace is matched by PR only: a review of a ticket's PR is separate from working on the ticket.
+    const existing = input.pr ? store.findByPr(input.pr) : input.ticket ? store.findByTicket(input.ticket) : undefined;
     if (existing) {
       const delivered = control.send({ type: 'focus', id: existing.id });
       return { status: 200, body: { workspace: existing, created: false, delivered } };
@@ -93,9 +97,17 @@ function hasBearer(req: IncomingMessage, token: string): boolean {
   return given.length === expected.length && timingSafeEqual(given, expected);
 }
 
-function parseCreate(body: unknown, defaultCwd: string) {
+function parseCreate(body: unknown, { defaultCwd, repoDirs, reviews }: ApiOptions) {
   if (typeof body !== 'object' || body === null) throw new HttpError(400, 'expected a JSON object');
-  const { name, ticket, cwd, url } = body as Record<string, unknown>;
+  const { name, ticket, cwd, url, pr, prompt } = body as Record<string, unknown>;
+  const promptValue = optionalString(prompt, 'prompt', MAX_PROMPT_LENGTH);
+
+  const prValue = optionalString(pr, 'pr', 2048);
+  if (prValue) {
+    if (!isPullRequestUrl(prValue)) throw new HttpError(400, 'pr must be a GitHub pull request url');
+    const base = prWorkspace(prValue, { reviews: reviews.state().items, repoDirs, defaultCwd });
+    return { ...base, name: optionalString(name, 'name', 80) ?? base.name, prompt: promptValue };
+  }
 
   const ticketValue = optionalString(ticket, 'ticket', 64);
   const nameValue = optionalString(name, 'name', 80) ?? ticketValue;
@@ -107,7 +119,7 @@ function parseCreate(body: unknown, defaultCwd: string) {
   const urlValue = optionalString(url, 'url', 2048);
   if (urlValue && !/^https?:\/\//i.test(urlValue)) throw new HttpError(400, 'url must be http(s)');
 
-  return { name: nameValue, ticket: ticketValue, cwd: cwdValue, url: urlValue };
+  return { name: nameValue, ticket: ticketValue, cwd: cwdValue, url: urlValue, pr: null, prompt: promptValue };
 }
 
 function optionalString(value: unknown, field: string, max: number): string | null {

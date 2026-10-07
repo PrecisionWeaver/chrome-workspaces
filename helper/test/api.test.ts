@@ -93,4 +93,21 @@ describe('HTTP API', () => {
     expect((await call(`/workspaces/${ws1.id}`, { method: 'DELETE' })).status).toBe(200);
     expect(h.store.list()).toEqual([]);
   });
+
+  it('creates a PR workspace with a prompt, and focuses it on a repeat', async () => {
+    const pr = 'https://github.com/vorys-econtrol/pec-platform/pull/482';
+    const first = await call('/workspaces', { method: 'POST', body: { pr, prompt: '/code-review' } });
+    expect(first.status).toBe(201);
+    expect(await first.json()).toMatchObject({ created: true, workspace: { name: 'pec-platform#482', pr, url: pr, prompt: '/code-review', cwd: h.defaultCwd } });
+
+    const again = await call('/workspaces', { method: 'POST', body: { pr } });
+    expect(again.status).toBe(200);
+    expect(await again.json()).toMatchObject({ created: false });
+    expect(h.store.list()).toHaveLength(1);
+  });
+
+  it('rejects a non-PR url and an overlong prompt', async () => {
+    expect((await call('/workspaces', { method: 'POST', body: { pr: 'https://github.com/o/r/issues/1' } })).status).toBe(400);
+    expect((await call('/workspaces', { method: 'POST', body: { name: 'x', prompt: 'x'.repeat(8001) } })).status).toBe(400);
+  });
 });
