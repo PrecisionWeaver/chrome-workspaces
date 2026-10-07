@@ -61,6 +61,8 @@ function handleConnection(ws: WebSocket, url: string, options: ServerOptions): v
     return;
   }
 
+  // A shell the user exited is replaced on the next attach, so reopening the panel starts fresh.
+  if (options.sessions.get(id)?.exited && options.onUnknownSession) options.sessions.remove(id);
   const session = options.sessions.get(id) ?? options.onUnknownSession?.(id);
   if (!session) {
     ws.close(4404, 'unknown session');
