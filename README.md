@@ -21,6 +21,8 @@ Design: [`docs/superpowers/specs/2026-10-07-chrome-workspaces-design.md`](docs/s
 
 - **Switch:** `⌃⇧←` / `⌃⇧→`, or click a workspace in the list. Every workspace window takes the size of whichever one you last resized or maximized, so switching looks like the content swapping in place.
 - **New workspace:** `devspace ORC-1234` (see below), or `+` in the list. A window that isn't a workspace yet offers to become one when you open the panel in it.
+- **Review requests:** the section under the list shows open PRs that request your review (from `gh`, refreshed every 5 minutes or with ↻). Click one to pick a prompt. A dot means it already has a workspace; clicking focuses it.
+- **From a prompt:** `+` → **From prompt…** lists the prompts in your vault note. Pick one, edit it (`PR-URL` and `ORC-XXX` are filled from the PR when there is one), and **Start**: the new workspace's `claude` begins with that prompt. It runs once; reopening the workspace resumes the conversation.
 - **Status:** a red dot means that workspace's `claude` needs input; green means it's working (from [Claude Mission Control](https://github.com/PrecisionWeaver/claude-mission-control)).
 - **Sessions:** closing the panel leaves `claude` running; reopening it reattaches with the scrollback. Quitting `claude` drops to the shell, and `exit` closes the panel. The next time the panel opens, the workspace resumes its last Claude conversation.
 - **Rename:** double-click a workspace's name; Enter saves, Esc cancels. The ticket link is kept, so `devspace` still finds it.
@@ -54,6 +56,13 @@ npm run agent:start      # runs the helper now and at every login
 ```
 
 `setup` writes `~/.chrome-workspaces/`, Chrome's native-host manifest, and `~/Library/LaunchAgents/com.chrome-workspaces.helper.plist`.
+
+Optional fields in `~/.chrome-workspaces/config.json` (`setup` keeps them):
+
+- `promptsFile`: the prompt note (default `~/Documents/Websites/obsidian-vault/Patterns/Most Used Prompts.md`). Each `**Heading**` line starts a section and each `- ` bullet is a prompt.
+- `repoDirs`: where PR workspaces start, by repo, e.g. `{ "vorys-econtrol/pec-platform": "~/Herd/pec-platform" }`. Unlisted repos use the default directory.
+
+Review requests need `gh` signed in (`gh auth status`).
 
 Then in Chrome:
 
