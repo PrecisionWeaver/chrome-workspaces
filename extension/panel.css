@@ -139,6 +139,16 @@ input {
   text-overflow: ellipsis;
 }
 
+.ws .rename {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  padding: 1px 4px;
+  outline: none;
+}
+
 .ws .windowless {
   color: var(--muted);
 }

@@ -73,6 +73,11 @@ export class WorkspaceStore {
     this.save();
   }
 
+  rename(id: string, name: string): void {
+    this.require(id).name = name;
+    this.save();
+  }
+
   remove(id: string): void {
     this.workspaces = this.workspaces.filter((ws) => ws.id !== id);
     this.save();

@@ -43,4 +43,5 @@ export type ControlToHelper =
   | { type: 'unpair'; windowId: number }
   | { type: 'tabs'; windowId: number; urls: string[] }
   | { type: 'create'; name: string; windowId: number | null }
-  | { type: 'remove'; id: string };
+  | { type: 'remove'; id: string }
+  | { type: 'rename'; id: string; name: string };

@@ -72,6 +72,7 @@ All workspace windows share identical bounds, so switching workspaces (raising a
 - **Automatic:** windows created via `devspace` / the panel's `+` are paired at creation.
 - **Claim:** opening the panel in an unpaired window shows "Which workspace is this?" (plus "New workspace here"). Claiming a window for a workspace that already has one **replaces** it; the old window becomes unpaired (exactly one window per workspace).
 - Unpaired Chrome windows are untouched by switching.
+- **Rename:** double-clicking a name in the list edits it in place. Only the label changes; the ticket stays, so `devspace` dedupes against it.
 - **Remove:** the list's × (two clicks) deletes the workspace and ends its terminal session; its Chrome window is left open, unpaired.
 
 ## Failure and restart behavior
