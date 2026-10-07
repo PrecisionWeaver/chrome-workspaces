@@ -15,15 +15,24 @@ export interface LaunchOptions {
  * `hr` compression-proxy launcher when the login shell can find it; `hr` passes claude args through.
  */
 export function launchSpec(workspace: Workspace, { shell, resumeId }: LaunchOptions): SessionSpec {
-  const args = resumeId && SESSION_UUID.test(resumeId) ? ` --resume ${resumeId}` : '';
-  const claude = `if command -v hr >/dev/null 2>&1; then hr${args}; else claude${args}; fi`;
   const env: Record<string, string> = { CW_WORKSPACE_ID: workspace.id };
   if (workspace.ticket) env.DEVSPACE_TICKET = workspace.ticket;
+
+  let args = '';
+  let cleanup = '';
+  if (resumeId && SESSION_UUID.test(resumeId)) args = ` --resume ${resumeId}`;
+  else if (workspace.prompt) {
+    // The shell expands the prompt from the environment, so its text is never parsed as shell syntax.
+    env.CW_PROMPT = workspace.prompt;
+    args = ' "$CW_PROMPT"';
+    cleanup = 'unset CW_PROMPT; ';
+  }
+  const claude = `if command -v hr >/dev/null 2>&1; then hr${args}; else claude${args}; fi`;
 
   return {
     id: workspace.id,
     command: shell,
-    args: ['-l', '-i', '-c', `${claude}; exec ${shell} -l -i`],
+    args: ['-l', '-i', '-c', `${claude}; ${cleanup}exec ${shell} -l -i`],
     cwd: workspace.cwd,
     env,
   };

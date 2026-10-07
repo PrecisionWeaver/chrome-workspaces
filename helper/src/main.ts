@@ -41,7 +41,10 @@ const server = await startServer({
     const workspace = store.get(id);
     if (!workspace) return undefined;
     const resumeId = mcStatus.get(id)?.claudeSessionId ?? null;
-    return sessions.create(launchSpec(workspace, { shell, resumeId }));
+    const spec = launchSpec(workspace, { shell, resumeId });
+    const session = sessions.create(spec);
+    if (spec.env?.CW_PROMPT !== undefined) store.clearPrompt(id);
+    return session;
   },
 });
 
