@@ -23,6 +23,7 @@ Design: [`docs/superpowers/specs/2026-10-07-chrome-workspaces-design.md`](docs/s
 - **New workspace:** `devspace ORC-1234` (see below), or `+` in the list. A window that isn't a workspace yet offers to become one when you open the panel in it.
 - **Status:** a red dot means that workspace's `claude` needs input; green means it's working (from [Claude Mission Control](https://github.com/PrecisionWeaver/claude-mission-control)).
 - **Sessions:** closing the panel leaves `claude` running; reopening it reattaches with the scrollback. Quitting `claude` drops to the shell, and `exit` closes the panel. The next time the panel opens, the workspace resumes its last Claude conversation.
+- **Rename:** double-click a workspace's name; Enter saves, Esc cancels. The ticket link is kept, so `devspace` still finds it.
 - **Remove:** hover a workspace and click × twice. This ends its terminal session; its Chrome window stays open.
 - **Collapse the list** with `‹` to give the terminal more room.
 

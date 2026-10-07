@@ -75,6 +75,18 @@ describe('control channel', () => {
     ws.close();
   });
 
+  it('renames a workspace, trimming the name and ignoring blank or overlong ones', async () => {
+    const a = h.store.create({ name: 'a', cwd: h.defaultCwd });
+    const { ws } = connectControl(h);
+    await opened(ws);
+    ws.send(JSON.stringify({ type: 'rename', id: a.id, name: '   ' }));
+    ws.send(JSON.stringify({ type: 'rename', id: a.id, name: 'x'.repeat(81) }));
+    ws.send(JSON.stringify({ type: 'rename', id: 'ws-unknown0', name: 'nope' }));
+    ws.send(JSON.stringify({ type: 'rename', id: a.id, name: '  Checkout bug  ' }));
+    await waitFor(() => h.store.get(a.id)?.name === 'Checkout bug');
+    ws.close();
+  });
+
   it('ignores malformed messages without dropping the connection', async () => {
     const a = h.store.create({ name: 'a', cwd: h.defaultCwd });
     const { ws } = connectControl(h);

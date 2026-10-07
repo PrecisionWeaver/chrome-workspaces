@@ -64,11 +64,14 @@ export class ControlHub {
         store.setTabs(message.windowId, message.urls);
         break;
       case 'create': {
-        const workspace = store.create({ name: message.name, cwd: this.options.defaultCwd });
+        const workspace = store.create({ name: message.name.trim(), cwd: this.options.defaultCwd });
         if (message.windowId === null) this.send({ type: 'open', id: workspace.id });
         else store.pairWindow(workspace.id, message.windowId);
         break;
       }
+      case 'rename':
+        if (store.get(message.id)) store.rename(message.id, message.name.trim());
+        break;
       case 'remove':
         this.options.sessions.remove(message.id);
         store.remove(message.id);
@@ -85,6 +88,10 @@ function isWindowId(value: unknown): value is number {
   return Number.isInteger(value);
 }
 
+function isWorkspaceName(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0 && value.trim().length <= 80;
+}
+
 function isControlToHelper(value: unknown): value is ControlToHelper {
   if (typeof value !== 'object' || value === null) return false;
   const m = value as Record<string, unknown>;
@@ -97,8 +104,10 @@ function isControlToHelper(value: unknown): value is ControlToHelper {
       return isWindowId(m.windowId) && Array.isArray(m.urls) && m.urls.every((u) => typeof u === 'string');
     case 'remove':
       return typeof m.id === 'string';
+    case 'rename':
+      return typeof m.id === 'string' && isWorkspaceName(m.name);
     case 'create':
-      return typeof m.name === 'string' && m.name.trim().length > 0 && m.name.length <= 80 && (m.windowId === null || isWindowId(m.windowId));
+      return isWorkspaceName(m.name) && (m.windowId === null || isWindowId(m.windowId));
     default:
       return false;
   }

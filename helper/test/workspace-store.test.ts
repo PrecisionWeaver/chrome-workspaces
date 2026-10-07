@@ -74,6 +74,19 @@ describe('WorkspaceStore', () => {
     expect(store.findByTicket('ORC-2')).toBeUndefined();
   });
 
+  it('renames a workspace, keeping its ticket', () => {
+    const file = tempFile();
+    const store = new WorkspaceStore(file);
+    const a = store.create({ name: 'ORC-1', ticket: 'ORC-1', cwd: '/tmp' });
+    store.rename(a.id, 'Checkout bug');
+    expect(new WorkspaceStore(file).get(a.id)).toMatchObject({ name: 'Checkout bug', ticket: 'ORC-1' });
+    expect(store.findByTicket('ORC-1')?.id).toBe(a.id);
+  });
+
+  it('refuses to rename an unknown workspace', () => {
+    expect(() => new WorkspaceStore(tempFile()).rename('ws-00000000', 'x')).toThrow(/unknown workspace/);
+  });
+
   it('removes workspaces', () => {
     const file = tempFile();
     const store = new WorkspaceStore(file);

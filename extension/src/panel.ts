@@ -61,7 +61,12 @@ function render(): void {
   }
 }
 
+// While a name is being edited the list isn't redrawn (status updates arrive constantly and
+// would discard the input); it catches up when editing ends.
+let editing = false;
+
 function renderList(): void {
+  if (editing) return;
   const here = current();
   listEl.replaceChildren(
     ...workspaces.map((ws, index) => {
@@ -78,6 +83,11 @@ function renderList(): void {
       const name = document.createElement('span');
       name.className = `name${ws.windowId === null ? ' windowless' : ''}`;
       name.textContent = ws.name;
+      name.title = 'Double-click to rename';
+      name.addEventListener('dblclick', (event) => {
+        event.stopPropagation();
+        startRename(ws, name);
+      });
 
       const remove = document.createElement('button');
       remove.className = 'remove';
@@ -105,6 +115,34 @@ function renderList(): void {
       return item;
     }),
   );
+}
+
+function startRename(ws: Workspace, nameEl: HTMLElement): void {
+  editing = true;
+  const input = document.createElement('input');
+  input.className = 'rename';
+  input.value = ws.name;
+  input.maxLength = 80;
+  nameEl.replaceWith(input);
+  input.focus();
+  input.select();
+
+  let done = false;
+  const finish = (save: boolean) => {
+    if (done) return;
+    done = true;
+    const name = input.value.trim();
+    if (save && name && name !== ws.name) send({ type: 'rename', id: ws.id, name });
+    editing = false;
+    renderList();
+  };
+  input.addEventListener('keydown', (event) => {
+    event.stopPropagation();
+    if (event.key === 'Enter') finish(true);
+    else if (event.key === 'Escape') finish(false);
+  });
+  input.addEventListener('blur', () => finish(true));
+  input.addEventListener('click', (event) => event.stopPropagation());
 }
 
 newButton.addEventListener('click', () => {
