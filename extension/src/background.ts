@@ -9,13 +9,17 @@ let workspaces: Workspace[] = [];
 // `open` can arrive before the `state` that lists the new workspace; those wait for it.
 const pendingOpens = new Set<string>();
 
-// chrome.storage.session is wiped when the browser restarts, which is when stored window ids go
-// stale (and may be reused by unrelated windows). The first state after that drops every pairing
-// so re-pairing by tab URLs starts clean.
-const freshBrowser = chrome.storage.session.get('started').then(({ started }) => {
-  if (started) return false;
+// Stored window ids go stale when the browser restarts (and may be reused by unrelated windows),
+// so the first state after that drops every pairing and re-pairing by tab URLs starts clean.
+// chrome.storage.session is also wiped by an extension reload, which keeps window ids, so
+// onInstalled rules that case out.
+const freshBrowser = new Promise<boolean>((resolve) => {
+  chrome.runtime.onStartup.addListener(() => resolve(true));
+  chrome.runtime.onInstalled.addListener(() => resolve(false));
+  void chrome.storage.session.get('started').then(({ started }) => started && resolve(false));
+}).then((fresh) => {
   void chrome.storage.session.set({ started: true });
-  return true;
+  return fresh;
 });
 let staleCleared = false;
 
