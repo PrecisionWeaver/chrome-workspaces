@@ -1,88 +1,238 @@
 import { FitAddon } from '@xterm/addon-fit';
 import { Terminal } from '@xterm/xterm';
-import {
-  NATIVE_HOST_NAME,
-  PROTOCOL,
-  TOKEN_PROTOCOL_PREFIX,
-  type ClientMessage,
-  type NativeHostReply,
-  type ServerMessage,
-} from '../../shared/protocol';
+import { similarity, workspaceOrder } from '../../shared/pairing';
+import type { ClientMessage, ServerMessage, Workspace, WorkspaceStatus } from '../../shared/protocol';
+import { connectControl, getHelper, openSocket } from './helper-client';
+import { switchTo } from './windows';
 
-const statusEl = document.getElementById('status') as HTMLElement;
-const terminalEl = document.getElementById('terminal') as HTMLElement;
+const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
-const term = new Terminal({ fontFamily: 'Menlo, monospace', fontSize: 12, cursorBlink: true });
+const listEl = $<HTMLUListElement>('workspaces');
+const newButton = $<HTMLButtonElement>('new');
+const newForm = $<HTMLFormElement>('new-form');
+const newName = $<HTMLInputElement>('new-name');
+const noticeEl = $<HTMLDivElement>('notice');
+const pickerEl = $<HTMLElement>('picker');
+const pickerOptions = $<HTMLUListElement>('picker-options');
+const pickerNew = $<HTMLFormElement>('picker-new');
+const pickerName = $<HTMLInputElement>('picker-name');
+const terminalEl = $<HTMLDivElement>('terminal');
+
+const term = new Terminal({ fontFamily: 'Menlo, monospace', fontSize: 12, cursorBlink: true, theme: { background: '#1e1e1e' } });
 const fit = new FitAddon();
 term.loadAddon(fit);
 term.open(terminalEl);
-fit.fit();
 
-let connection = 'connecting';
-let lastShortcut = 'none';
-let socket: WebSocket | null = null;
-let sessionEnded = false;
+let myWindowId: number | undefined;
+let workspaces: Workspace[] = [];
+let statuses: Record<string, WorkspaceStatus> = {};
 
-function renderStatus(): void {
-  statusEl.textContent = `panel ${window.innerWidth}px · ${term.cols} cols · ${connection} · last shortcut: ${lastShortcut}`;
+const control = connectControl(
+  (message) => {
+    if (message.type !== 'state') return;
+    workspaces = workspaceOrder(message.workspaces);
+    statuses = message.statuses;
+    render();
+  },
+  (connected) => showNotice(connected ? null : 'Helper not running. Start it with: npm run agent:start'),
+);
+const send = control.send.bind(control);
+
+function current(): Workspace | undefined {
+  return workspaces.find((ws) => ws.windowId === myWindowId);
 }
 
-function sendToHelper(message: ClientMessage): void {
+function showNotice(text: string | null): void {
+  noticeEl.hidden = text === null;
+  noticeEl.textContent = text ?? '';
+}
+
+// ---- list ----
+
+function render(): void {
+  renderList();
+  const workspace = current();
+  pickerEl.hidden = workspace !== undefined;
+  terminalEl.hidden = workspace === undefined;
+  if (workspace) attach(workspace);
+  else {
+    detach();
+    void renderPicker();
+  }
+}
+
+function renderList(): void {
+  const here = current();
+  listEl.replaceChildren(
+    ...workspaces.map((ws, index) => {
+      const item = document.createElement('li');
+      item.className = `ws${ws.id === here?.id ? ' current' : ''}`;
+      item.title = `${ws.name}\n${ws.cwd}`;
+
+      const badge = document.createElement('span');
+      badge.className = 'badge';
+      badge.textContent = String(index + 1);
+      const status = statuses[ws.id];
+      if (status) badge.dataset.status = status;
+
+      const name = document.createElement('span');
+      name.className = `name${ws.windowId === null ? ' windowless' : ''}`;
+      name.textContent = ws.name;
+
+      const remove = document.createElement('button');
+      remove.className = 'remove';
+      remove.title = 'Remove workspace';
+      remove.textContent = '×';
+      remove.addEventListener('click', (event) => {
+        event.stopPropagation();
+        // Two clicks: the first arms it, so a stray click can't end a running session.
+        if (!remove.classList.contains('confirm')) {
+          remove.classList.add('confirm');
+          remove.textContent = 'remove?';
+          setTimeout(renderList, 3000);
+          return;
+        }
+        send({ type: 'remove', id: ws.id });
+      });
+
+      item.append(badge, name, remove);
+      item.addEventListener('click', () => {
+        if (ws.id === here?.id) return;
+        // Opening a panel needs a user gesture, so do it before anything awaits.
+        if (ws.windowId !== null) chrome.sidePanel.open({ windowId: ws.windowId }).catch(() => {});
+        void switchTo(ws, send);
+      });
+      return item;
+    }),
+  );
+}
+
+newButton.addEventListener('click', () => {
+  newForm.hidden = false;
+  newName.focus();
+});
+
+newName.addEventListener('blur', () => {
+  newForm.hidden = true;
+  newName.value = '';
+});
+
+newForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+  const name = newName.value.trim();
+  if (name) send({ type: 'create', name, windowId: null });
+  newName.blur();
+});
+
+$<HTMLButtonElement>('collapse').addEventListener('click', () => {
+  const collapsed = document.body.classList.toggle('collapsed');
+  void chrome.storage.local.set({ listCollapsed: collapsed });
+  fitTerminal();
+});
+
+void chrome.storage.local.get('listCollapsed').then(({ listCollapsed }) => {
+  document.body.classList.toggle('collapsed', listCollapsed === true);
+  fitTerminal();
+});
+
+// ---- unpaired window ----
+
+async function renderPicker(): Promise<void> {
+  if (myWindowId === undefined) return;
+  const tabs = await chrome.tabs.query({ windowId: myWindowId });
+  const urls = tabs.flatMap((tab) => (tab.url ? [tab.url] : []));
+  const ranked = [...workspaces].sort(
+    (a, b) => similarity(b.lastTabUrls, urls) - similarity(a.lastTabUrls, urls) || Number(a.windowId !== null) - Number(b.windowId !== null),
+  );
+
+  pickerOptions.replaceChildren(
+    ...ranked.map((ws) => {
+      const item = document.createElement('li');
+      const button = document.createElement('button');
+      button.textContent = ws.name;
+      const hint = document.createElement('span');
+      hint.className = 'hint';
+      hint.textContent = ws.windowId === null ? 'no window' : 'moves here from its window';
+      button.append(hint);
+      button.addEventListener('click', () => myWindowId !== undefined && send({ type: 'pair', id: ws.id, windowId: myWindowId }));
+      item.append(button);
+      return item;
+    }),
+  );
+}
+
+pickerNew.addEventListener('submit', (event) => {
+  event.preventDefault();
+  const name = pickerName.value.trim();
+  if (name && myWindowId !== undefined) send({ type: 'create', name, windowId: myWindowId });
+  pickerName.value = '';
+});
+
+// ---- terminal ----
+
+let socket: WebSocket | null = null;
+let attachedId: string | null = null;
+// Set while the token is being fetched, so a state update arriving meanwhile doesn't attach twice.
+let connecting = false;
+
+function sendToSession(message: ClientMessage): void {
   if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
 }
 
-chrome.runtime.onMessage.addListener((message: { type?: string; command?: string }) => {
-  if (message.type === 'command' && message.command) {
-    lastShortcut = `${message.command} @ ${new Date().toLocaleTimeString()}`;
-    renderStatus();
-  }
-});
-
-term.onData((data) => sendToHelper({ type: 'input', data }));
-
-new ResizeObserver(() => {
-  fit.fit();
-  sendToHelper({ type: 'resize', cols: term.cols, rows: term.rows });
-  renderStatus();
-}).observe(terminalEl);
-
-async function connect(): Promise<void> {
-  const reply = (await chrome.runtime.sendNativeMessage(NATIVE_HOST_NAME, { type: 'hello' })) as NativeHostReply;
-  if (!reply.ok) throw new Error(reply.error);
-
-  const { id: windowId } = await chrome.windows.getCurrent();
-  const ws = new WebSocket(`ws://127.0.0.1:${reply.port}/attach?session=win-${windowId}`, [
-    PROTOCOL,
-    `${TOKEN_PROTOCOL_PREFIX}${reply.token}`,
-  ]);
-  socket = ws;
-
-  ws.onopen = () => {
-    connection = `attached win-${windowId}`;
-    sendToHelper({ type: 'resize', cols: term.cols, rows: term.rows });
-    renderStatus();
-  };
-  ws.onmessage = (event) => {
-    const message = JSON.parse(event.data as string) as ServerMessage;
-    if (message.type === 'output') {
-      term.write(message.data);
-    } else {
-      // The shell is gone; close the panel. Reopening it attaches to a fresh shell.
-      sessionEnded = true;
-      if (windowId === undefined) window.close();
-      else void chrome.sidePanel.close({ windowId });
-    }
-  };
-  ws.onclose = (event) => {
-    if (sessionEnded) return;
-    connection = `disconnected (${event.code})`;
-    renderStatus();
-    term.write('\r\n\x1b[33m[disconnected from helper — close and reopen the panel]\x1b[0m\r\n');
-  };
+function detach(): void {
+  const old = socket;
+  socket = null;
+  attachedId = null;
+  old?.close();
 }
 
-renderStatus();
-connect().catch((error: unknown) => {
-  connection = `error: ${error instanceof Error ? error.message : String(error)}`;
-  renderStatus();
+function attach(workspace: Workspace): void {
+  if (attachedId === workspace.id && (socket || connecting)) return;
+  detach();
+  term.reset();
+  attachedId = workspace.id;
+  connecting = true;
+
+  getHelper().then((helper) => {
+    connecting = false;
+    if (attachedId !== workspace.id) return;
+    const ws = openSocket(helper, `/attach?session=${workspace.id}`);
+    socket = ws;
+
+    ws.onopen = () => {
+      fitTerminal();
+      term.focus();
+    };
+    ws.onmessage = (event) => {
+      const message = JSON.parse(event.data as string) as ServerMessage;
+      if (message.type === 'output') term.write(message.data);
+      // The shell is gone; close the panel. Reopening it starts a fresh session.
+      else if (myWindowId !== undefined) void chrome.sidePanel.close({ windowId: myWindowId });
+      else window.close();
+    };
+    ws.onclose = () => {
+      if (socket !== ws) return;
+      socket = null;
+      term.write('\r\n\x1b[33m[disconnected from helper — reconnects when it is back]\x1b[0m\r\n');
+    };
+  }, () => {
+    // The control connection's notice explains the outage; the next state retries the attach.
+    connecting = false;
+    attachedId = null;
+  });
+}
+
+term.onData((data) => sendToSession({ type: 'input', data }));
+
+function fitTerminal(): void {
+  if (terminalEl.hidden) return;
+  fit.fit();
+  sendToSession({ type: 'resize', cols: term.cols, rows: term.rows });
+}
+
+new ResizeObserver(fitTerminal).observe(terminalEl);
+
+void chrome.windows.getCurrent().then((win) => {
+  myWindowId = win.id;
+  render();
 });

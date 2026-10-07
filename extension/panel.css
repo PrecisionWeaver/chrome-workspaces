@@ -1,27 +1,260 @@
+:root {
+  --bg: #1e1e1e;
+  --list-bg: #181a1f;
+  --border: #2c2f36;
+  --text: #c9ced6;
+  --muted: #7d8590;
+  --active: #2b3240;
+  --accent: #4c8bf5;
+  --needs-input: #f85149;
+  --working: #5fd38d;
+}
+
 html,
 body {
   margin: 0;
   height: 100%;
-  background: #1e1e1e;
-  color: #ccc;
-  font: 11px -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font: 12px -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 body {
   display: flex;
+}
+
+button,
+input {
+  font: inherit;
+  color: inherit;
+}
+
+/* Workspace list */
+
+#list {
+  width: 180px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  background: var(--list-bg);
+  border-right: 1px solid var(--border);
+}
+
+#list-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+  color: var(--muted);
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+}
+
+#collapse,
+#new {
+  background: none;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+#collapse:hover,
+#new:hover {
+  background: var(--active);
+  color: var(--text);
+}
+
+#new {
+  margin: 4px 6px 8px;
+  font-size: 16px;
+  text-align: left;
+}
+
+#workspaces {
+  list-style: none;
+  margin: 0;
+  padding: 0 4px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.ws {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px;
+  border-radius: 5px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.ws:hover {
+  background: #22262d;
+}
+
+.ws.current {
+  background: var(--active);
+  color: #fff;
+}
+
+.ws .badge {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  font-weight: 600;
+  background: #2f343d;
+  position: relative;
+}
+
+.ws .badge[data-status='needs_input']::after,
+.ws .badge[data-status='working']::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1.5px solid var(--list-bg);
+}
+
+.ws .badge[data-status='needs_input']::after {
+  background: var(--needs-input);
+}
+
+.ws .badge[data-status='working']::after {
+  background: var(--working);
+}
+
+.ws .name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ws .windowless {
+  color: var(--muted);
+}
+
+.ws .remove {
+  visibility: hidden;
+  background: none;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0 2px;
+}
+
+.ws:hover .remove {
+  visibility: visible;
+}
+
+.ws .remove.confirm {
+  visibility: visible;
+  color: var(--needs-input);
+}
+
+#new-form,
+#picker-new {
+  margin: 0 6px 4px;
+}
+
+#new-name,
+#picker-name {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 6px;
+}
+
+/* Collapsed rail */
+
+body.collapsed #list {
+  width: 44px;
+}
+
+body.collapsed #list-title,
+body.collapsed .ws .name,
+body.collapsed .ws .remove,
+body.collapsed #new-form {
+  display: none;
+}
+
+body.collapsed .ws {
+  justify-content: center;
+}
+
+body.collapsed #collapse {
+  transform: rotate(180deg);
+}
+
+/* Main area */
+
+#main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
   flex-direction: column;
 }
 
-#status {
-  padding: 4px 8px;
-  border-bottom: 1px solid #333;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+#notice {
+  padding: 6px 10px;
+  background: #3a2f12;
+  color: #f2cc60;
+  border-bottom: 1px solid var(--border);
 }
 
 #terminal {
   flex: 1;
   min-height: 0;
   padding: 4px;
+}
+
+#picker {
+  padding: 16px;
+}
+
+#picker h2 {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0 0 10px;
+}
+
+#picker-options {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+}
+
+#picker-options button {
+  width: 100%;
+  text-align: left;
+  background: #22262d;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 6px 8px;
+  margin-bottom: 4px;
+  cursor: pointer;
+}
+
+#picker-options button:hover {
+  border-color: var(--accent);
+}
+
+#picker-options .hint {
+  color: var(--muted);
+  margin-left: 6px;
+}
+
+#picker-new {
+  margin: 0;
 }

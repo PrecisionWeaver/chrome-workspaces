@@ -6,8 +6,28 @@
     <link rel="stylesheet" href="panel.css" />
   </head>
   <body>
-    <div id="status"></div>
-    <div id="terminal"></div>
+    <nav id="list">
+      <div id="list-header">
+        <button id="collapse" title="Collapse list">‹</button>
+        <span id="list-title">Workspaces</span>
+      </div>
+      <ul id="workspaces"></ul>
+      <form id="new-form" hidden>
+        <input id="new-name" placeholder="Name or ticket" maxlength="80" autocomplete="off" />
+      </form>
+      <button id="new" title="New workspace">+</button>
+    </nav>
+    <main id="main">
+      <div id="notice" hidden></div>
+      <section id="picker" hidden>
+        <h2>Which workspace is this window?</h2>
+        <ul id="picker-options"></ul>
+        <form id="picker-new">
+          <input id="picker-name" placeholder="New workspace here…" maxlength="80" autocomplete="off" />
+        </form>
+      </section>
+      <div id="terminal"></div>
+    </main>
     <script type="module" src="panel.js"></script>
   </body>
 </html>
