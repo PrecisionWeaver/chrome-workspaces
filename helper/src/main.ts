@@ -1,10 +1,14 @@
+import { execFile } from 'node:child_process';
 import { join } from 'node:path';
+import { promisify } from 'node:util';
 import type { WorkspaceStatus } from '../../shared/protocol';
 import { createApi } from './api';
 import { DATA_DIR, HOST, loadConfig, MC_STATE_DIR, PORT, SCROLLBACK_LIMIT } from './config';
 import { ControlHub } from './control';
 import { launchSpec } from './launch';
 import { readMcStatus, watchMcStatus, type McWorkspaceStatus } from './mc-status';
+import { readPrompts } from './prompts';
+import { GH_REVIEW_REQUESTS, ReviewsPoller } from './reviews';
 import { startServer } from './server';
 import { SessionManager } from './session';
 import { loadOrCreateToken } from './token';
@@ -20,7 +24,17 @@ let mcStatus: Map<string, McWorkspaceStatus> = readMcStatus(MC_STATE_DIR);
 const statuses = (): Record<string, WorkspaceStatus> =>
   Object.fromEntries(store.list().map((ws) => [ws.id, mcStatus.get(ws.id)?.status ?? null]));
 
-const control = new ControlHub({ store, sessions, defaultCwd: config.defaultCwd, statuses });
+const REVIEW_POLL_MS = 5 * 60_000;
+const execFileAsync = promisify(execFile);
+// launchd's PATH lacks Homebrew, so gh runs through a login shell.
+const reviews = new ReviewsPoller(
+  async () => (await execFileAsync(shell, ['-l', '-c', GH_REVIEW_REQUESTS], { timeout: 30_000, maxBuffer: 4 * 1024 * 1024 })).stdout,
+);
+const prompts = () => readPrompts(config.promptsFile);
+
+const control = new ControlHub({ store, sessions, defaultCwd: config.defaultCwd, statuses, reviews, prompts, repoDirs: config.repoDirs });
+reviews.onChange(() => control.broadcastState());
+reviews.start(REVIEW_POLL_MS);
 const stopWatching = watchMcStatus(MC_STATE_DIR, () => {
   const previous = mcStatus;
   mcStatus = readMcStatus(MC_STATE_DIR);
@@ -36,7 +50,7 @@ const server = await startServer({
   auth,
   sessions,
   control,
-  api: createApi({ auth, store, control, sessions, defaultCwd: config.defaultCwd, statuses }),
+  api: createApi({ auth, store, control, sessions, defaultCwd: config.defaultCwd, statuses, reviews, repoDirs: config.repoDirs }),
   onUnknownSession: (id) => {
     const workspace = store.get(id);
     if (!workspace) return undefined;
@@ -52,6 +66,7 @@ console.log(`chrome-workspaces helper on ${HOST}:${server.port} for extension ${
 
 function shutdown(): void {
   stopWatching();
+  reviews.stop();
   sessions.killAll();
   void server.close().then(() => process.exit(0));
 }
