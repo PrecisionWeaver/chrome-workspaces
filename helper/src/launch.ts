@@ -10,9 +10,13 @@ export interface LaunchOptions {
   resumeId: string | null;
 }
 
-/** Runs claude inside a login shell, leaving the shell behind when claude quits. */
+/**
+ * Runs claude inside a login shell, leaving the shell behind when claude quits. Prefers the
+ * `hr` compression-proxy launcher when the login shell can find it; `hr` passes claude args through.
+ */
 export function launchSpec(workspace: Workspace, { shell, resumeId }: LaunchOptions): SessionSpec {
-  const claude = resumeId && SESSION_UUID.test(resumeId) ? `claude --resume ${resumeId}` : 'claude';
+  const args = resumeId && SESSION_UUID.test(resumeId) ? ` --resume ${resumeId}` : '';
+  const claude = `if command -v hr >/dev/null 2>&1; then hr${args}; else claude${args}; fi`;
   const env: Record<string, string> = { CW_WORKSPACE_ID: workspace.id };
   if (workspace.ticket) env.DEVSPACE_TICKET = workspace.ticket;
 
