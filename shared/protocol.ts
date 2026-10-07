@@ -38,6 +38,12 @@ export interface Workspace {
 
 export type WorkspaceStatus = 'needs_input' | 'working' | 'idle' | null;
 
+/** One reusable prompt from the vault note, under the bold heading above it. */
+export interface Prompt {
+  section: string;
+  text: string;
+}
+
 export type ControlToClient =
   | { type: 'state'; workspaces: Workspace[]; statuses: Record<string, WorkspaceStatus> }
   | { type: 'open'; id: string }
