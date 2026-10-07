@@ -22,8 +22,12 @@ const statuses = (): Record<string, WorkspaceStatus> =>
 
 const control = new ControlHub({ store, sessions, defaultCwd: config.defaultCwd, statuses });
 const stopWatching = watchMcStatus(MC_STATE_DIR, () => {
+  const previous = mcStatus;
   mcStatus = readMcStatus(MC_STATE_DIR);
   control.broadcastState();
+  for (const [id, { browserAt }] of mcStatus) {
+    if (browserAt !== null && browserAt !== previous.get(id)?.browserAt) control.send({ type: 'browser', id, at: browserAt });
+  }
 });
 
 const server = await startServer({

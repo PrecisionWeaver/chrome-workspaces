@@ -1,5 +1,6 @@
 import { matchWindows, workspaceOrder } from '../../shared/pairing';
 import type { ControlToClient, Workspace } from '../../shared/protocol';
+import { placeClaudeGroups } from './claude-groups';
 import { connectControl } from './helper-client';
 import { openWindow, recordSharedSize, switchTo } from './windows';
 
@@ -24,6 +25,7 @@ const freshBrowser = new Promise<boolean>((resolve) => {
 let staleCleared = false;
 
 const control = connectControl(handle);
+const browserCall = placeClaudeGroups(() => workspaces);
 const send = control.send.bind(control);
 
 function find(id: string): Workspace | undefined {
@@ -54,6 +56,9 @@ function handle(message: ControlToClient): void {
       if (workspace) void switchTo(workspace, send);
       break;
     }
+    case 'browser':
+      browserCall({ workspaceId: message.id, at: message.at });
+      break;
   }
 }
 

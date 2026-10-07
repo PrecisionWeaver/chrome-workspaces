@@ -36,7 +36,9 @@ export type WorkspaceStatus = 'needs_input' | 'working' | 'idle' | null;
 export type ControlToClient =
   | { type: 'state'; workspaces: Workspace[]; statuses: Record<string, WorkspaceStatus> }
   | { type: 'open'; id: string }
-  | { type: 'focus'; id: string };
+  | { type: 'focus'; id: string }
+  /** The workspace's claude used Claude in Chrome at `at` (epoch ms). */
+  | { type: 'browser'; id: string; at: number };
 
 export type ControlToHelper =
   | { type: 'pair'; id: string; windowId: number }

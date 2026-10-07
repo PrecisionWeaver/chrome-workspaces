@@ -5,6 +5,8 @@ import type { WorkspaceStatus } from '../../shared/protocol';
 export interface McWorkspaceStatus {
   status: WorkspaceStatus;
   claudeSessionId: string;
+  /** Last Claude in Chrome tool call (epoch ms). */
+  browserAt: number | null;
 }
 
 interface McSessionFile {
@@ -12,6 +14,7 @@ interface McSessionFile {
   cw_workspace_id?: string | null;
   status?: string;
   started_at?: string;
+  browser_at?: string;
 }
 
 const LIVE_STATUSES = new Set(['needs_input', 'working', 'idle']);
@@ -42,7 +45,8 @@ export function readMcStatus(dir: string): Map<string, McWorkspaceStatus> {
   const result = new Map<string, McWorkspaceStatus>();
   for (const [workspaceId, session] of newest) {
     const status = LIVE_STATUSES.has(session.status ?? '') ? (session.status as WorkspaceStatus) : null;
-    result.set(workspaceId, { status, claudeSessionId: session.session_id! });
+    const browserAt = session.browser_at ? Date.parse(session.browser_at) : NaN;
+    result.set(workspaceId, { status, claudeSessionId: session.session_id!, browserAt: Number.isNaN(browserAt) ? null : browserAt });
   }
   return result;
 }
