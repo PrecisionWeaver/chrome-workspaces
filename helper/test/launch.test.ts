@@ -37,4 +37,17 @@ describe('launchSpec', () => {
     expect(launchSpec(workspace, { shell: '/bin/zsh', resumeId: null }).env).toEqual({ CW_WORKSPACE_ID: 'ws-0123abcd', DEVSPACE_TICKET: 'ORC-1' });
     expect(launchSpec({ ...workspace, ticket: null }, { shell: '/bin/zsh', resumeId: null }).env).toEqual({ CW_WORKSPACE_ID: 'ws-0123abcd' });
   });
+
+  it('sends the prompt as the first message through the environment, never the command', () => {
+    const prompt = `/code-review "it's" $(touch /tmp/pwned) \`id\``;
+    const spec = launchSpec({ ...workspace, prompt }, { shell: '/bin/zsh', resumeId: null });
+    expect(spec.args[3]).toBe(`${start(' "$CW_PROMPT"')}; unset CW_PROMPT; exec /bin/zsh -l -i`);
+    expect(spec.env?.CW_PROMPT).toBe(prompt);
+  });
+
+  it('resumes rather than re-sending the prompt', () => {
+    const spec = launchSpec({ ...workspace, prompt: 'go' }, { shell: '/bin/zsh', resumeId: RESUME });
+    expect(spec.args[3]).toBe(`${start(` --resume ${RESUME}`)}; exec /bin/zsh -l -i`);
+    expect(spec.env).not.toHaveProperty('CW_PROMPT');
+  });
 });
