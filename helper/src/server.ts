@@ -1,7 +1,8 @@
-import { createServer } from 'node:http';
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { PROTOCOL, type ClientMessage, type ServerMessage } from '../../shared/protocol';
 import { isAuthorized, tokenFromProtocols, type AuthPolicy } from './auth';
+import type { ControlHub } from './control';
 import type { Session, SessionManager } from './session';
 
 const SESSION_ID = /^[A-Za-z0-9_-]{1,64}$/;
@@ -12,6 +13,8 @@ export interface ServerOptions {
   auth: AuthPolicy;
   sessions: SessionManager;
   onUnknownSession?: (id: string) => Session | undefined;
+  control?: ControlHub;
+  api?: (req: IncomingMessage, res: ServerResponse) => void;
 }
 
 export interface RunningServer {
@@ -20,7 +23,7 @@ export interface RunningServer {
 }
 
 export function startServer(options: ServerOptions): Promise<RunningServer> {
-  const http = createServer((_req, res) => res.writeHead(404).end());
+  const http = createServer((req, res) => (options.api ? options.api(req, res) : res.writeHead(404).end()));
   const wss = new WebSocketServer({
     noServer: true,
     handleProtocols: (protocols) => (protocols.has(PROTOCOL) ? PROTOCOL : false),
@@ -33,7 +36,11 @@ export function startServer(options: ServerOptions): Promise<RunningServer> {
       socket.destroy();
       return;
     }
-    wss.handleUpgrade(req, socket, head, (ws) => handleConnection(ws, req.url ?? '/', options));
+    wss.handleUpgrade(req, socket, head, (ws) => {
+      const url = req.url ?? '/';
+      if (options.control && new URL(url, 'http://localhost').pathname === '/control') options.control.add(ws);
+      else handleConnection(ws, url, options);
+    });
   });
 
   return new Promise((resolve, reject) => {
