@@ -10,7 +10,11 @@
     "helper": "tsx helper/src/main.ts",
     "gen-key": "tsx scripts/gen-key.ts",
     "setup": "tsx scripts/setup.ts",
-    "build:extension": "tsx scripts/build-extension.ts"
+    "build:extension": "tsx scripts/build-extension.ts",
+    "agent:start": "launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.chrome-workspaces.helper.plist",
+    "agent:stop": "launchctl bootout gui/$(id -u)/com.chrome-workspaces.helper",
+    "agent:restart": "launchctl kickstart -k gui/$(id -u)/com.chrome-workspaces.helper",
+    "agent:status": "launchctl print gui/$(id -u)/com.chrome-workspaces.helper | grep -E 'state|pid|last exit'"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.11.0",
