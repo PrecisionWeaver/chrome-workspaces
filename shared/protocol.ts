@@ -44,6 +44,26 @@ export interface Prompt {
   text: string;
 }
 
+/** An open PR that requests the user's review. */
+export interface ReviewRequest {
+  /** `owner/name`. */
+  repo: string;
+  number: number;
+  title: string;
+  url: string;
+  author: string;
+  isDraft: boolean;
+  updatedAt: string;
+  ticket: string | null;
+}
+
+export interface ReviewsState {
+  items: ReviewRequest[];
+  /** Why the last fetch failed; `items` then still holds the last good list. */
+  error: string | null;
+  fetchedAt: string | null;
+}
+
 export type ControlToClient =
   | { type: 'state'; workspaces: Workspace[]; statuses: Record<string, WorkspaceStatus> }
   | { type: 'open'; id: string }
