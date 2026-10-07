@@ -10,6 +10,14 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-07-chrome-workspaces-design.md` · **Spike results:** `docs/spike-results.md`
 
+**Built.** Departures from this plan, all reflected in the spec:
+
+- Added a `remove` control message and a two-click × in the list; without it the list could only grow.
+- The service worker drops every stored pairing on the first state after a browser restart (detected via `chrome.storage.session`), because Chrome can reuse window ids for unrelated windows.
+- Closed workspace windows reopen with their last tabs, not just the first URL.
+- `CW_PORT` overrides the helper port, for running a throwaway helper beside the real one.
+- The extension's switching and panel code have no unit tests; the panel was checked by rendering it in headless Chrome with stubbed APIs.
+
 ---
 
 ## Decisions taken from the spike
@@ -84,7 +92,7 @@ Tests: exact match pairs; partial overlap above threshold pairs; below threshold
 
 `workspaceOrder(workspaces)`: by `createdAt` ascending — the order of the list and of `⌃⇧←/→`.
 
-- [ ] Write failing tests → run (fail) → implement → run (pass) → commit `feat(shared): workspace types and URL-based window re-pairing`
+- [x] Write failing tests → run (fail) → implement → run (pass) → commit `feat(shared): workspace types and URL-based window re-pairing`
 
 ### Task 2: Workspace store
 
@@ -94,7 +102,7 @@ Tests: exact match pairs; partial overlap above threshold pairs; below threshold
 
 Tests: create assigns `ws-` id and persists across a new store instance; `pairWindow` moves a window from one workspace to another; `setTabs` updates only the paired workspace; `unpairWindow` keeps `lastTabUrls`; corrupt file throws; `findByTicket` is case-insensitive.
 
-- [ ] TDD cycle → commit `feat(helper): persistent workspace store`
+- [x] TDD cycle → commit `feat(helper): persistent workspace store`
 
 ### Task 3: Launch command
 
@@ -104,7 +112,7 @@ Tests: create assigns `ws-` id and persists across a new store instance; `pairWi
 
 Tests: no resume → `claude;`; valid resume → `claude --resume <id>;`; malformed resume ignored; env contents; cwd passed through.
 
-- [ ] TDD cycle → commit `feat(helper): workspace launch command with safe resume`
+- [x] TDD cycle → commit `feat(helper): workspace launch command with safe resume`
 
 ### Task 4: Mission Control status
 
@@ -116,7 +124,7 @@ Tests: no resume → `claude;`; valid resume → `claude --resume <id>;`; malfor
 
 Tests: picks newest session per workspace; maps statuses; skips files without `cw_workspace_id`; skips corrupt JSON; missing dir.
 
-- [ ] TDD cycle → commit `feat(helper): read Mission Control session state per workspace`
+- [x] TDD cycle → commit `feat(helper): read Mission Control session state per workspace`
 
 ### Task 5: HTTP API and control hub
 
@@ -133,7 +141,7 @@ Control WebSocket `/control` (same Origin + subprotocol token as `/attach`): on 
 
 Tests: 401 without/with wrong bearer; 403 for a foreign Origin; create → 201 and appears in GET; duplicate ticket → 200 `created:false` and a `focus` broadcast; bad cwd → 400; focus with no control client → 409, with one → message received; control client receives `state` on connect and after `pair`; `/attach` for unknown id → 4404.
 
-- [ ] TDD cycle → commit `feat(helper): workspace HTTP API and control channel`
+- [x] TDD cycle → commit `feat(helper): workspace HTTP API and control channel`
 
 ### Task 6: Helper wiring
 
@@ -141,7 +149,7 @@ Tests: 401 without/with wrong bearer; 403 for a foreign Origin; create → 201 a
 
 Load config (`extensionId`, `defaultCwd`), store, token; `onUnknownSession` → workspace lookup + `launchSpec` with resume id from MC status; watch MC dir and broadcast. Remove the `CW_SPIKE_CWD` path.
 
-- [ ] Typecheck + full test suite → commit `feat(helper): wire workspaces, sessions and Mission Control status`
+- [x] Typecheck + full test suite → commit `feat(helper): wire workspaces, sessions and Mission Control status`
 
 ### Task 7: Extension — helper client, windows, service worker
 
@@ -151,7 +159,7 @@ Load config (`extensionId`, `defaultCwd`), store, token; `onUnknownSession` → 
 - `windows.ts`: `sharedSize` (moved from spike), `focusWorkspaceWindow(ws)`, `openWorkspaceWindow(ws)` (creates the window at the shared size with `ws.url`, then sends `pair`).
 - Service worker: on `open` → `openWorkspaceWindow`; on `focus` → focus if paired else open; `⌃⇧←/→` cycles `workspaceOrder()` among paired workspaces; on each `state` and on `chrome.runtime.onStartup`, run `matchWindows` against open windows and send `pair` for matches; tab create/update/remove (debounced 1 s) sends `tabs` for that window; `windows.onRemoved` sends `unpair`; a 1-minute alarm reconnects if the control socket is down.
 
-- [ ] Typecheck + build → commit `feat(extension): workspace-aware service worker`
+- [x] Typecheck + build → commit `feat(extension): workspace-aware service worker`
 
 ### Task 8: Extension — panel
 
@@ -166,7 +174,7 @@ The panel resolves its workspace from `state` by `windowId`:
 
 Keeps from the spike: exit closes the panel; disconnect notice in the terminal.
 
-- [ ] Typecheck + build → commit `feat(extension): workspace list and unpaired-window picker`
+- [x] Typecheck + build → commit `feat(extension): workspace list and unpaired-window picker`
 
 ### Task 9: Setup and launchd
 
@@ -174,7 +182,7 @@ Keeps from the spike: exit closes the panel; disconnect notice in the terminal.
 
 `setup` also writes `defaultCwd` into `config.json` (keeps an existing value; default `~`) and `~/Library/LaunchAgents/com.chrome-workspaces.helper.plist` (RunAtLoad, KeepAlive, logs to `~/.chrome-workspaces/helper.log`, `WorkingDirectory` = repo, Node path pinned). New scripts: `agent:start` (`launchctl bootstrap gui/$UID …`), `agent:stop` (`bootout`), `agent:restart` (`kickstart -k`). Starting the agent is a separate, explicit step because it replaces any manually started helper and ends every open shell.
 
-- [ ] Run setup, inspect the plist with `plutil -lint` → commit `feat: launchd agent and default workspace directory`
+- [x] Run setup, inspect the plist with `plutil -lint` → commit `feat: launchd agent and default workspace directory`
 
 ### Task 10: Mission Control changes (separate repo)
 
@@ -186,7 +194,7 @@ Keeps from the spike: exit closes the panel; disconnect notice in the terminal.
 
 Tests (node:test, matching the repo): hook writes `cw_workspace_id` from env; jump calls `focusWorkspace` for a workspace session and `runJump` otherwise; helper failure → 502.
 
-- [ ] TDD cycle in that repo → commit there `feat: jump to Chrome Workspaces sessions`
+- [x] TDD cycle in that repo → commit there `feat: jump to Chrome Workspaces sessions`
 
 ### Task 11: devspace
 
@@ -194,13 +202,13 @@ Tests (node:test, matching the repo): hook writes `cw_workspace_id` from env; ju
 
 Before the AppleScript block: unless `--classic` is given, if `~/.chrome-workspaces/token` exists and `GET /workspaces` succeeds, `POST /workspaces { ticket, url, cwd: $PROJECT_DIR }` and exit. Otherwise fall through to the current iTerm + Chrome flow unchanged.
 
-- [ ] Run `zsh -n bin/devspace`; exercise the fallback path with the helper stopped on a test port → commit there `feat(devspace): create Chrome Workspaces when the helper is running`
+- [x] Run `zsh -n bin/devspace`; exercise the fallback path with the helper stopped on a test port → commit there `feat(devspace): create Chrome Workspaces when the helper is running`
 
 ### Task 12: Docs
 
 Update the spec (Claude in Chrome limitation, resume-by-id decision, `--classic`), README (workspaces, list, agent scripts, devspace), and mark this plan's checkboxes.
 
-- [ ] Commit `docs: workspaces build`, push.
+- [x] Commit `docs: workspaces build`, push.
 
 ### Cutover (needs Mike's go-ahead at the time)
 
