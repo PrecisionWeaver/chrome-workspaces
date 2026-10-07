@@ -36,10 +36,18 @@
       "description": "Open the workspace panel"
     },
     "next-workspace": {
-      "description": "Next workspace"
+      "description": "Next workspace",
+      "suggested_key": {
+        "default": "Ctrl+Shift+Right",
+        "mac": "MacCtrl+Shift+Right"
+      }
     },
     "prev-workspace": {
-      "description": "Previous workspace"
+      "description": "Previous workspace",
+      "suggested_key": {
+        "default": "Ctrl+Shift+Left",
+        "mac": "MacCtrl+Shift+Left"
+      }
     }
   },
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAn1k/soxwVQ6IJCzv+of8CiiRReQMIUQdwgO/xtW6f41V4qjbVEGYxuVtt4RnMLG3YG8C6bpkvaQfcrK5tUZl+0SiHZnSGHatnT/fgD8tZTmCKEjP+lw8XX2LnRE3/imCmbMsymrI7C4w9NIJ/1f3+zH6Hh8lspK08Cyn7RAoepNxBypvsveSU8HeRPDbvwI8bwf/ApJXa/8vf76UWPcJtsLFoFZcpHyn/i39TK1yFupdWelp+i0NEJdOGf4PzEFYnXZxSMrDee18tlwFKFwn/xvPDccdKO/f+Da6zjDpxIY1Fdr7CfrcpWKPEmXxagGCWhEaKJLOdkjoj0ZOh+eQFQIDAQAB"
