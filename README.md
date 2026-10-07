@@ -2,45 +2,84 @@
 
 A terminal per Chrome window, in Chrome's side panel.
 
-Each workspace is an ordinary Chrome window — your real Chrome, with your profile, logins, extensions, and DevTools — plus a terminal docked on the left. Run `claude` (or anything else) in the terminal, keep the tabs for that task in the window, and switch between workspaces without juggling separate terminal windows or desktops.
+Each workspace is an ordinary Chrome window — your real Chrome, with your profile, logins, extensions, and DevTools — plus a terminal docked on the left running `claude`. Keep the tabs for that task in the window and switch between workspaces with `⌃⇧←` / `⌃⇧→` instead of juggling terminal windows and desktops.
 
-> **Status: spike.** The foundation works — a live terminal in the side panel, one shell per window, survives the panel closing. The workspace list, window pairing, and start-at-login are not built yet. See the [design](docs/superpowers/specs/2026-10-07-chrome-workspaces-design.md).
+```
+┌───────────────────────────────────────────────────────────────┐
+│  Chrome tabs + toolbar                                         │
+├──────────┬───────────────────────┬────────────────────────────┤
+│ 1 ORC-12 │                       │                            │
+│▸2 ORC-13●│  terminal (claude)    │   web page                 │
+│ 3 OPS-88 │                       │                            │
+│ +        │                       │                            │
+└──────────┴───────────────────────┴────────────────────────────┘
+```
+
+Design: [`docs/superpowers/specs/2026-10-07-chrome-workspaces-design.md`](docs/superpowers/specs/2026-10-07-chrome-workspaces-design.md)
+
+## Using it
+
+- **Switch:** `⌃⇧←` / `⌃⇧→`, or click a workspace in the list. Every workspace window takes the size of whichever one you last resized or maximized, so switching looks like the content swapping in place.
+- **New workspace:** `devspace ORC-1234` (see below), or `+` in the list. A window that isn't a workspace yet offers to become one when you open the panel in it.
+- **Status:** a red dot means that workspace's `claude` needs input; green means it's working (from [Claude Mission Control](https://github.com/PrecisionWeaver/claude-mission-control)).
+- **Sessions:** closing the panel leaves `claude` running; reopening it reattaches with the scrollback. Quitting `claude` drops to the shell, and `exit` closes the panel. The next time the panel opens, the workspace resumes its last Claude conversation.
+- **Remove:** hover a workspace and click × twice. This ends its terminal session; its Chrome window stays open.
+- **Collapse the list** with `‹` to give the terminal more room.
+
+**Known limitation:** Claude in Chrome chooses its own window, so a workspace's `claude` may open its browser tabs in a different window. Its tools have no way to target a window.
 
 ## How it works
 
 ```
-Chrome window ── side panel (xterm.js) ──ws://127.0.0.1:4178──▶ helper (Node) ──▶ PTY: your shell
-                       ▲
-                       └── token via native messaging (never in a URL or page)
+Chrome window ── side panel (xterm.js) ──ws://127.0.0.1:4178──▶ helper (Node) ──▶ PTY: login shell → claude
+service worker ──/control────────────────────────────────────▶ helper ──▶ ~/.chrome-workspaces/workspaces.json
+devspace, Mission Control ──HTTP + bearer token──────────────▶ helper
 ```
 
-- **Helper** (`helper/`) — a local Node process that owns every shell. The panel is only a view, so closing or reloading it never kills what's running; reopening replays the scrollback.
-- **Extension** (`extension/`) — an MV3 extension whose side panel renders the terminal for its window.
-- **Security** — the helper listens on `127.0.0.1` only and accepts a connection only with this extension's `Origin` *and* a secret token. The extension fetches the token through a Chrome native-messaging host, which reads it from `~/.chrome-workspaces/token` (mode `0600`).
-
-## Requirements
-
-- macOS, Google Chrome
-- Node 22+
+- **Helper** (`helper/`) — a local Node process that owns every shell and the workspace list. The panel is only a view.
+- **Extension** (`extension/`) — the side panel (list + terminal) and a service worker that opens, focuses, and re-pairs windows. After a Chrome restart it re-pairs windows to workspaces by matching their tabs.
+- **Security** — the helper listens on `127.0.0.1` only. WebSockets need this extension's `Origin` *and* a secret token; the HTTP API needs the token as a bearer header and refuses any other `Origin`. The extension fetches the token through a Chrome native-messaging host, which reads it from `~/.chrome-workspaces/token` (mode `0600`).
 
 ## Setup
+
+Requires macOS, Google Chrome, and Node 22+.
 
 ```bash
 npm install
 npm run gen-key          # once: pins the extension ID via a public key in manifest.json
-npm run setup            # writes ~/.chrome-workspaces/ and Chrome's native-host manifest
+npm run setup -- --default-cwd ~/path/to/project   # where `+` workspaces start (default: ~)
 npm run build:extension
-npm run helper           # leave running; CW_SPIKE_CWD=<dir> sets where shells start
+npm run agent:start      # runs the helper now and at every login
 ```
+
+`setup` writes `~/.chrome-workspaces/`, Chrome's native-host manifest, and `~/Library/LaunchAgents/com.chrome-workspaces.helper.plist`.
 
 Then in Chrome:
 
 1. `chrome://settings/appearance` → side panel position → **Left**.
 2. `chrome://extensions` → Developer mode → **Load unpacked** → `extension/dist`. The ID shown should match `~/.chrome-workspaces/config.json`.
-3. Optional: `chrome://extensions/shortcuts` → assign keys to *Open the workspace panel*, *Next workspace*, *Previous workspace*.
-4. Click the toolbar icon to open the terminal for that window.
+3. Optional: `chrome://extensions/shortcuts` → give *Open the workspace panel* a key.
+4. Click the toolbar icon to open the panel in a window.
 
-`exit` closes the panel; reopening it starts a fresh shell. If the panel reports *native messaging host not found*, rerun `npm run setup` and fully restart Chrome.
+If the panel reports *native messaging host not found*, rerun `npm run setup` and fully restart Chrome.
+
+### devspace and Mission Control
+
+With the helper running, `devspace ORC-1234` creates the ticket's workspace (or focuses it if one exists) and Chrome opens its window at the Jira ticket. Open the panel in that window once with the toolbar icon or your shortcut. If the helper isn't reachable, `devspace` uses the old iTerm + Chrome flow; `devspace --classic` forces that.
+
+Mission Control's jump button focuses a workspace's Chrome window for sessions running in Chrome Workspaces, and uses iTerm for everything else.
+
+## Helper commands
+
+| Command | |
+|---|---|
+| `npm run agent:start` | Start the helper and enable it at login |
+| `npm run agent:restart` | Restart after changing helper code (**ends every open shell**) |
+| `npm run agent:stop` | Stop it and disable it at login |
+| `npm run agent:status` | Show whether it's running |
+| `npm run helper` | Run it in the foreground instead (stop the agent first) |
+
+Logs go to `~/.chrome-workspaces/helper.log`.
 
 ## Development
 
@@ -49,13 +88,13 @@ npm test            # vitest
 npm run typecheck
 ```
 
-After changing extension code, run `npm run build:extension` and click reload on the extension in `chrome://extensions`. After changing helper code, restart `npm run helper` (this ends every open shell).
+After changing extension code, run `npm run build:extension` and click reload on the extension in `chrome://extensions`. `CW_PORT` and `CW_DATA_DIR` run a second helper next to the real one for testing.
 
 | Path | What |
 |---|---|
-| `shared/protocol.ts` | Message types and constants shared by helper and extension |
-| `helper/src/` | Sessions, scrollback, auth, WebSocket server, native-messaging host |
-| `extension/src/` | Service worker and side panel |
+| `shared/` | Protocol types and window re-pairing, shared by helper and extension |
+| `helper/src/` | Workspace store, sessions, launch command, Mission Control status, HTTP API, control channel |
+| `extension/src/` | Service worker, side panel, helper connection, window handling |
 | `extension/icons/` | Icon sources (SVG); PNGs are rendered by the build |
 | `scripts/` | Key generation, local setup, extension build |
-| `docs/` | Design spec and implementation plans |
+| `docs/` | Design spec, plans, spike results |
