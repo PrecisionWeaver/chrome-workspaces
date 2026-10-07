@@ -1,9 +1,9 @@
 import { timingSafeEqual } from 'node:crypto';
-import { statSync } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { isAbsolute } from 'node:path';
 import type { WorkspaceStatus } from '../../shared/protocol';
 import type { AuthPolicy } from './auth';
+import { isDirectory } from './config';
 import type { ControlHub } from './control';
 import type { SessionManager } from './session';
 import type { WorkspaceStore } from './workspace-store';
@@ -114,14 +114,6 @@ function optionalString(value: unknown, field: string, max: number): string | nu
   if (value === undefined || value === null || value === '') return null;
   if (typeof value !== 'string' || value.length > max) throw new HttpError(400, `${field} must be a string of at most ${max} characters`);
   return value;
-}
-
-function isDirectory(path: string): boolean {
-  try {
-    return statSync(path).isDirectory();
-  } catch {
-    return false;
-  }
 }
 
 function readJson(req: IncomingMessage): Promise<unknown> {

@@ -19,9 +19,9 @@ if (requestedCwd !== undefined && !(existsSync(requestedCwd) && statSync(request
 
 mkdirSync(DATA_DIR, { recursive: true, mode: 0o700 });
 const configFile = join(DATA_DIR, 'config.json');
-const existing = existsSync(configFile) ? (JSON.parse(readFileSync(configFile, 'utf8')) as { defaultCwd?: string }) : {};
+const existing = existsSync(configFile) ? (JSON.parse(readFileSync(configFile, 'utf8')) as Record<string, unknown> & { defaultCwd?: string }) : {};
 const defaultCwd = requestedCwd ?? existing.defaultCwd ?? homedir();
-writeFileSync(configFile, `${JSON.stringify({ extensionId, defaultCwd }, null, 2)}\n`);
+writeFileSync(configFile, `${JSON.stringify({ ...existing, extensionId, defaultCwd }, null, 2)}\n`);
 
 // Chrome launches the host with an unknown cwd and a minimal PATH, so pin both.
 const wrapper = join(DATA_DIR, 'native-host.sh');
