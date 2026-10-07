@@ -1,39 +1,113 @@
+import { matchWindows, workspaceOrder } from '../../shared/pairing';
+import type { ControlToClient, Workspace } from '../../shared/protocol';
+import { connectControl } from './helper-client';
+import { openWindow, recordSharedSize, switchTo } from './windows';
+
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(console.error);
 
-chrome.commands.onCommand.addListener((command) => {
-  // Lets the panel show which shortcut fired (spike risk 3). No open panel is fine.
-  chrome.runtime.sendMessage({ type: 'command', command }).catch(() => {});
-  if (command === 'next-workspace') void cycleWindows(1);
-  if (command === 'prev-workspace') void cycleWindows(-1);
+let workspaces: Workspace[] = [];
+// `open` can arrive before the `state` that lists the new workspace; those wait for it.
+const pendingOpens = new Set<string>();
+
+// chrome.storage.session is wiped when the browser restarts, which is when stored window ids go
+// stale (and may be reused by unrelated windows). The first state after that drops every pairing
+// so re-pairing by tab URLs starts clean.
+const freshBrowser = chrome.storage.session.get('started').then(({ started }) => {
+  if (started) return false;
+  void chrome.storage.session.set({ started: true });
+  return true;
 });
+let staleCleared = false;
 
-type Bounds = Pick<chrome.windows.Window, 'left' | 'top' | 'width' | 'height'>;
-type SharedSize = { maximized: true } | Bounds;
+const control = connectControl(handle);
+const send = control.send.bind(control);
 
-// Whichever window the user last moved or resized sets the size every workspace shares.
-// Stored rather than held in memory because the service worker can be stopped at any time.
-chrome.windows.onBoundsChanged.addListener((window) => {
-  if (window.type !== 'normal') return;
-  let sharedSize: SharedSize;
-  if (window.state === 'maximized') sharedSize = { maximized: true };
-  else if (window.state === 'normal') sharedSize = { left: window.left, top: window.top, width: window.width, height: window.height };
-  else return;
-  void chrome.storage.local.set({ sharedSize });
-});
-
-// Spike only: every normal window counts as a workspace, ordered by id.
-// The next plan replaces this with the workspace list.
-async function cycleWindows(step: 1 | -1): Promise<void> {
-  const windows = (await chrome.windows.getAll({ windowTypes: ['normal'] })).sort((a, b) => (a.id ?? 0) - (b.id ?? 0));
-  const current = windows.findIndex((w) => w.focused);
-  if (windows.length < 2 || current === -1) return;
-
-  const from = windows[current];
-  const to = windows[(current + step + windows.length) % windows.length];
-  if (to.id === undefined) return;
-
-  const { sharedSize } = (await chrome.storage.local.get('sharedSize')) as { sharedSize?: SharedSize };
-  const size = sharedSize ?? { left: from.left, top: from.top, width: from.width, height: from.height };
-  if ('maximized' in size) await chrome.windows.update(to.id, { focused: true, state: 'maximized' });
-  else await chrome.windows.update(to.id, { focused: true, state: 'normal', ...size });
+function find(id: string): Workspace | undefined {
+  return workspaces.find((ws) => ws.id === id);
 }
+
+function handle(message: ControlToClient): void {
+  switch (message.type) {
+    case 'state':
+      workspaces = message.workspaces;
+      void clearStalePairings();
+      for (const id of pendingOpens) {
+        const workspace = find(id);
+        if (!workspace) continue;
+        pendingOpens.delete(id);
+        void openWindow(workspace, send);
+      }
+      void repair();
+      break;
+    case 'open': {
+      const workspace = find(message.id);
+      if (workspace) void openWindow(workspace, send);
+      else pendingOpens.add(message.id);
+      break;
+    }
+    case 'focus': {
+      const workspace = find(message.id);
+      if (workspace) void switchTo(workspace, send);
+      break;
+    }
+  }
+}
+
+async function clearStalePairings(): Promise<void> {
+  if (staleCleared || !(await freshBrowser)) return;
+  staleCleared = true;
+  for (const ws of workspaces) if (ws.windowId !== null) send({ type: 'unpair', windowId: ws.windowId });
+}
+
+/** After a Chrome restart window ids change; re-pair workspaces with the windows holding their tabs. */
+async function repair(): Promise<void> {
+  const windows = await chrome.windows.getAll({ populate: true, windowTypes: ['normal'] });
+  const open = windows.flatMap((w) => (w.id === undefined ? [] : [{ id: w.id, urls: webUrls(w.tabs ?? []) }]));
+  for (const { workspaceId, windowId } of matchWindows(workspaces, open)) send({ type: 'pair', id: workspaceId, windowId });
+}
+
+function webUrls(tabs: chrome.tabs.Tab[]): string[] {
+  return tabs.flatMap((tab) => (tab.url && /^https?:/.test(tab.url) ? [tab.url] : []));
+}
+
+chrome.commands.onCommand.addListener((command) => {
+  if (command === 'next-workspace') void cycle(1);
+  if (command === 'prev-workspace') void cycle(-1);
+});
+
+async function cycle(step: 1 | -1): Promise<void> {
+  const ordered = workspaceOrder(workspaces);
+  if (ordered.length === 0) return;
+  const focused = await chrome.windows.getLastFocused();
+  const current = ordered.findIndex((ws) => ws.windowId === focused.id);
+  const next = current === -1 ? ordered[0] : ordered[(current + step + ordered.length) % ordered.length];
+  if (next.id !== ordered[current]?.id) await switchTo(next, send);
+}
+
+// Remember each workspace window's tabs so it can be re-paired after Chrome restarts.
+const tabTimers = new Map<number, ReturnType<typeof setTimeout>>();
+
+function scheduleTabs(windowId: number): void {
+  clearTimeout(tabTimers.get(windowId));
+  tabTimers.set(
+    windowId,
+    setTimeout(() => {
+      tabTimers.delete(windowId);
+      if (!workspaces.some((ws) => ws.windowId === windowId)) return;
+      void chrome.tabs.query({ windowId }).then((tabs) => send({ type: 'tabs', windowId, urls: webUrls(tabs) }));
+    }, 1000),
+  );
+}
+
+chrome.tabs.onCreated.addListener((tab) => scheduleTabs(tab.windowId));
+chrome.tabs.onUpdated.addListener((_id, change, tab) => change.url && scheduleTabs(tab.windowId));
+chrome.tabs.onRemoved.addListener((_id, info) => !info.isWindowClosing && scheduleTabs(info.windowId));
+chrome.tabs.onAttached.addListener((_id, info) => scheduleTabs(info.newWindowId));
+chrome.tabs.onDetached.addListener((_id, info) => scheduleTabs(info.oldWindowId));
+
+chrome.windows.onRemoved.addListener((windowId) => send({ type: 'unpair', windowId }));
+chrome.windows.onBoundsChanged.addListener(recordSharedSize);
+
+// Wakes the worker if Chrome stopped it while the helper was unreachable; starting reconnects.
+chrome.alarms.create('wake', { periodInMinutes: 1 });
+chrome.alarms.onAlarm.addListener(() => {});
