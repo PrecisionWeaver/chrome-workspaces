@@ -45,6 +45,26 @@ describe('Session', () => {
     expect(output).not.toContain('after');
   });
 
+  it('does not leak the launching Claude session into the shell', async () => {
+    process.env.CLAUDECODE = '1';
+    process.env.CLAUDE_CODE_CHILD_SESSION = 'parent';
+    sessions = new SessionManager(10_000);
+    const session = sessions.create({
+      id: 'env',
+      command: '/bin/sh',
+      args: ['-c', 'echo "[$CLAUDECODE][$CLAUDE_CODE_CHILD_SESSION][$KEEP_ME]"'],
+      cwd: tmpdir(),
+      env: { KEEP_ME: 'kept' },
+    });
+    await waitFor(() => session.exited);
+    delete process.env.CLAUDECODE;
+    delete process.env.CLAUDE_CODE_CHILD_SESSION;
+
+    let output = '';
+    session.attach((data) => (output += data), () => {});
+    expect(output).toContain('[][][kept]');
+  });
+
   it('refuses a duplicate session id', () => {
     sessions = new SessionManager(10_000);
     sessions.create({ id: 'dup', command: '/bin/cat', args: [], cwd: tmpdir() });
