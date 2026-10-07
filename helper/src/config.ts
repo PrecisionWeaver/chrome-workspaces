@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -12,10 +12,33 @@ export interface HelperConfig {
   extensionId: string;
   /** Where new workspaces start when no directory is given. */
   defaultCwd: string;
+  /** The Obsidian note holding reusable prompts. */
+  promptsFile: string;
+  /** `owner/name` to the directory PR workspaces for that repo start in. */
+  repoDirs: Record<string, string>;
 }
+
+const DEFAULT_PROMPTS_FILE = '~/Documents/Websites/obsidian-vault/Patterns/Most Used Prompts.md';
 
 export function loadConfig(): HelperConfig {
   const raw = JSON.parse(readFileSync(join(DATA_DIR, 'config.json'), 'utf8')) as Partial<HelperConfig>;
   if (!raw.extensionId) throw new Error(`${join(DATA_DIR, 'config.json')} has no extensionId; run npm run setup`);
-  return { extensionId: raw.extensionId, defaultCwd: raw.defaultCwd ?? homedir() };
+  return {
+    extensionId: raw.extensionId,
+    defaultCwd: raw.defaultCwd ?? homedir(),
+    promptsFile: expandHome(raw.promptsFile ?? DEFAULT_PROMPTS_FILE),
+    repoDirs: Object.fromEntries(Object.entries(raw.repoDirs ?? {}).map(([repo, dir]) => [repo, expandHome(dir)])),
+  };
+}
+
+function expandHome(path: string): string {
+  return path.startsWith('~/') ? join(homedir(), path.slice(2)) : path;
+}
+
+export function isDirectory(path: string): boolean {
+  try {
+    return statSync(path).isDirectory();
+  } catch {
+    return false;
+  }
 }
