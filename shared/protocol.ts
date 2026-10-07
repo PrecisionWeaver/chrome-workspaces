@@ -65,16 +65,21 @@ export interface ReviewsState {
 }
 
 export type ControlToClient =
-  | { type: 'state'; workspaces: Workspace[]; statuses: Record<string, WorkspaceStatus> }
+  | { type: 'state'; workspaces: Workspace[]; statuses: Record<string, WorkspaceStatus>; reviews: ReviewsState }
   | { type: 'open'; id: string }
   | { type: 'focus'; id: string }
   /** The workspace's claude used Claude in Chrome at `at` (epoch ms). */
-  | { type: 'browser'; id: string; at: number };
+  | { type: 'browser'; id: string; at: number }
+  /** Reply to `listPrompts`, sent only to the client that asked. */
+  | { type: 'prompts'; prompts: Prompt[]; error: string | null };
 
 export type ControlToHelper =
   | { type: 'pair'; id: string; windowId: number }
   | { type: 'unpair'; windowId: number }
   | { type: 'tabs'; windowId: number; urls: string[] }
-  | { type: 'create'; name: string; windowId: number | null }
+  /** With `pr`, focuses the PR's existing workspace instead of creating another. */
+  | { type: 'create'; name: string; windowId: number | null; pr?: string; prompt?: string }
   | { type: 'remove'; id: string }
-  | { type: 'rename'; id: string; name: string };
+  | { type: 'rename'; id: string; name: string }
+  | { type: 'listPrompts' }
+  | { type: 'refreshReviews' };
