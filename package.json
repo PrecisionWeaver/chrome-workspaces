@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "postinstall": "chmod +x node_modules/node-pty/prebuilds/darwin-*/spawn-helper",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "helper": "tsx helper/src/main.ts",
