@@ -1,8 +1,9 @@
 import { FitAddon } from '@xterm/addon-fit';
 import { Terminal } from '@xterm/xterm';
 import { similarity, workspaceOrder } from '../../shared/pairing';
-import type { ClientMessage, ServerMessage, Workspace, WorkspaceStatus } from '../../shared/protocol';
+import type { ClientMessage, ReviewsState, ServerMessage, Workspace, WorkspaceStatus } from '../../shared/protocol';
 import { connectControl, getHelper, openSocket } from './helper-client';
+import { createLauncher } from './launcher';
 import { switchTo } from './windows';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -11,6 +12,8 @@ const listEl = $<HTMLUListElement>('workspaces');
 const newButton = $<HTMLButtonElement>('new');
 const newForm = $<HTMLFormElement>('new-form');
 const newName = $<HTMLInputElement>('new-name');
+const newMenu = $<HTMLDivElement>('new-menu');
+const newHere = $<HTMLInputElement>('new-here');
 const noticeEl = $<HTMLDivElement>('notice');
 const pickerEl = $<HTMLElement>('picker');
 const pickerOptions = $<HTMLUListElement>('picker-options');
@@ -26,17 +29,22 @@ term.open(terminalEl);
 let myWindowId: number | undefined;
 let workspaces: Workspace[] = [];
 let statuses: Record<string, WorkspaceStatus> = {};
+let reviews: ReviewsState = { items: [], error: null, fetchedAt: null };
 
 const control = connectControl(
   (message) => {
+    if (message.type === 'prompts') launcher.setPrompts(message.prompts, message.error);
+    if (message.type === 'prDetails') launcher.setPrDetails(message.url, message.details, message.error);
     if (message.type !== 'state') return;
     workspaces = workspaceOrder(message.workspaces);
     statuses = message.statuses;
+    reviews = message.reviews;
     render();
   },
   (connected) => showNotice(connected ? null : 'Helper not running. Start it with: npm run agent:start'),
 );
 const send = control.send.bind(control);
+const launcher = createLauncher({ send, onToggle: render, openWorkspace, here: () => ({ windowId: myWindowId, workspace: current() }) });
 
 function current(): Workspace | undefined {
   return workspaces.find((ws) => ws.windowId === myWindowId);
@@ -51,13 +59,14 @@ function showNotice(text: string | null): void {
 
 function render(): void {
   renderList();
+  launcher.renderReviews(reviews, workspaces);
   const workspace = current();
-  pickerEl.hidden = workspace !== undefined;
-  terminalEl.hidden = workspace === undefined;
+  pickerEl.hidden = launcher.isOpen || workspace !== undefined;
+  terminalEl.hidden = launcher.isOpen || workspace === undefined;
   if (workspace) attach(workspace);
   else {
     detach();
-    void renderPicker();
+    if (!launcher.isOpen) void renderPicker();
   }
 }
 
@@ -107,14 +116,18 @@ function renderList(): void {
 
       item.append(badge, name, remove);
       item.addEventListener('click', () => {
-        if (ws.id === here?.id) return;
-        // Opening a panel needs a user gesture, so do it before anything awaits.
-        if (ws.windowId !== null) chrome.sidePanel.open({ windowId: ws.windowId }).catch(() => {});
-        void switchTo(ws, send);
+        if (ws.id !== here?.id) openWorkspace(ws);
+        else if (launcher.isOpen) launcher.close();
       });
       return item;
     }),
   );
+}
+
+function openWorkspace(ws: Workspace): void {
+  // Opening a panel needs a user gesture, so do it before anything awaits.
+  if (ws.windowId !== null) chrome.sidePanel.open({ windowId: ws.windowId }).catch(() => {});
+  void switchTo(ws, send);
 }
 
 function startRename(ws: Workspace, nameEl: HTMLElement): void {
@@ -146,19 +159,40 @@ function startRename(ws: Workspace, nameEl: HTMLElement): void {
 }
 
 newButton.addEventListener('click', () => {
-  newForm.hidden = false;
-  newName.focus();
+  newMenu.hidden = !newMenu.hidden;
 });
 
-newName.addEventListener('blur', () => {
+$<HTMLButtonElement>('new-blank').addEventListener('click', () => {
+  newMenu.hidden = true;
+  newForm.hidden = false;
+  newName.focus();
+  void chrome.storage.local.get('useThisWindow').then(({ useThisWindow }) => {
+    newHere.checked = useThisWindow === true;
+  });
+});
+
+$<HTMLButtonElement>('new-prompt').addEventListener('click', () => {
+  newMenu.hidden = true;
+  launcher.show(null);
+});
+
+// Closes when focus leaves the form, so its checkbox can be clicked without dismissing it.
+newForm.addEventListener('focusout', (event) => {
+  if (newForm.contains(event.relatedTarget as Node | null)) return;
   newForm.hidden = true;
   newName.value = '';
+});
+
+newName.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') newName.blur();
 });
 
 newForm.addEventListener('submit', (event) => {
   event.preventDefault();
   const name = newName.value.trim();
-  if (name) send({ type: 'create', name, windowId: null });
+  const useHere = newHere.checked && myWindowId !== undefined;
+  void chrome.storage.local.set({ useThisWindow: newHere.checked });
+  if (name) send({ type: 'create', name, windowId: useHere ? (myWindowId ?? null) : null });
   newName.blur();
 });
 
@@ -168,8 +202,35 @@ $<HTMLButtonElement>('collapse').addEventListener('click', () => {
   fitTerminal();
 });
 
-void chrome.storage.local.get('listCollapsed').then(({ listCollapsed }) => {
+void chrome.storage.local.get(['listCollapsed', 'listWidth']).then(({ listCollapsed, listWidth }) => {
   document.body.classList.toggle('collapsed', listCollapsed === true);
+  if (typeof listWidth === 'number') setListWidth(listWidth);
+  fitTerminal();
+});
+
+const MIN_LIST_WIDTH = 140;
+const MAX_LIST_WIDTH = 520;
+const resizer = $<HTMLDivElement>('list-resizer');
+
+function setListWidth(width: number): number {
+  const clamped = Math.min(MAX_LIST_WIDTH, Math.max(MIN_LIST_WIDTH, Math.round(width)));
+  document.body.style.setProperty('--list-width', `${clamped}px`);
+  return clamped;
+}
+
+resizer.addEventListener('pointerdown', (event) => {
+  resizer.setPointerCapture(event.pointerId);
+  resizer.classList.add('dragging');
+});
+
+resizer.addEventListener('pointermove', (event) => {
+  if (resizer.hasPointerCapture(event.pointerId)) setListWidth(event.clientX);
+});
+
+resizer.addEventListener('pointerup', (event) => {
+  resizer.releasePointerCapture(event.pointerId);
+  resizer.classList.remove('dragging');
+  void chrome.storage.local.set({ listWidth: setListWidth(event.clientX) });
   fitTerminal();
 });
 

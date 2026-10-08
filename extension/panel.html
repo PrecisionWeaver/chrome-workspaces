@@ -14,9 +14,24 @@
       <ul id="workspaces"></ul>
       <form id="new-form" hidden>
         <input id="new-name" placeholder="Name or ticket" maxlength="80" autocomplete="off" />
+        <label class="here"><input type="checkbox" id="new-here" /> Use this window</label>
       </form>
+      <div id="new-menu" hidden>
+        <button id="new-blank">Blank</button>
+        <button id="new-prompt">From prompt…</button>
+      </div>
       <button id="new" title="New workspace">+</button>
+      <section id="reviews">
+        <div id="reviews-header">
+          <button id="reviews-toggle" title="Collapse review requests">▾</button>
+          <span id="reviews-title">Review requests</span>
+          <button id="reviews-refresh" title="Refresh review requests">↻</button>
+        </div>
+        <div id="reviews-error" hidden></div>
+        <ul id="reviews-list"></ul>
+      </section>
     </nav>
+    <div id="list-resizer" title="Drag to resize"></div>
     <main id="main">
       <div id="notice" hidden></div>
       <section id="picker" hidden>
@@ -24,6 +39,28 @@
         <ul id="picker-options"></ul>
         <form id="picker-new">
           <input id="picker-name" placeholder="New workspace here…" maxlength="80" autocomplete="off" />
+        </form>
+      </section>
+      <section id="launch" hidden>
+        <div id="launch-bar">
+          <button type="button" id="launch-close" title="Back to the terminal (Esc)">← Back</button>
+          <button type="button" id="launch-github" hidden>Open in GitHub ↗</button>
+        </div>
+        <h2 id="launch-title"></h2>
+        <div id="launch-details" hidden></div>
+        <div id="launch-choose">
+          <input id="launch-filter" placeholder="Filter prompts" autocomplete="off" />
+          <div id="launch-error" hidden></div>
+          <div id="launch-prompts"></div>
+        </div>
+        <form id="launch-edit" hidden>
+          <input id="launch-name" placeholder="Workspace name" maxlength="80" autocomplete="off" required />
+          <textarea id="launch-text" maxlength="8000" required></textarea>
+          <div id="launch-actions">
+            <label class="here"><input type="checkbox" id="launch-here" /> <span id="launch-here-label">Use this window</span></label>
+            <button type="button" id="launch-back">Change prompt</button>
+            <button type="submit" id="launch-start">Start</button>
+          </div>
         </form>
       </section>
       <div id="terminal"></div>

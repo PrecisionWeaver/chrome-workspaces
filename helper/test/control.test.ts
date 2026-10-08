@@ -1,5 +1,8 @@
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { ControlToClient } from '../../shared/protocol';
+import type { ControlToClient, ReviewRequest } from '../../shared/protocol';
 import { connectControl, opened, startHarness, type Harness } from './harness';
 import { waitFor } from './wait-for';
 
@@ -18,13 +21,30 @@ function lastState(messages: ControlToClient[]) {
   return states[states.length - 1];
 }
 
+const PR = 'https://github.com/acme/app/pull/482';
+const review: ReviewRequest = {
+  repo: 'acme/app',
+  number: 482,
+  title: 'PROJ-9 - x',
+  url: PR,
+  author: 'drew',
+  isDraft: false,
+  updatedAt: '2026-10-01T00:00:00Z',
+  ticket: 'PROJ-9',
+};
+
 describe('control channel', () => {
   it('sends the current state on connect', async () => {
     const a = h.store.create({ name: 'a', cwd: h.defaultCwd });
     h.statuses[a.id] = 'needs_input';
     const { ws, messages } = connectControl(h);
     await waitFor(() => messages.length > 0);
-    expect(messages[0]).toEqual({ type: 'state', workspaces: [expect.objectContaining({ id: a.id })], statuses: { [a.id]: 'needs_input' } });
+    expect(messages[0]).toEqual({
+      type: 'state',
+      workspaces: [expect.objectContaining({ id: a.id })],
+      statuses: { [a.id]: 'needs_input' },
+      reviews: { items: [], error: null, fetchedAt: null },
+    });
     ws.close();
   });
 
@@ -96,6 +116,93 @@ describe('control channel', () => {
     ws.send(JSON.stringify({ type: 'pair', id: 'ws-unknown0', windowId: 1 }));
     ws.send(JSON.stringify({ type: 'pair', id: a.id, windowId: 3 }));
     await waitFor(() => h.store.get(a.id)?.windowId === 3);
+    ws.close();
+  });
+
+  it('creates a PR workspace in its repo directory with the prompt, and opens it', async () => {
+    const repoDir = mkdtempSync(join(tmpdir(), 'cw-repo-'));
+    h.reviews.push(review);
+    h.repoDirs['acme/app'] = repoDir;
+    const { ws, messages } = connectControl(h);
+    await opened(ws);
+    ws.send(JSON.stringify({ type: 'create', name: 'app#482', windowId: null, pr: PR, prompt: `  /code-review ${PR}  ` }));
+    await waitFor(() => messages.some((m) => m.type === 'open'));
+    expect(h.store.list()[0]).toMatchObject({ name: 'app#482', ticket: 'PROJ-9', cwd: repoDir, url: PR, pr: PR, prompt: `/code-review ${PR}` });
+    ws.close();
+  });
+
+  it('focuses the existing workspace for a PR instead of creating another', async () => {
+    const existing = h.store.create({ name: 'mine', cwd: h.defaultCwd, pr: PR });
+    const { ws, messages } = connectControl(h);
+    await opened(ws);
+    ws.send(JSON.stringify({ type: 'create', name: 'app#482', windowId: null, pr: PR, prompt: 'x' }));
+    await waitFor(() => messages.some((m) => m.type === 'focus' && m.id === existing.id));
+    expect(h.store.list()).toHaveLength(1);
+    ws.close();
+  });
+
+  it('creates a prompt-only workspace in the default directory', async () => {
+    const { ws } = connectControl(h);
+    await opened(ws);
+    ws.send(JSON.stringify({ type: 'create', name: 'triage', windowId: null, prompt: 'Dig into this prod issue' }));
+    await waitFor(() => h.store.list().length === 1);
+    expect(h.store.list()[0]).toMatchObject({ name: 'triage', cwd: h.defaultCwd, pr: null, prompt: 'Dig into this prod issue' });
+    ws.close();
+  });
+
+  it('ignores a create with a non-PR url or an overlong prompt', async () => {
+    const { ws } = connectControl(h);
+    await opened(ws);
+    ws.send(JSON.stringify({ type: 'create', name: 'a', windowId: null, pr: 'https://evil.example/o/r/pull/1' }));
+    ws.send(JSON.stringify({ type: 'create', name: 'b', windowId: null, prompt: 'x'.repeat(8001) }));
+    ws.send(JSON.stringify({ type: 'create', name: 'c', windowId: null }));
+    await waitFor(() => h.store.list().length === 1);
+    expect(h.store.list()[0].name).toBe('c');
+    ws.close();
+  });
+
+  it('answers listPrompts to the asking client only, reporting read errors', async () => {
+    h.prompts.push({ section: 'Reviews', text: '/code-review PR-URL' });
+    const asker = connectControl(h);
+    const other = connectControl(h);
+    await Promise.all([opened(asker.ws), opened(other.ws)]);
+    asker.ws.send(JSON.stringify({ type: 'listPrompts' }));
+    await waitFor(() => asker.messages.some((m) => m.type === 'prompts'));
+    expect(asker.messages.find((m) => m.type === 'prompts')).toEqual({ type: 'prompts', prompts: [{ section: 'Reviews', text: '/code-review PR-URL' }], error: null });
+
+    h.promptsError = 'cannot read /x.md: ENOENT';
+    asker.ws.send(JSON.stringify({ type: 'listPrompts' }));
+    await waitFor(() => asker.messages.filter((m) => m.type === 'prompts').length === 2);
+    expect(asker.messages.filter((m) => m.type === 'prompts')[1]).toEqual({ type: 'prompts', prompts: [], error: 'cannot read /x.md: ENOENT' });
+    expect(other.messages.some((m) => m.type === 'prompts')).toBe(false);
+    asker.ws.close();
+    other.ws.close();
+  });
+
+  it('refreshes review requests on request', async () => {
+    const { ws } = connectControl(h);
+    await opened(ws);
+    ws.send(JSON.stringify({ type: 'refreshReviews' }));
+    await waitFor(() => h.reviewRefreshes === 1);
+    ws.close();
+  });
+
+  it('answers prDetails to the asking client, reporting fetch errors and ignoring non-PR urls', async () => {
+    h.prDetailsJson = JSON.stringify({ number: 482, title: 't', url: PR, author: { login: 'drew' }, headRefName: 'h', baseRefName: 'b', isDraft: false, additions: 1, deletions: 2, changedFiles: 3, reviewDecision: 'APPROVED', mergeable: 'MERGEABLE', createdAt: 'c', updatedAt: 'u', latestReviews: [], reviewRequests: [], statusCheckRollup: [] });
+    const { ws, messages } = connectControl(h);
+    await opened(ws);
+    ws.send(JSON.stringify({ type: 'prDetails', url: 'https://evil.example/o/r/pull/1' }));
+    ws.send(JSON.stringify({ type: 'prDetails', url: PR }));
+    await waitFor(() => messages.some((m) => m.type === 'prDetails'));
+    expect(messages.filter((m) => m.type === 'prDetails')).toEqual([
+      { type: 'prDetails', url: PR, details: expect.objectContaining({ title: 't', reviewDecision: 'APPROVED' }), error: null },
+    ]);
+    expect(h.prDetailsRequests).toEqual([PR]);
+
+    h.prDetailsJson = null;
+    ws.send(JSON.stringify({ type: 'prDetails', url: PR }));
+    await waitFor(() => messages.filter((m) => m.type === 'prDetails').length === 2);
+    expect(messages.filter((m) => m.type === 'prDetails')[1]).toEqual({ type: 'prDetails', url: PR, details: null, error: 'gh failed' });
     ws.close();
   });
 });

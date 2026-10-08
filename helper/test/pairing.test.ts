@@ -3,7 +3,7 @@ import { matchWindows, workspaceOrder } from '../../shared/pairing';
 import type { Workspace } from '../../shared/protocol';
 
 function ws(id: string, lastTabUrls: string[], windowId: number | null = null, createdAt = '2026-01-01T00:00:00Z'): Workspace {
-  return { id, name: id, ticket: null, cwd: '/tmp', url: null, windowId, lastTabUrls, createdAt };
+  return { id, name: id, ticket: null, cwd: '/tmp', url: null, windowId, lastTabUrls, pr: null, prompt: null, createdAt };
 }
 
 describe('matchWindows', () => {

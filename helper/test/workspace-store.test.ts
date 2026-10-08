@@ -95,6 +95,41 @@ describe('WorkspaceStore', () => {
     expect(new WorkspaceStore(file).list()).toEqual([]);
   });
 
+  it('records the PR and prompt a workspace was created with, defaulting to null', () => {
+    const file = tempFile();
+    const store = new WorkspaceStore(file);
+    const a = store.create({ name: 'app#1', cwd: '/tmp', pr: 'https://github.com/o/app/pull/1', prompt: 'review it' });
+    const b = store.create({ name: 'b', cwd: '/tmp' });
+    expect(new WorkspaceStore(file).get(a.id)).toMatchObject({ pr: 'https://github.com/o/app/pull/1', prompt: 'review it' });
+    expect(store.get(b.id)).toMatchObject({ pr: null, prompt: null });
+  });
+
+  it('finds workspaces by PR url', () => {
+    const store = new WorkspaceStore(tempFile());
+    const a = store.create({ name: 'a', cwd: '/tmp', pr: 'https://github.com/o/r/pull/1' });
+    expect(store.findByPr('https://github.com/o/r/pull/1')?.id).toBe(a.id);
+    expect(store.findByPr('https://github.com/o/r/pull/2')).toBeUndefined();
+  });
+
+  it('clears a prompt once, persisting it', () => {
+    const file = tempFile();
+    const store = new WorkspaceStore(file);
+    const a = store.create({ name: 'a', cwd: '/tmp', prompt: 'go' });
+    let changes = 0;
+    store.onChange(() => changes++);
+    store.clearPrompt(a.id);
+    store.clearPrompt(a.id);
+    expect(new WorkspaceStore(file).get(a.id)?.prompt).toBeNull();
+    expect(changes).toBe(1);
+  });
+
+  it('loads workspaces saved before pr and prompt existed', () => {
+    const file = tempFile();
+    const old = { id: 'ws-00000001', name: 'a', ticket: null, cwd: '/tmp', url: null, windowId: null, lastTabUrls: [], createdAt: '2026-01-01T00:00:00Z' };
+    writeFileSync(file, JSON.stringify({ workspaces: [old] }));
+    expect(new WorkspaceStore(file).get('ws-00000001')).toMatchObject({ pr: null, prompt: null });
+  });
+
   it('notifies listeners after each change', () => {
     const store = new WorkspaceStore(tempFile());
     let changes = 0;

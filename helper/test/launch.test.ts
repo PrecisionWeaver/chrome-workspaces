@@ -10,6 +10,8 @@ const workspace: Workspace = {
   url: null,
   windowId: 1,
   lastTabUrls: [],
+  pr: null,
+  prompt: null,
   createdAt: '2026-01-01T00:00:00Z',
 };
 const RESUME = '169128c8-8b10-48e0-993f-a743c8fad9ef';
@@ -34,5 +36,18 @@ describe('launchSpec', () => {
   it('tags the session with its workspace and ticket', () => {
     expect(launchSpec(workspace, { shell: '/bin/zsh', resumeId: null }).env).toEqual({ CW_WORKSPACE_ID: 'ws-0123abcd', DEVSPACE_TICKET: 'PROJ-1' });
     expect(launchSpec({ ...workspace, ticket: null }, { shell: '/bin/zsh', resumeId: null }).env).toEqual({ CW_WORKSPACE_ID: 'ws-0123abcd' });
+  });
+
+  it('sends the prompt as the first message through the environment, never the command', () => {
+    const prompt = `/code-review "it's" $(touch /tmp/pwned) \`id\``;
+    const spec = launchSpec({ ...workspace, prompt }, { shell: '/bin/zsh', resumeId: null });
+    expect(spec.args[3]).toBe(`${start(' "$CW_PROMPT"')}; unset CW_PROMPT; exec /bin/zsh -l -i`);
+    expect(spec.env?.CW_PROMPT).toBe(prompt);
+  });
+
+  it('resumes rather than re-sending the prompt', () => {
+    const spec = launchSpec({ ...workspace, prompt: 'go' }, { shell: '/bin/zsh', resumeId: RESUME });
+    expect(spec.args[3]).toBe(`${start(` --resume ${RESUME}`)}; exec /bin/zsh -l -i`);
+    expect(spec.env).not.toHaveProperty('CW_PROMPT');
   });
 });

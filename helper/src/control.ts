@@ -1,13 +1,26 @@
 import type { WebSocket } from 'ws';
-import type { ControlToClient, ControlToHelper, WorkspaceStatus } from '../../shared/protocol';
+import { MAX_PROMPT_LENGTH, type ControlToClient, type ControlToHelper, type Prompt, type ReviewsState, type WorkspaceStatus } from '../../shared/protocol';
+import { parsePrDetails } from './pr-details';
+import { isPullRequestUrl, prWorkspace } from './pr-workspace';
 import type { SessionManager } from './session';
 import type { WorkspaceStore } from './workspace-store';
+
+export interface ReviewSource {
+  state(): ReviewsState;
+  refresh(): Promise<void>;
+}
 
 export interface ControlHubOptions {
   store: WorkspaceStore;
   sessions: SessionManager;
   defaultCwd: string;
   statuses: () => Record<string, WorkspaceStatus>;
+  reviews: ReviewSource;
+  /** Throws when the prompts file cannot be read. */
+  prompts: () => Prompt[];
+  /** Raw `gh pr view` JSON for a PR url. */
+  prDetails: (url: string) => Promise<string>;
+  repoDirs: Record<string, string>;
 }
 
 /** Keeps every connected extension context (service worker, panels) in sync with the store. */
@@ -32,7 +45,7 @@ export class ControlHub {
       } catch {
         return;
       }
-      if (isControlToHelper(message)) this.handle(message);
+      if (isControlToHelper(message)) this.handle(message, ws);
     });
     this.sendTo(ws, this.state());
   }
@@ -48,10 +61,19 @@ export class ControlHub {
   }
 
   private state(): ControlToClient {
-    return { type: 'state', workspaces: this.options.store.list(), statuses: this.options.statuses() };
+    const { store, statuses, reviews } = this.options;
+    return { type: 'state', workspaces: store.list(), statuses: statuses(), reviews: reviews.state() };
   }
 
-  private handle(message: ControlToHelper): void {
+  private prompts(): ControlToClient {
+    try {
+      return { type: 'prompts', prompts: this.options.prompts(), error: null };
+    } catch (error) {
+      return { type: 'prompts', prompts: [], error: error instanceof Error ? error.message : String(error) };
+    }
+  }
+
+  private handle(message: ControlToHelper, ws: WebSocket): void {
     const { store } = this.options;
     switch (message.type) {
       case 'pair':
@@ -64,7 +86,14 @@ export class ControlHub {
         store.setTabs(message.windowId, message.urls);
         break;
       case 'create': {
-        const workspace = store.create({ name: message.name.trim(), cwd: this.options.defaultCwd });
+        const existing = message.pr ? store.findByPr(message.pr) : undefined;
+        if (existing) {
+          this.send({ type: 'focus', id: existing.id });
+          break;
+        }
+        const { defaultCwd, repoDirs, reviews } = this.options;
+        const base = message.pr ? prWorkspace(message.pr, { reviews: reviews.state().items, repoDirs, defaultCwd }) : { cwd: defaultCwd };
+        const workspace = store.create({ ...base, name: message.name.trim(), prompt: message.prompt?.trim() || null });
         if (message.windowId === null) this.send({ type: 'open', id: workspace.id });
         else store.pairWindow(workspace.id, message.windowId);
         break;
@@ -76,6 +105,23 @@ export class ControlHub {
         this.options.sessions.remove(message.id);
         store.remove(message.id);
         break;
+      case 'listPrompts':
+        this.sendTo(ws, this.prompts());
+        break;
+      case 'refreshReviews':
+        void this.options.reviews.refresh();
+        break;
+      case 'prDetails': {
+        const { url } = message;
+        this.options
+          .prDetails(url)
+          .then(parsePrDetails)
+          .then(
+            (details) => this.sendTo(ws, { type: 'prDetails', url, details, error: null }),
+            (error: unknown) => this.sendTo(ws, { type: 'prDetails', url, details: null, error: error instanceof Error ? error.message : String(error) }),
+          );
+        break;
+      }
     }
   }
 
@@ -107,7 +153,17 @@ function isControlToHelper(value: unknown): value is ControlToHelper {
     case 'rename':
       return typeof m.id === 'string' && isWorkspaceName(m.name);
     case 'create':
-      return isWorkspaceName(m.name) && (m.windowId === null || isWindowId(m.windowId));
+      return (
+        isWorkspaceName(m.name) &&
+        (m.windowId === null || isWindowId(m.windowId)) &&
+        (m.pr === undefined || (typeof m.pr === 'string' && isPullRequestUrl(m.pr))) &&
+        (m.prompt === undefined || (typeof m.prompt === 'string' && m.prompt.length <= MAX_PROMPT_LENGTH))
+      );
+    case 'listPrompts':
+    case 'refreshReviews':
+      return true;
+    case 'prDetails':
+      return typeof m.url === 'string' && isPullRequestUrl(m.url);
     default:
       return false;
   }
