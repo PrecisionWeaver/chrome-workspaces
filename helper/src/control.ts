@@ -2,6 +2,7 @@ import { isAbsolute } from 'node:path';
 import type { WebSocket } from 'ws';
 import { MAX_PROMPT_LENGTH, MAX_TAB_URLS, MODEL_PATTERN, type ControlToClient, type ControlToHelper, type Prompt, type Repo, type ReviewsState, type WorkspaceStatus } from '../../shared/protocol';
 import { isDirectory } from './config';
+import type { GitService } from './git';
 import { parsePrDetails } from './pr-details';
 import { isPullRequestUrl, prWorkspace } from './pr-workspace';
 import type { SessionManager } from './session';
@@ -24,6 +25,7 @@ export interface ControlHubOptions {
   prDetails: (url: string) => Promise<string>;
   repoDirs: Record<string, string>;
   repos: () => Repo[];
+  git: GitService;
 }
 
 /** Keeps every connected extension context (service worker, panels) in sync with the store. */
@@ -130,6 +132,11 @@ export class ControlHub {
       case 'listPrompts':
         this.sendTo(ws, this.prompts());
         break;
+      case 'git':
+      case 'gitCommit':
+      case 'gitDiff':
+        this.handleGit(message, ws);
+        break;
       case 'listRepos':
         this.sendTo(ws, { type: 'repos', repos: this.options.repos() });
         break;
@@ -147,6 +154,37 @@ export class ControlHub {
           );
         break;
       }
+    }
+  }
+
+  /** Answers a git request for a workspace's directory; the reply goes to the asking client only. */
+  private handleGit(message: Extract<ControlToHelper, { type: 'git' | 'gitCommit' | 'gitDiff' }>, ws: WebSocket): void {
+    const { store, git } = this.options;
+    const { id } = message;
+    const text = (error: unknown) => (error instanceof Error ? error.message : String(error));
+    const workspace = store.get(id);
+    const missing = 'unknown workspace';
+    if (message.type === 'git') {
+      if (!workspace) return this.sendTo(ws, { type: 'git', id, state: null, error: missing });
+      git.state(workspace.cwd).then(
+        (state) => this.sendTo(ws, { type: 'git', id, state, error: null }),
+        (error: unknown) => this.sendTo(ws, { type: 'git', id, state: null, error: text(error) }),
+      );
+    } else if (message.type === 'gitCommit') {
+      const { sha } = message;
+      if (!workspace) return this.sendTo(ws, { type: 'gitCommit', id, sha, files: [], error: missing });
+      git.commitFiles(workspace.cwd, sha).then(
+        (files) => this.sendTo(ws, { type: 'gitCommit', id, sha, files, error: null }),
+        (error: unknown) => this.sendTo(ws, { type: 'gitCommit', id, sha, files: [], error: text(error) }),
+      );
+    } else {
+      const { path } = message;
+      const sha = message.sha ?? null;
+      if (!workspace) return this.sendTo(ws, { type: 'gitDiff', id, path, sha, diff: '', truncated: false, error: missing });
+      git.diff(workspace.cwd, path, sha).then(
+        ({ diff, truncated }) => this.sendTo(ws, { type: 'gitDiff', id, path, sha, diff, truncated, error: null }),
+        (error: unknown) => this.sendTo(ws, { type: 'gitDiff', id, path, sha, diff: '', truncated: false, error: text(error) }),
+      );
     }
   }
 
@@ -200,6 +238,18 @@ function isControlToHelper(value: unknown): value is ControlToHelper {
         (m.model === undefined || (typeof m.model === 'string' && MODEL_PATTERN.test(m.model))) &&
         (m.group === undefined || typeof m.group === 'boolean') &&
         (m.urls === undefined || (Array.isArray(m.urls) && m.urls.length <= MAX_TAB_URLS && m.urls.every(isWebUrl)))
+      );
+    case 'git':
+      return typeof m.id === 'string';
+    case 'gitCommit':
+      return typeof m.id === 'string' && typeof m.sha === 'string' && /^[0-9a-f]{7,40}$/.test(m.sha);
+    case 'gitDiff':
+      return (
+        typeof m.id === 'string' &&
+        typeof m.path === 'string' &&
+        m.path.length > 0 &&
+        m.path.length <= 1024 &&
+        (m.sha === undefined || (typeof m.sha === 'string' && /^[0-9a-f]{7,40}$/.test(m.sha)))
       );
     case 'listPrompts':
     case 'listRepos':

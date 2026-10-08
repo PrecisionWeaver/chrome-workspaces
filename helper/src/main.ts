@@ -9,6 +9,7 @@ import { launchSpec } from './launch';
 import { readMcStatus, watchMcStatus, type McWorkspaceStatus } from './mc-status';
 import { GH_PR_DETAILS } from './pr-details';
 import { readPrompts } from './prompts';
+import { createGitService } from './git';
 import { listRepos } from './repos';
 import { GH_REVIEW_REQUESTS, ghWatchedPrs, ReviewsPoller } from './reviews';
 import { startServer } from './server';
@@ -47,7 +48,7 @@ const prompts = () => readPrompts(config.promptsFile);
 const prDetails = async (url: string) =>
   (await execFileAsync(shell, ['-l', '-c', GH_PR_DETAILS], { env: { ...process.env, CW_PR_URL: url }, timeout: 30_000, maxBuffer: 4 * 1024 * 1024 })).stdout;
 
-const control = new ControlHub({ store, sessions, defaultCwd: config.defaultCwd, statuses, reviews, prompts, prDetails, repoDirs: config.repoDirs, repos: () => listRepos(config.repoRoots) });
+const control = new ControlHub({ store, sessions, defaultCwd: config.defaultCwd, statuses, reviews, prompts, prDetails, repoDirs: config.repoDirs, repos: () => listRepos(config.repoRoots), git: createGitService() });
 reviews.onChange(() => control.broadcastState());
 reviews.start(REVIEW_POLL_MS);
 const stopWatching = watchMcStatus(MC_STATE_DIR, () => {

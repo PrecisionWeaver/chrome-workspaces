@@ -13,6 +13,19 @@
       </div>
       <ul id="workspaces"></ul>
       <button id="new" title="New workspace"><span class="plus">+</span><span class="label">New workspace</span></button>
+      <section id="git">
+        <div id="git-header">
+          <button id="git-toggle" title="Collapse source control">▾</button>
+          <span id="git-title">Source control</span>
+          <button id="git-refresh" title="Refresh">↻</button>
+        </div>
+        <div id="git-body">
+          <div id="git-branch"></div>
+          <div id="git-error" hidden></div>
+          <div id="git-changes"></div>
+          <div id="git-commits"></div>
+        </div>
+      </section>
       <section id="reviews">
         <div id="reviews-header">
           <button id="reviews-toggle" title="Collapse review requests">▾</button>
@@ -93,6 +106,17 @@
             <button type="submit" id="create-submit">Create</button>
           </div>
         </form>
+      </section>
+      <section id="diff" hidden>
+        <div id="diff-bar">
+          <button type="button" id="diff-close" title="Back to the terminal (Esc)">← Back</button>
+        </div>
+        <h2 id="diff-title"></h2>
+        <div id="diff-meta"></div>
+        <div id="diff-layout">
+          <div id="diff-files" hidden></div>
+          <div id="diff-body"></div>
+        </div>
       </section>
       <div id="terminal"></div>
     </main>

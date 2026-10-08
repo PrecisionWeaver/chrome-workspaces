@@ -1,4 +1,5 @@
-import { mkdtempSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -231,6 +232,42 @@ describe('control channel', () => {
     await waitFor(() => h.store.list().length === 1);
     expect(h.store.list()[0].cwd).toBe(repoDir);
     ws.close();
+  });
+
+  it('answers git requests for a workspace\'s directory, to the asking client only', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'cw-ctl-git-'));
+    const git = (...args: string[]) => execFileSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.com', ...args], { cwd: dir });
+    git('init', '-q', '-b', 'main');
+    writeFileSync(join(dir, 'f.txt'), 'x\n');
+    git('add', '.');
+    git('commit', '-qm', 'init');
+    writeFileSync(join(dir, 'f.txt'), 'x\ny\n');
+    const workspace = h.store.create({ name: 'g', cwd: dir });
+    const plain = h.store.create({ name: 'plain', cwd: mkdtempSync(join(tmpdir(), 'cw-ctl-nogit-')) });
+
+    const asker = connectControl(h);
+    const other = connectControl(h);
+    await Promise.all([opened(asker.ws), opened(other.ws)]);
+    asker.ws.send(JSON.stringify({ type: 'git', id: workspace.id }));
+    asker.ws.send(JSON.stringify({ type: 'git', id: plain.id }));
+    asker.ws.send(JSON.stringify({ type: 'git', id: 'ws-00000000' }));
+    asker.ws.send(JSON.stringify({ type: 'gitDiff', id: workspace.id, path: 'f.txt' }));
+    asker.ws.send(JSON.stringify({ type: 'gitDiff', id: workspace.id, path: '../x' }));
+    asker.ws.send(JSON.stringify({ type: 'gitCommit', id: workspace.id, sha: '--output=x' }));
+    await waitFor(() => asker.messages.filter((m) => m.type === 'git' || m.type === 'gitDiff').length === 5);
+
+    const replies = asker.messages.filter((m) => m.type === 'git' || m.type === 'gitDiff');
+    const stateReply = replies.find((m) => m.type === 'git' && m.id === workspace.id);
+    expect(stateReply).toMatchObject({ state: { branch: 'main', files: [{ path: 'f.txt', worktree: 'M' }], commits: [{ subject: 'init' }] }, error: null });
+    expect(replies.find((m) => m.type === 'git' && m.id === plain.id)).toMatchObject({ state: null, error: expect.any(String) });
+    expect(replies.find((m) => m.type === 'git' && m.id === 'ws-00000000')).toMatchObject({ state: null, error: 'unknown workspace' });
+    expect(replies.find((m) => m.type === 'gitDiff' && m.path === 'f.txt')).toMatchObject({ diff: expect.stringContaining('+y'), error: null });
+    expect(replies.find((m) => m.type === 'gitDiff' && m.path === '../x')).toMatchObject({ diff: '', error: expect.stringContaining('path') });
+    // A malformed commit id is dropped before it reaches git.
+    expect(asker.messages.some((m) => m.type === 'gitCommit')).toBe(false);
+    expect(other.messages.some((m) => m.type === 'git' || m.type === 'gitDiff')).toBe(false);
+    asker.ws.close();
+    other.ws.close();
   });
 
   it('answers listRepos to the asking client only', async () => {

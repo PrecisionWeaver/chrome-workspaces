@@ -5,6 +5,7 @@ import WebSocket from 'ws';
 import { PROTOCOL, TOKEN_PROTOCOL_PREFIX, type ControlToClient, type Prompt, type Repo, type ReviewRequest, type WorkspaceStatus } from '../../shared/protocol';
 import { createApi } from '../src/api';
 import { ControlHub } from '../src/control';
+import { createGitService } from '../src/git';
 import { startServer, type RunningServer } from '../src/server';
 import { SessionManager } from '../src/session';
 import { WorkspaceStore } from '../src/workspace-store';
@@ -66,7 +67,7 @@ export async function startHarness(): Promise<Harness> {
     return fakes.prompts;
   };
   const statuses = () => fakes.statuses;
-  const control = new ControlHub({ store, sessions, defaultCwd, statuses, reviews, prompts, prDetails, repoDirs: fakes.repoDirs, repos: () => fakes.repos });
+  const control = new ControlHub({ store, sessions, defaultCwd, statuses, reviews, prompts, prDetails, repoDirs: fakes.repoDirs, repos: () => fakes.repos, git: createGitService() });
   const auth = { token: TOKEN, allowedOrigins: [ORIGIN] };
   const server = await startServer({
     host: '127.0.0.1',

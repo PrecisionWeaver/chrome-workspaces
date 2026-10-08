@@ -53,6 +53,46 @@ export interface Prompt {
   text: string;
 }
 
+/** One changed path in a working tree, as `git status` reports it. */
+export interface GitFile {
+  path: string;
+  /** Status letter in the index (staged), or `?` for untracked; a space when unchanged. */
+  index: string;
+  /** Status letter in the working tree; a space when unchanged. */
+  worktree: string;
+  /** Where a renamed or copied file came from. */
+  from?: string;
+}
+
+export interface GitCommit {
+  sha: string;
+  short: string;
+  author: string;
+  /** ISO 8601. */
+  date: string;
+  /** Branches and tags pointing at it, e.g. `HEAD -> main`, `origin/main`, `tag: v1`. */
+  refs: string[];
+  parents: string[];
+  subject: string;
+}
+
+export interface GitState {
+  /** Null on a detached HEAD. */
+  branch: string | null;
+  upstream: string | null;
+  ahead: number;
+  behind: number;
+  files: GitFile[];
+  commits: GitCommit[];
+}
+
+export interface GitCommitFile {
+  /** `A`, `M`, `D`, `R`, `C` or `T`. */
+  status: string;
+  path: string;
+  from?: string;
+}
+
 /** A git repo that a new workspace can start in. */
 export interface Repo {
   name: string;
@@ -132,6 +172,10 @@ export type ControlToClient =
   | { type: 'prompts'; prompts: Prompt[]; error: string | null }
   /** Reply to `listRepos`, sent only to the client that asked. */
   | { type: 'repos'; repos: Repo[] }
+  /** Reply to `git`, to the client that asked; `state` is null when the workspace is not in a git repository. */
+  | { type: 'git'; id: string; state: GitState | null; error: string | null }
+  | { type: 'gitCommit'; id: string; sha: string; files: GitCommitFile[]; error: string | null }
+  | { type: 'gitDiff'; id: string; path: string; sha: string | null; diff: string; truncated: boolean; error: string | null }
   /** Reply to `prDetails`, sent only to the client that asked. */
   | { type: 'prDetails'; url: string; details: PrDetails | null; error: string | null };
 
@@ -149,5 +193,10 @@ export type ControlToHelper =
   | { type: 'move'; id: string; index: number }
   | { type: 'listPrompts' }
   | { type: 'listRepos' }
+  /** Status and recent history of the workspace's repository. */
+  | { type: 'git'; id: string }
+  | { type: 'gitCommit'; id: string; sha: string }
+  /** A file's diff against HEAD, or its change in commit `sha`. */
+  | { type: 'gitDiff'; id: string; path: string; sha?: string }
   | { type: 'refreshReviews' }
   | { type: 'prDetails'; url: string };

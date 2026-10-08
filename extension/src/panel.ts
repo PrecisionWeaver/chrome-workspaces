@@ -4,6 +4,7 @@ import { similarity } from '../../shared/pairing';
 import type { ClientMessage, ReviewsState, ServerMessage, Workspace, WorkspaceStatus } from '../../shared/protocol';
 import { connectControl, getHelper, openSocket } from './helper-client';
 import { createCreateView } from './create-view';
+import { createGitView } from './git-view';
 import { createLauncher } from './launcher';
 import { loadSelection, onSelectionChange, select, shownIn, type Selection } from './selection';
 import { showOnly, switchTo } from './windows';
@@ -33,11 +34,18 @@ const control = connectControl(
   (message) => {
     if (message.type === 'prompts') creator.setPrompts(message.prompts, message.error);
     if (message.type === 'repos') creator.setRepos(message.repos);
+    if (message.type === 'git') git.setState(message);
+    if (message.type === 'gitCommit') git.setCommit(message);
+    if (message.type === 'gitDiff') git.setDiff(message);
     if (message.type === 'prDetails') creator.setPrDetails(message.url, message.details, message.error);
     if (message.type !== 'state') return;
     selectJoiners(message.workspaces);
+    const shown = current();
+    const wasStatus = shown ? statuses[shown.id] : undefined;
     workspaces = message.workspaces;
     statuses = message.statuses;
+    // Claude starting or finishing work means files likely changed.
+    if (shown && statuses[shown.id] !== wasStatus) git.refresh();
     reviews = message.reviews;
     render();
   },
@@ -55,8 +63,19 @@ const launcher = createLauncher({
 });
 const creator = createCreateView({
   send,
-  onToggle: render,
+  onToggle() {
+    if (creator.isOpen) git.close();
+    render();
+  },
   here,
+});
+const git = createGitView({
+  send,
+  status: (id) => statuses[id] ?? null,
+  onToggle() {
+    if (git.isOpen) creator.close();
+    render();
+  },
 });
 
 // Which workspace this window shows when it holds several; chosen from the list, or by the tab being worked in.
@@ -123,7 +142,9 @@ function render(): void {
   renderList();
   launcher.renderReviews(reviews, workspaces);
   const workspace = current();
-  const overlay = creator.isOpen;
+  git.setWorkspace(workspace);
+  git.renderStatus();
+  const overlay = creator.isOpen || git.isOpen;
   pickerEl.hidden = overlay || workspace !== undefined;
   terminalEl.hidden = overlay || workspace === undefined;
   if (workspace) attach(workspace);
@@ -185,6 +206,7 @@ function renderList(): void {
         if (ws.id !== here?.id) openWorkspace(ws);
         else {
           creator.close();
+          git.close();
         }
       });
       addDragHandlers(item, ws);
