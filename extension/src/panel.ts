@@ -13,6 +13,7 @@ const newButton = $<HTMLButtonElement>('new');
 const newForm = $<HTMLFormElement>('new-form');
 const newName = $<HTMLInputElement>('new-name');
 const newMenu = $<HTMLDivElement>('new-menu');
+const newHere = $<HTMLInputElement>('new-here');
 const noticeEl = $<HTMLDivElement>('notice');
 const pickerEl = $<HTMLElement>('picker');
 const pickerOptions = $<HTMLUListElement>('picker-options');
@@ -43,7 +44,7 @@ const control = connectControl(
   (connected) => showNotice(connected ? null : 'Helper not running. Start it with: npm run agent:start'),
 );
 const send = control.send.bind(control);
-const launcher = createLauncher({ send, onToggle: render, openWorkspace });
+const launcher = createLauncher({ send, onToggle: render, openWorkspace, here: () => ({ windowId: myWindowId, workspace: current() }) });
 
 function current(): Workspace | undefined {
   return workspaces.find((ws) => ws.windowId === myWindowId);
@@ -165,6 +166,9 @@ $<HTMLButtonElement>('new-blank').addEventListener('click', () => {
   newMenu.hidden = true;
   newForm.hidden = false;
   newName.focus();
+  void chrome.storage.local.get('useThisWindow').then(({ useThisWindow }) => {
+    newHere.checked = useThisWindow === true;
+  });
 });
 
 $<HTMLButtonElement>('new-prompt').addEventListener('click', () => {
@@ -172,15 +176,23 @@ $<HTMLButtonElement>('new-prompt').addEventListener('click', () => {
   launcher.show(null);
 });
 
-newName.addEventListener('blur', () => {
+// Closes when focus leaves the form, so its checkbox can be clicked without dismissing it.
+newForm.addEventListener('focusout', (event) => {
+  if (newForm.contains(event.relatedTarget as Node | null)) return;
   newForm.hidden = true;
   newName.value = '';
+});
+
+newName.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') newName.blur();
 });
 
 newForm.addEventListener('submit', (event) => {
   event.preventDefault();
   const name = newName.value.trim();
-  if (name) send({ type: 'create', name, windowId: null });
+  const useHere = newHere.checked && myWindowId !== undefined;
+  void chrome.storage.local.set({ useThisWindow: newHere.checked });
+  if (name) send({ type: 'create', name, windowId: useHere ? (myWindowId ?? null) : null });
   newName.blur();
 });
 

@@ -14,6 +14,7 @@
       <ul id="workspaces"></ul>
       <form id="new-form" hidden>
         <input id="new-name" placeholder="Name or ticket" maxlength="80" autocomplete="off" />
+        <label class="here"><input type="checkbox" id="new-here" /> Use this window</label>
       </form>
       <div id="new-menu" hidden>
         <button id="new-blank">Blank</button>
@@ -56,6 +57,7 @@
           <input id="launch-name" placeholder="Workspace name" maxlength="80" autocomplete="off" required />
           <textarea id="launch-text" maxlength="8000" required></textarea>
           <div id="launch-actions">
+            <label class="here"><input type="checkbox" id="launch-here" /> <span id="launch-here-label">Use this window</span></label>
             <button type="button" id="launch-back">Back</button>
             <button type="submit" id="launch-start">Start</button>
           </div>
