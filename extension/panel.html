@@ -29,13 +29,10 @@
         </div>
         <div id="reviews-tools">
           <input id="reviews-filter" placeholder="Filter" autocomplete="off" />
-          <select id="reviews-sort" title="Sort review requests">
-            <option value="updated">Newest</option>
-            <option value="oldest">Oldest</option>
-            <option value="repo">Repo</option>
-            <option value="author">Author</option>
-          </select>
+          <button type="button" class="facet" data-facet="author">Authors</button>
+          <button type="button" class="facet" data-facet="repo">Repos</button>
         </div>
+        <div id="reviews-facet" hidden></div>
         <div id="reviews-error" hidden></div>
         <ul id="reviews-list"></ul>
       </section>

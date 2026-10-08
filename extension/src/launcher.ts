@@ -115,12 +115,8 @@ function renderDetails(pr: PrDetails): Node[] {
   return nodes;
 }
 
-const SORTS: Record<string, (a: ReviewRequest, b: ReviewRequest) => number> = {
-  updated: (a, b) => b.updatedAt.localeCompare(a.updatedAt),
-  oldest: (a, b) => a.updatedAt.localeCompare(b.updatedAt),
-  repo: (a, b) => a.repo.localeCompare(b.repo) || a.number - b.number,
-  author: (a, b) => a.author.localeCompare(b.author) || b.updatedAt.localeCompare(a.updatedAt),
-};
+type Facet = 'author' | 'repo';
+const FACET_LABELS: Record<Facet, string> = { author: 'Authors', repo: 'Repos' };
 
 /** Every word of the query must appear somewhere in the request. */
 function matches(item: ReviewRequest, query: string): boolean {
@@ -156,7 +152,8 @@ export function createLauncher({ send, onToggle, openWorkspace, here }: Launcher
   const reviewsError = $<HTMLDivElement>('reviews-error');
   const reviewsList = $<HTMLUListElement>('reviews-list');
   const reviewsFilter = $<HTMLInputElement>('reviews-filter');
-  const reviewsSort = $<HTMLSelectElement>('reviews-sort');
+  const reviewsFacet = $<HTMLDivElement>('reviews-facet');
+  const facetButtons = [...document.querySelectorAll<HTMLButtonElement>('#reviews-tools .facet')];
   const reviewsRefresh = $<HTMLButtonElement>('reviews-refresh');
 
   let isOpen = false;
@@ -164,6 +161,9 @@ export function createLauncher({ send, onToggle, openWorkspace, here }: Launcher
   let prompts: Prompt[] = [];
   let lastReviews: ReviewsState = { items: [], error: null, fetchedAt: null };
   let lastWorkspaces: readonly Workspace[] = [];
+  // Deselected values are stored rather than selected ones, so new authors and repos show up.
+  const hidden: Record<Facet, Set<string>> = { author: new Set(), repo: new Set() };
+  let openFacet: Facet | null = null;
   // Shown straight away when a PR is reopened, while its fresh details load behind it.
   const detailsCache = new Map<string, PrDetails>();
 
@@ -267,7 +267,11 @@ export function createLauncher({ send, onToggle, openWorkspace, here }: Launcher
   });
 
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && isOpen) close();
+    if (event.key !== 'Escape') return;
+    if (openFacet) {
+      openFacet = null;
+      renderReviews(lastReviews, lastWorkspaces);
+    } else if (isOpen) close();
   });
 
   reviewsRefresh.addEventListener('click', () => send({ type: 'refreshReviews' }));
@@ -280,29 +284,81 @@ export function createLauncher({ send, onToggle, openWorkspace, here }: Launcher
     renderReviews(lastReviews, lastWorkspaces);
   });
 
-  reviewsSort.addEventListener('change', () => {
-    void chrome.storage.local.set({ reviewsSort: reviewsSort.value });
+  for (const button of facetButtons) {
+    button.addEventListener('click', () => {
+      const facet = button.dataset.facet as Facet;
+      openFacet = openFacet === facet ? null : facet;
+      renderReviews(lastReviews, lastWorkspaces);
+    });
+  }
+
+  function setHidden(facet: Facet, values: Iterable<string>, hide: boolean): void {
+    for (const value of values) hidden[facet][hide ? 'add' : 'delete'](value);
+    void chrome.storage.local.set({ reviewsHidden: { author: [...hidden.author], repo: [...hidden.repo] } });
     renderReviews(lastReviews, lastWorkspaces);
-  });
+  }
 
   $<HTMLButtonElement>('reviews-toggle').addEventListener('click', () => {
     const collapsed = reviewsSection.classList.toggle('collapsed');
     void chrome.storage.local.set({ reviewsCollapsed: collapsed });
   });
 
-  void chrome.storage.local.get(['reviewsCollapsed', 'reviewsSort']).then(({ reviewsCollapsed, reviewsSort: sort }) => {
+  void chrome.storage.local.get(['reviewsCollapsed', 'reviewsHidden']).then(({ reviewsCollapsed, reviewsHidden }) => {
     reviewsSection.classList.toggle('collapsed', reviewsCollapsed === true);
-    if (typeof sort === 'string' && sort in SORTS) {
-      reviewsSort.value = sort;
-      renderReviews(lastReviews, lastWorkspaces);
-    }
+    const saved = reviewsHidden as Partial<Record<Facet, string[]>> | undefined;
+    for (const facet of ['author', 'repo'] as const) for (const value of saved?.[facet] ?? []) hidden[facet].add(value);
+    renderReviews(lastReviews, lastWorkspaces);
   });
+
+  /** Updates the Authors and Repos buttons, and the checklist for whichever is open. */
+  function renderFacets(items: readonly ReviewRequest[]): void {
+    for (const button of facetButtons) {
+      const facet = button.dataset.facet as Facet;
+      const values = new Set(items.map((item) => item[facet]));
+      const shown = [...values].filter((value) => !hidden[facet].has(value)).length;
+      button.textContent = shown === values.size ? FACET_LABELS[facet] : `${FACET_LABELS[facet]} ${shown}/${values.size}`;
+      button.classList.toggle('active', shown !== values.size);
+      button.classList.toggle('open', facet === openFacet);
+    }
+    reviewsFacet.hidden = openFacet === null;
+    if (!openFacet) return;
+    const facet = openFacet;
+    const counts = new Map<string, number>();
+    for (const item of items) counts.set(item[facet], (counts.get(item[facet]) ?? 0) + 1);
+    const values = [...counts.keys()].sort((a, b) => a.localeCompare(b));
+
+    const bulk = el('div', '', 'facet-bulk');
+    const all = el('button', 'All');
+    const none = el('button', 'None');
+    all.type = none.type = 'button';
+    all.addEventListener('click', () => setHidden(facet, values, false));
+    none.addEventListener('click', () => setHidden(facet, values, true));
+    bulk.append(all, none);
+
+    reviewsFacet.replaceChildren(
+      bulk,
+      ...values.map((value) => {
+        const row = el('label', '', 'facet-option');
+        const box = el('input');
+        box.type = 'checkbox';
+        box.checked = !hidden[facet].has(value);
+        box.addEventListener('change', () => setHidden(facet, [value], !box.checked));
+        const name = el('span', facet === 'repo' ? (value.split('/')[1] ?? value) : value, 'facet-name');
+        name.title = value;
+        row.append(box, name, el('span', `${counts.get(value)}`, 'facet-count'));
+        return row;
+      }),
+    );
+  }
 
   function renderReviews(state: ReviewsState, workspaces: readonly Workspace[]): void {
     lastReviews = state;
     lastWorkspaces = workspaces;
     const query = reviewsFilter.value.trim().toLowerCase();
-    const items = state.items.filter((item) => !query || matches(item, query)).sort(SORTS[reviewsSort.value] ?? SORTS.updated);
+    const items = state.items.filter(
+      (item) => !hidden.author.has(item.author) && !hidden.repo.has(item.repo) && (!query || matches(item, query)),
+    );
+    renderFacets(state.items);
     const count = items.length === state.items.length ? `${items.length}` : `${items.length} of ${state.items.length}`;
     reviewsTitle.textContent = `Review requests (${count})`;
     reviewsRefresh.title = state.fetchedAt

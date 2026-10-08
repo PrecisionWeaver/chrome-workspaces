@@ -306,6 +306,7 @@ code {
 }
 
 #reviews.collapsed #reviews-tools,
+#reviews.collapsed #reviews-facet,
 #reviews.collapsed #reviews-list,
 #reviews.collapsed #reviews-error {
   display: none;
@@ -322,7 +323,7 @@ code {
 }
 
 #reviews-filter,
-#reviews-sort {
+#reviews-tools .facet {
   min-width: 0;
   box-sizing: border-box;
   background: var(--bg);
@@ -337,15 +338,84 @@ code {
   flex: 1;
 }
 
-#reviews-sort {
+#reviews-tools .facet {
   flex: none;
   color: var(--muted);
+  cursor: pointer;
+}
+
+#reviews-tools .facet.active {
+  color: var(--accent);
+}
+
+#reviews-tools .facet.open {
+  border-color: var(--border-strong);
+  background: var(--raised);
 }
 
 #reviews-filter:focus,
-#reviews-sort:focus {
+#reviews-tools .facet:focus-visible {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+#reviews-facet {
+  flex: none;
+  max-height: 160px;
+  overflow-y: auto;
+  margin: 0 8px 6px;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+#reviews-facet[hidden] {
+  display: none;
+}
+
+#reviews-facet .facet-bulk {
+  display: flex;
+  gap: 4px;
+  padding: 2px 4px 4px;
+}
+
+#reviews-facet .facet-bulk button {
+  background: none;
+  border: 0;
+  padding: 0 2px;
+  color: var(--accent);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+#reviews-facet .facet-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 4px;
+  border-radius: 4px;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+#reviews-facet .facet-option:hover {
+  background: var(--raised);
+}
+
+#reviews-facet .facet-option input {
+  margin: 0;
+}
+
+#reviews-facet .facet-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#reviews-facet .facet-count {
+  color: var(--faint);
 }
 
 #reviews-error {
