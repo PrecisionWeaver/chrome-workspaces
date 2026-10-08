@@ -119,7 +119,18 @@ function renderDetails(pr: PrDetails): Node[] {
 type Facet = 'author' | 'repo' | 'status';
 const FACETS: readonly Facet[] = ['author', 'repo', 'status'];
 const FACET_LABELS: Record<Facet, string> = { author: 'Authors', repo: 'Repos', status: 'Status' };
-const MERGE_LABELS: Record<MergeState, string> = { ready: 'Can merge', blocked: "Can't merge", unknown: 'Unknown' };
+const MERGE_LABELS: Record<MergeState, string> = {
+  ready: 'Can merge',
+  review: 'Ready for review',
+  draft: 'Draft',
+  blocked: "Can't merge",
+  unknown: 'Unknown',
+};
+const MERGE_TITLES: Partial<Record<MergeState, string>> = {
+  ready: 'Approved, checks passing, no conflicts',
+  review: 'Not a draft, and waiting for a review',
+  draft: 'Draft: not up for review yet',
+};
 
 /** What a request is filtered on for a facet. */
 const facetValue = (item: ReviewRequest, facet: Facet): string => (facet === 'status' ? MERGE_LABELS[item.merge] : item[facet]);
@@ -370,16 +381,10 @@ export function createLauncher({ send, onToggle, openWorkspace, here }: Launcher
         const head = document.createElement('span');
         head.className = 'ref';
         head.append(el('code', ref(item)));
-        if (item.isDraft) {
-          const draft = document.createElement('span');
-          draft.className = 'draft';
-          draft.textContent = 'draft';
-          head.append(draft);
-        }
         if (item.merge !== 'unknown') {
-          const ready = item.merge === 'ready';
-          const merge = el('span', ready ? MERGE_LABELS.ready : (item.mergeReason ?? MERGE_LABELS.blocked), `merge ${item.merge}`);
-          merge.title = ready ? 'Approved, checks passing, no conflicts' : `Cannot merge yet: ${item.mergeReason ?? 'blocked'}`;
+          const blocked = item.merge === 'blocked';
+          const merge = el('span', blocked ? (item.mergeReason ?? MERGE_LABELS.blocked) : MERGE_LABELS[item.merge], `merge ${item.merge}`);
+          merge.title = MERGE_TITLES[item.merge] ?? `Cannot merge yet: ${item.mergeReason ?? 'blocked'}`;
           head.append(merge);
         }
         if (existing) {

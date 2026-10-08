@@ -470,14 +470,6 @@ code {
   font-size: 11px;
 }
 
-.review .draft {
-  padding: 0 5px;
-  border: 1px solid var(--border-strong);
-  border-radius: 8px;
-  color: var(--muted);
-  font-size: 9.5px;
-}
-
 .review .merge {
   padding: 0 5px;
   border-radius: 8px;
@@ -488,6 +480,16 @@ code {
 .review .merge.ready {
   background: color-mix(in srgb, var(--good) 18%, transparent);
   color: var(--good);
+}
+
+.review .merge.review {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.review .merge.draft {
+  border: 1px solid var(--border-strong);
+  color: var(--muted);
 }
 
 .review .merge.blocked {

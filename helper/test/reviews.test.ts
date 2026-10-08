@@ -24,7 +24,7 @@ describe('ticketFromTitle', () => {
 describe('parseReviewRequests', () => {
   it('maps gh search output, most recently updated first', () => {
     expect(parseReviewRequests([GH])).toEqual([
-      { repo: 'acme/app', number: 2, title: 'Tidy up', url: 'https://github.com/acme/app/pull/2', author: 'drew', isDraft: true, updatedAt: '2026-10-02T00:00:00Z', ticket: null, merge: 'unknown', mergeReason: null },
+      { repo: 'acme/app', number: 2, title: 'Tidy up', url: 'https://github.com/acme/app/pull/2', author: 'drew', isDraft: true, updatedAt: '2026-10-02T00:00:00Z', ticket: null, merge: 'draft', mergeReason: null },
       { repo: 'acme/app', number: 1, title: 'PROJ-10 - Fix it', url: 'https://github.com/acme/app/pull/1', author: 'drew', isDraft: false, updatedAt: '2026-10-01T00:00:00Z', ticket: 'PROJ-10', merge: 'unknown', mergeReason: null },
     ]);
   });
@@ -84,7 +84,7 @@ describe('ReviewsPoller', () => {
 
 const URL1 = 'https://github.com/acme/app/pull/1';
 const URL2 = 'https://github.com/acme/app/pull/2';
-const merge = (url: string, mergeStateStatus: string) => ({ pullRequest: { url, mergeStateStatus } });
+const merge = (url: string, mergeStateStatus: string) => ({ pullRequest: { url, mergeStateStatus, reviewDecision: null } });
 
 describe('merge states', () => {
   it('asks for every PR in one query, skipping a repo name that is not plain', () => {
@@ -95,23 +95,48 @@ describe('merge states', () => {
     expect(query).not.toContain('mutation');
   });
 
-  it('maps GitHub merge states to ready, blocked with a reason, or unknown', () => {
+  it('maps GitHub merge states to ready, review, draft, blocked with a reason, or unknown', () => {
+    const at = (mergeStateStatus: string, reviewDecision: string | null = null) => ({ pullRequest: { url: mergeStateStatus + reviewDecision, mergeStateStatus, reviewDecision } });
     const json = JSON.stringify({
-      data: { a: merge(URL1, 'CLEAN'), b: merge(URL2, 'DIRTY'), c: merge('u3', 'BLOCKED'), d: merge('u4', 'UNSTABLE'), e: merge('u5', 'UNKNOWN'), f: null, g: { pullRequest: null } },
+      data: {
+        clean: at('CLEAN', 'APPROVED'),
+        unprotected: at('CLEAN'),
+        needsReview: at('BLOCKED', 'REVIEW_REQUIRED'),
+        changes: at('BLOCKED', 'CHANGES_REQUESTED'),
+        blocked: at('BLOCKED', 'APPROVED'),
+        conflicts: at('DIRTY', 'REVIEW_REQUIRED'),
+        behind: at('BEHIND'),
+        checks: at('UNSTABLE'),
+        draft: at('DRAFT', 'REVIEW_REQUIRED'),
+        unknown: at('UNKNOWN'),
+        missing: null,
+        none: { pullRequest: null },
+      },
     });
-    expect([...parseMergeStatuses(json)]).toEqual([
-      [URL1, { merge: 'ready', mergeReason: null }],
-      [URL2, { merge: 'blocked', mergeReason: 'Conflicts' }],
-      ['u3', { merge: 'blocked', mergeReason: 'Blocked' }],
-      ['u4', { merge: 'blocked', mergeReason: 'Checks failing' }],
-      ['u5', { merge: 'unknown', mergeReason: null }],
+    expect([...parseMergeStatuses(json)].map(([, state]) => [state.merge, state.mergeReason])).toEqual([
+      ['ready', null],
+      ['ready', null],
+      ['review', null],
+      ['blocked', 'Changes requested'],
+      ['blocked', 'Blocked'],
+      ['blocked', 'Conflicts'],
+      ['blocked', 'Behind'],
+      ['blocked', 'Checks failing'],
+      ['draft', null],
+      ['unknown', null],
     ]);
   });
 
   it('puts merge states on the polled list, leaving a PR the response omits unknown', async () => {
     const poller = new ReviewsPoller(async () => [GH], async () => JSON.stringify({ data: { a: merge(URL1, 'CLEAN') } }));
     await poller.refresh();
-    expect(poller.state().items.map((r) => [r.number, r.merge])).toEqual([[2, 'unknown'], [1, 'ready']]);
+    expect(poller.state().items.map((r) => [r.number, r.merge])).toEqual([[2, 'draft'], [1, 'ready']]);
+  });
+
+  it('keeps a draft a draft whatever GitHub reports for it', async () => {
+    const poller = new ReviewsPoller(async () => [GH], async () => JSON.stringify({ data: { a: merge(URL2, 'CLEAN') } }));
+    await poller.refresh();
+    expect(poller.state().items.find((r) => r.number === 2)?.merge).toBe('draft');
   });
 
   it('keeps the list, with unknown states, when the merge lookup fails', async () => {
@@ -120,6 +145,6 @@ describe('merge states', () => {
     });
     await poller.refresh();
     expect(poller.state().error).toBeNull();
-    expect(poller.state().items.map((r) => r.merge)).toEqual(['unknown', 'unknown']);
+    expect(poller.state().items.map((r) => r.merge)).toEqual(['draft', 'unknown']);
   });
 });

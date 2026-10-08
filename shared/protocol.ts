@@ -60,8 +60,11 @@ export interface Repo {
   root: string;
 }
 
-/** Whether GitHub would let a PR merge now: approved, checks passing, no conflicts. */
-export type MergeState = 'ready' | 'blocked' | 'unknown';
+/**
+ * Where a PR stands: `ready` can merge now (approved, checks passing, no conflicts), `review` is open
+ * and waiting for a review, `draft` is not up for review yet, and `blocked` cannot merge for a stated reason.
+ */
+export type MergeState = 'ready' | 'review' | 'draft' | 'blocked' | 'unknown';
 
 /** An open PR that requests the user's review. */
 export interface ReviewRequest {

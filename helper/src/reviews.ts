@@ -15,7 +15,7 @@ export function mergeStatusQuery(items: readonly ReviewRequest[]): string {
   const lookups = items.flatMap((item, index) => {
     const [owner, name] = item.repo.split('/');
     if (!owner || !name || !SAFE_NAME.test(owner) || !SAFE_NAME.test(name)) return [];
-    return [`r${index}: repository(owner: "${owner}", name: "${name}") { pullRequest(number: ${item.number}) { url mergeStateStatus } }`];
+    return [`r${index}: repository(owner: "${owner}", name: "${name}") { pullRequest(number: ${item.number}) { url mergeStateStatus reviewDecision } }`];
   });
   return `query { ${lookups.join(' ')} }`;
 }
@@ -25,18 +25,28 @@ const BLOCKED_REASONS: Record<string, string> = {
   BEHIND: 'Behind',
   DIRTY: 'Conflicts',
   UNSTABLE: 'Checks failing',
-  DRAFT: 'Draft',
 };
 
+type Standing = Pick<ReviewRequest, 'merge' | 'mergeReason'>;
+
+function standing(mergeStateStatus: string, reviewDecision: string | null): Standing {
+  if (mergeStateStatus === 'CLEAN' || mergeStateStatus === 'HAS_HOOKS') return { merge: 'ready', mergeReason: null };
+  if (mergeStateStatus === 'DRAFT') return { merge: 'draft', mergeReason: null };
+  // Branch protection blocks a PR nobody has reviewed yet, which is waiting on a review rather than broken.
+  if (mergeStateStatus === 'BLOCKED' && reviewDecision === 'REVIEW_REQUIRED') return { merge: 'review', mergeReason: null };
+  if (mergeStateStatus === 'BLOCKED' && reviewDecision === 'CHANGES_REQUESTED') return { merge: 'blocked', mergeReason: 'Changes requested' };
+  if (mergeStateStatus in BLOCKED_REASONS) return { merge: 'blocked', mergeReason: BLOCKED_REASONS[mergeStateStatus] };
+  return { merge: 'unknown', mergeReason: null };
+}
+
 /** Reads the response of `mergeStatusQuery`; PRs missing from it, e.g. in a repo the token cannot see, stay unknown. */
-export function parseMergeStatuses(json: string): Map<string, Pick<ReviewRequest, 'merge' | 'mergeReason'>> {
-  const parsed = JSON.parse(json) as { data?: Record<string, { pullRequest?: { url: string; mergeStateStatus: string } | null } | null> | null };
-  const result = new Map<string, Pick<ReviewRequest, 'merge' | 'mergeReason'>>();
+export function parseMergeStatuses(json: string): Map<string, Standing> {
+  const parsed = JSON.parse(json) as { data?: Record<string, { pullRequest?: { url: string; mergeStateStatus: string; reviewDecision: string | null } | null } | null> | null };
+  const result = new Map<string, Standing>();
   for (const lookup of Object.values(parsed.data ?? {})) {
     const pr = lookup?.pullRequest;
     if (!pr) continue;
-    const merge: MergeState = pr.mergeStateStatus === 'CLEAN' || pr.mergeStateStatus === 'HAS_HOOKS' ? 'ready' : pr.mergeStateStatus in BLOCKED_REASONS ? 'blocked' : 'unknown';
-    result.set(pr.url, { merge, mergeReason: merge === 'blocked' ? BLOCKED_REASONS[pr.mergeStateStatus] : null });
+    result.set(pr.url, standing(pr.mergeStateStatus, pr.reviewDecision));
   }
   return result;
 }
@@ -76,7 +86,7 @@ export function parseReviewRequests(jsons: readonly string[]): ReviewRequest[] {
       isDraft: pr.isDraft,
       updatedAt: pr.updatedAt,
       ticket: ticketFromTitle(pr.title),
-      merge: 'unknown' as MergeState,
+      merge: (pr.isDraft ? 'draft' : 'unknown') as MergeState,
       mergeReason: null,
     }))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
@@ -122,7 +132,8 @@ export class ReviewsPoller {
     if (!this.fetchMerge || items.length === 0) return items;
     try {
       const statuses = parseMergeStatuses(await this.fetchMerge(mergeStatusQuery(items)));
-      return items.map((item) => ({ ...item, ...statuses.get(item.url) }));
+      // A draft is a draft whatever else GitHub reports; the search result already says so.
+      return items.map((item) => ({ ...item, ...(item.isDraft ? {} : statuses.get(item.url)) }));
     } catch (error) {
       console.warn('could not read merge states', error);
       return items;
