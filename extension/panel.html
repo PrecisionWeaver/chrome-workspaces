@@ -84,7 +84,11 @@
             <div class="segmented" id="create-start">
               <button type="button" data-value="blank" class="active">Blank</button>
               <button type="button" data-value="prompt">From prompt</button>
+              <button type="button" data-value="text">From text</button>
             </div>
+          </div>
+          <div id="create-message" hidden>
+            <textarea id="create-message-text" maxlength="8000" rows="6" placeholder="The first message Claude receives" spellcheck="true"></textarea>
           </div>
           <div id="create-prompt" hidden>
             <div id="create-choose">

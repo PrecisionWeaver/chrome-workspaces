@@ -51,6 +51,8 @@ export function createCreateView({ send, onToggle, here }: CreateViewOptions): C
   const modelSelect = $<HTMLSelectElement>('create-model');
   const tabsInput = $<HTMLTextAreaElement>('create-tabs');
   const promptSection = $<HTMLDivElement>('create-prompt');
+  const messageSection = $<HTMLDivElement>('create-message');
+  const messageInput = $<HTMLTextAreaElement>('create-message-text');
   const choose = $<HTMLDivElement>('create-choose');
   const filter = $<HTMLInputElement>('create-filter');
   const errorEl = $<HTMLDivElement>('create-error');
@@ -80,9 +82,11 @@ export function createCreateView({ send, onToggle, here }: CreateViewOptions): C
   const target = segmented(windowButtons, () => {});
 
   function syncStart(): void {
-    const fromPrompt = start.value() === 'prompt';
-    promptSection.hidden = !fromPrompt;
-    if (fromPrompt && chosen.hidden) filter.focus();
+    const mode = start.value();
+    promptSection.hidden = mode !== 'prompt';
+    messageSection.hidden = mode !== 'text';
+    if (mode === 'prompt' && chosen.hidden) filter.focus();
+    if (mode === 'text') messageInput.focus();
   }
 
   function show(request: ReviewRequest | null = null): void {
@@ -91,6 +95,7 @@ export function createCreateView({ send, onToggle, here }: CreateViewOptions): C
     nameInput.value = request ? ref(request) : '';
     filter.value = '';
     textInput.value = '';
+    messageInput.value = '';
     choose.hidden = false;
     chosen.hidden = true;
     start.select(request ? 'prompt' : 'blank');
@@ -217,9 +222,12 @@ export function createCreateView({ send, onToggle, here }: CreateViewOptions): C
     event.preventDefault();
     const name = nameInput.value.trim();
     if (!name) return;
-    const prompt = start.value() === 'prompt' ? textInput.value.trim() : '';
-    if (start.value() === 'prompt' && !prompt) {
-      filter.focus();
+    const mode = start.value();
+    // Typed text gets the same PR-URL and ticket fill-in as a saved prompt, so a review can refer to its PR.
+    const message = fillPrompt(messageInput.value.trim(), { prUrl: review?.url ?? null, ticket: review?.ticket ?? null });
+    const prompt = mode === 'prompt' ? textInput.value.trim() : mode === 'text' ? message : '';
+    if (mode !== 'blank' && !prompt) {
+      (mode === 'prompt' ? filter : messageInput).focus();
       return;
     }
     const typed = parseTabUrls(tabsInput.value);
