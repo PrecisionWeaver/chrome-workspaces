@@ -19,7 +19,7 @@ export function parsePrompts(markdown: string): Prompt[] {
   return prompts;
 }
 
-/** Read on every request so edits in Obsidian show up without restarting the helper. */
+/** Read on every request so edits to the note show up without restarting the helper. */
 export function readPrompts(file: string): Prompt[] {
   try {
     return parsePrompts(readFileSync(file, 'utf8'));

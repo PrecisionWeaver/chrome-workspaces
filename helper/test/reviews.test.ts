@@ -5,10 +5,10 @@ const pr = (number: number, title: string, updatedAt: string) => ({
   author: { login: 'drew', is_bot: false },
   isDraft: number === 2,
   number,
-  repository: { name: 'app', nameWithOwner: 'acme/app' },
+  repository: { name: 'web-app', nameWithOwner: 'acme/web-app' },
   title,
   updatedAt,
-  url: `https://github.com/acme/app/pull/${number}`,
+  url: `https://github.com/acme/web-app/pull/${number}`,
 });
 const GH = JSON.stringify([pr(1, 'PROJ-10 - Fix it', '2026-10-01T00:00:00Z'), pr(2, 'Tidy up', '2026-10-02T00:00:00Z')]);
 
@@ -24,13 +24,13 @@ describe('ticketFromTitle', () => {
 describe('parseReviewRequests', () => {
   it('maps gh search output, most recently updated first', () => {
     expect(parseReviewRequests([GH])).toEqual([
-      { repo: 'acme/app', number: 2, title: 'Tidy up', url: 'https://github.com/acme/app/pull/2', author: 'drew', isDraft: true, updatedAt: '2026-10-02T00:00:00Z', ticket: null, merge: 'draft', mergeReason: null },
-      { repo: 'acme/app', number: 1, title: 'PROJ-10 - Fix it', url: 'https://github.com/acme/app/pull/1', author: 'drew', isDraft: false, updatedAt: '2026-10-01T00:00:00Z', ticket: 'PROJ-10', merge: 'unknown', mergeReason: null },
+      { repo: 'acme/web-app', number: 2, title: 'Tidy up', url: 'https://github.com/acme/web-app/pull/2', author: 'drew', isDraft: true, updatedAt: '2026-10-02T00:00:00Z', ticket: null, merge: 'draft', mergeReason: null },
+      { repo: 'acme/web-app', number: 1, title: 'PROJ-10 - Fix it', url: 'https://github.com/acme/web-app/pull/1', author: 'drew', isDraft: false, updatedAt: '2026-10-01T00:00:00Z', ticket: 'PROJ-10', merge: 'unknown', mergeReason: null },
     ]);
   });
 
   it('merges several searches, listing a PR found by both once', () => {
-    const other = JSON.stringify([pr(3, 'Starbase change', '2026-10-03T00:00:00Z'), pr(1, 'PROJ-10 - Fix it', '2026-10-01T00:00:00Z')]);
+    const other = JSON.stringify([pr(3, 'Tidy change', '2026-10-03T00:00:00Z'), pr(1, 'PROJ-10 - Fix it', '2026-10-01T00:00:00Z')]);
     expect(parseReviewRequests([GH, other]).map((r) => r.number)).toEqual([3, 2, 1]);
   });
 
@@ -82,16 +82,16 @@ describe('ReviewsPoller', () => {
   });
 });
 
-const URL1 = 'https://github.com/acme/app/pull/1';
-const URL2 = 'https://github.com/acme/app/pull/2';
+const URL1 = 'https://github.com/acme/web-app/pull/1';
+const URL2 = 'https://github.com/acme/web-app/pull/2';
 const merge = (url: string, mergeStateStatus: string) => ({ pullRequest: { url, mergeStateStatus, reviewDecision: null } });
 
 describe('merge states', () => {
   it('asks for every PR in one query, skipping a repo name that is not plain', () => {
     const [two, one] = parseReviewRequests([GH]);
     const query = mergeStatusQuery([two, one, { ...one, repo: 'x/y" } } mutation { z' }]);
-    expect(query).toContain('r0: repository(owner: "acme", name: "app") { pullRequest(number: 2)');
-    expect(query).toContain('r1: repository(owner: "acme", name: "app") { pullRequest(number: 1)');
+    expect(query).toContain('r0: repository(owner: "acme", name: "web-app") { pullRequest(number: 2)');
+    expect(query).toContain('r1: repository(owner: "acme", name: "web-app") { pullRequest(number: 1)');
     expect(query).not.toContain('mutation');
   });
 

@@ -4,7 +4,7 @@ import { parsePrDetails } from '../src/pr-details';
 const GH = {
   number: 3005,
   title: '[PROJ-1731] PROJ-1737 - Sync cache',
-  url: 'https://github.com/acme/app/pull/3005',
+  url: 'https://github.com/acme/web-app/pull/3005',
   author: { login: 'bstanley-pec', name: 'Brian Stanley', is_bot: false },
   headRefName: 'feat/PROJ-1737/sync',
   baseRefName: 'develop',

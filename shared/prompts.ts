@@ -5,10 +5,10 @@ export interface PromptValues {
   ticket: string | null;
 }
 
-/** Fills standalone `PR-URL` and `PROJ-XXX` when known; every other placeholder is left for the user to edit. */
+/** Fills standalone `PR-URL` and `<PROJECT>-XXX` (e.g. `PROJ-XXX`) when known; every other placeholder is left for the user to edit. */
 export function fillPrompt(text: string, { prUrl, ticket }: PromptValues): string {
   let filled = text;
   if (prUrl) filled = filled.replace(/PR-URL(?![\w-])/g, () => prUrl);
-  if (ticket) filled = filled.replace(/PROJ-XXX(?![\w-])/g, () => ticket);
+  if (ticket) filled = filled.replace(/\b[A-Z][A-Z0-9]*-XXX(?![\w-])/g, () => ticket);
   return filled;
 }

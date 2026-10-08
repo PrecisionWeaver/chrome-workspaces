@@ -21,9 +21,9 @@ function lastState(messages: ControlToClient[]) {
   return states[states.length - 1];
 }
 
-const PR = 'https://github.com/acme/app/pull/482';
+const PR = 'https://github.com/acme/web-app/pull/482';
 const review: ReviewRequest = {
-  repo: 'acme/app',
+  repo: 'acme/web-app',
   number: 482,
   title: 'PROJ-9 - x',
   url: PR,
@@ -137,12 +137,12 @@ describe('control channel', () => {
   it('creates a PR workspace in its repo directory with the prompt, and opens it', async () => {
     const repoDir = mkdtempSync(join(tmpdir(), 'cw-repo-'));
     h.reviews.push(review);
-    h.repoDirs['acme/app'] = repoDir;
+    h.repoDirs['acme/web-app'] = repoDir;
     const { ws, messages } = connectControl(h);
     await opened(ws);
-    ws.send(JSON.stringify({ type: 'create', name: 'app#482', windowId: null, pr: PR, prompt: `  /code-review ${PR}  ` }));
+    ws.send(JSON.stringify({ type: 'create', name: 'web-app#482', windowId: null, pr: PR, prompt: `  /code-review ${PR}  ` }));
     await waitFor(() => messages.some((m) => m.type === 'open'));
-    expect(h.store.list()[0]).toMatchObject({ name: 'app#482', ticket: 'PROJ-9', cwd: repoDir, url: PR, pr: PR, prompt: `/code-review ${PR}` });
+    expect(h.store.list()[0]).toMatchObject({ name: 'web-app#482', ticket: 'PROJ-9', cwd: repoDir, url: PR, pr: PR, prompt: `/code-review ${PR}` });
     ws.close();
   });
 
@@ -150,7 +150,7 @@ describe('control channel', () => {
     const existing = h.store.create({ name: 'mine', cwd: h.defaultCwd, pr: PR });
     const { ws, messages } = connectControl(h);
     await opened(ws);
-    ws.send(JSON.stringify({ type: 'create', name: 'app#482', windowId: null, pr: PR, prompt: 'x' }));
+    ws.send(JSON.stringify({ type: 'create', name: 'web-app#482', windowId: null, pr: PR, prompt: 'x' }));
     await waitFor(() => messages.some((m) => m.type === 'focus' && m.id === existing.id));
     expect(h.store.list()).toHaveLength(1);
     ws.close();
@@ -219,15 +219,15 @@ describe('control channel', () => {
   it('starts a PR workspace in the directory picked, else its repo\'s configured one', async () => {
     const picked = mkdtempSync(join(tmpdir(), 'cw-pick-'));
     const repoDir = mkdtempSync(join(tmpdir(), 'cw-repo-'));
-    h.repoDirs['acme/app'] = repoDir;
+    h.repoDirs['acme/web-app'] = repoDir;
     h.reviews.push(review);
     const { ws } = connectControl(h);
     await opened(ws);
-    ws.send(JSON.stringify({ type: 'create', name: 'app#482', windowId: null, pr: PR, cwd: picked }));
+    ws.send(JSON.stringify({ type: 'create', name: 'web-app#482', windowId: null, pr: PR, cwd: picked }));
     await waitFor(() => h.store.list().length === 1);
     expect(h.store.list()[0].cwd).toBe(picked);
     h.store.remove(h.store.list()[0].id);
-    ws.send(JSON.stringify({ type: 'create', name: 'app#482', windowId: null, pr: PR }));
+    ws.send(JSON.stringify({ type: 'create', name: 'web-app#482', windowId: null, pr: PR }));
     await waitFor(() => h.store.list().length === 1);
     expect(h.store.list()[0].cwd).toBe(repoDir);
     ws.close();

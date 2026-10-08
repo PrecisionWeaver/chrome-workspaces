@@ -134,9 +134,9 @@ describe('WorkspaceStore', () => {
   it('records the PR and prompt a workspace was created with, defaulting to null', () => {
     const file = tempFile();
     const store = new WorkspaceStore(file);
-    const a = store.create({ name: 'app#1', cwd: '/tmp', pr: 'https://github.com/o/app/pull/1', prompt: 'review it' });
+    const a = store.create({ name: 'web-app#1', cwd: '/tmp', pr: 'https://github.com/o/web-app/pull/1', prompt: 'review it' });
     const b = store.create({ name: 'b', cwd: '/tmp' });
-    expect(new WorkspaceStore(file).get(a.id)).toMatchObject({ pr: 'https://github.com/o/app/pull/1', prompt: 'review it' });
+    expect(new WorkspaceStore(file).get(a.id)).toMatchObject({ pr: 'https://github.com/o/web-app/pull/1', prompt: 'review it' });
     expect(store.get(b.id)).toMatchObject({ pr: null, prompt: null });
   });
 

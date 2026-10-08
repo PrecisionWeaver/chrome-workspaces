@@ -95,10 +95,10 @@ describe('HTTP API', () => {
   });
 
   it('creates a PR workspace with a prompt, and focuses it on a repeat', async () => {
-    const pr = 'https://github.com/acme/app/pull/482';
+    const pr = 'https://github.com/acme/web-app/pull/482';
     const first = await call('/workspaces', { method: 'POST', body: { pr, prompt: '/code-review' } });
     expect(first.status).toBe(201);
-    expect(await first.json()).toMatchObject({ created: true, workspace: { name: 'app#482', pr, url: pr, prompt: '/code-review', cwd: h.defaultCwd } });
+    expect(await first.json()).toMatchObject({ created: true, workspace: { name: 'web-app#482', pr, url: pr, prompt: '/code-review', cwd: h.defaultCwd } });
 
     const again = await call('/workspaces', { method: 'POST', body: { pr } });
     expect(again.status).toBe(200);

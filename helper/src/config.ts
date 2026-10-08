@@ -13,7 +13,7 @@ export interface HelperConfig {
   extensionId: string;
   /** Where new workspaces start when no directory is given. */
   defaultCwd: string;
-  /** The Obsidian note holding reusable prompts. */
+  /** A markdown note holding reusable prompts. */
   promptsFile: string;
   /** `claude --model` for workspaces that pick none; unset leaves it to claude. */
   defaultModel: string | null;
@@ -25,7 +25,7 @@ export interface HelperConfig {
   watchRepos: string[];
 }
 
-const DEFAULT_PROMPTS_FILE = '~/Documents/Websites/obsidian-vault/Patterns/Most Used Prompts.md';
+const DEFAULT_PROMPTS_FILE = '~/.chrome-workspaces/prompts.md';
 
 const DEFAULT_REPO_ROOTS = ['~/Documents/Websites', '~/Herd'];
 

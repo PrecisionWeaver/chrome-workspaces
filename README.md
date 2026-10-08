@@ -15,7 +15,6 @@ Each workspace is a regular Chrome window, with your profile, logins, extensions
 └──────────┴───────────────────────┴────────────────────────────┘
 ```
 
-Design: [`docs/superpowers/specs/2026-10-07-chrome-workspaces-design.md`](docs/superpowers/specs/2026-10-07-chrome-workspaces-design.md)
 
 ## Features
 
@@ -78,11 +77,11 @@ Optional fields in `~/.chrome-workspaces/config.json` (preserved by `setup`). Re
 
 | Field | Purpose |
 |---|---|
-| `promptsFile` | Prompt note. Default `~/Documents/Websites/obsidian-vault/Patterns/Most Used Prompts.md`. Each `**Heading**` starts a section; each `- ` bullet is a prompt. |
+| `promptsFile` | Prompt note. Default `~/.chrome-workspaces/prompts.md`. Each `**Heading**` starts a section; each `- ` bullet is a prompt. |
 | `defaultModel` | `claude --model` for workspaces that pick none, e.g. `"opus"`. Unset leaves it to claude. |
 | `repoRoots` | Folders whose git repos the **Repo** picker lists. Default `["~/Documents/Websites", "~/Herd"]`. |
-| `repoDirs` | Starting directory for PR workspaces by repo, e.g. `{ "acme/app": "~/Herd/app" }`. Unlisted repos use the default. |
-| `watchRepos` | Repos whose open PRs (except your own) appear under review requests, for repos that don't request reviewers, e.g. `["acme/starbase"]`. |
+| `repoDirs` | Starting directory for PR workspaces by repo, e.g. `{ "acme/web-app": "~/code/web-app" }`. Unlisted repos use the default. |
+| `watchRepos` | Repos whose open PRs (except your own) appear under review requests, for repos that don't request reviewers, e.g. `["acme/api"]`. |
 
 ### devspace and Mission Control
 
@@ -119,4 +118,4 @@ npm run build:extension   # then reload the extension in chrome://extensions
 | `extension/src/` | Service worker, side panel, helper connection, window handling |
 | `extension/icons/` | SVG icon sources; PNGs are rendered at build |
 | `scripts/` | Key generation, setup, extension build |
-| `docs/` | Design spec, plans, spike results |
+| `docs/` | Spike results |

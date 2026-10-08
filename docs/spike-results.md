@@ -30,7 +30,7 @@ Also found during testing, and fixed:
 
 ## Claude in Chrome targeting
 
-Not tested in this setup. Mike's past experience is that Claude in Chrome opens its tab group in an arbitrary window, and nothing in this build controls which window it uses, so treat it as a **known issue**: a workspace's `claude` will probably not reliably use that workspace's window.
+Not tested in this setup. The past experience is that Claude in Chrome opens its tab group in an arbitrary window, and nothing in this build controls which window it uses, so treat it as a **known issue**: a workspace's `claude` will probably not reliably use that workspace's window.
 
 ## Decision
 

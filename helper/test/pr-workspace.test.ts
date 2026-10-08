@@ -5,9 +5,9 @@ import { describe, expect, it } from 'vitest';
 import type { ReviewRequest } from '../../shared/protocol';
 import { isPullRequestUrl, prWorkspace } from '../src/pr-workspace';
 
-const URL = 'https://github.com/acme/app/pull/482';
+const URL = 'https://github.com/acme/web-app/pull/482';
 const review: ReviewRequest = {
-  repo: 'acme/app',
+  repo: 'acme/web-app',
   number: 482,
   title: 'PROJ-9 - x',
   url: URL,
@@ -33,7 +33,7 @@ describe('isPullRequestUrl', () => {
 describe('prWorkspace', () => {
   it('names the workspace repo#number, opens the PR, and takes the ticket from the review list', () => {
     expect(prWorkspace(URL, { reviews: [review], repoDirs: {}, defaultCwd })).toEqual({
-      name: 'app#482',
+      name: 'web-app#482',
       ticket: 'PROJ-9',
       cwd: defaultCwd,
       url: URL,
@@ -42,8 +42,8 @@ describe('prWorkspace', () => {
   });
 
   it('starts in the mapped repo directory when it exists', () => {
-    expect(prWorkspace(URL, { reviews: [], repoDirs: { 'acme/app': repoDir }, defaultCwd }).cwd).toBe(repoDir);
-    expect(prWorkspace(URL, { reviews: [], repoDirs: { 'acme/app': join(repoDir, 'gone') }, defaultCwd }).cwd).toBe(defaultCwd);
+    expect(prWorkspace(URL, { reviews: [], repoDirs: { 'acme/web-app': repoDir }, defaultCwd }).cwd).toBe(repoDir);
+    expect(prWorkspace(URL, { reviews: [], repoDirs: { 'acme/web-app': join(repoDir, 'gone') }, defaultCwd }).cwd).toBe(defaultCwd);
   });
 
   it('has no ticket for a PR outside the review list', () => {
