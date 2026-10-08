@@ -20,6 +20,23 @@ async function sizeOptions(): Promise<chrome.windows.UpdateInfo> {
   return 'maximized' in sharedSize ? { state: 'maximized' } : { state: 'normal', ...sharedSize };
 }
 
+/**
+ * Chrome rejects bounds that are mostly off screen, e.g. a shared position recorded on a display
+ * that has since been disconnected. Then the size alone is kept, and failing that, nothing.
+ */
+async function updateWindow(windowId: number, options: chrome.windows.UpdateInfo): Promise<void> {
+  const { left, top, ...sizeOnly } = options;
+  const { width, height, state, ...rest } = sizeOnly;
+  for (const attempt of [options, sizeOnly, rest]) {
+    try {
+      await chrome.windows.update(windowId, attempt);
+      return;
+    } catch {
+      // Falls through to the next, smaller attempt.
+    }
+  }
+}
+
 async function windowExists(windowId: number): Promise<boolean> {
   try {
     await chrome.windows.get(windowId);
@@ -32,7 +49,7 @@ async function windowExists(windowId: number): Promise<boolean> {
 /** Brings the workspace's window forward at the shared size, opening one if it has none. Returns its window id. */
 export async function switchTo(workspace: Workspace, send: (message: ControlToHelper) => boolean): Promise<number | undefined> {
   if (workspace.windowId !== null && (await windowExists(workspace.windowId))) {
-    await chrome.windows.update(workspace.windowId, { focused: true, ...(await sizeOptions()) });
+    await updateWindow(workspace.windowId, { focused: true, ...(await sizeOptions()) });
     return workspace.windowId;
   }
   return openWindow(workspace, send);
@@ -43,10 +60,9 @@ export async function openWindow(workspace: Workspace, send: (message: ControlTo
   const created = await chrome.windows.create({
     url: workspace.lastTabUrls.length ? workspace.lastTabUrls : (workspace.url ?? undefined),
     focused: true,
-    ...(size.state === 'maximized' ? {} : size),
   });
   if (created?.id === undefined) return undefined;
-  if (size.state === 'maximized') await chrome.windows.update(created.id, { state: 'maximized' });
+  await updateWindow(created.id, size);
   send({ type: 'pair', id: workspace.id, windowId: created.id });
   return created.id;
 }
