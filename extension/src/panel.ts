@@ -3,6 +3,7 @@ import { Terminal } from '@xterm/xterm';
 import { similarity } from '../../shared/pairing';
 import type { ClientMessage, ReviewsState, ServerMessage, Workspace, WorkspaceStatus } from '../../shared/protocol';
 import { connectControl, getHelper, openSocket } from './helper-client';
+import { createCreateView } from './create-view';
 import { createLauncher } from './launcher';
 import { switchTo } from './windows';
 
@@ -10,10 +11,6 @@ const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as 
 
 const listEl = $<HTMLUListElement>('workspaces');
 const newButton = $<HTMLButtonElement>('new');
-const newForm = $<HTMLFormElement>('new-form');
-const newName = $<HTMLInputElement>('new-name');
-const newMenu = $<HTMLDivElement>('new-menu');
-const newHere = $<HTMLInputElement>('new-here');
 const noticeEl = $<HTMLDivElement>('notice');
 const pickerEl = $<HTMLElement>('picker');
 const pickerOptions = $<HTMLUListElement>('picker-options');
@@ -33,7 +30,11 @@ let reviews: ReviewsState = { items: [], error: null, fetchedAt: null };
 
 const control = connectControl(
   (message) => {
-    if (message.type === 'prompts') launcher.setPrompts(message.prompts, message.error);
+    if (message.type === 'prompts') {
+      launcher.setPrompts(message.prompts, message.error);
+      creator.setPrompts(message.prompts, message.error);
+    }
+    if (message.type === 'repos') creator.setRepos(message.repos);
     if (message.type === 'prDetails') launcher.setPrDetails(message.url, message.details, message.error);
     if (message.type !== 'state') return;
     workspaces = message.workspaces;
@@ -44,7 +45,25 @@ const control = connectControl(
   (connected) => showNotice(connected ? null : 'Helper not running. Start it with: npm run agent:start'),
 );
 const send = control.send.bind(control);
-const launcher = createLauncher({ send, onToggle: render, openWorkspace, here: () => ({ windowId: myWindowId, workspace: current() }) });
+const here = () => ({ windowId: myWindowId, workspace: current() });
+// The launch and new-workspace views share the main pane, so opening one closes the other.
+const launcher = createLauncher({
+  send,
+  onToggle() {
+    if (launcher.isOpen) creator.close();
+    render();
+  },
+  openWorkspace,
+  here,
+});
+const creator = createCreateView({
+  send,
+  onToggle() {
+    if (creator.isOpen) launcher.close();
+    render();
+  },
+  here,
+});
 
 function current(): Workspace | undefined {
   return workspaces.find((ws) => ws.windowId === myWindowId);
@@ -61,12 +80,13 @@ function render(): void {
   renderList();
   launcher.renderReviews(reviews, workspaces);
   const workspace = current();
-  pickerEl.hidden = launcher.isOpen || workspace !== undefined;
-  terminalEl.hidden = launcher.isOpen || workspace === undefined;
+  const overlay = launcher.isOpen || creator.isOpen;
+  pickerEl.hidden = overlay || workspace !== undefined;
+  terminalEl.hidden = overlay || workspace === undefined;
   if (workspace) attach(workspace);
   else {
     detach();
-    if (!launcher.isOpen) void renderPicker();
+    if (!overlay) void renderPicker();
   }
 }
 
@@ -118,7 +138,10 @@ function renderList(): void {
       item.append(badge, name, remove);
       item.addEventListener('click', () => {
         if (ws.id !== here?.id) openWorkspace(ws);
-        else if (launcher.isOpen) launcher.close();
+        else {
+          launcher.close();
+          creator.close();
+        }
       });
       addDragHandlers(item, ws);
       return item;
@@ -195,43 +218,7 @@ function startRename(ws: Workspace, nameEl: HTMLElement): void {
   input.addEventListener('click', (event) => event.stopPropagation());
 }
 
-newButton.addEventListener('click', () => {
-  newMenu.hidden = !newMenu.hidden;
-});
-
-$<HTMLButtonElement>('new-blank').addEventListener('click', () => {
-  newMenu.hidden = true;
-  newForm.hidden = false;
-  newName.focus();
-  void chrome.storage.local.get('useThisWindow').then(({ useThisWindow }) => {
-    newHere.checked = useThisWindow === true;
-  });
-});
-
-$<HTMLButtonElement>('new-prompt').addEventListener('click', () => {
-  newMenu.hidden = true;
-  launcher.show(null);
-});
-
-// Closes when focus leaves the form, so its checkbox can be clicked without dismissing it.
-newForm.addEventListener('focusout', (event) => {
-  if (newForm.contains(event.relatedTarget as Node | null)) return;
-  newForm.hidden = true;
-  newName.value = '';
-});
-
-newName.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape') newName.blur();
-});
-
-newForm.addEventListener('submit', (event) => {
-  event.preventDefault();
-  const name = newName.value.trim();
-  const useHere = newHere.checked && myWindowId !== undefined;
-  void chrome.storage.local.set({ useThisWindow: newHere.checked });
-  if (name) send({ type: 'create', name, windowId: useHere ? (myWindowId ?? null) : null });
-  newName.blur();
-});
+newButton.addEventListener('click', () => creator.show());
 
 $<HTMLButtonElement>('collapse').addEventListener('click', () => {
   const collapsed = document.body.classList.toggle('collapsed');
@@ -359,6 +346,13 @@ function attach(workspace: Workspace): void {
 }
 
 term.onData((data) => sendToSession({ type: 'input', data }));
+
+// xterm sends the same \r for Enter and Shift+Enter; Claude reads ESC + \r as a newline, as iTerm can be set to send.
+term.attachCustomKeyEventHandler((event) => {
+  if (event.key !== 'Enter' || !event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) return true;
+  if (event.type === 'keydown') sendToSession({ type: 'input', data: '\x1b\r' });
+  return false;
+});
 
 function fitTerminal(): void {
   if (terminalEl.hidden) return;

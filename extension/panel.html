@@ -12,14 +12,6 @@
         <span id="list-title">Workspaces</span>
       </div>
       <ul id="workspaces"></ul>
-      <form id="new-form" hidden>
-        <input id="new-name" placeholder="Name or ticket" maxlength="80" autocomplete="off" />
-        <label class="here"><input type="checkbox" id="new-here" /> Use this window</label>
-      </form>
-      <div id="new-menu" hidden>
-        <button id="new-blank">Blank</button>
-        <button id="new-prompt">From prompt…</button>
-      </div>
       <button id="new" title="New workspace">+</button>
       <section id="reviews">
         <div id="reviews-header">
@@ -47,14 +39,62 @@
           <input id="picker-name" placeholder="New workspace here…" maxlength="80" autocomplete="off" />
         </form>
       </section>
+      <section id="create" hidden>
+        <div id="create-bar">
+          <button type="button" id="create-close" title="Back to the terminal (Esc)">← Back</button>
+        </div>
+        <h2 id="create-title">New workspace</h2>
+        <form id="create-form">
+          <label class="field">
+            <span class="label">Name</span>
+            <input id="create-name" placeholder="Name or ticket" maxlength="80" autocomplete="off" required />
+          </label>
+          <label class="field">
+            <span class="label">Repo</span>
+            <select id="create-repo"></select>
+          </label>
+          <label class="field">
+            <span class="label">Model</span>
+            <select id="create-model"></select>
+          </label>
+          <div class="field">
+            <span class="label">Start with</span>
+            <div class="segmented" id="create-start">
+              <button type="button" data-value="blank" class="active">Blank</button>
+              <button type="button" data-value="prompt">From prompt</button>
+            </div>
+          </div>
+          <div id="create-prompt" hidden>
+            <div id="create-choose">
+              <input id="create-filter" placeholder="Filter prompts" autocomplete="off" />
+              <div id="create-error" hidden></div>
+              <div id="create-prompts"></div>
+            </div>
+            <div id="create-chosen" hidden>
+              <textarea id="create-text" maxlength="8000"></textarea>
+              <button type="button" id="create-change">Change prompt</button>
+            </div>
+          </div>
+          <div class="field">
+            <span class="label">Window</span>
+            <div class="segmented" id="create-window">
+              <button type="button" data-value="new" class="active">New window</button>
+              <button type="button" data-value="here">This window</button>
+            </div>
+          </div>
+          <div id="create-actions">
+            <button type="submit" id="create-submit">Create</button>
+          </div>
+        </form>
+      </section>
       <section id="launch" hidden>
         <div id="launch-bar">
           <button type="button" id="launch-close" title="Back to the terminal (Esc)">← Back</button>
           <label class="here"><input type="checkbox" id="launch-here" /> <span id="launch-here-label">Use this window</span></label>
-          <button type="button" id="launch-github" hidden>Open in GitHub ↗</button>
+          <button type="button" id="launch-github">Open in GitHub ↗</button>
         </div>
         <h2 id="launch-title"></h2>
-        <div id="launch-details" hidden></div>
+        <div id="launch-details"></div>
         <div id="launch-choose">
           <input id="launch-filter" placeholder="Filter prompts" autocomplete="off" />
           <div id="launch-error" hidden></div>

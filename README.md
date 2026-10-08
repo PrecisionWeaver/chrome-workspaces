@@ -23,8 +23,8 @@ Design: [`docs/superpowers/specs/2026-10-07-chrome-workspaces-design.md`](docs/s
 |---|---|
 | **Switch** | `⌃⇧←` / `⌃⇧→` or click a workspace. All workspace windows share the size you last set, so switching swaps content in place. |
 | **Reorder** | Drag workspaces in the list; the shortcuts follow that order. |
-| **Create** | `+` → **Blank** or **From prompt…**, or `devspace PROJ-1234`. A window that isn't a workspace offers to become one. **Use this window** creates the workspace in the current window instead of a new one. |
-| **Prompts** | **From prompt…** lists prompts from your notes file. `PR-URL` and `PROJ-XXX` are filled in from the PR. The prompt runs once; reopening resumes the conversation. |
+| **Create** | `+` opens one view: a name, the **Repo** to start in, **Blank** or **From prompt**, and **New window**, or **This window**. The **Model** picker sets `claude --model`. Or `devspace PROJ-1234`. A window that isn't a workspace offers to become one. |
+| **Prompts** | **From prompt** lists prompts from your notes file. `PR-URL` and `PROJ-XXX` are filled in from the PR. The prompt runs once; reopening resumes the conversation. |
 | **Review requests** | Open PRs requesting your review, plus every PR in `watchRepos`. Refreshes every 5 minutes or on ↻. Filter by text, or by author and repo with **Authors** / **Repos**. A green dot means the PR already has a workspace. |
 | **Status** | Red dot: `claude` needs input. Green: working. Sourced from [Claude Mission Control](https://github.com/PrecisionWeaver/claude-mission-control). |
 | **Sessions** | Closing the panel leaves `claude` running; reopening reattaches with scrollback. `exit` closes the shell; the next open resumes the last conversation. |
@@ -78,6 +78,8 @@ Optional fields in `~/.chrome-workspaces/config.json` (preserved by `setup`). Re
 | Field | Purpose |
 |---|---|
 | `promptsFile` | Prompt note. Default `~/Documents/Websites/obsidian-vault/Patterns/Most Used Prompts.md`. Each `**Heading**` starts a section; each `- ` bullet is a prompt. |
+| `defaultModel` | `claude --model` for workspaces that pick none, e.g. `"opus"`. Unset leaves it to claude. |
+| `repoRoots` | Folders whose git repos the **Repo** picker lists. Default `["~/Documents/Websites", "~/Herd"]`. |
 | `repoDirs` | Starting directory for PR workspaces by repo, e.g. `{ "acme/app": "~/Herd/app" }`. Unlisted repos use the default. |
 | `watchRepos` | Repos whose open PRs (except your own) appear under review requests, for repos that don't request reviewers, e.g. `["acme/starbase"]`. |
 

@@ -1,5 +1,7 @@
+import { isAbsolute } from 'node:path';
 import type { WebSocket } from 'ws';
-import { MAX_PROMPT_LENGTH, type ControlToClient, type ControlToHelper, type Prompt, type ReviewsState, type WorkspaceStatus } from '../../shared/protocol';
+import { MAX_PROMPT_LENGTH, MODEL_PATTERN, type ControlToClient, type ControlToHelper, type Prompt, type Repo, type ReviewsState, type WorkspaceStatus } from '../../shared/protocol';
+import { isDirectory } from './config';
 import { parsePrDetails } from './pr-details';
 import { isPullRequestUrl, prWorkspace } from './pr-workspace';
 import type { SessionManager } from './session';
@@ -21,6 +23,7 @@ export interface ControlHubOptions {
   /** Raw `gh pr view` JSON for a PR url. */
   prDetails: (url: string) => Promise<string>;
   repoDirs: Record<string, string>;
+  repos: () => Repo[];
 }
 
 /** Keeps every connected extension context (service worker, panels) in sync with the store. */
@@ -92,8 +95,14 @@ export class ControlHub {
           break;
         }
         const { defaultCwd, repoDirs, reviews } = this.options;
-        const base = message.pr ? prWorkspace(message.pr, { reviews: reviews.state().items, repoDirs, defaultCwd }) : { cwd: defaultCwd };
-        const workspace = store.create({ ...base, name: message.name.trim(), prompt: message.prompt?.trim() || null });
+        const cwd = message.cwd && isAbsolute(message.cwd) && isDirectory(message.cwd) ? message.cwd : defaultCwd;
+        const base = message.pr ? prWorkspace(message.pr, { reviews: reviews.state().items, repoDirs, defaultCwd }) : { cwd };
+        const workspace = store.create({
+          ...base,
+          name: message.name.trim(),
+          prompt: message.prompt?.trim() || null,
+          model: message.model ?? null,
+        });
         if (message.windowId === null) this.send({ type: 'open', id: workspace.id });
         else store.pairWindow(workspace.id, message.windowId);
         break;
@@ -110,6 +119,9 @@ export class ControlHub {
         break;
       case 'listPrompts':
         this.sendTo(ws, this.prompts());
+        break;
+      case 'listRepos':
+        this.sendTo(ws, { type: 'repos', repos: this.options.repos() });
         break;
       case 'refreshReviews':
         void this.options.reviews.refresh();
@@ -162,9 +174,12 @@ function isControlToHelper(value: unknown): value is ControlToHelper {
         isWorkspaceName(m.name) &&
         (m.windowId === null || isWindowId(m.windowId)) &&
         (m.pr === undefined || (typeof m.pr === 'string' && isPullRequestUrl(m.pr))) &&
-        (m.prompt === undefined || (typeof m.prompt === 'string' && m.prompt.length <= MAX_PROMPT_LENGTH))
+        (m.prompt === undefined || (typeof m.prompt === 'string' && m.prompt.length <= MAX_PROMPT_LENGTH)) &&
+        (m.cwd === undefined || (typeof m.cwd === 'string' && m.cwd.length <= 1024)) &&
+        (m.model === undefined || (typeof m.model === 'string' && MODEL_PATTERN.test(m.model)))
       );
     case 'listPrompts':
+    case 'listRepos':
     case 'refreshReviews':
       return true;
     case 'prDetails':

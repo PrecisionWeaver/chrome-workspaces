@@ -174,6 +174,45 @@ describe('control channel', () => {
     ws.close();
   });
 
+  it('rejects a model that is not a plain id', async () => {
+    const { ws } = connectControl(h);
+    await opened(ws);
+    ws.send(JSON.stringify({ type: 'create', name: 'bad', windowId: null, model: "x'; rm -rf ~" }));
+    ws.send(JSON.stringify({ type: 'create', name: 'ok', windowId: null, model: 'sonnet' }));
+    await waitFor(() => h.store.list().length >= 1);
+    expect(h.store.list().map((w) => w.name)).toEqual(['ok']);
+    ws.close();
+  });
+
+  it('answers listRepos to the asking client only', async () => {
+    h.repos.push({ name: 'chrome-workspaces', path: '/w/chrome-workspaces', root: 'Websites' });
+    const asker = connectControl(h);
+    const other = connectControl(h);
+    await Promise.all([opened(asker.ws), opened(other.ws)]);
+    asker.ws.send(JSON.stringify({ type: 'listRepos' }));
+    await waitFor(() => asker.messages.some((m) => m.type === 'repos'));
+    expect(asker.messages.find((m) => m.type === 'repos')).toEqual({ type: 'repos', repos: h.repos });
+    expect(other.messages.some((m) => m.type === 'repos')).toBe(false);
+    asker.ws.close();
+    other.ws.close();
+  });
+
+  it('starts a workspace in the given directory, falling back to the default when it is not one', async () => {
+    const repo = mkdtempSync(join(tmpdir(), 'cw-repo-'));
+    const { ws } = connectControl(h);
+    await opened(ws);
+    ws.send(JSON.stringify({ type: 'create', name: 'here', windowId: null, cwd: repo }));
+    ws.send(JSON.stringify({ type: 'create', name: 'bad', windowId: null, cwd: '/no/such/dir' }));
+    ws.send(JSON.stringify({ type: 'create', name: 'relative', windowId: null, cwd: 'repo' }));
+    await waitFor(() => h.store.list().length === 3);
+    expect(h.store.list().map((w) => [w.name, w.cwd])).toEqual([
+      ['here', repo],
+      ['bad', h.defaultCwd],
+      ['relative', h.defaultCwd],
+    ]);
+    ws.close();
+  });
+
   it('answers listPrompts to the asking client only, reporting read errors', async () => {
     h.prompts.push({ section: 'Reviews', text: '/code-review PR-URL' });
     const asker = connectControl(h);

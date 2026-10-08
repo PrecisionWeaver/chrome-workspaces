@@ -1,5 +1,6 @@
 import { fillPrompt } from '../../shared/prompts';
 import type { ControlToHelper, PrDetails, Prompt, ReviewRequest, ReviewsState, Workspace } from '../../shared/protocol';
+import { el, promptCard } from './dom';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -14,8 +15,8 @@ export interface LauncherOptions {
 
 export interface Launcher {
   readonly isOpen: boolean;
-  /** Opens the prompt picker, for a review request or for a prompt alone. */
-  show(review: ReviewRequest | null): void;
+  /** Opens the prompt picker for a review request. */
+  show(review: ReviewRequest): void;
   /** Returns to the terminal. */
   close(): void;
   renderReviews(state: ReviewsState, workspaces: readonly Workspace[]): void;
@@ -38,13 +39,6 @@ const REVIEW_STATES: Record<string, [label: string, tone: string]> = {
   DISMISSED: ['dismissed', ''],
   PENDING: ['review in progress', 'wait'],
 };
-
-function el<K extends keyof HTMLElementTagNameMap>(tag: K, text = '', className = ''): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag);
-  node.textContent = text;
-  if (className) node.className = className;
-  return node;
-}
 
 function relative(iso: string): string {
   const minutes = Math.round((Date.now() - new Date(iso).getTime()) / 60_000);
@@ -124,15 +118,6 @@ function matches(item: ReviewRequest, query: string): boolean {
   return query.split(/\s+/).every((word) => haystack.includes(word));
 }
 
-/** Splits a leading slash command off a prompt, so cards can set the command apart. */
-function promptCard(text: string): Node[] {
-  const match = text.match(/^(\/[\w:-]+)\s*(.*)$/s);
-  if (!match) return [el('span', text, 'prompt-text')];
-  const nodes: Node[] = [el('code', match[1], 'prompt-command')];
-  if (match[2]) nodes.push(el('span', match[2].replace(/^-\s*/, ''), 'prompt-text'));
-  return nodes;
-}
-
 export function createLauncher({ send, onToggle, openWorkspace, here }: LauncherOptions): Launcher {
   const section = $<HTMLElement>('launch');
   const choose = $<HTMLDivElement>('launch-choose');
@@ -167,23 +152,18 @@ export function createLauncher({ send, onToggle, openWorkspace, here }: Launcher
   // Shown straight away when a PR is reopened, while its fresh details load behind it.
   const detailsCache = new Map<string, PrDetails>();
 
-  function show(target: ReviewRequest | null): void {
+  function show(target: ReviewRequest): void {
     review = target;
     isOpen = true;
-    if (target) title.replaceChildren(el('code', ref(target), 'ref-chip'), el('span', target.title));
-    else title.textContent = 'New workspace from a prompt';
+    title.replaceChildren(el('code', ref(target), 'ref-chip'), el('span', target.title));
     filter.value = '';
     choose.hidden = false;
     editForm.hidden = true;
     section.hidden = false;
-    githubButton.hidden = target === null;
-    detailsEl.hidden = target === null;
-    if (target) {
-      const cached = detailsCache.get(target.url);
-      detailsEl.replaceChildren(...(cached ? renderDetails(cached) : [el('div', 'Loading PR details…', 'loading')]));
-      detailsEl.classList.toggle('refreshing', cached !== undefined);
-      send({ type: 'prDetails', url: target.url });
-    }
+    const cached = detailsCache.get(target.url);
+    detailsEl.replaceChildren(...(cached ? renderDetails(cached) : [el('div', 'Loading PR details…', 'loading')]));
+    detailsEl.classList.toggle('refreshing', cached !== undefined);
+    send({ type: 'prDetails', url: target.url });
     send({ type: 'listPrompts' });
     const current = here().workspace;
     hereLabel.textContent = current ? `Use this window (moves ${current.name} out)` : 'Use this window';
@@ -233,9 +213,10 @@ export function createLauncher({ send, onToggle, openWorkspace, here }: Launcher
   function edit(prompt: Prompt): void {
     choose.hidden = true;
     editForm.hidden = false;
-    nameInput.value = review ? ref(review) : '';
-    textInput.value = fillPrompt(prompt.text, { prUrl: review?.url ?? null, ticket: review?.ticket ?? null });
-    (review ? textInput : nameInput).focus();
+    if (!review) return;
+    nameInput.value = ref(review);
+    textInput.value = fillPrompt(prompt.text, { prUrl: review.url, ticket: review.ticket });
+    textInput.focus();
   }
 
   filter.addEventListener('input', renderPrompts);
@@ -256,13 +237,13 @@ export function createLauncher({ send, onToggle, openWorkspace, here }: Launcher
     event.preventDefault();
     const name = nameInput.value.trim();
     const prompt = textInput.value.trim();
-    if (!name || !prompt) return;
+    if (!review || !name || !prompt) return;
     const { windowId } = here();
     const useHere = hereInput.checked && windowId !== undefined;
     void chrome.storage.local.set({ useThisWindow: hereInput.checked });
-    send({ type: 'create', name, windowId: useHere ? windowId : null, prompt, ...(review ? { pr: review.url } : {}) });
+    send({ type: 'create', name, windowId: useHere ? windowId : null, prompt, pr: review.url });
     // A new window opens at the PR on its own; this one needs a tab for it.
-    if (useHere && review) void chrome.tabs.create({ windowId, url: review.url });
+    if (useHere) void chrome.tabs.create({ windowId, url: review.url });
     close();
   });
 

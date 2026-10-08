@@ -10,6 +10,7 @@ export interface NewWorkspace {
   url?: string | null;
   pr?: string | null;
   prompt?: string | null;
+  model?: string | null;
 }
 
 export class WorkspaceStore {
@@ -48,6 +49,7 @@ export class WorkspaceStore {
       cwd: input.cwd,
       url: input.url ?? null,
       windowId: null,
+      model: input.model ?? null,
       lastTabUrls: [],
       pr: input.pr ?? null,
       prompt: input.prompt ?? null,
@@ -123,7 +125,7 @@ export class WorkspaceStore {
     try {
       const { workspaces } = JSON.parse(readFileSync(this.file, 'utf8')) as { workspaces: Workspace[] };
       // Files written before a field existed load with it unset.
-      return workspaces.map((ws) => ({ ...ws, pr: ws.pr ?? null, prompt: ws.prompt ?? null }));
+      return workspaces.map((ws) => ({ ...ws, pr: ws.pr ?? null, prompt: ws.prompt ?? null, model: ws.model ?? null }));
     } catch (error) {
       throw new Error(`cannot read ${this.file}: ${error instanceof Error ? error.message : String(error)}`);
     }

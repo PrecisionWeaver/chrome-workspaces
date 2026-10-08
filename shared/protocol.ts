@@ -4,6 +4,9 @@ export const PROTOCOL = 'cw.v1';
 export const TOKEN_PROTOCOL_PREFIX = 'token.';
 export const NATIVE_HOST_NAME = 'com.chrome_workspaces.helper';
 export const MAX_PROMPT_LENGTH = 8000;
+/** What `--model` accepts that is safe to put in a shell command: an alias or id, optionally with a `[1m]`-style suffix. */
+export const MODEL_PATTERN = /^[A-Za-z0-9][\w.-]{0,63}(\[\w{1,8}\])?$/;
+export const MODEL_ALIASES = ['opus', 'sonnet', 'haiku'] as const;
 
 export type ClientMessage =
   | { type: 'input'; data: string }
@@ -27,6 +30,8 @@ export interface Workspace {
   /** First URL to open in a new window for this workspace, e.g. its Jira ticket. */
   url: string | null;
   windowId: number | null;
+  /** `claude --model` value; null uses the helper's `defaultModel`. */
+  model: string | null;
   /** Tab URLs last seen in its window; used to re-pair after Chrome restarts. */
   lastTabUrls: string[];
   /** GitHub PR URL the workspace was created to work on. */
@@ -42,6 +47,14 @@ export type WorkspaceStatus = 'needs_input' | 'working' | 'idle' | null;
 export interface Prompt {
   section: string;
   text: string;
+}
+
+/** A git repo that a new workspace can start in. */
+export interface Repo {
+  name: string;
+  path: string;
+  /** The folder it was found in, to tell apart repos that share a name. */
+  root: string;
 }
 
 /** An open PR that requests the user's review. */
@@ -102,6 +115,8 @@ export type ControlToClient =
   | { type: 'browser'; id: string; at: number }
   /** Reply to `listPrompts`, sent only to the client that asked. */
   | { type: 'prompts'; prompts: Prompt[]; error: string | null }
+  /** Reply to `listRepos`, sent only to the client that asked. */
+  | { type: 'repos'; repos: Repo[] }
   /** Reply to `prDetails`, sent only to the client that asked. */
   | { type: 'prDetails'; url: string; details: PrDetails | null; error: string | null };
 
@@ -110,11 +125,12 @@ export type ControlToHelper =
   | { type: 'unpair'; windowId: number }
   | { type: 'tabs'; windowId: number; urls: string[] }
   /** With `pr`, focuses the PR's existing workspace instead of creating another. */
-  | { type: 'create'; name: string; windowId: number | null; pr?: string; prompt?: string }
+  | { type: 'create'; name: string; windowId: number | null; pr?: string; prompt?: string; cwd?: string; model?: string }
   | { type: 'remove'; id: string }
   | { type: 'rename'; id: string; name: string }
   /** `index` is the workspace's position in the list once moved. */
   | { type: 'move'; id: string; index: number }
   | { type: 'listPrompts' }
+  | { type: 'listRepos' }
   | { type: 'refreshReviews' }
   | { type: 'prDetails'; url: string };

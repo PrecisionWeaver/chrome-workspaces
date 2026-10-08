@@ -9,6 +9,7 @@ const workspace: Workspace = {
   cwd: '/Users/me/project',
   url: null,
   windowId: 1,
+  model: null,
   lastTabUrls: [],
   pr: null,
   prompt: null,
@@ -31,6 +32,20 @@ describe('launchSpec', () => {
   it('ignores a resume id that is not a plain session uuid', () => {
     const spec = launchSpec(workspace, { shell: '/bin/zsh', resumeId: `${RESUME}; rm -rf ~` });
     expect(spec.args[3]).toBe(`${start()}; exec /bin/zsh -l -i`);
+  });
+
+  it('passes the chosen model, else the default, and drops one that is not a plain id', () => {
+    const options = { shell: '/bin/zsh', resumeId: null };
+    expect(launchSpec({ ...workspace, model: 'opus' }, options).args[3]).toBe(`${start(" --model 'opus'")}; exec /bin/zsh -l -i`);
+    expect(launchSpec(workspace, { ...options, defaultModel: 'sonnet' }).args[3]).toBe(`${start(" --model 'sonnet'")}; exec /bin/zsh -l -i`);
+    expect(launchSpec({ ...workspace, model: 'opus' }, { ...options, defaultModel: 'sonnet' }).args[3]).toContain("--model 'opus'");
+    expect(launchSpec({ ...workspace, model: "x'; rm -rf ~; '" }, options).args[3]).toBe(`${start()}; exec /bin/zsh -l -i`);
+  });
+
+  it('puts the model before the resume id', () => {
+    expect(launchSpec({ ...workspace, model: 'opus[1m]' }, { shell: '/bin/zsh', resumeId: RESUME }).args[3]).toBe(
+      `${start(` --model 'opus[1m]' --resume ${RESUME}`)}; exec /bin/zsh -l -i`,
+    );
   });
 
   it('tags the session with its workspace and ticket', () => {

@@ -2,7 +2,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import WebSocket from 'ws';
-import { PROTOCOL, TOKEN_PROTOCOL_PREFIX, type ControlToClient, type Prompt, type ReviewRequest, type WorkspaceStatus } from '../../shared/protocol';
+import { PROTOCOL, TOKEN_PROTOCOL_PREFIX, type ControlToClient, type Prompt, type Repo, type ReviewRequest, type WorkspaceStatus } from '../../shared/protocol';
 import { createApi } from '../src/api';
 import { ControlHub } from '../src/control';
 import { startServer, type RunningServer } from '../src/server';
@@ -26,6 +26,7 @@ export interface Harness {
   /** When set, reading prompts fails with this message. */
   promptsError: string | null;
   repoDirs: Record<string, string>;
+  repos: Repo[];
   /** What the fake `gh pr view` returns; null makes it fail with "gh failed". */
   prDetailsJson: string | null;
   prDetailsRequests: string[];
@@ -45,6 +46,7 @@ export async function startHarness(): Promise<Harness> {
     prompts: [] as Prompt[],
     promptsError: null as string | null,
     repoDirs: {} as Record<string, string>,
+    repos: [] as Repo[],
     prDetailsJson: null as string | null,
     prDetailsRequests: [] as string[],
   };
@@ -64,7 +66,7 @@ export async function startHarness(): Promise<Harness> {
     return fakes.prompts;
   };
   const statuses = () => fakes.statuses;
-  const control = new ControlHub({ store, sessions, defaultCwd, statuses, reviews, prompts, prDetails, repoDirs: fakes.repoDirs });
+  const control = new ControlHub({ store, sessions, defaultCwd, statuses, reviews, prompts, prDetails, repoDirs: fakes.repoDirs, repos: () => fakes.repos });
   const auth = { token: TOKEN, allowedOrigins: [ORIGIN] };
   const server = await startServer({
     host: '127.0.0.1',
