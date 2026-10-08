@@ -4,6 +4,7 @@ import { parseTabUrls } from '../../shared/tab-urls';
 import type { ControlToHelper, PrDetails, Prompt, Repo, ReviewRequest, Workspace } from '../../shared/protocol';
 import { el, promptCard } from './dom';
 import { ref, renderDetails, repoName } from './pr-view';
+import { findTab, openInWorkspace } from './tabs';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -205,7 +206,7 @@ export function createCreateView({ send, onToggle, here }: CreateViewOptions): C
   $<HTMLButtonElement>('create-close').addEventListener('click', close);
 
   githubButton.addEventListener('click', () => {
-    if (review) void chrome.tabs.create({ url: review.url });
+    if (review) void openInWorkspace(here().workspace, here().windowId, review.url);
   });
 
   document.addEventListener('keydown', (event) => {
@@ -247,7 +248,11 @@ export function createCreateView({ send, onToggle, here }: CreateViewOptions): C
       ...(review ? { pr: review.url } : {}),
     });
     // A window with no workspace is adopted as it is; one that holds a workspace gets the tabs in its new group instead.
-    if (useHere && !workspace) for (const url of urls) void chrome.tabs.create({ windowId, url, active: false });
+    if (useHere && !workspace) {
+      void (async () => {
+        for (const url of urls) if (!(await findTab(windowId!, null, url))) await chrome.tabs.create({ windowId, url, active: false });
+      })();
+    }
     close();
   });
 

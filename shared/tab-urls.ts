@@ -14,3 +14,21 @@ export function parseTabUrls(text: string): { urls: string[]; invalid: string[] 
   }
   return { urls, invalid };
 }
+
+/** Origin and path, so a trailing slash, query or fragment does not make the same page look new. */
+function normalize(url: string): string {
+  try {
+    const { origin, pathname } = new URL(url);
+    return origin + pathname.replace(/\/$/, '');
+  } catch {
+    return url;
+  }
+}
+
+/** A tab on the page, or on a page beneath it: a PR's `/files` tab counts as the PR. */
+export function showsPage(tabUrl: string | undefined, url: string): boolean {
+  if (!tabUrl) return false;
+  const tab = normalize(tabUrl);
+  const page = normalize(url);
+  return tab === page || tab.startsWith(`${page}/`);
+}

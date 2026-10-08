@@ -5,6 +5,8 @@ import type { ClientMessage, ReviewsState, ServerMessage, Workspace, WorkspaceSt
 import { connectControl, getHelper, openSocket } from './helper-client';
 import { createCreateView } from './create-view';
 import { createGitView } from './git-view';
+import { makeSectionsResizable } from './sections';
+import { openInWorkspace } from './tabs';
 import { createLauncher } from './launcher';
 import { loadSelection, onSelectionChange, select, shownIn, type Selection } from './selection';
 import { showOnly, switchTo } from './windows';
@@ -56,7 +58,12 @@ const here = () => ({ windowId: myWindowId, workspace: current() });
 // Review requests start a workspace through the same new-workspace view as the + button.
 const launcher = createLauncher({
   send,
-  create: (review) => creator.show(review),
+  create(review) {
+    creator.show(review);
+    // The PR is what you came to look at, so it opens beside the workspace's other tabs, once.
+    const { windowId, workspace } = here();
+    void openInWorkspace(workspace, windowId, review.url);
+  },
   closeCreate: () => creator.close(),
   selectedUrl: () => creator.review?.url ?? null,
   openWorkspace,
@@ -428,6 +435,8 @@ function fitTerminal(): void {
 }
 
 new ResizeObserver(fitTerminal).observe(terminalEl);
+
+makeSectionsResizable(fitTerminal);
 
 void chrome.windows.getCurrent().then((win) => {
   myWindowId = win.id;
