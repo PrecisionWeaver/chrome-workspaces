@@ -1,5 +1,5 @@
 import { fillPrompt } from '../../shared/prompts';
-import type { ControlToHelper, Prompt, ReviewRequest, ReviewsState, Workspace } from '../../shared/protocol';
+import type { ControlToHelper, PrDetails, Prompt, ReviewRequest, ReviewsState, Workspace } from '../../shared/protocol';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -14,18 +14,79 @@ export interface Launcher {
   readonly isOpen: boolean;
   /** Opens the prompt picker, for a review request or for a prompt alone. */
   show(review: ReviewRequest | null): void;
+  /** Returns to the terminal. */
+  close(): void;
   renderReviews(state: ReviewsState, workspaces: readonly Workspace[]): void;
   setPrompts(prompts: Prompt[], error: string | null): void;
+  setPrDetails(url: string, details: PrDetails | null, error: string | null): void;
 }
 
 const repoName = (review: ReviewRequest) => review.repo.split('/')[1] ?? review.repo;
 const ref = (review: ReviewRequest) => `${repoName(review)}#${review.number}`;
+
+const DECISIONS: Record<string, [label: string, tone: string]> = {
+  APPROVED: ['Approved', 'good'],
+  CHANGES_REQUESTED: ['Changes requested', 'bad'],
+  REVIEW_REQUIRED: ['Review required', 'wait'],
+};
+const REVIEW_STATES: Record<string, [label: string, tone: string]> = {
+  APPROVED: ['approved', 'good'],
+  CHANGES_REQUESTED: ['requested changes', 'bad'],
+  COMMENTED: ['commented', ''],
+  DISMISSED: ['dismissed', ''],
+  PENDING: ['review in progress', 'wait'],
+};
+
+function el<K extends keyof HTMLElementTagNameMap>(tag: K, text = '', className = ''): HTMLElementTagNameMap[K] {
+  const node = document.createElement(tag);
+  node.textContent = text;
+  if (className) node.className = className;
+  return node;
+}
+
+function renderDetails(pr: PrDetails): Node[] {
+  const meta = el('div', `${pr.author} · ${pr.head} → ${pr.base} · +${pr.additions} −${pr.deletions} · ${pr.changedFiles} files`, 'meta');
+
+  const tags = el('div', '', 'tags');
+  const [label, tone] = DECISIONS[pr.reviewDecision ?? ''] ?? ['No review required', ''];
+  tags.append(el('span', label, `tag ${tone}`));
+  if (pr.isDraft) tags.append(el('span', 'Draft', 'tag'));
+  if (pr.mergeable === 'CONFLICTING') tags.append(el('span', 'Merge conflicts', 'tag bad'));
+  const { passed, failed, pending, failing } = pr.checks;
+  if (failed) tags.append(el('span', `✗ ${failed} failing`, 'tag bad'));
+  if (pending) tags.append(el('span', `● ${pending} pending`, 'tag wait'));
+  if (passed) tags.append(el('span', `✓ ${passed} passed`, 'tag good'));
+
+  const nodes: Node[] = [meta, tags];
+  if (failing.length) nodes.push(el('div', `Failing: ${failing.join(', ')}`, 'bad'));
+
+  nodes.push(el('h3', 'Reviews'));
+  const reviews = el('ul');
+  if (pr.reviews.length === 0) reviews.append(el('li', 'None yet', 'meta'));
+  for (const review of pr.reviews) {
+    const [stateLabel, stateTone] = REVIEW_STATES[review.state] ?? [review.state.toLowerCase(), ''];
+    const item = el('li', `${review.login} `);
+    item.append(el('span', stateLabel, stateTone));
+    if (review.at) item.title = new Date(review.at).toLocaleString();
+    reviews.append(item);
+  }
+  nodes.push(reviews);
+
+  if (pr.requested.length) {
+    nodes.push(el('h3', 'Waiting on'));
+    nodes.push(el('div', pr.requested.join(', '), 'meta'));
+  }
+  nodes.push(el('div', `Opened ${new Date(pr.createdAt).toLocaleString()} · updated ${new Date(pr.updatedAt).toLocaleString()}`, 'meta'));
+  return nodes;
+}
 
 export function createLauncher({ send, onToggle, openWorkspace }: LauncherOptions): Launcher {
   const section = $<HTMLElement>('launch');
   const choose = $<HTMLDivElement>('launch-choose');
   const title = $<HTMLHeadingElement>('launch-title');
   const filter = $<HTMLInputElement>('launch-filter');
+  const detailsEl = $<HTMLDivElement>('launch-details');
+  const githubButton = $<HTMLButtonElement>('launch-github');
   const errorEl = $<HTMLDivElement>('launch-error');
   const promptsEl = $<HTMLDivElement>('launch-prompts');
   const editForm = $<HTMLFormElement>('launch-edit');
@@ -48,6 +109,12 @@ export function createLauncher({ send, onToggle, openWorkspace }: LauncherOption
     choose.hidden = false;
     editForm.hidden = true;
     section.hidden = false;
+    githubButton.hidden = target === null;
+    detailsEl.hidden = target === null;
+    if (target) {
+      detailsEl.replaceChildren(el('div', 'Loading PR details…', 'meta'));
+      send({ type: 'prDetails', url: target.url });
+    }
     send({ type: 'listPrompts' });
     onToggle();
     filter.focus();
@@ -55,6 +122,7 @@ export function createLauncher({ send, onToggle, openWorkspace }: LauncherOption
 
   function close(): void {
     isOpen = false;
+    review = null;
     section.hidden = true;
     onToggle();
   }
@@ -97,6 +165,12 @@ export function createLauncher({ send, onToggle, openWorkspace }: LauncherOption
 
   filter.addEventListener('input', renderPrompts);
 
+  $<HTMLButtonElement>('launch-close').addEventListener('click', close);
+
+  githubButton.addEventListener('click', () => {
+    if (review) void chrome.tabs.create({ url: review.url });
+  });
+
   $<HTMLButtonElement>('launch-back').addEventListener('click', () => {
     editForm.hidden = true;
     choose.hidden = false;
@@ -112,8 +186,8 @@ export function createLauncher({ send, onToggle, openWorkspace }: LauncherOption
     close();
   });
 
-  section.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') close();
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && isOpen) close();
   });
 
   $<HTMLButtonElement>('reviews-refresh').addEventListener('click', () => send({ type: 'refreshReviews' }));
@@ -136,7 +210,7 @@ export function createLauncher({ send, onToggle, openWorkspace }: LauncherOption
       ...state.items.map((item) => {
         const existing = workspaces.find((ws) => ws.pr === item.url);
         const row = document.createElement('li');
-        row.className = 'review';
+        row.className = `review${item.url === review?.url ? ' selected' : ''}`;
         row.title = `${item.title}\n${item.repo} by ${item.author}${existing ? `\nWorkspace: ${existing.name}` : ''}`;
 
         const head = document.createElement('span');
@@ -159,7 +233,11 @@ export function createLauncher({ send, onToggle, openWorkspace }: LauncherOption
         itemTitle.textContent = item.title;
 
         row.append(head, itemTitle);
-        row.addEventListener('click', () => (existing ? openWorkspace(existing) : show(item)));
+        row.addEventListener('click', () => {
+          if (item.url === review?.url) close();
+          else if (existing) openWorkspace(existing);
+          else show(item);
+        });
         return row;
       }),
     );
@@ -170,12 +248,17 @@ export function createLauncher({ send, onToggle, openWorkspace }: LauncherOption
       return isOpen;
     },
     show,
+    close,
     renderReviews,
     setPrompts(next, error) {
       prompts = next;
       errorEl.hidden = error === null;
       errorEl.textContent = error ? `Could not read prompts: ${error}` : '';
       renderPrompts();
+    },
+    setPrDetails(url, details, error) {
+      if (url !== review?.url) return;
+      detailsEl.replaceChildren(...(details ? renderDetails(details) : [el('div', `Could not load PR details: ${error}`, 'bad')]));
     },
   };
 }
