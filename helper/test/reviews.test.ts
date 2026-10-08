@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ghWatchedPrs, mergeStatusQuery, parseMergeStatuses, parseReviewRequests, ReviewsPoller, ticketFromTitle } from '../src/reviews';
+import { ghOwnPrs, ghWatchedPrs, mergeStatusQuery, parseMergeStatuses, parseReviewRequests, ReviewsPoller, ticketFromTitle } from '../src/reviews';
 
 const pr = (number: number, title: string, updatedAt: string) => ({
   author: { login: 'drew', is_bot: false },
@@ -155,5 +155,11 @@ describe('ghWatchedPrs', () => {
     expect(command).toContain('--repo acme/api --repo acme/web-app');
     expect(command).not.toContain('-author');
     expect(command).not.toContain('@me');
+  });
+});
+
+describe('ghOwnPrs', () => {
+  it('searches the user\'s own open PRs in each repo', () => {
+    expect(ghOwnPrs(['acme/api', 'acme/web-app'])).toContain('--repo acme/api --repo acme/web-app --state=open --author=@me');
   });
 });

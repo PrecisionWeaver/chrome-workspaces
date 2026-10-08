@@ -11,7 +11,7 @@ import { GH_PR_DETAILS } from './pr-details';
 import { readPrompts } from './prompts';
 import { createGitService } from './git';
 import { listRepos } from './repos';
-import { GH_REVIEW_REQUESTS, ghWatchedPrs, ReviewsPoller } from './reviews';
+import { GH_REVIEW_REQUESTS, ghOwnPrs, ghWatchedPrs, ReviewsPoller } from './reviews';
 import { startServer } from './server';
 import { SessionManager } from './session';
 import { loadOrCreateToken } from './token';
@@ -32,7 +32,13 @@ const execFileAsync = promisify(execFile);
 // launchd's PATH lacks Homebrew, so gh runs through a login shell.
 const gh = async (command: string) =>
   (await execFileAsync(shell, ['-l', '-c', command], { timeout: 30_000, maxBuffer: 4 * 1024 * 1024 })).stdout;
-const reviewSearches = [GH_REVIEW_REQUESTS, ...(config.watchRepos.length ? [ghWatchedPrs(config.watchRepos)] : [])];
+// Your own PRs are searched in every repo you have configured, watched or not.
+const ownRepos = [...new Set([...config.watchRepos, ...Object.keys(config.repoDirs)])];
+const reviewSearches = [
+  GH_REVIEW_REQUESTS,
+  ...(config.watchRepos.length ? [ghWatchedPrs(config.watchRepos)] : []),
+  ...(ownRepos.length ? [ghOwnPrs(ownRepos)] : []),
+];
 // gh exits non-zero when GraphQL reports an error for any PR, but its stdout still holds the rest.
 const ghMergeStates = async (query: string) => {
   try {

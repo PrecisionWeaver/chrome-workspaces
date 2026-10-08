@@ -51,6 +51,11 @@ export function parseMergeStatuses(json: string): Map<string, Standing> {
   return result;
 }
 
+/** Your own open PRs in the given repos, which nobody has requested your review on. */
+export function ghOwnPrs(repos: readonly string[]): string {
+  return `gh search prs ${repos.map((repo) => `--repo ${repo}`).join(' ')} --state=open --author=@me ${GH_FIELDS} --limit 50`;
+}
+
 const TICKET = /[A-Z][A-Z0-9]*-\d+/;
 
 interface GhPullRequest {
