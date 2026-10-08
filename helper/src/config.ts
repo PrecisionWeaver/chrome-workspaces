@@ -16,6 +16,8 @@ export interface HelperConfig {
   promptsFile: string;
   /** `owner/name` to the directory PR workspaces for that repo start in. */
   repoDirs: Record<string, string>;
+  /** `owner/name` repos whose open PRs all show as review requests, requested or not. */
+  watchRepos: string[];
 }
 
 const DEFAULT_PROMPTS_FILE = '~/Documents/Websites/obsidian-vault/Patterns/Most Used Prompts.md';
@@ -28,6 +30,7 @@ export function loadConfig(): HelperConfig {
     defaultCwd: raw.defaultCwd ?? homedir(),
     promptsFile: expandHome(raw.promptsFile ?? DEFAULT_PROMPTS_FILE),
     repoDirs: Object.fromEntries(Object.entries(raw.repoDirs ?? {}).map(([repo, dir]) => [repo, expandHome(dir)])),
+    watchRepos: raw.watchRepos ?? [],
   };
 }
 

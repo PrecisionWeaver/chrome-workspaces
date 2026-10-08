@@ -9,7 +9,7 @@ import { launchSpec } from './launch';
 import { readMcStatus, watchMcStatus, type McWorkspaceStatus } from './mc-status';
 import { GH_PR_DETAILS } from './pr-details';
 import { readPrompts } from './prompts';
-import { GH_REVIEW_REQUESTS, ReviewsPoller } from './reviews';
+import { GH_REVIEW_REQUESTS, ghWatchedPrs, ReviewsPoller } from './reviews';
 import { startServer } from './server';
 import { SessionManager } from './session';
 import { loadOrCreateToken } from './token';
@@ -28,9 +28,10 @@ const statuses = (): Record<string, WorkspaceStatus> =>
 const REVIEW_POLL_MS = 5 * 60_000;
 const execFileAsync = promisify(execFile);
 // launchd's PATH lacks Homebrew, so gh runs through a login shell.
-const reviews = new ReviewsPoller(
-  async () => (await execFileAsync(shell, ['-l', '-c', GH_REVIEW_REQUESTS], { timeout: 30_000, maxBuffer: 4 * 1024 * 1024 })).stdout,
-);
+const gh = async (command: string) =>
+  (await execFileAsync(shell, ['-l', '-c', command], { timeout: 30_000, maxBuffer: 4 * 1024 * 1024 })).stdout;
+const reviewSearches = [GH_REVIEW_REQUESTS, ...(config.watchRepos.length ? [ghWatchedPrs(config.watchRepos)] : [])];
+const reviews = new ReviewsPoller(() => Promise.all(reviewSearches.map(gh)));
 const prompts = () => readPrompts(config.promptsFile);
 const prDetails = async (url: string) =>
   (await execFileAsync(shell, ['-l', '-c', GH_PR_DETAILS], { env: { ...process.env, CW_PR_URL: url }, timeout: 30_000, maxBuffer: 4 * 1024 * 1024 })).stdout;

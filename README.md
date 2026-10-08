@@ -64,6 +64,7 @@ Optional fields in `~/.chrome-workspaces/config.json` (`setup` keeps them):
 
 - `promptsFile`: the prompt note (default `~/Documents/Websites/obsidian-vault/Patterns/Most Used Prompts.md`). Each `**Heading**` line starts a section and each `- ` bullet is a prompt.
 - `repoDirs`: where PR workspaces start, by repo, e.g. `{ "acme/app": "~/Herd/app" }`. Unlisted repos use the default directory.
+- `watchRepos`: repos whose open PRs all appear under review requests (except your own), for repos where reviewers are not requested, e.g. `["acme/starbase"]`.
 
 Review requests need `gh` signed in (`gh auth status`).
 

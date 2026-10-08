@@ -1,7 +1,12 @@
 import type { ReviewRequest, ReviewsState } from '../../shared/protocol';
 
-export const GH_REVIEW_REQUESTS =
-  'gh search prs --review-requested=@me --state=open --json number,title,url,repository,author,isDraft,updatedAt --limit 50';
+const GH_FIELDS = '--json number,title,url,repository,author,isDraft,updatedAt';
+export const GH_REVIEW_REQUESTS = `gh search prs --review-requested=@me --state=open ${GH_FIELDS} --limit 50`;
+
+/** Every open PR in the watched repos except your own, for repos where nobody requests reviewers. */
+export function ghWatchedPrs(repos: readonly string[]): string {
+  return `gh search prs ${repos.map((repo) => `--repo ${repo}`).join(' ')} --state=open ${GH_FIELDS} --limit 100 -- -author:@me`;
+}
 
 const TICKET = /[A-Z][A-Z0-9]*-\d+/;
 
@@ -20,10 +25,15 @@ export function ticketFromTitle(title: string): string | null {
   return (title.replace(/\[[^\]]*\]/g, ' ').match(TICKET) ?? title.match(TICKET))?.[0] ?? null;
 }
 
-export function parseReviewRequests(json: string): ReviewRequest[] {
-  const raw = JSON.parse(json) as unknown;
-  if (!Array.isArray(raw)) throw new Error(`unexpected gh output: ${json.slice(0, 200)}`);
-  return (raw as GhPullRequest[])
+/** Merges one or more gh search results; a PR found by more than one search appears once. */
+export function parseReviewRequests(jsons: readonly string[]): ReviewRequest[] {
+  const byUrl = new Map<string, GhPullRequest>();
+  for (const json of jsons) {
+    const raw = JSON.parse(json) as unknown;
+    if (!Array.isArray(raw)) throw new Error(`unexpected gh output: ${json.slice(0, 200)}`);
+    for (const pr of raw as GhPullRequest[]) byUrl.set(pr.url, pr);
+  }
+  return [...byUrl.values()]
     .map((pr) => ({
       repo: pr.repository.nameWithOwner,
       number: pr.number,
@@ -44,7 +54,7 @@ export class ReviewsPoller {
   private timer: ReturnType<typeof setInterval> | undefined;
   private readonly listeners = new Set<() => void>();
 
-  constructor(private readonly fetchJson: () => Promise<string>) {}
+  constructor(private readonly fetchJson: () => Promise<string[]>) {}
 
   state(): ReviewsState {
     return { ...this.current, items: [...this.current.items] };
