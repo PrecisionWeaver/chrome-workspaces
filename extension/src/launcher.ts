@@ -46,39 +46,81 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, text = '', className 
   return node;
 }
 
+function relative(iso: string): string {
+  const minutes = Math.round((Date.now() - new Date(iso).getTime()) / 60_000);
+  if (minutes < 60) return `${Math.max(minutes, 1)}m ago`;
+  const hours = Math.round(minutes / 60);
+  return hours < 48 ? `${hours}h ago` : `${Math.round(hours / 24)}d ago`;
+}
+
+function person(login: string, trailing?: Node): HTMLElement {
+  const row = el('li', '', 'person');
+  row.append(el('span', login.slice(0, 1).toUpperCase(), 'avatar'), el('span', login, 'login'));
+  if (trailing) row.append(trailing);
+  return row;
+}
+
 function renderDetails(pr: PrDetails): Node[] {
-  const meta = el('div', `${pr.author} · ${pr.head} → ${pr.base} · +${pr.additions} −${pr.deletions} · ${pr.changedFiles} files`, 'meta');
+  const branches = el('div', '', 'branches');
+  branches.append(el('code', pr.head), el('span', '→', 'arrow'), el('code', pr.base));
 
-  const tags = el('div', '', 'tags');
+  const stats = el('div', '', 'stats');
+  stats.append(
+    el('span', `+${pr.additions.toLocaleString()}`, 'add'),
+    el('span', `−${pr.deletions.toLocaleString()}`, 'del'),
+    el('span', `${pr.changedFiles} files`, 'files'),
+    el('span', `by ${pr.author} · opened ${relative(pr.createdAt)} · updated ${relative(pr.updatedAt)}`, 'when'),
+  );
+
+  const pills = el('div', '', 'pills');
   const [label, tone] = DECISIONS[pr.reviewDecision ?? ''] ?? ['No review required', ''];
-  tags.append(el('span', label, `tag ${tone}`));
-  if (pr.isDraft) tags.append(el('span', 'Draft', 'tag'));
-  if (pr.mergeable === 'CONFLICTING') tags.append(el('span', 'Merge conflicts', 'tag bad'));
+  pills.append(el('span', label, `pill ${tone}`));
+  if (pr.isDraft) pills.append(el('span', 'Draft', 'pill'));
+  if (pr.mergeable === 'CONFLICTING') pills.append(el('span', 'Merge conflicts', 'pill bad'));
   const { passed, failed, pending, failing } = pr.checks;
-  if (failed) tags.append(el('span', `✗ ${failed} failing`, 'tag bad'));
-  if (pending) tags.append(el('span', `● ${pending} pending`, 'tag wait'));
-  if (passed) tags.append(el('span', `✓ ${passed} passed`, 'tag good'));
+  if (failed) pills.append(el('span', `${failed} failing`, 'pill bad'));
+  if (pending) pills.append(el('span', `${pending} pending`, 'pill wait'));
+  if (passed) pills.append(el('span', `${passed} passed`, 'pill good'));
 
-  const nodes: Node[] = [meta, tags];
-  if (failing.length) nodes.push(el('div', `Failing: ${failing.join(', ')}`, 'bad'));
-
-  nodes.push(el('h3', 'Reviews'));
-  const reviews = el('ul');
-  if (pr.reviews.length === 0) reviews.append(el('li', 'None yet', 'meta'));
-  for (const review of pr.reviews) {
-    const [stateLabel, stateTone] = REVIEW_STATES[review.state] ?? [review.state.toLowerCase(), ''];
-    const item = el('li', `${review.login} `);
-    item.append(el('span', stateLabel, stateTone));
-    if (review.at) item.title = new Date(review.at).toLocaleString();
-    reviews.append(item);
+  const nodes: Node[] = [branches, stats, pills];
+  if (failing.length) {
+    const failingEl = el('div', 'Failing: ', 'failing');
+    failingEl.append(el('span', failing.join(', ')));
+    nodes.push(failingEl);
   }
-  nodes.push(reviews);
+
+  const people = el('div', '', 'people');
+  const reviewed = el('div', '', 'people-col');
+  reviewed.append(el('h3', 'Reviews'));
+  const reviewList = el('ul');
+  if (pr.reviews.length === 0) reviewList.append(el('li', 'None yet', 'empty'));
+  for (const r of pr.reviews) {
+    const [stateLabel, stateTone] = REVIEW_STATES[r.state] ?? [r.state.toLowerCase(), ''];
+    const row = person(r.login, el('span', stateLabel, `state ${stateTone}`));
+    if (r.at) row.title = new Date(r.at).toLocaleString();
+    reviewList.append(row);
+  }
+  reviewed.append(reviewList);
+  people.append(reviewed);
 
   if (pr.requested.length) {
-    nodes.push(el('h3', 'Waiting on'));
-    nodes.push(el('div', pr.requested.join(', '), 'meta'));
+    const waiting = el('div', '', 'people-col');
+    waiting.append(el('h3', `Waiting on ${pr.requested.length}`));
+    const waitingList = el('ul');
+    waitingList.append(...pr.requested.map((login) => person(login)));
+    waiting.append(waitingList);
+    people.append(waiting);
   }
-  nodes.push(el('div', `Opened ${new Date(pr.createdAt).toLocaleString()} · updated ${new Date(pr.updatedAt).toLocaleString()}`, 'meta'));
+  nodes.push(people);
+  return nodes;
+}
+
+/** Splits a leading slash command off a prompt, so cards can set the command apart. */
+function promptCard(text: string): Node[] {
+  const match = text.match(/^(\/[\w:-]+)\s*(.*)$/s);
+  if (!match) return [el('span', text, 'prompt-text')];
+  const nodes: Node[] = [el('code', match[1], 'prompt-command')];
+  if (match[2]) nodes.push(el('span', match[2].replace(/^-\s*/, ''), 'prompt-text'));
   return nodes;
 }
 
@@ -108,7 +150,8 @@ export function createLauncher({ send, onToggle, openWorkspace, here }: Launcher
   function show(target: ReviewRequest | null): void {
     review = target;
     isOpen = true;
-    title.textContent = target ? `${ref(target)}: ${target.title}` : 'New workspace from a prompt';
+    if (target) title.replaceChildren(el('code', ref(target), 'ref-chip'), el('span', target.title));
+    else title.textContent = 'New workspace from a prompt';
     filter.value = '';
     choose.hidden = false;
     editForm.hidden = true;
@@ -116,7 +159,7 @@ export function createLauncher({ send, onToggle, openWorkspace, here }: Launcher
     githubButton.hidden = target === null;
     detailsEl.hidden = target === null;
     if (target) {
-      detailsEl.replaceChildren(el('div', 'Loading PR details…', 'meta'));
+      detailsEl.replaceChildren(el('div', 'Loading PR details…', 'loading'));
       send({ type: 'prDetails', url: target.url });
     }
     send({ type: 'listPrompts' });
@@ -140,20 +183,21 @@ export function createLauncher({ send, onToggle, openWorkspace, here }: Launcher
     }
     promptsEl.replaceChildren(
       ...[...groups].map(([name, items]) => {
-        const group = document.createElement('div');
-        group.className = 'prompt-group';
-        const heading = document.createElement('h3');
-        heading.textContent = name || 'Prompts';
-        group.append(
-          heading,
+        const group = el('section', '', 'prompt-group');
+        const heading = el('h3', name || 'Prompts');
+        heading.append(el('span', String(items.length), 'count'));
+        const grid = el('div', '', 'prompt-grid');
+        grid.append(
           ...items.map((prompt) => {
-            const button = document.createElement('button');
-            button.className = 'prompt';
-            button.textContent = prompt.text;
+            const button = el('button', '', 'prompt');
+            button.type = 'button';
+            button.title = prompt.text;
+            button.append(...promptCard(prompt.text));
             button.addEventListener('click', () => edit(prompt));
             return button;
           }),
         );
+        group.append(heading, grid);
         return group;
       }),
     );
@@ -229,7 +273,7 @@ export function createLauncher({ send, onToggle, openWorkspace, here }: Launcher
 
         const head = document.createElement('span');
         head.className = 'ref';
-        head.append(ref(item));
+        head.append(el('code', ref(item)));
         if (item.isDraft) {
           const draft = document.createElement('span');
           draft.className = 'draft';
@@ -246,7 +290,8 @@ export function createLauncher({ send, onToggle, openWorkspace, here }: Launcher
         itemTitle.className = 'title';
         itemTitle.textContent = item.title;
 
-        row.append(head, itemTitle);
+        const when = el('span', `${item.author} · ${relative(item.updatedAt)}`, 'when');
+        row.append(head, itemTitle, when);
         row.addEventListener('click', () => {
           if (item.url === review?.url) close();
           else if (existing) openWorkspace(existing);
@@ -272,7 +317,7 @@ export function createLauncher({ send, onToggle, openWorkspace, here }: Launcher
     },
     setPrDetails(url, details, error) {
       if (url !== review?.url) return;
-      detailsEl.replaceChildren(...(details ? renderDetails(details) : [el('div', `Could not load PR details: ${error}`, 'bad')]));
+      detailsEl.replaceChildren(...(details ? renderDetails(details) : [el('div', `Could not load PR details: ${error}`, 'failing')]));
     },
   };
 }
