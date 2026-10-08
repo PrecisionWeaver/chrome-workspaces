@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mergeStatusQuery, parseMergeStatuses, parseReviewRequests, ReviewsPoller, ticketFromTitle } from '../src/reviews';
+import { ghWatchedPrs, mergeStatusQuery, parseMergeStatuses, parseReviewRequests, ReviewsPoller, ticketFromTitle } from '../src/reviews';
 
 const pr = (number: number, title: string, updatedAt: string) => ({
   author: { login: 'drew', is_bot: false },
@@ -146,5 +146,13 @@ describe('merge states', () => {
     await poller.refresh();
     expect(poller.state().error).toBeNull();
     expect(poller.state().items.map((r) => r.merge)).toEqual(['draft', 'unknown']);
+  });
+});
+
+describe('ghWatchedPrs', () => {
+  it('searches every watched repo and does not exclude the user\'s own PRs', () => {
+    const command = ghWatchedPrs(['acme/api', 'acme/web-app']);
+    expect(command).toContain('--repo acme/api --repo acme/web-app');
+    expect(command).not.toContain('author');
   });
 });

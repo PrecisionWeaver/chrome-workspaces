@@ -3,9 +3,9 @@ import type { MergeState, ReviewRequest, ReviewsState } from '../../shared/proto
 const GH_FIELDS = '--json number,title,url,repository,author,isDraft,updatedAt';
 export const GH_REVIEW_REQUESTS = `gh search prs --review-requested=@me --state=open ${GH_FIELDS} --limit 50`;
 
-/** Every open PR in the watched repos except your own, for repos where nobody requests reviewers. */
+/** Every open PR in the watched repos, yours included, for repos where nobody requests reviewers. */
 export function ghWatchedPrs(repos: readonly string[]): string {
-  return `gh search prs ${repos.map((repo) => `--repo ${repo}`).join(' ')} --state=open ${GH_FIELDS} --limit 100 -- -author:@me`;
+  return `gh search prs ${repos.map((repo) => `--repo ${repo}`).join(' ')} --state=open ${GH_FIELDS} --limit 100`;
 }
 
 const SAFE_NAME = /^[\w.-]+$/;

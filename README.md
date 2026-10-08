@@ -83,7 +83,7 @@ Optional fields in `~/.chrome-workspaces/config.json` (preserved by `setup`). Re
 | `defaultModel` | `claude --model` for workspaces that pick none, e.g. `"opus"`. Unset leaves it to claude. |
 | `repoRoots` | Folders whose git repos the **Repo** picker lists. Default `["~/Documents/Websites", "~/Herd"]`. |
 | `repoDirs` | Starting directory for PR workspaces by repo, e.g. `{ "acme/web-app": "~/code/web-app" }`. Unlisted repos use the default. |
-| `watchRepos` | Repos whose open PRs (except your own) appear under review requests, for repos that don't request reviewers, e.g. `["acme/api"]`. |
+| `watchRepos` | Repos whose open PRs (yours included) appear under review requests, for repos that don't request reviewers, e.g. `["acme/api"]`. |
 
 ### devspace and Mission Control
 
