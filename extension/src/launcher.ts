@@ -164,6 +164,8 @@ export function createLauncher({ send, onToggle, openWorkspace, here }: Launcher
   let prompts: Prompt[] = [];
   let lastReviews: ReviewsState = { items: [], error: null, fetchedAt: null };
   let lastWorkspaces: readonly Workspace[] = [];
+  // Shown straight away when a PR is reopened, while its fresh details load behind it.
+  const detailsCache = new Map<string, PrDetails>();
 
   function show(target: ReviewRequest | null): void {
     review = target;
@@ -177,7 +179,9 @@ export function createLauncher({ send, onToggle, openWorkspace, here }: Launcher
     githubButton.hidden = target === null;
     detailsEl.hidden = target === null;
     if (target) {
-      detailsEl.replaceChildren(el('div', 'Loading PR details…', 'loading'));
+      const cached = detailsCache.get(target.url);
+      detailsEl.replaceChildren(...(cached ? renderDetails(cached) : [el('div', 'Loading PR details…', 'loading')]));
+      detailsEl.classList.toggle('refreshing', cached !== undefined);
       send({ type: 'prDetails', url: target.url });
     }
     send({ type: 'listPrompts' });
@@ -359,8 +363,13 @@ export function createLauncher({ send, onToggle, openWorkspace, here }: Launcher
       renderPrompts();
     },
     setPrDetails(url, details, error) {
+      if (details) detailsCache.set(url, details);
       if (url !== review?.url) return;
-      detailsEl.replaceChildren(...(details ? renderDetails(details) : [el('div', `Could not load PR details: ${error}`, 'failing')]));
+      detailsEl.classList.remove('refreshing');
+      const cached = detailsCache.get(url);
+      if (details) detailsEl.replaceChildren(...renderDetails(details));
+      else if (cached) detailsEl.replaceChildren(...renderDetails(cached), el('div', `Could not refresh PR details: ${error}`, 'failing'));
+      else detailsEl.replaceChildren(el('div', `Could not load PR details: ${error}`, 'failing'));
     },
   };
 }

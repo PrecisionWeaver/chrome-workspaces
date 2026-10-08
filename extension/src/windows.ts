@@ -3,7 +3,7 @@ import type { ControlToHelper, Workspace } from '../../shared/protocol';
 type Bounds = Pick<chrome.windows.Window, 'left' | 'top' | 'width' | 'height'>;
 type SharedSize = { maximized: true } | Bounds;
 
-/** Whichever workspace window was last moved, resized or maximized sets the size they all share. */
+/** Whichever workspace window was last moved, resized or maximized sets the size new windows open at. */
 export function recordSharedSize(window: chrome.windows.Window): void {
   if (window.type !== 'normal') return;
   let sharedSize: SharedSize;
@@ -46,10 +46,10 @@ async function windowExists(windowId: number): Promise<boolean> {
   }
 }
 
-/** Brings the workspace's window forward at the shared size, opening one if it has none. Returns its window id. */
+/** Brings the workspace's window forward as sized, opening one if it has none. Returns its window id. */
 export async function switchTo(workspace: Workspace, send: (message: ControlToHelper) => boolean): Promise<number | undefined> {
   if (workspace.windowId !== null && (await windowExists(workspace.windowId))) {
-    await updateWindow(workspace.windowId, { focused: true, ...(await sizeOptions()) });
+    await chrome.windows.update(workspace.windowId, { focused: true });
     return workspace.windowId;
   }
   return openWindow(workspace, send);

@@ -584,6 +584,11 @@ body.collapsed #collapse {
   color: var(--muted);
 }
 
+/* Cached details stay readable but dimmed until the fresh ones arrive. */
+#launch-details.refreshing {
+  opacity: 0.6;
+}
+
 #launch-details .branches {
   display: flex;
   align-items: center;
