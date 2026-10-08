@@ -153,6 +153,7 @@ describe('ghWatchedPrs', () => {
   it('searches every watched repo and does not exclude the user\'s own PRs', () => {
     const command = ghWatchedPrs(['acme/api', 'acme/web-app']);
     expect(command).toContain('--repo acme/api --repo acme/web-app');
-    expect(command).not.toContain('author');
+    expect(command).not.toContain('-author');
+    expect(command).not.toContain('@me');
   });
 });
