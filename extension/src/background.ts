@@ -64,7 +64,7 @@ function handle(message: ControlToClient): void {
     }
     case 'focus': {
       const workspace = find(message.id);
-      if (workspace) void switchTo(workspace, send);
+      if (workspace) void switchTo(workspace, send, workspaces);
       break;
     }
     case 'browser':
@@ -133,7 +133,7 @@ function cycle(step: 1 | -1): void {
   // Reopens the panel in a window whose panel closed, e.g. after the extension reloaded.
   if (next.windowId !== null) chrome.sidePanel.open({ windowId: next.windowId }).catch(() => {});
   void select(next);
-  void switchTo(next, send);
+  void switchTo(next, send, workspaces);
 }
 
 // Remember each workspace window's tabs so it can be re-paired after Chrome restarts.

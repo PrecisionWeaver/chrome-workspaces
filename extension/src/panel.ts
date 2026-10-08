@@ -6,7 +6,7 @@ import { connectControl, getHelper, openSocket } from './helper-client';
 import { createCreateView } from './create-view';
 import { createLauncher } from './launcher';
 import { loadSelection, onSelectionChange, select, shownIn, type Selection } from './selection';
-import { switchTo } from './windows';
+import { showOnly, switchTo } from './windows';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -99,7 +99,9 @@ async function followActiveTab(): Promise<void> {
   if (myWindowId === undefined) return;
   const [tab] = await chrome.tabs.query({ active: true, windowId: myWindowId });
   const owner = workspaces.find((ws) => ws.windowId === myWindowId && ws.groupId !== null && ws.groupId === tab?.groupId);
-  if (owner && owner.id !== current()?.id) void select(owner);
+  if (!owner || owner.id === current()?.id) return;
+  void select(owner);
+  void showOnly(owner.windowId!, owner.groupId);
 }
 
 chrome.tabs.onActivated.addListener(({ windowId }) => windowId === myWindowId && void followActiveTab());
@@ -239,7 +241,7 @@ function openWorkspace(ws: Workspace): void {
   // Opening a panel needs a user gesture, so do it before anything awaits.
   if (ws.windowId !== null) chrome.sidePanel.open({ windowId: ws.windowId }).catch(() => {});
   void select(ws);
-  void switchTo(ws, send);
+  void switchTo(ws, send, workspaces);
 }
 
 function startRename(ws: Workspace, nameEl: HTMLElement): void {

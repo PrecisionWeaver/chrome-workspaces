@@ -47,10 +47,15 @@ async function windowExists(windowId: number): Promise<boolean> {
 }
 
 /** Brings the workspace's window forward as sized, and its tab group if it has one, opening a window if it has none. Returns its window id. */
-export async function switchTo(workspace: Workspace, send: (message: ControlToHelper) => boolean): Promise<number | undefined> {
+export async function switchTo(
+  workspace: Workspace,
+  send: (message: ControlToHelper) => boolean,
+  all: readonly Workspace[] = [workspace],
+): Promise<number | undefined> {
   if (workspace.windowId !== null && (await windowExists(workspace.windowId))) {
     await chrome.windows.update(workspace.windowId, { focused: true });
     if (workspace.groupId !== null) await focusGroup(workspace.groupId);
+    if (all.some((other) => other.id !== workspace.id && other.windowId === workspace.windowId)) await showOnly(workspace.windowId, workspace.groupId);
     return workspace.windowId;
   }
   return openWindow(workspace, send);
@@ -88,4 +93,28 @@ export async function createGroup(workspace: Workspace, send: (message: ControlT
   const groupId = await chrome.tabs.group({ tabIds: [tab.id] });
   await chrome.tabGroups.update(groupId, { title: workspace.name, collapsed: false });
   send({ type: 'pair', id: workspace.id, windowId: workspace.windowId, groupId });
+  await showOnly(workspace.windowId, groupId);
+}
+
+/**
+ * Collapses every tab group in the window but the workspace's own, so a shared window shows one
+ * workspace at a time. Groups can be expanded again by hand; this runs when the workspace changes.
+ * A workspace with no group stays on a tab outside the groups, and nothing collapses if there is none.
+ */
+export async function showOnly(windowId: number, groupId: number | null): Promise<void> {
+  try {
+    if (groupId === null) {
+      const tabs = await chrome.tabs.query({ windowId });
+      if (tabs.some((tab) => tab.active && tab.groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE)) {
+        const ungrouped = tabs.filter((tab) => tab.groupId === chrome.tabGroups.TAB_GROUP_ID_NONE).sort((a, b) => (b.lastAccessed ?? 0) - (a.lastAccessed ?? 0))[0];
+        if (ungrouped?.id === undefined) return;
+        await chrome.tabs.update(ungrouped.id, { active: true });
+      }
+    }
+    for (const group of await chrome.tabGroups.query({ windowId })) {
+      if (group.id !== groupId && !group.collapsed) await chrome.tabGroups.update(group.id, { collapsed: true });
+    }
+  } catch {
+    // A group or tab closed mid-way; the next switch tidies up.
+  }
 }
