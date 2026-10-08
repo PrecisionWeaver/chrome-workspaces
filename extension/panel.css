@@ -107,9 +107,35 @@ code {
 }
 
 #new {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   margin: 2px 8px 8px;
   font-size: 16px;
   text-align: left;
+}
+
+#new .label {
+  font-size: 12px;
+}
+
+body.collapsed #new .label {
+  display: none;
+}
+
+#create .label .optional {
+  margin-left: 6px;
+  color: var(--faint);
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+#create-tabs {
+  resize: vertical;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 #workspaces {
@@ -261,7 +287,8 @@ code {
 #create-repo,
 #create-model,
 #create-filter,
-#create-text {
+#create-text,
+#create-tabs {
   width: 100%;
   box-sizing: border-box;
   background: var(--bg);
@@ -279,7 +306,8 @@ code {
 #create-repo:focus,
 #create-model:focus,
 #create-filter:focus,
-#create-text:focus {
+#create-text:focus,
+#create-tabs:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
 }

@@ -12,7 +12,7 @@
         <span id="list-title">Workspaces</span>
       </div>
       <ul id="workspaces"></ul>
-      <button id="new" title="New workspace">+</button>
+      <button id="new" title="New workspace"><span class="plus">+</span><span class="label">New workspace</span></button>
       <section id="reviews">
         <div id="reviews-header">
           <button id="reviews-toggle" title="Collapse review requests">▾</button>
@@ -57,6 +57,10 @@
           <label class="field">
             <span class="label">Model</span>
             <select id="create-model"></select>
+          </label>
+          <label class="field">
+            <span class="label">Tabs <span class="optional">optional, one URL per line</span></span>
+            <textarea id="create-tabs" rows="3" placeholder="https://" spellcheck="false" autocomplete="off"></textarea>
           </label>
           <div class="field">
             <span class="label">Start with</span>

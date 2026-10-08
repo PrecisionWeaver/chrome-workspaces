@@ -4,6 +4,7 @@ export const PROTOCOL = 'cw.v1';
 export const TOKEN_PROTOCOL_PREFIX = 'token.';
 export const NATIVE_HOST_NAME = 'com.chrome_workspaces.helper';
 export const MAX_PROMPT_LENGTH = 8000;
+export const MAX_TAB_URLS = 20;
 /** What `--model` accepts that is safe to put in a shell command: an alias or id, optionally with a `[1m]`-style suffix. */
 export const MODEL_PATTERN = /^[A-Za-z0-9][\w.-]{0,63}(\[\w{1,8}\])?$/;
 export const MODEL_ALIASES = ['opus', 'sonnet', 'haiku'] as const;
@@ -141,7 +142,7 @@ export type ControlToHelper =
   | { type: 'unpairGroup'; groupId: number }
   | { type: 'tabs'; windowId: number; urls: string[]; groupId?: number }
   /** With `pr`, focuses the PR's existing workspace instead of creating another. */
-  | { type: 'create'; name: string; windowId: number | null; pr?: string; prompt?: string; cwd?: string; model?: string; group?: boolean }
+  | { type: 'create'; name: string; windowId: number | null; pr?: string; prompt?: string; cwd?: string; model?: string; group?: boolean; urls?: string[] }
   | { type: 'remove'; id: string }
   | { type: 'rename'; id: string; name: string }
   /** `index` is the workspace's position in the list once moved. */

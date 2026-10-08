@@ -85,12 +85,17 @@ async function focusGroup(groupId: number): Promise<void> {
   }
 }
 
-/** Opens the workspace's first tab as a titled tab group in its window. */
+/** Opens the workspace's tabs as a titled tab group in its window. */
 export async function createGroup(workspace: Workspace, send: (message: ControlToHelper) => boolean): Promise<void> {
   if (workspace.windowId === null || !(await windowExists(workspace.windowId))) return;
-  const tab = await chrome.tabs.create({ windowId: workspace.windowId, url: workspace.url ?? undefined, active: true });
-  if (tab.id === undefined) return;
-  const groupId = await chrome.tabs.group({ tabIds: [tab.id] });
+  const urls: (string | undefined)[] = workspace.lastTabUrls.length ? workspace.lastTabUrls : [workspace.url ?? undefined];
+  const tabIds: number[] = [];
+  for (const [index, url] of urls.entries()) {
+    const tab = await chrome.tabs.create({ windowId: workspace.windowId, url, active: index === 0 });
+    if (tab.id !== undefined) tabIds.push(tab.id);
+  }
+  if (tabIds.length === 0) return;
+  const groupId = await chrome.tabs.group({ tabIds: tabIds as [number, ...number[]] });
   await chrome.tabGroups.update(groupId, { title: workspace.name, collapsed: false });
   send({ type: 'pair', id: workspace.id, windowId: workspace.windowId, groupId });
   await showOnly(workspace.windowId, groupId);

@@ -1,6 +1,6 @@
 import { isAbsolute } from 'node:path';
 import type { WebSocket } from 'ws';
-import { MAX_PROMPT_LENGTH, MODEL_PATTERN, type ControlToClient, type ControlToHelper, type Prompt, type Repo, type ReviewsState, type WorkspaceStatus } from '../../shared/protocol';
+import { MAX_PROMPT_LENGTH, MAX_TAB_URLS, MODEL_PATTERN, type ControlToClient, type ControlToHelper, type Prompt, type Repo, type ReviewsState, type WorkspaceStatus } from '../../shared/protocol';
 import { isDirectory } from './config';
 import { parsePrDetails } from './pr-details';
 import { isPullRequestUrl, prWorkspace } from './pr-workspace';
@@ -105,6 +105,7 @@ export class ControlHub {
           name: message.name.trim(),
           prompt: message.prompt?.trim() || null,
           model: message.model ?? null,
+          tabs: message.urls ?? [],
         });
         if (message.windowId === null) this.send({ type: 'open', id: workspace.id });
         else {
@@ -156,6 +157,10 @@ function isWindowId(value: unknown): value is number {
   return Number.isInteger(value);
 }
 
+function isWebUrl(value: unknown): value is string {
+  return typeof value === 'string' && value.length <= 2048 && /^https?:\/\/\S+$/i.test(value);
+}
+
 function isWorkspaceName(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0 && value.trim().length <= 80;
 }
@@ -191,7 +196,8 @@ function isControlToHelper(value: unknown): value is ControlToHelper {
         (m.prompt === undefined || (typeof m.prompt === 'string' && m.prompt.length <= MAX_PROMPT_LENGTH)) &&
         (m.cwd === undefined || (typeof m.cwd === 'string' && m.cwd.length <= 1024)) &&
         (m.model === undefined || (typeof m.model === 'string' && MODEL_PATTERN.test(m.model))) &&
-        (m.group === undefined || typeof m.group === 'boolean')
+        (m.group === undefined || typeof m.group === 'boolean') &&
+        (m.urls === undefined || (Array.isArray(m.urls) && m.urls.length <= MAX_TAB_URLS && m.urls.every(isWebUrl)))
       );
     case 'listPrompts':
     case 'listRepos':

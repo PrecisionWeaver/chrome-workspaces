@@ -11,6 +11,8 @@ export interface NewWorkspace {
   pr?: string | null;
   prompt?: string | null;
   model?: string | null;
+  /** Tabs to open with the workspace; they become its remembered tabs. */
+  tabs?: string[];
 }
 
 export class WorkspaceStore {
@@ -51,7 +53,7 @@ export class WorkspaceStore {
       windowId: null,
       groupId: null,
       model: input.model ?? null,
-      lastTabUrls: [],
+      lastTabUrls: [...(input.tabs ?? [])],
       pr: input.pr ?? null,
       prompt: input.prompt ?? null,
       createdAt: new Date().toISOString(),

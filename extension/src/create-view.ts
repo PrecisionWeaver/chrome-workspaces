@@ -1,5 +1,6 @@
 import { fillPrompt } from '../../shared/prompts';
-import { MODEL_ALIASES } from '../../shared/protocol';
+import { MAX_TAB_URLS, MODEL_ALIASES } from '../../shared/protocol';
+import { parseTabUrls } from '../../shared/tab-urls';
 import type { ControlToHelper, Prompt, Repo, Workspace } from '../../shared/protocol';
 import { el, promptCard } from './dom';
 
@@ -42,6 +43,7 @@ export function createCreateView({ send, onToggle, here }: CreateViewOptions): C
   const nameInput = $<HTMLInputElement>('create-name');
   const repoSelect = $<HTMLSelectElement>('create-repo');
   const modelSelect = $<HTMLSelectElement>('create-model');
+  const tabsInput = $<HTMLTextAreaElement>('create-tabs');
   const promptSection = $<HTMLDivElement>('create-prompt');
   const choose = $<HTMLDivElement>('create-choose');
   const filter = $<HTMLInputElement>('create-filter');
@@ -88,7 +90,8 @@ export function createCreateView({ send, onToggle, here }: CreateViewOptions): C
 
     send({ type: 'listPrompts' });
     send({ type: 'listRepos' });
-    void chrome.storage.local.get(['useThisWindow', 'newRepo', 'newModel']).then(({ useThisWindow, newRepo, newModel }) => {
+    void chrome.storage.local.get(['useThisWindow', 'newRepo', 'newModel', 'newTabs']).then(({ useThisWindow, newRepo, newModel, newTabs }) => {
+      tabsInput.value = typeof newTabs === 'string' ? newTabs : '';
       target.select(useThisWindow === true && windowId !== undefined ? 'here' : 'new');
       modelSelect.value = typeof newModel === 'string' ? newModel : '';
       if (modelSelect.value !== newModel) modelSelect.value = '';
@@ -182,19 +185,25 @@ export function createCreateView({ send, onToggle, here }: CreateViewOptions): C
       filter.focus();
       return;
     }
-    const { windowId } = here();
+    const { urls, invalid } = parseTabUrls(tabsInput.value);
+    tabsInput.setCustomValidity(invalid.length ? `Not a web address: ${invalid[0]}` : urls.length > MAX_TAB_URLS ? `At most ${MAX_TAB_URLS} tabs` : '');
+    if (!tabsInput.reportValidity()) return;
+    const { windowId, workspace } = here();
     const useHere = target.value() === 'here' && windowId !== undefined;
-    void chrome.storage.local.set({ useThisWindow: target.value() === 'here', newRepo: repoSelect.value, newModel: modelSelect.value });
+    void chrome.storage.local.set({ useThisWindow: target.value() === 'here', newRepo: repoSelect.value, newModel: modelSelect.value, newTabs: tabsInput.value.trim() });
     send({
       type: 'create',
       name,
       windowId: useHere ? windowId : null,
       // Joining a window that already holds a workspace gives the new one a tab group beside it.
-      ...(useHere && here().workspace ? { group: true } : {}),
+      ...(useHere && workspace ? { group: true } : {}),
+      ...(urls.length ? { urls } : {}),
       ...(modelSelect.value ? { model: modelSelect.value } : {}),
       ...(repoSelect.value ? { cwd: repoSelect.value } : {}),
       ...(prompt ? { prompt } : {}),
     });
+    // A window with no workspace is adopted as it is; one that holds a workspace gets the tabs in its new group instead.
+    if (useHere && !workspace) for (const url of urls) void chrome.tabs.create({ windowId, url, active: false });
     close();
   });
 

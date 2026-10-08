@@ -195,6 +195,17 @@ describe('control channel', () => {
     ws.close();
   });
 
+  it('starts a workspace with the tabs it was given, and ignores a request with a bad one', async () => {
+    const { ws } = connectControl(h);
+    await opened(ws);
+    ws.send(JSON.stringify({ type: 'create', name: 'bad', windowId: null, urls: ['https://a.example', 'javascript:alert(1)'] }));
+    ws.send(JSON.stringify({ type: 'create', name: 'many', windowId: null, urls: Array.from({ length: 21 }, (_, i) => `https://x.example/${i}`) }));
+    ws.send(JSON.stringify({ type: 'create', name: 'ok', windowId: null, urls: ['https://a.example', 'http://b.example/path?q=1'] }));
+    await waitFor(() => h.store.list().length >= 1);
+    expect(h.store.list().map((w) => [w.name, w.lastTabUrls])).toEqual([['ok', ['https://a.example', 'http://b.example/path?q=1']]]);
+    ws.close();
+  });
+
   it('rejects a model that is not a plain id', async () => {
     const { ws } = connectControl(h);
     await opened(ws);
