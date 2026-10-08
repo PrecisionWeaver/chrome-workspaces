@@ -511,6 +511,11 @@ code {
   color: var(--text);
 }
 
+.when .author {
+  color: var(--muted);
+  font-weight: 600;
+}
+
 .review .when {
   color: var(--faint);
   font-size: 11px;

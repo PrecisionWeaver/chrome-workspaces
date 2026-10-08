@@ -47,6 +47,13 @@ function relative(iso: string): string {
   return hours < 48 ? `${hours}h ago` : `${Math.round(hours / 24)}d ago`;
 }
 
+/** A line of text led by its author's name in bold. */
+function byline(text: string, author: string, prefix = ''): HTMLElement {
+  const line = el('span', prefix, 'when');
+  line.append(el('strong', author, 'author'), ` · ${text}`);
+  return line;
+}
+
 function person(login: string, trailing?: Node): HTMLElement {
   const row = el('li', '', 'person');
   row.append(el('span', login.slice(0, 1).toUpperCase(), 'avatar'), el('span', login, 'login'));
@@ -63,7 +70,7 @@ function renderDetails(pr: PrDetails): Node[] {
     el('span', `+${pr.additions.toLocaleString()}`, 'add'),
     el('span', `−${pr.deletions.toLocaleString()}`, 'del'),
     el('span', `${pr.changedFiles} files`, 'files'),
-    el('span', `by ${pr.author} · opened ${relative(pr.createdAt)} · updated ${relative(pr.updatedAt)}`, 'when'),
+    byline(`opened ${relative(pr.createdAt)} · updated ${relative(pr.updatedAt)}`, pr.author, 'by '),
   );
 
   const pills = el('div', '', 'pills');
@@ -385,7 +392,7 @@ export function createLauncher({ send, onToggle, openWorkspace, here }: Launcher
         itemTitle.className = 'title';
         itemTitle.textContent = item.title;
 
-        const when = el('span', `${item.author} · ${relative(item.updatedAt)}`, 'when');
+        const when = byline(relative(item.updatedAt), item.author);
         row.append(head, itemTitle, when);
         row.addEventListener('click', () => {
           if (item.url === review?.url) close();
