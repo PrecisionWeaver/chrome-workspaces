@@ -216,6 +216,23 @@ describe('control channel', () => {
     ws.close();
   });
 
+  it('starts a PR workspace in the directory picked, else its repo\'s configured one', async () => {
+    const picked = mkdtempSync(join(tmpdir(), 'cw-pick-'));
+    const repoDir = mkdtempSync(join(tmpdir(), 'cw-repo-'));
+    h.repoDirs['acme/app'] = repoDir;
+    h.reviews.push(review);
+    const { ws } = connectControl(h);
+    await opened(ws);
+    ws.send(JSON.stringify({ type: 'create', name: 'app#482', windowId: null, pr: PR, cwd: picked }));
+    await waitFor(() => h.store.list().length === 1);
+    expect(h.store.list()[0].cwd).toBe(picked);
+    h.store.remove(h.store.list()[0].id);
+    ws.send(JSON.stringify({ type: 'create', name: 'app#482', windowId: null, pr: PR }));
+    await waitFor(() => h.store.list().length === 1);
+    expect(h.store.list()[0].cwd).toBe(repoDir);
+    ws.close();
+  });
+
   it('answers listRepos to the asking client only', async () => {
     h.repos.push({ name: 'chrome-workspaces', path: '/w/chrome-workspaces', root: 'Websites' });
     const asker = connectControl(h);

@@ -43,8 +43,10 @@
       <section id="create" hidden>
         <div id="create-bar">
           <button type="button" id="create-close" title="Back to the terminal (Esc)">← Back</button>
+          <button type="button" id="create-github" hidden>Open in GitHub ↗</button>
         </div>
         <h2 id="create-title">New workspace</h2>
+        <div id="create-details" hidden></div>
         <form id="create-form">
           <label class="field">
             <span class="label">Name</span>
@@ -59,7 +61,7 @@
             <select id="create-model"></select>
           </label>
           <label class="field">
-            <span class="label">Tabs <span class="optional">optional, one URL per line</span></span>
+            <span class="label">Tabs <span class="optional" id="create-tabs-label">optional, one URL per line</span></span>
             <textarea id="create-tabs" rows="3" placeholder="https://" spellcheck="false" autocomplete="off"></textarea>
           </label>
           <div class="field">
@@ -89,28 +91,6 @@
           </div>
           <div id="create-actions">
             <button type="submit" id="create-submit">Create</button>
-          </div>
-        </form>
-      </section>
-      <section id="launch" hidden>
-        <div id="launch-bar">
-          <button type="button" id="launch-close" title="Back to the terminal (Esc)">← Back</button>
-          <label class="here"><input type="checkbox" id="launch-here" /> <span id="launch-here-label">Use this window</span></label>
-          <button type="button" id="launch-github">Open in GitHub ↗</button>
-        </div>
-        <h2 id="launch-title"></h2>
-        <div id="launch-details"></div>
-        <div id="launch-choose">
-          <input id="launch-filter" placeholder="Filter prompts" autocomplete="off" />
-          <div id="launch-error" hidden></div>
-          <div id="launch-prompts"></div>
-        </div>
-        <form id="launch-edit" hidden>
-          <input id="launch-name" placeholder="Workspace name" maxlength="80" autocomplete="off" required />
-          <textarea id="launch-text" maxlength="8000" required></textarea>
-          <div id="launch-actions">
-            <button type="button" id="launch-back">Change prompt</button>
-            <button type="submit" id="launch-start">Start</button>
           </div>
         </form>
       </section>

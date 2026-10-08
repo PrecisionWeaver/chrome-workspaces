@@ -31,12 +31,9 @@ let reviews: ReviewsState = { items: [], error: null, fetchedAt: null };
 
 const control = connectControl(
   (message) => {
-    if (message.type === 'prompts') {
-      launcher.setPrompts(message.prompts, message.error);
-      creator.setPrompts(message.prompts, message.error);
-    }
+    if (message.type === 'prompts') creator.setPrompts(message.prompts, message.error);
     if (message.type === 'repos') creator.setRepos(message.repos);
-    if (message.type === 'prDetails') launcher.setPrDetails(message.url, message.details, message.error);
+    if (message.type === 'prDetails') creator.setPrDetails(message.url, message.details, message.error);
     if (message.type !== 'state') return;
     selectJoiners(message.workspaces);
     workspaces = message.workspaces;
@@ -48,22 +45,17 @@ const control = connectControl(
 );
 const send = control.send.bind(control);
 const here = () => ({ windowId: myWindowId, workspace: current() });
-// The launch and new-workspace views share the main pane, so opening one closes the other.
+// Review requests start a workspace through the same new-workspace view as the + button.
 const launcher = createLauncher({
   send,
-  onToggle() {
-    if (launcher.isOpen) creator.close();
-    render();
-  },
+  create: (review) => creator.show(review),
+  closeCreate: () => creator.close(),
+  selectedUrl: () => creator.review?.url ?? null,
   openWorkspace,
-  here,
 });
 const creator = createCreateView({
   send,
-  onToggle() {
-    if (creator.isOpen) launcher.close();
-    render();
-  },
+  onToggle: render,
   here,
 });
 
@@ -131,7 +123,7 @@ function render(): void {
   renderList();
   launcher.renderReviews(reviews, workspaces);
   const workspace = current();
-  const overlay = launcher.isOpen || creator.isOpen;
+  const overlay = creator.isOpen;
   pickerEl.hidden = overlay || workspace !== undefined;
   terminalEl.hidden = overlay || workspace === undefined;
   if (workspace) attach(workspace);
@@ -192,7 +184,6 @@ function renderList(): void {
       item.addEventListener('click', () => {
         if (ws.id !== here?.id) openWorkspace(ws);
         else {
-          launcher.close();
           creator.close();
         }
       });

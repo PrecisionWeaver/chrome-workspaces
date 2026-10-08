@@ -1,119 +1,22 @@
-import { fillPrompt } from '../../shared/prompts';
-import type { ControlToHelper, MergeState, PrDetails, Prompt, ReviewRequest, ReviewsState, Workspace } from '../../shared/protocol';
-import { el, promptCard } from './dom';
+import type { ControlToHelper, MergeState, ReviewRequest, ReviewsState, Workspace } from '../../shared/protocol';
+import { el } from './dom';
+import { ref, relative, byline } from './pr-view';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
 export interface LauncherOptions {
   send(message: ControlToHelper): boolean;
-  /** Called when the launch view opens or closes, so the panel can swap it with the terminal. */
-  onToggle(): void;
+  /** Opens the new-workspace view for a review request. */
+  create(review: ReviewRequest): void;
+  /** Closes the new-workspace view. */
+  closeCreate(): void;
+  /** The review request the new-workspace view is open for, if any. */
+  selectedUrl(): string | null;
   openWorkspace(workspace: Workspace): void;
-  /** The window this panel is in, and the workspace it holds, if any. */
-  here(): { windowId: number | undefined; workspace: Workspace | undefined };
 }
 
 export interface Launcher {
-  readonly isOpen: boolean;
-  /** Opens the prompt picker for a review request. */
-  show(review: ReviewRequest): void;
-  /** Returns to the terminal. */
-  close(): void;
   renderReviews(state: ReviewsState, workspaces: readonly Workspace[]): void;
-  setPrompts(prompts: Prompt[], error: string | null): void;
-  setPrDetails(url: string, details: PrDetails | null, error: string | null): void;
-}
-
-const repoName = (review: ReviewRequest) => review.repo.split('/')[1] ?? review.repo;
-const ref = (review: ReviewRequest) => `${repoName(review)}#${review.number}`;
-
-const DECISIONS: Record<string, [label: string, tone: string]> = {
-  APPROVED: ['Approved', 'good'],
-  CHANGES_REQUESTED: ['Changes requested', 'bad'],
-  REVIEW_REQUIRED: ['Review required', 'wait'],
-};
-const REVIEW_STATES: Record<string, [label: string, tone: string]> = {
-  APPROVED: ['approved', 'good'],
-  CHANGES_REQUESTED: ['requested changes', 'bad'],
-  COMMENTED: ['commented', ''],
-  DISMISSED: ['dismissed', ''],
-  PENDING: ['review in progress', 'wait'],
-};
-
-function relative(iso: string): string {
-  const minutes = Math.round((Date.now() - new Date(iso).getTime()) / 60_000);
-  if (minutes < 60) return `${Math.max(minutes, 1)}m ago`;
-  const hours = Math.round(minutes / 60);
-  return hours < 48 ? `${hours}h ago` : `${Math.round(hours / 24)}d ago`;
-}
-
-/** A line of text led by its author's name in bold. */
-function byline(text: string, author: string, prefix = ''): HTMLElement {
-  const line = el('span', prefix, 'when');
-  line.append(el('strong', author, 'author'), ` · ${text}`);
-  return line;
-}
-
-function person(login: string, trailing?: Node): HTMLElement {
-  const row = el('li', '', 'person');
-  row.append(el('span', login.slice(0, 1).toUpperCase(), 'avatar'), el('span', login, 'login'));
-  if (trailing) row.append(trailing);
-  return row;
-}
-
-function renderDetails(pr: PrDetails): Node[] {
-  const branches = el('div', '', 'branches');
-  branches.append(el('code', pr.head), el('span', '→', 'arrow'), el('code', pr.base));
-
-  const stats = el('div', '', 'stats');
-  stats.append(
-    el('span', `+${pr.additions.toLocaleString()}`, 'add'),
-    el('span', `−${pr.deletions.toLocaleString()}`, 'del'),
-    el('span', `${pr.changedFiles} files`, 'files'),
-    byline(`opened ${relative(pr.createdAt)} · updated ${relative(pr.updatedAt)}`, pr.author, 'by '),
-  );
-
-  const pills = el('div', '', 'pills');
-  const [label, tone] = DECISIONS[pr.reviewDecision ?? ''] ?? ['No review required', ''];
-  pills.append(el('span', label, `pill ${tone}`));
-  if (pr.isDraft) pills.append(el('span', 'Draft', 'pill'));
-  if (pr.mergeable === 'CONFLICTING') pills.append(el('span', 'Merge conflicts', 'pill bad'));
-  const { passed, failed, pending, failing } = pr.checks;
-  if (failed) pills.append(el('span', `${failed} failing`, 'pill bad'));
-  if (pending) pills.append(el('span', `${pending} pending`, 'pill wait'));
-  if (passed) pills.append(el('span', `${passed} passed`, 'pill good'));
-
-  const nodes: Node[] = [branches, stats, pills];
-  if (failing.length) {
-    const failingEl = el('div', 'Failing: ', 'failing');
-    failingEl.append(el('span', failing.join(', ')));
-    nodes.push(failingEl);
-  }
-
-  const people = el('div', '', 'people');
-  const reviewed = el('div', '', 'people-col');
-  reviewed.append(el('h3', 'Reviews'));
-  const reviewList = el('ul');
-  if (pr.reviews.length === 0) reviewList.append(el('li', 'None yet', 'empty'));
-  for (const r of pr.reviews) {
-    const [stateLabel, stateTone] = REVIEW_STATES[r.state] ?? [r.state.toLowerCase(), ''];
-    const row = person(r.login, el('span', stateLabel, `state ${stateTone}`));
-    if (r.at) row.title = new Date(r.at).toLocaleString();
-    reviewList.append(row);
-  }
-  reviewed.append(reviewList);
-  people.append(reviewed);
-
-  if (pr.requested.length) {
-    const waiting = el('div', '', 'people-col');
-    waiting.append(el('h3', `Waiting on ${pr.requested.length}`));
-    const waitingList = el('ul');
-    waitingList.append(...pr.requested.map((login) => person(login)));
-    waiting.append(waitingList);
-    people.append(waiting);
-  }
-  nodes.push(people);
-  return nodes;
 }
 
 type Facet = 'author' | 'repo' | 'status';
@@ -141,20 +44,7 @@ function matches(item: ReviewRequest, query: string): boolean {
   return query.split(/\s+/).every((word) => haystack.includes(word));
 }
 
-export function createLauncher({ send, onToggle, openWorkspace, here }: LauncherOptions): Launcher {
-  const section = $<HTMLElement>('launch');
-  const choose = $<HTMLDivElement>('launch-choose');
-  const title = $<HTMLHeadingElement>('launch-title');
-  const filter = $<HTMLInputElement>('launch-filter');
-  const detailsEl = $<HTMLDivElement>('launch-details');
-  const githubButton = $<HTMLButtonElement>('launch-github');
-  const errorEl = $<HTMLDivElement>('launch-error');
-  const promptsEl = $<HTMLDivElement>('launch-prompts');
-  const editForm = $<HTMLFormElement>('launch-edit');
-  const nameInput = $<HTMLInputElement>('launch-name');
-  const textInput = $<HTMLTextAreaElement>('launch-text');
-  const hereInput = $<HTMLInputElement>('launch-here');
-  const hereLabel = $<HTMLSpanElement>('launch-here-label');
+export function createLauncher({ send, create, closeCreate, selectedUrl, openWorkspace }: LauncherOptions): Launcher {
   const reviewsSection = $<HTMLElement>('reviews');
   const reviewsTitle = $<HTMLSpanElement>('reviews-title');
   const reviewsError = $<HTMLDivElement>('reviews-error');
@@ -164,118 +54,18 @@ export function createLauncher({ send, onToggle, openWorkspace, here }: Launcher
   const facetButtons = [...document.querySelectorAll<HTMLButtonElement>('#reviews-tools .facet')];
   const reviewsRefresh = $<HTMLButtonElement>('reviews-refresh');
 
-  let isOpen = false;
-  let review: ReviewRequest | null = null;
-  let prompts: Prompt[] = [];
   let lastReviews: ReviewsState = { items: [], error: null, fetchedAt: null };
   let lastWorkspaces: readonly Workspace[] = [];
   // Deselected values are stored rather than selected ones, so new authors and repos show up.
   const hidden: Record<Facet, Set<string>> = { author: new Set(), repo: new Set(), status: new Set() };
   let openFacet: Facet | null = null;
-  // Shown straight away when a PR is reopened, while its fresh details load behind it.
-  const detailsCache = new Map<string, PrDetails>();
 
-  function show(target: ReviewRequest): void {
-    review = target;
-    isOpen = true;
-    title.replaceChildren(el('code', ref(target), 'ref-chip'), el('span', target.title));
-    filter.value = '';
-    choose.hidden = false;
-    editForm.hidden = true;
-    section.hidden = false;
-    const cached = detailsCache.get(target.url);
-    detailsEl.replaceChildren(...(cached ? renderDetails(cached) : [el('div', 'Loading PR details…', 'loading')]));
-    detailsEl.classList.toggle('refreshing', cached !== undefined);
-    send({ type: 'prDetails', url: target.url });
-    send({ type: 'listPrompts' });
-    const current = here().workspace;
-    hereLabel.textContent = current ? `Use this window (a tab group beside ${current.name})` : 'Use this window';
-    void chrome.storage.local.get('useThisWindow').then(({ useThisWindow }) => {
-      hereInput.checked = useThisWindow === true;
-    });
-    onToggle();
-    filter.focus();
-  }
-
-  function close(): void {
-    isOpen = false;
-    review = null;
-    section.hidden = true;
-    onToggle();
-  }
-
-  function renderPrompts(): void {
-    const query = filter.value.trim().toLowerCase();
-    const groups = new Map<string, Prompt[]>();
-    for (const prompt of prompts) {
-      if (query && !`${prompt.section} ${prompt.text}`.toLowerCase().includes(query)) continue;
-      groups.set(prompt.section, [...(groups.get(prompt.section) ?? []), prompt]);
-    }
-    promptsEl.replaceChildren(
-      ...[...groups].map(([name, items]) => {
-        const group = el('section', '', 'prompt-group');
-        const heading = el('h3', name || 'Prompts');
-        heading.append(el('span', String(items.length), 'count'));
-        const grid = el('div', '', 'prompt-grid');
-        grid.append(
-          ...items.map((prompt) => {
-            const button = el('button', '', 'prompt');
-            button.type = 'button';
-            button.title = prompt.text;
-            button.append(...promptCard(prompt.text));
-            button.addEventListener('click', () => edit(prompt));
-            return button;
-          }),
-        );
-        group.append(heading, grid);
-        return group;
-      }),
-    );
-  }
-
-  function edit(prompt: Prompt): void {
-    choose.hidden = true;
-    editForm.hidden = false;
-    if (!review) return;
-    nameInput.value = ref(review);
-    textInput.value = fillPrompt(prompt.text, { prUrl: review.url, ticket: review.ticket });
-    textInput.focus();
-  }
-
-  filter.addEventListener('input', renderPrompts);
-
-  $<HTMLButtonElement>('launch-close').addEventListener('click', close);
-
-  githubButton.addEventListener('click', () => {
-    if (review) void chrome.tabs.create({ url: review.url });
-  });
-
-  $<HTMLButtonElement>('launch-back').addEventListener('click', () => {
-    editForm.hidden = true;
-    choose.hidden = false;
-    filter.focus();
-  });
-
-  editForm.addEventListener('submit', (event) => {
-    event.preventDefault();
-    const name = nameInput.value.trim();
-    const prompt = textInput.value.trim();
-    if (!review || !name || !prompt) return;
-    const { windowId, workspace } = here();
-    const useHere = hereInput.checked && windowId !== undefined;
-    void chrome.storage.local.set({ useThisWindow: hereInput.checked });
-    send({ type: 'create', name, windowId: useHere ? windowId : null, prompt, pr: review.url, ...(useHere && workspace ? { group: true } : {}) });
-    // A new window or a tab group opens at the PR on its own; a window with no workspace needs a tab for it.
-    if (useHere && !workspace) void chrome.tabs.create({ windowId, url: review.url });
-    close();
-  });
-
+  // Registered before the new-workspace view's own Escape handler, so closing a facet list is not also a close.
   document.addEventListener('keydown', (event) => {
-    if (event.key !== 'Escape') return;
-    if (openFacet) {
-      openFacet = null;
-      renderReviews(lastReviews, lastWorkspaces);
-    } else if (isOpen) close();
+    if (event.key !== 'Escape' || !openFacet) return;
+    event.stopImmediatePropagation();
+    openFacet = null;
+    renderReviews(lastReviews, lastWorkspaces);
   });
 
   reviewsRefresh.addEventListener('click', () => send({ type: 'refreshReviews' }));
@@ -375,7 +165,7 @@ export function createLauncher({ send, onToggle, openWorkspace, here }: Launcher
       ...items.map((item) => {
         const existing = workspaces.find((ws) => ws.pr === item.url);
         const row = document.createElement('li');
-        row.className = `review${item.url === review?.url ? ' selected' : ''}`;
+        row.className = `review${item.url === selectedUrl() ? ' selected' : ''}`;
         row.title = `${item.title}\n${item.repo} by ${item.author}${existing ? `\nWorkspace: ${existing.name}` : ''}`;
 
         const head = document.createElement('span');
@@ -400,36 +190,14 @@ export function createLauncher({ send, onToggle, openWorkspace, here }: Launcher
         const when = byline(relative(item.updatedAt), item.author);
         row.append(head, itemTitle, when);
         row.addEventListener('click', () => {
-          if (item.url === review?.url) close();
+          if (item.url === selectedUrl()) closeCreate();
           else if (existing) openWorkspace(existing);
-          else show(item);
+          else create(item);
         });
         return row;
       }),
     );
   }
 
-  return {
-    get isOpen() {
-      return isOpen;
-    },
-    show,
-    close,
-    renderReviews,
-    setPrompts(next, error) {
-      prompts = next;
-      errorEl.hidden = error === null;
-      errorEl.textContent = error ? `Could not read prompts: ${error}` : '';
-      renderPrompts();
-    },
-    setPrDetails(url, details, error) {
-      if (details) detailsCache.set(url, details);
-      if (url !== review?.url) return;
-      detailsEl.classList.remove('refreshing');
-      const cached = detailsCache.get(url);
-      if (details) detailsEl.replaceChildren(...renderDetails(details));
-      else if (cached) detailsEl.replaceChildren(...renderDetails(cached), el('div', `Could not refresh PR details: ${error}`, 'failing'));
-      else detailsEl.replaceChildren(el('div', `Could not load PR details: ${error}`, 'failing'));
-    },
-  };
+  return { renderReviews };
 }

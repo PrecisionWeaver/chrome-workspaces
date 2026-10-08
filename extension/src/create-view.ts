@@ -1,8 +1,9 @@
 import { fillPrompt } from '../../shared/prompts';
 import { MAX_TAB_URLS, MODEL_ALIASES } from '../../shared/protocol';
 import { parseTabUrls } from '../../shared/tab-urls';
-import type { ControlToHelper, Prompt, Repo, Workspace } from '../../shared/protocol';
+import type { ControlToHelper, PrDetails, Prompt, Repo, ReviewRequest, Workspace } from '../../shared/protocol';
 import { el, promptCard } from './dom';
+import { ref, renderDetails, repoName } from './pr-view';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -16,10 +17,14 @@ export interface CreateViewOptions {
 
 export interface CreateView {
   readonly isOpen: boolean;
-  show(): void;
+  /** Opens the view blank, or for a review request: named for it, with its details, prompts filled in, and the PR as a tab. */
+  show(review?: ReviewRequest): void;
   close(): void;
+  /** The review request being created a workspace for, if any. */
+  readonly review: ReviewRequest | null;
   setPrompts(prompts: Prompt[], error: string | null): void;
   setRepos(repos: Repo[]): void;
+  setPrDetails(url: string, details: PrDetails | null, error: string | null): void;
 }
 
 /** Marks one button of a segmented control active and returns a getter for its value. */
@@ -52,10 +57,17 @@ export function createCreateView({ send, onToggle, here }: CreateViewOptions): C
   const chosen = $<HTMLDivElement>('create-chosen');
   const textInput = $<HTMLTextAreaElement>('create-text');
   const windowButtons = $<HTMLDivElement>('create-window');
+  const title = $<HTMLHeadingElement>('create-title');
+  const detailsEl = $<HTMLDivElement>('create-details');
+  const githubButton = $<HTMLButtonElement>('create-github');
+  const tabsLabel = $<HTMLSpanElement>('create-tabs-label');
 
   let isOpen = false;
   let prompts: Prompt[] = [];
   let repos: Repo[] = [];
+  let review: ReviewRequest | null = null;
+  // Shown straight away when a PR is reopened, while its fresh details load behind it.
+  const detailsCache = new Map<string, PrDetails>();
   // Picked in an earlier session; applied once the repo list arrives.
   let savedRepo = '';
 
@@ -72,16 +84,28 @@ export function createCreateView({ send, onToggle, here }: CreateViewOptions): C
     if (fromPrompt && chosen.hidden) filter.focus();
   }
 
-  function show(): void {
+  function show(request: ReviewRequest | null = null): void {
     isOpen = true;
-    nameInput.value = '';
+    review = request;
+    nameInput.value = request ? ref(request) : '';
     filter.value = '';
     textInput.value = '';
     choose.hidden = false;
     chosen.hidden = true;
-    start.select('blank');
+    start.select(request ? 'prompt' : 'blank');
     syncStart();
     section.hidden = false;
+    githubButton.hidden = detailsEl.hidden = request === null;
+    tabsLabel.textContent = request ? 'The PR opens first, then these' : 'optional, one URL per line';
+    if (request) {
+      title.replaceChildren(el('code', ref(request), 'ref-chip'), el('span', request.title));
+      const cached = detailsCache.get(request.url);
+      detailsEl.replaceChildren(...(cached ? renderDetails(cached) : [el('div', 'Loading PR details…', 'loading')]));
+      detailsEl.classList.toggle('refreshing', cached !== undefined);
+      send({ type: 'prDetails', url: request.url });
+    } else {
+      title.textContent = 'New workspace';
+    }
 
     const { windowId, workspace } = here();
     const thisWindow = windowButtons.querySelector<HTMLButtonElement>('[data-value="here"]')!;
@@ -91,27 +115,34 @@ export function createCreateView({ send, onToggle, here }: CreateViewOptions): C
     send({ type: 'listPrompts' });
     send({ type: 'listRepos' });
     void chrome.storage.local.get(['useThisWindow', 'newRepo', 'newModel', 'newTabs']).then(({ useThisWindow, newRepo, newModel, newTabs }) => {
-      tabsInput.value = typeof newTabs === 'string' ? newTabs : '';
+      // A review starts with only its PR; the saved list is for workspaces made from scratch.
+      tabsInput.value = !request && typeof newTabs === 'string' ? newTabs : '';
       target.select(useThisWindow === true && windowId !== undefined ? 'here' : 'new');
       modelSelect.value = typeof newModel === 'string' ? newModel : '';
       if (modelSelect.value !== newModel) modelSelect.value = '';
       savedRepo = typeof newRepo === 'string' ? newRepo : '';
-      repoSelect.value = savedRepo;
-      if (repoSelect.value !== savedRepo) repoSelect.value = '';
+      selectRepo();
     });
     onToggle();
-    nameInput.focus();
+    (request ? filter : nameInput).focus();
+  }
+
+  /** A review starts in the repo its PR belongs to, when that repo is listed; otherwise the last pick. */
+  function selectRepo(): void {
+    const own = review ? repos.find((repo) => repo.name === repoName(review!)) : undefined;
+    repoSelect.value = own?.path ?? (review ? '' : savedRepo);
+    if (repoSelect.value !== (own?.path ?? (review ? '' : savedRepo))) repoSelect.value = '';
   }
 
   function close(): void {
     if (!isOpen) return;
     isOpen = false;
+    review = null;
     section.hidden = true;
     onToggle();
   }
 
   function renderRepos(): void {
-    const current = repoSelect.value || savedRepo;
     const repeated = new Set(repos.map((r) => r.name).filter((name, i, all) => all.indexOf(name) !== i));
     const options = repos.map((repo) => {
       const option = el('option', repeated.has(repo.name) ? `${repo.name} (${repo.root})` : repo.name);
@@ -121,9 +152,10 @@ export function createCreateView({ send, onToggle, here }: CreateViewOptions): C
     });
     const standard = el('option', 'Default directory');
     standard.value = '';
+    const picked = repoSelect.value;
     repoSelect.replaceChildren(standard, ...options);
-    repoSelect.value = current;
-    if (repoSelect.value !== current) repoSelect.value = '';
+    repoSelect.value = picked;
+    if (repoSelect.value !== picked) selectRepo();
   }
 
   function renderPrompts(): void {
@@ -158,7 +190,7 @@ export function createCreateView({ send, onToggle, here }: CreateViewOptions): C
   function choosePrompt(prompt: Prompt): void {
     choose.hidden = true;
     chosen.hidden = false;
-    textInput.value = fillPrompt(prompt.text, { prUrl: null, ticket: null });
+    textInput.value = fillPrompt(prompt.text, { prUrl: review?.url ?? null, ticket: review?.ticket ?? null });
     textInput.focus();
   }
 
@@ -171,6 +203,10 @@ export function createCreateView({ send, onToggle, here }: CreateViewOptions): C
   });
 
   $<HTMLButtonElement>('create-close').addEventListener('click', close);
+
+  githubButton.addEventListener('click', () => {
+    if (review) void chrome.tabs.create({ url: review.url });
+  });
 
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && isOpen) close();
@@ -185,12 +221,19 @@ export function createCreateView({ send, onToggle, here }: CreateViewOptions): C
       filter.focus();
       return;
     }
-    const { urls, invalid } = parseTabUrls(tabsInput.value);
-    tabsInput.setCustomValidity(invalid.length ? `Not a web address: ${invalid[0]}` : urls.length > MAX_TAB_URLS ? `At most ${MAX_TAB_URLS} tabs` : '');
+    const typed = parseTabUrls(tabsInput.value);
+    // The PR leads the tabs, so a new window, a tab group and an adopted window all open at it.
+    const urls = review ? [...new Set([review.url, ...typed.urls])] : typed.urls;
+    tabsInput.setCustomValidity(typed.invalid.length ? `Not a web address: ${typed.invalid[0]}` : urls.length > MAX_TAB_URLS ? `At most ${MAX_TAB_URLS} tabs` : '');
     if (!tabsInput.reportValidity()) return;
     const { windowId, workspace } = here();
     const useHere = target.value() === 'here' && windowId !== undefined;
-    void chrome.storage.local.set({ useThisWindow: target.value() === 'here', newRepo: repoSelect.value, newModel: modelSelect.value, newTabs: tabsInput.value.trim() });
+    void chrome.storage.local.set({
+      useThisWindow: target.value() === 'here',
+      newModel: modelSelect.value,
+      // A review's repo and tabs belong to that PR, not to the next workspace.
+      ...(review ? {} : { newRepo: repoSelect.value, newTabs: tabsInput.value.trim() }),
+    });
     send({
       type: 'create',
       name,
@@ -201,6 +244,7 @@ export function createCreateView({ send, onToggle, here }: CreateViewOptions): C
       ...(modelSelect.value ? { model: modelSelect.value } : {}),
       ...(repoSelect.value ? { cwd: repoSelect.value } : {}),
       ...(prompt ? { prompt } : {}),
+      ...(review ? { pr: review.url } : {}),
     });
     // A window with no workspace is adopted as it is; one that holds a workspace gets the tabs in its new group instead.
     if (useHere && !workspace) for (const url of urls) void chrome.tabs.create({ windowId, url, active: false });
@@ -211,7 +255,7 @@ export function createCreateView({ send, onToggle, here }: CreateViewOptions): C
     get isOpen() {
       return isOpen;
     },
-    show,
+    show: (request) => show(request ?? null),
     close,
     setPrompts(next, error) {
       prompts = next;
@@ -222,6 +266,18 @@ export function createCreateView({ send, onToggle, here }: CreateViewOptions): C
     setRepos(next) {
       repos = next;
       renderRepos();
+    },
+    get review() {
+      return review;
+    },
+    setPrDetails(url, details, error) {
+      if (details) detailsCache.set(url, details);
+      if (url !== review?.url) return;
+      detailsEl.classList.remove('refreshing');
+      const cached = detailsCache.get(url);
+      if (details) detailsEl.replaceChildren(...renderDetails(details));
+      else if (cached) detailsEl.replaceChildren(...renderDetails(cached), el('div', `Could not refresh PR details: ${error}`, 'failing'));
+      else detailsEl.replaceChildren(el('div', `Could not load PR details: ${error}`, 'failing'));
     },
   };
 }

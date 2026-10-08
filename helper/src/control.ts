@@ -98,8 +98,10 @@ export class ControlHub {
           break;
         }
         const { defaultCwd, repoDirs, reviews } = this.options;
-        const cwd = message.cwd && isAbsolute(message.cwd) && isDirectory(message.cwd) ? message.cwd : defaultCwd;
-        const base = message.pr ? prWorkspace(message.pr, { reviews: reviews.state().items, repoDirs, defaultCwd }) : { cwd };
+        const chosen = message.cwd && isAbsolute(message.cwd) && isDirectory(message.cwd) ? message.cwd : null;
+        // A PR workspace starts in its repo's configured directory unless one was picked.
+        const base = message.pr ? prWorkspace(message.pr, { reviews: reviews.state().items, repoDirs, defaultCwd }) : { cwd: defaultCwd };
+        if (chosen) base.cwd = chosen;
         const workspace = store.create({
           ...base,
           name: message.name.trim(),
