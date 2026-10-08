@@ -1,12 +1,12 @@
 # Chrome Workspaces
 
-A terminal per Chrome window, in Chrome's side panel.
+A terminal for every Chrome window, docked in Chrome's side panel.
 
-Each workspace is an ordinary Chrome window — your real Chrome, with your profile, logins, extensions, and DevTools — plus a terminal docked on the left running `claude`. Keep the tabs for that task in the window and switch between workspaces with `⌃⇧←` / `⌃⇧→` instead of juggling terminal windows and desktops.
+Each workspace is a regular Chrome window, with your profile, logins, extensions, and DevTools, paired with a terminal running `claude`. Keep a task's tabs in its window and switch between workspaces with `⌃⇧←` / `⌃⇧→`.
 
 ```
 ┌───────────────────────────────────────────────────────────────┐
-│  Chrome tabs + toolbar                                         │
+│  Chrome tabs + toolbar                                        │
 ├──────────┬───────────────────────┬────────────────────────────┤
 │ 1 PROJ-12 │                       │                            │
 │▸2 PROJ-13●│  terminal (claude)    │   web page                 │
@@ -17,98 +17,103 @@ Each workspace is an ordinary Chrome window — your real Chrome, with your prof
 
 Design: [`docs/superpowers/specs/2026-10-07-chrome-workspaces-design.md`](docs/superpowers/specs/2026-10-07-chrome-workspaces-design.md)
 
-## Using it
+## Features
 
-- **Switch:** `⌃⇧←` / `⌃⇧→`, or click a workspace in the list. Every workspace window takes the size of whichever one you last resized or maximized, so switching looks like the content swapping in place.
-- **Reorder:** drag a workspace up or down the list. `⌃⇧←` / `⌃⇧→` follow the same order.
-- **New workspace:** `devspace PROJ-1234` (see below), or `+` in the list. A window that isn't a workspace yet offers to become one when you open the panel in it.
-- **Review requests:** the section under the list shows open PRs that request your review (from `gh`, refreshed every 5 minutes or with ↻). Click one to pick a prompt. A dot means it already has a workspace; clicking focuses it.
-- **From a prompt:** `+` → **From prompt…** lists the prompts in your vault note. Pick one, edit it (`PR-URL` and `PROJ-XXX` are filled from the PR when there is one), and **Start**: the new workspace's `claude` begins with that prompt. It runs once; reopening the workspace resumes the conversation.
-- **New window or this one:** both create forms have **Use this window**, which puts the new workspace in the current window instead of opening one. If the window already holds a workspace, that workspace keeps running without a window until you pair it again.
-- **After reloading the extension**, Chrome closes every side panel and only a click or shortcut can reopen one. `⌃⇧←` / `⌃⇧→` reopen the panel in each window they switch to, and a key bound to *Open the workspace panel* opens it in the current window.
-- **Status:** a red dot means that workspace's `claude` needs input; green means it's working (from [Claude Mission Control](https://github.com/PrecisionWeaver/claude-mission-control)).
-- **Sessions:** closing the panel leaves `claude` running; reopening it reattaches with the scrollback. Quitting `claude` drops to the shell, and `exit` closes the panel. The next time the panel opens, the workspace resumes its last Claude conversation.
-- **Rename:** double-click a workspace's name; Enter saves, Esc cancels. The ticket link is kept, so `devspace` still finds it.
-- **Remove:** hover a workspace and click × twice. This ends its terminal session; its Chrome window stays open.
-- **Collapse the list** with `‹` to give the terminal more room.
+| | |
+|---|---|
+| **Switch** | `⌃⇧←` / `⌃⇧→` or click a workspace. All workspace windows share the size you last set, so switching swaps content in place. |
+| **Reorder** | Drag workspaces in the list; the shortcuts follow that order. |
+| **Create** | `+` → **Blank** or **From prompt…**, or `devspace PROJ-1234`. A window that isn't a workspace offers to become one. **Use this window** creates the workspace in the current window instead of a new one. |
+| **Prompts** | **From prompt…** lists prompts from your notes file. `PR-URL` and `PROJ-XXX` are filled in from the PR. The prompt runs once; reopening resumes the conversation. |
+| **Review requests** | Open PRs requesting your review, plus every PR in `watchRepos`. Refreshes every 5 minutes or on ↻. Filter by text, or by author and repo with **Authors** / **Repos**. A green dot means the PR already has a workspace. |
+| **Status** | Red dot: `claude` needs input. Green: working. Sourced from [Claude Mission Control](https://github.com/PrecisionWeaver/claude-mission-control). |
+| **Sessions** | Closing the panel leaves `claude` running; reopening reattaches with scrollback. `exit` closes the shell; the next open resumes the last conversation. |
+| **Rename / remove** | Double-click a name to rename. Hover and click × twice to end the session; the window stays open. |
+| **Collapse** | `‹` shrinks the list to a narrow rail. |
 
-**Known limitation:** Claude in Chrome chooses its own window, so a workspace's `claude` may open its browser tabs in a different window. Its tools have no way to target a window.
+**Limitations**
 
-## How it works
+- Claude in Chrome picks its own window, so a workspace's `claude` may open tabs elsewhere.
+- Reloading the extension closes every side panel. The switch shortcuts reopen it, as does a key bound to *Open the workspace panel*.
+
+## Architecture
 
 ```
-Chrome window ── side panel (xterm.js) ──ws://127.0.0.1:4178──▶ helper (Node) ──▶ PTY: login shell → claude
-service worker ──/control────────────────────────────────────▶ helper ──▶ ~/.chrome-workspaces/workspaces.json
-devspace, Mission Control ──HTTP + bearer token──────────────▶ helper
+side panel (xterm.js) ──ws://127.0.0.1:4178──▶ helper (Node) ──▶ PTY: login shell → claude
+service worker ───────/control───────────────▶ helper ──▶ ~/.chrome-workspaces/workspaces.json
+devspace, Mission Control ──HTTP + token─────▶ helper
 ```
 
-- **Helper** (`helper/`) — a local Node process that owns every shell and the workspace list. The panel is only a view.
-- **Extension** (`extension/`) — the side panel (list + terminal) and a service worker that opens, focuses, and re-pairs windows. After a Chrome restart it re-pairs windows to workspaces by matching their tabs.
-- **Security** — the helper listens on `127.0.0.1` only. WebSockets need this extension's `Origin` *and* a secret token; the HTTP API needs the token as a bearer header and refuses any other `Origin`. The extension fetches the token through a Chrome native-messaging host, which reads it from `~/.chrome-workspaces/token` (mode `0600`).
+- **Helper** (`helper/`): a local Node process that owns every shell and the workspace list. The panel is only a view.
+- **Extension** (`extension/`): the side panel and a service worker that opens, focuses, and re-pairs windows, matching them to workspaces by their tabs after a Chrome restart.
+- **Security**: the helper binds to `127.0.0.1`. WebSockets require the extension's `Origin` and a secret token; the HTTP API requires the token as a bearer header and rejects other origins. The extension reads the token through a native-messaging host from `~/.chrome-workspaces/token` (mode `0600`).
 
 ## Setup
 
-Requires macOS, Google Chrome, and Node 22+.
+Requires macOS, Google Chrome, Node 22+, and `gh` signed in for review requests.
 
 ```bash
 npm install
-npm run gen-key          # once: pins the extension ID via a public key in manifest.json
-npm run setup -- --default-cwd ~/path/to/project   # where `+` workspaces start (default: ~)
+npm run gen-key                                    # once: pins the extension ID
+npm run setup -- --default-cwd ~/path/to/project   # default: ~
 npm run build:extension
-npm run agent:start      # runs the helper now and at every login
+npm run agent:start                                # runs the helper now and at login
 ```
 
-`setup` writes `~/.chrome-workspaces/`, Chrome's native-host manifest, and `~/Library/LaunchAgents/com.chrome-workspaces.helper.plist`.
+`setup` writes `~/.chrome-workspaces/`, Chrome's native-host manifest, and a LaunchAgent.
 
-Optional fields in `~/.chrome-workspaces/config.json` (`setup` keeps them):
-
-- `promptsFile`: the prompt note (default `~/Documents/Websites/obsidian-vault/Patterns/Most Used Prompts.md`). Each `**Heading**` line starts a section and each `- ` bullet is a prompt.
-- `repoDirs`: where PR workspaces start, by repo, e.g. `{ "acme/app": "~/Herd/app" }`. Unlisted repos use the default directory.
-- `watchRepos`: repos whose open PRs all appear under review requests (except your own), for repos where reviewers are not requested, e.g. `["acme/starbase"]`.
-
-Review requests need `gh` signed in (`gh auth status`).
-
-Then in Chrome:
+In Chrome:
 
 1. `chrome://settings/appearance` → side panel position → **Left**.
-2. `chrome://extensions` → Developer mode → **Load unpacked** → `extension/dist`. The ID shown should match `~/.chrome-workspaces/config.json`.
-3. Optional: `chrome://extensions/shortcuts` → give *Open the workspace panel* a key.
-4. Click the toolbar icon to open the panel in a window.
+2. `chrome://extensions` → Developer mode → **Load unpacked** → `extension/dist`. The ID must match `~/.chrome-workspaces/config.json`.
+3. Optional: `chrome://extensions/shortcuts` → bind *Open the workspace panel*.
+4. Click the toolbar icon to open the panel.
 
 If the panel reports *native messaging host not found*, rerun `npm run setup` and fully restart Chrome.
 
+### Configuration
+
+Optional fields in `~/.chrome-workspaces/config.json` (preserved by `setup`). Restart the helper after editing.
+
+| Field | Purpose |
+|---|---|
+| `promptsFile` | Prompt note. Default `~/Documents/Websites/obsidian-vault/Patterns/Most Used Prompts.md`. Each `**Heading**` starts a section; each `- ` bullet is a prompt. |
+| `repoDirs` | Starting directory for PR workspaces by repo, e.g. `{ "acme/app": "~/Herd/app" }`. Unlisted repos use the default. |
+| `watchRepos` | Repos whose open PRs (except your own) appear under review requests, for repos that don't request reviewers, e.g. `["acme/starbase"]`. |
+
 ### devspace and Mission Control
 
-With the helper running, `devspace PROJ-1234` creates the ticket's workspace (or focuses it if one exists) and Chrome opens its window at the Jira ticket. Open the panel in that window once with the toolbar icon or your shortcut. If the helper isn't reachable, `devspace` uses the old iTerm + Chrome flow; `devspace --classic` forces that.
+`devspace PROJ-1234` creates or focuses the ticket's workspace and opens its Jira ticket. Open the panel in that window once. If the helper is unreachable, `devspace` falls back to iTerm + Chrome; `devspace --classic` forces it.
 
-Mission Control's jump button focuses a workspace's Chrome window for sessions running in Chrome Workspaces, and uses iTerm for everything else.
+Mission Control's jump button focuses the workspace window for sessions in Chrome Workspaces and uses iTerm otherwise.
 
-## Helper commands
+## Helper
 
 | Command | |
 |---|---|
-| `npm run agent:start` | Start the helper and enable it at login |
-| `npm run agent:restart` | Restart after changing helper code (**ends every open shell**) |
-| `npm run agent:stop` | Stop it and disable it at login |
-| `npm run agent:status` | Show whether it's running |
-| `npm run helper` | Run it in the foreground instead (stop the agent first) |
+| `npm run agent:start` | Start and enable at login |
+| `npm run agent:restart` | Restart (**ends every open shell**) |
+| `npm run agent:stop` | Stop and disable at login |
+| `npm run agent:status` | Show status |
+| `npm run helper` | Run in the foreground (stop the agent first) |
 
-Logs go to `~/.chrome-workspaces/helper.log`.
+Logs: `~/.chrome-workspaces/helper.log`.
 
 ## Development
 
 ```bash
-npm test            # vitest
+npm test
 npm run typecheck
+npm run build:extension   # then reload the extension in chrome://extensions
 ```
 
-After changing extension code, run `npm run build:extension` and click reload on the extension in `chrome://extensions`. `CW_PORT` and `CW_DATA_DIR` run a second helper next to the real one for testing.
+`CW_PORT` and `CW_DATA_DIR` run a second helper alongside the real one.
 
-| Path | What |
+| Path | Contents |
 |---|---|
-| `shared/` | Protocol types and window re-pairing, shared by helper and extension |
-| `helper/src/` | Workspace store, sessions, launch command, Mission Control status, HTTP API, control channel |
+| `shared/` | Protocol types and window re-pairing |
+| `helper/src/` | Workspace store, sessions, launch, Mission Control status, HTTP API, control channel |
 | `extension/src/` | Service worker, side panel, helper connection, window handling |
-| `extension/icons/` | Icon sources (SVG); PNGs are rendered by the build |
-| `scripts/` | Key generation, local setup, extension build |
+| `extension/icons/` | SVG icon sources; PNGs are rendered at build |
+| `scripts/` | Key generation, setup, extension build |
 | `docs/` | Design spec, plans, spike results |
