@@ -171,6 +171,27 @@ code {
   color: #0d1626;
 }
 
+/* A workspace with a tab group wears the group's color: tinted at rest, solid when current. */
+.ws .badge[data-group] {
+  background: color-mix(in srgb, var(--group) 22%, transparent);
+  color: var(--group);
+}
+
+.ws.current .badge[data-group] {
+  background: var(--group);
+  color: #0d1626;
+}
+
+.badge[data-group='grey'] { --group: #9aa0a6; }
+.badge[data-group='blue'] { --group: #6fa3ff; }
+.badge[data-group='red'] { --group: #f28b82; }
+.badge[data-group='yellow'] { --group: #fdd663; }
+.badge[data-group='green'] { --group: #81c995; }
+.badge[data-group='pink'] { --group: #ff8bcb; }
+.badge[data-group='purple'] { --group: #c58af9; }
+.badge[data-group='cyan'] { --group: #78d9ec; }
+.badge[data-group='orange'] { --group: #fcad70; }
+
 .ws .badge[data-status='needs_input']::after,
 .ws .badge[data-status='working']::after {
   content: '';

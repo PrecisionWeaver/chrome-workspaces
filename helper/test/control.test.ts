@@ -174,6 +174,25 @@ describe('control channel', () => {
     ws.close();
   });
 
+  it('asks for a tab group when a workspace joins a window, and records the pairing the extension reports', async () => {
+    const { ws, messages } = connectControl(h);
+    await opened(ws);
+    ws.send(JSON.stringify({ type: 'create', name: 'a', windowId: 9 }));
+    ws.send(JSON.stringify({ type: 'create', name: 'b', windowId: 9, group: true }));
+    await waitFor(() => h.store.list().length === 2);
+    const [a, b] = h.store.list();
+    expect([a.windowId, b.windowId]).toEqual([9, 9]);
+    await waitFor(() => messages.some((m) => m.type === 'group'));
+    expect(messages.filter((m) => m.type === 'group')).toEqual([{ type: 'group', id: b.id }]);
+
+    ws.send(JSON.stringify({ type: 'pair', id: b.id, windowId: 9, groupId: 44 }));
+    await waitFor(() => h.store.get(b.id)?.groupId === 44);
+    ws.send(JSON.stringify({ type: 'unpairGroup', groupId: 44 }));
+    await waitFor(() => h.store.get(b.id)?.groupId === null);
+    expect(h.store.get(b.id)?.windowId).toBe(9);
+    ws.close();
+  });
+
   it('rejects a model that is not a plain id', async () => {
     const { ws } = connectControl(h);
     await opened(ws);

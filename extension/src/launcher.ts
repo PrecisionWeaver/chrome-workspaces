@@ -166,7 +166,7 @@ export function createLauncher({ send, onToggle, openWorkspace, here }: Launcher
     send({ type: 'prDetails', url: target.url });
     send({ type: 'listPrompts' });
     const current = here().workspace;
-    hereLabel.textContent = current ? `Use this window (moves ${current.name} out)` : 'Use this window';
+    hereLabel.textContent = current ? `Use this window (a tab group beside ${current.name})` : 'Use this window';
     void chrome.storage.local.get('useThisWindow').then(({ useThisWindow }) => {
       hereInput.checked = useThisWindow === true;
     });
@@ -238,12 +238,12 @@ export function createLauncher({ send, onToggle, openWorkspace, here }: Launcher
     const name = nameInput.value.trim();
     const prompt = textInput.value.trim();
     if (!review || !name || !prompt) return;
-    const { windowId } = here();
+    const { windowId, workspace } = here();
     const useHere = hereInput.checked && windowId !== undefined;
     void chrome.storage.local.set({ useThisWindow: hereInput.checked });
-    send({ type: 'create', name, windowId: useHere ? windowId : null, prompt, pr: review.url });
-    // A new window opens at the PR on its own; this one needs a tab for it.
-    if (useHere) void chrome.tabs.create({ windowId, url: review.url });
+    send({ type: 'create', name, windowId: useHere ? windowId : null, prompt, pr: review.url, ...(useHere && workspace ? { group: true } : {}) });
+    // A new window or a tab group opens at the PR on its own; a window with no workspace needs a tab for it.
+    if (useHere && !workspace) void chrome.tabs.create({ windowId, url: review.url });
     close();
   });
 

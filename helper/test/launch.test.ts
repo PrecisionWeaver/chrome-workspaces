@@ -9,6 +9,7 @@ const workspace: Workspace = {
   cwd: '/Users/me/project',
   url: null,
   windowId: 1,
+  groupId: null,
   model: null,
   lastTabUrls: [],
   pr: null,

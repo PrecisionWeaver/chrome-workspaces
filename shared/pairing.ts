@@ -50,3 +50,45 @@ export function matchWindows(workspaces: readonly Workspace[], windows: readonly
   return result;
 }
 
+
+export interface OpenGroup {
+  id: number;
+  windowId: number;
+  urls: string[];
+}
+
+export interface GroupPairing {
+  workspaceId: string;
+  windowId: number;
+  groupId: number;
+}
+
+/**
+ * Pairs workspaces without a window, e.g. one whose window was merged into another as a tab
+ * group, with the open group holding the same tabs. The pairing carries the group's window.
+ */
+export function matchGroups(workspaces: readonly Workspace[], groups: readonly OpenGroup[], threshold = 0.5): GroupPairing[] {
+  const openIds = new Set(groups.map((g) => g.id));
+  const taken = new Set(workspaces.flatMap((ws) => (ws.groupId !== null && openIds.has(ws.groupId) ? [ws.groupId] : [])));
+  const orphans = workspaces.filter((ws) => ws.windowId === null && ws.lastTabUrls.length > 0);
+
+  const candidates: (GroupPairing & { score: number })[] = [];
+  for (const ws of orphans) {
+    for (const group of groups) {
+      if (taken.has(group.id)) continue;
+      const score = similarity(ws.lastTabUrls, group.urls);
+      if (score >= threshold) candidates.push({ workspaceId: ws.id, windowId: group.windowId, groupId: group.id, score });
+    }
+  }
+  candidates.sort((a, b) => b.score - a.score);
+
+  const paired = new Set<string>();
+  const result: GroupPairing[] = [];
+  for (const { workspaceId, windowId, groupId } of candidates) {
+    if (paired.has(workspaceId) || taken.has(groupId)) continue;
+    paired.add(workspaceId);
+    taken.add(groupId);
+    result.push({ workspaceId, windowId, groupId });
+  }
+  return result;
+}

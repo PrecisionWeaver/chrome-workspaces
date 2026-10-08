@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { matchWindows } from '../../shared/pairing';
+import { matchGroups, matchWindows } from '../../shared/pairing';
 import type { Workspace } from '../../shared/protocol';
 
 function ws(id: string, lastTabUrls: string[], windowId: number | null = null): Workspace {
-  return { id, name: id, ticket: null, cwd: '/tmp', url: null, windowId, model: null, lastTabUrls, pr: null, prompt: null, createdAt: '2026-01-01T00:00:00Z' };
+  return { id, name: id, ticket: null, cwd: '/tmp', url: null, windowId, groupId: null, model: null, lastTabUrls, pr: null, prompt: null, createdAt: '2026-01-01T00:00:00Z' };
 }
 
 describe('matchWindows', () => {
@@ -41,5 +41,22 @@ describe('matchWindows', () => {
 
   it('ignores workspaces with no remembered tabs', () => {
     expect(matchWindows([ws('a', [])], [{ id: 8, urls: [] }])).toEqual([]);
+  });
+});
+
+describe('matchGroups', () => {
+  it('pairs a workspace that lost its window with the tab group holding its tabs', () => {
+    expect(matchGroups([ws('a', ['u1', 'u2'])], [{ id: 5, windowId: 3, urls: ['u2', 'u1'] }])).toEqual([{ workspaceId: 'a', windowId: 3, groupId: 5 }]);
+  });
+
+  it('leaves workspaces that still have a window, and groups already paired, alone', () => {
+    expect(matchGroups([ws('a', ['u1'], 7)], [{ id: 5, windowId: 3, urls: ['u1'] }])).toEqual([]);
+    const taken: Workspace = { ...ws('b', ['u1'], 3), groupId: 5 };
+    expect(matchGroups([ws('a', ['u1']), taken], [{ id: 5, windowId: 3, urls: ['u1'] }])).toEqual([]);
+  });
+
+  it('gives a contested group to the closer match', () => {
+    const result = matchGroups([ws('a', ['u1', 'u2', 'u9']), ws('b', ['u1', 'u2'])], [{ id: 5, windowId: 3, urls: ['u1', 'u2'] }]);
+    expect(result).toEqual([{ workspaceId: 'b', windowId: 3, groupId: 5 }]);
   });
 });

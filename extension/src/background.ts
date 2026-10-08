@@ -1,14 +1,18 @@
-import { matchWindows } from '../../shared/pairing';
+import { matchGroups, matchWindows } from '../../shared/pairing';
 import type { ControlToClient, Workspace } from '../../shared/protocol';
 import { placeClaudeGroups } from './claude-groups';
 import { connectControl } from './helper-client';
-import { openWindow, recordSharedSize, switchTo } from './windows';
+import { loadSelection, onSelectionChange, select, shownIn, type Selection } from './selection';
+import { createGroup, openWindow, recordSharedSize, switchTo } from './windows';
 
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(console.error);
 
 let workspaces: Workspace[] = [];
 // `open` can arrive before the `state` that lists the new workspace; those wait for it.
-const pendingOpens = new Set<string>();
+const pendingOpens = new Map<string, 'window' | 'group'>();
+let selection: Selection = {};
+void loadSelection().then((loaded) => (selection = loaded));
+onSelectionChange((changed) => (selection = changed));
 
 // Stored window ids go stale when the browser restarts (and may be reused by unrelated windows),
 // so the first state after that drops every pairing and re-pairing by tab URLs starts clean.
@@ -37,18 +41,25 @@ function handle(message: ControlToClient): void {
     case 'state':
       workspaces = message.workspaces;
       void clearStalePairings();
-      for (const id of pendingOpens) {
+      for (const [id, kind] of pendingOpens) {
         const workspace = find(id);
         if (!workspace) continue;
         pendingOpens.delete(id);
-        void openWindow(workspace, send);
+        void (kind === 'group' ? createGroup(workspace, send) : openWindow(workspace, send));
       }
       void repair();
+      void syncGroupTitles();
       break;
     case 'open': {
       const workspace = find(message.id);
       if (workspace) void openWindow(workspace, send);
-      else pendingOpens.add(message.id);
+      else pendingOpens.set(message.id, 'window');
+      break;
+    }
+    case 'group': {
+      const workspace = find(message.id);
+      if (workspace) void createGroup(workspace, send);
+      else pendingOpens.set(message.id, 'group');
       break;
     }
     case 'focus': {
@@ -72,7 +83,28 @@ async function clearStalePairings(): Promise<void> {
 async function repair(): Promise<void> {
   const windows = await chrome.windows.getAll({ populate: true, windowTypes: ['normal'] });
   const open = windows.flatMap((w) => (w.id === undefined ? [] : [{ id: w.id, urls: webUrls(w.tabs ?? []) }]));
-  for (const { workspaceId, windowId } of matchWindows(workspaces, open)) send({ type: 'pair', id: workspaceId, windowId });
+  const windowPairs = matchWindows(workspaces, open);
+  for (const { workspaceId, windowId } of windowPairs) send({ type: 'pair', id: workspaceId, windowId });
+
+  // A workspace whose window was merged into another as a tab group follows its tabs there.
+  const rest = workspaces.filter((ws) => !windowPairs.some((pair) => pair.workspaceId === ws.id));
+  const groups = await chrome.tabGroups.query({});
+  const tabs = await chrome.tabs.query({});
+  const openGroups = groups.map((g) => ({ id: g.id, windowId: g.windowId, urls: webUrls(tabs.filter((t) => t.groupId === g.id)) }));
+  for (const { workspaceId, windowId, groupId } of matchGroups(rest, openGroups)) send({ type: 'pair', id: workspaceId, windowId, groupId });
+}
+
+/** A renamed workspace renames its tab group. */
+async function syncGroupTitles(): Promise<void> {
+  for (const ws of workspaces) {
+    if (ws.groupId === null) continue;
+    try {
+      const group = await chrome.tabGroups.get(ws.groupId);
+      if (group.title !== ws.name) await chrome.tabGroups.update(ws.groupId, { title: ws.name });
+    } catch {
+      // The group closed; its removal unpairs it.
+    }
+  }
 }
 
 function webUrls(tabs: chrome.tabs.Tab[]): string[] {
@@ -94,11 +126,13 @@ chrome.commands.onCommand.addListener((command) => {
 
 function cycle(step: 1 | -1): void {
   if (workspaces.length === 0) return;
-  const current = workspaces.findIndex((ws) => ws.windowId === focusedWindowId);
+  const shown = shownIn(focusedWindowId, workspaces, selection);
+  const current = workspaces.findIndex((ws) => ws.id === shown?.id);
   const next = current === -1 ? workspaces[0] : workspaces[(current + step + workspaces.length) % workspaces.length];
   if (next.id === workspaces[current]?.id) return;
   // Reopens the panel in a window whose panel closed, e.g. after the extension reloaded.
   if (next.windowId !== null) chrome.sidePanel.open({ windowId: next.windowId }).catch(() => {});
+  void select(next);
   void switchTo(next, send);
 }
 
@@ -111,17 +145,37 @@ function scheduleTabs(windowId: number): void {
     windowId,
     setTimeout(() => {
       tabTimers.delete(windowId);
-      if (!workspaces.some((ws) => ws.windowId === windowId)) return;
-      void chrome.tabs.query({ windowId }).then((tabs) => send({ type: 'tabs', windowId, urls: webUrls(tabs) }));
+      const here = workspaces.filter((ws) => ws.windowId === windowId);
+      if (here.length === 0) return;
+      void chrome.tabs.query({ windowId }).then((tabs) => {
+        const grouped = new Set(here.flatMap((ws) => (ws.groupId === null ? [] : [ws.groupId])));
+        for (const ws of here) {
+          // A workspace without a group of its own keeps the tabs that no group in the window claims.
+          const mine = ws.groupId === null ? tabs.filter((tab) => !grouped.has(tab.groupId)) : tabs.filter((tab) => tab.groupId === ws.groupId);
+          // An emptied window is about to close; its last tabs are what re-pair the workspace.
+          if (mine.length === 0) continue;
+          send({ type: 'tabs', windowId, urls: webUrls(mine), ...(ws.groupId === null ? {} : { groupId: ws.groupId }) });
+        }
+      });
     }, 1000),
   );
 }
 
 chrome.tabs.onCreated.addListener((tab) => scheduleTabs(tab.windowId));
-chrome.tabs.onUpdated.addListener((_id, change, tab) => change.url && scheduleTabs(tab.windowId));
+chrome.tabs.onUpdated.addListener((_id, change, tab) => (change.url || change.groupId !== undefined) && scheduleTabs(tab.windowId));
 chrome.tabs.onRemoved.addListener((_id, info) => !info.isWindowClosing && scheduleTabs(info.windowId));
 chrome.tabs.onAttached.addListener((_id, info) => scheduleTabs(info.newWindowId));
-chrome.tabs.onDetached.addListener((_id, info) => scheduleTabs(info.oldWindowId));
+chrome.tabGroups.onRemoved.addListener((group) => send({ type: 'unpairGroup', groupId: group.id }));
+
+// A group made or moved by hand can be the new home of a workspace whose window closed.
+let repairTimer: ReturnType<typeof setTimeout> | undefined;
+function scheduleRepair(): void {
+  clearTimeout(repairTimer);
+  repairTimer = setTimeout(() => void repair(), 1500);
+}
+chrome.tabGroups.onCreated.addListener(scheduleRepair);
+chrome.tabGroups.onUpdated.addListener(scheduleRepair);
+chrome.windows.onRemoved.addListener(scheduleRepair);
 
 chrome.windows.onRemoved.addListener((windowId) => send({ type: 'unpair', windowId }));
 chrome.windows.onBoundsChanged.addListener(recordSharedSize);

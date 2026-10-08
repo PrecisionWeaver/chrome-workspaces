@@ -5,6 +5,7 @@ import type { ClientMessage, ReviewsState, ServerMessage, Workspace, WorkspaceSt
 import { connectControl, getHelper, openSocket } from './helper-client';
 import { createCreateView } from './create-view';
 import { createLauncher } from './launcher';
+import { loadSelection, onSelectionChange, select, shownIn, type Selection } from './selection';
 import { switchTo } from './windows';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -37,6 +38,7 @@ const control = connectControl(
     if (message.type === 'repos') creator.setRepos(message.repos);
     if (message.type === 'prDetails') launcher.setPrDetails(message.url, message.details, message.error);
     if (message.type !== 'state') return;
+    selectJoiners(message.workspaces);
     workspaces = message.workspaces;
     statuses = message.statuses;
     reviews = message.reviews;
@@ -65,9 +67,56 @@ const creator = createCreateView({
   here,
 });
 
+// Which workspace this window shows when it holds several; chosen from the list, or by the tab being worked in.
+let selection: Selection = {};
+void loadSelection().then((loaded) => {
+  selection = loaded;
+  render();
+});
+onSelectionChange((changed) => {
+  selection = changed;
+  render();
+});
+
 function current(): Workspace | undefined {
-  return workspaces.find((ws) => ws.windowId === myWindowId);
+  return shownIn(myWindowId, workspaces, selection);
 }
+
+// Where each workspace was in the previous state, to notice one arriving in this window.
+let previousWindows: Map<string, number | null> | null = null;
+
+/** A workspace that has just joined this window, by being created or paired here, is the one to show. */
+function selectJoiners(next: readonly Workspace[]): void {
+  if (previousWindows && myWindowId !== undefined) {
+    const joined = next.find((ws) => ws.windowId === myWindowId && previousWindows!.get(ws.id) !== myWindowId);
+    if (joined) void select(joined);
+  }
+  previousWindows = new Map(next.map((ws) => [ws.id, ws.windowId]));
+}
+
+/** Working in a tab that belongs to a workspace's group switches to that workspace. */
+async function followActiveTab(): Promise<void> {
+  if (myWindowId === undefined) return;
+  const [tab] = await chrome.tabs.query({ active: true, windowId: myWindowId });
+  const owner = workspaces.find((ws) => ws.windowId === myWindowId && ws.groupId !== null && ws.groupId === tab?.groupId);
+  if (owner && owner.id !== current()?.id) void select(owner);
+}
+
+chrome.tabs.onActivated.addListener(({ windowId }) => windowId === myWindowId && void followActiveTab());
+
+// Chrome's tab group colors by group id, shown on the badges of workspaces that have a group.
+const groupColors = new Map<number, string>();
+
+async function loadGroupColors(): Promise<void> {
+  groupColors.clear();
+  for (const group of await chrome.tabGroups.query({})) groupColors.set(group.id, group.color);
+  renderList();
+}
+
+void loadGroupColors();
+chrome.tabGroups.onCreated.addListener(() => void loadGroupColors());
+chrome.tabGroups.onUpdated.addListener(() => void loadGroupColors());
+chrome.tabGroups.onRemoved.addListener(() => void loadGroupColors());
 
 function showNotice(text: string | null): void {
   noticeEl.hidden = text === null;
@@ -102,13 +151,15 @@ function renderList(): void {
     ...workspaces.map((ws, index) => {
       const item = document.createElement('li');
       item.className = `ws${ws.id === here?.id ? ' current' : ''}`;
-      item.title = `${ws.name}\n${ws.cwd}`;
+      item.title = `${ws.name}\n${ws.cwd}${ws.groupId === null ? '' : '\nTab group'}`;
 
       const badge = document.createElement('span');
       badge.className = 'badge';
       badge.textContent = String(index + 1);
       const status = statuses[ws.id];
       if (status) badge.dataset.status = status;
+      const groupColor = ws.groupId === null ? undefined : groupColors.get(ws.groupId);
+      if (groupColor) badge.dataset.group = groupColor;
 
       const name = document.createElement('span');
       name.className = `name${ws.windowId === null ? ' windowless' : ''}`;
@@ -187,6 +238,7 @@ function addDragHandlers(item: HTMLLIElement, ws: Workspace): void {
 function openWorkspace(ws: Workspace): void {
   // Opening a panel needs a user gesture, so do it before anything awaits.
   if (ws.windowId !== null) chrome.sidePanel.open({ windowId: ws.windowId }).catch(() => {});
+  void select(ws);
   void switchTo(ws, send);
 }
 

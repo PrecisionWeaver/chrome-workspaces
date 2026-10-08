@@ -28,14 +28,37 @@ describe('WorkspaceStore', () => {
     expect(() => new WorkspaceStore(file)).toThrow(file);
   });
 
-  it('moves a window to the workspace that pairs with it', () => {
+  it('lets workspaces share a window, each with its own tab group', () => {
     const store = new WorkspaceStore(tempFile());
     const a = store.create({ name: 'a', cwd: '/tmp' });
     const b = store.create({ name: 'b', cwd: '/tmp' });
+    const c = store.create({ name: 'c', cwd: '/tmp' });
     store.pairWindow(a.id, 7);
-    store.pairWindow(b.id, 7);
-    expect(store.get(a.id)?.windowId).toBeNull();
-    expect(store.get(b.id)?.windowId).toBe(7);
+    store.pairWindow(b.id, 7, 100);
+    store.pairWindow(c.id, 7, 101);
+    expect(store.list().map((x) => [x.name, x.windowId, x.groupId])).toEqual([['a', 7, null], ['b', 7, 100], ['c', 7, 101]]);
+
+    store.setTabs(7, ['own']);
+    store.setTabs(7, ['g1'], 100);
+    store.setTabs(7, ['g2'], 101);
+    expect(store.list().map((x) => x.lastTabUrls)).toEqual([['own'], ['g1'], ['g2']]);
+
+    store.pairWindow(c.id, 7, 100);
+    expect(store.list().map((x) => x.groupId)).toEqual([null, null, 100]);
+  });
+
+  it('keeps the window when a group closes, and frees every workspace when the window closes', () => {
+    const store = new WorkspaceStore(tempFile());
+    const a = store.create({ name: 'a', cwd: '/tmp' });
+    const b = store.create({ name: 'b', cwd: '/tmp' });
+    store.pairWindow(a.id, 7, 100);
+    store.pairWindow(b.id, 7, 101);
+    store.setTabs(7, ['g1'], 100);
+    store.unpairGroup(100);
+    expect(store.get(a.id)).toMatchObject({ windowId: 7, groupId: null, lastTabUrls: ['g1'] });
+    store.unpairWindow(7);
+    expect(store.list().map((x) => [x.windowId, x.groupId])).toEqual([[null, null], [null, null]]);
+    expect(store.get(a.id)?.lastTabUrls).toEqual(['g1']);
   });
 
   it('replaces the previous window when a workspace claims a new one', () => {

@@ -29,10 +29,13 @@ export interface Workspace {
   cwd: string;
   /** First URL to open in a new window for this workspace, e.g. its Jira ticket. */
   url: string | null;
+  /** The window it lives in; several workspaces can share one. */
   windowId: number | null;
+  /** The Chrome tab group holding its tabs, for a workspace that shares a window; null when it has none. */
+  groupId: number | null;
   /** `claude --model` value; null uses the helper's `defaultModel`. */
   model: string | null;
-  /** Tab URLs last seen in its window; used to re-pair after Chrome restarts. */
+  /** Tab URLs last seen in its window or group; used to re-pair after Chrome restarts. */
   lastTabUrls: string[];
   /** GitHub PR URL the workspace was created to work on. */
   pr: string | null;
@@ -110,6 +113,8 @@ export interface PrDetails {
 export type ControlToClient =
   | { type: 'state'; workspaces: Workspace[]; statuses: Record<string, WorkspaceStatus>; reviews: ReviewsState }
   | { type: 'open'; id: string }
+  /** Make the workspace's tab group in the window it was paired with. */
+  | { type: 'group'; id: string }
   | { type: 'focus'; id: string }
   /** The workspace's claude used Claude in Chrome at `at` (epoch ms). */
   | { type: 'browser'; id: string; at: number }
@@ -121,11 +126,13 @@ export type ControlToClient =
   | { type: 'prDetails'; url: string; details: PrDetails | null; error: string | null };
 
 export type ControlToHelper =
-  | { type: 'pair'; id: string; windowId: number }
+  | { type: 'pair'; id: string; windowId: number; groupId?: number }
   | { type: 'unpair'; windowId: number }
-  | { type: 'tabs'; windowId: number; urls: string[] }
+  /** The tab group closed; its workspace keeps its window. */
+  | { type: 'unpairGroup'; groupId: number }
+  | { type: 'tabs'; windowId: number; urls: string[]; groupId?: number }
   /** With `pr`, focuses the PR's existing workspace instead of creating another. */
-  | { type: 'create'; name: string; windowId: number | null; pr?: string; prompt?: string; cwd?: string; model?: string }
+  | { type: 'create'; name: string; windowId: number | null; pr?: string; prompt?: string; cwd?: string; model?: string; group?: boolean }
   | { type: 'remove'; id: string }
   | { type: 'rename'; id: string; name: string }
   /** `index` is the workspace's position in the list once moved. */

@@ -84,7 +84,7 @@ export function createCreateView({ send, onToggle, here }: CreateViewOptions): C
     const { windowId, workspace } = here();
     const thisWindow = windowButtons.querySelector<HTMLButtonElement>('[data-value="here"]')!;
     thisWindow.disabled = windowId === undefined;
-    thisWindow.title = workspace ? `Moves ${workspace.name} out of this window` : '';
+    thisWindow.title = workspace ? 'Joins this window as a tab group' : '';
 
     send({ type: 'listPrompts' });
     send({ type: 'listRepos' });
@@ -189,6 +189,8 @@ export function createCreateView({ send, onToggle, here }: CreateViewOptions): C
       type: 'create',
       name,
       windowId: useHere ? windowId : null,
+      // Joining a window that already holds a workspace gives the new one a tab group beside it.
+      ...(useHere && here().workspace ? { group: true } : {}),
       ...(modelSelect.value ? { model: modelSelect.value } : {}),
       ...(repoSelect.value ? { cwd: repoSelect.value } : {}),
       ...(prompt ? { prompt } : {}),

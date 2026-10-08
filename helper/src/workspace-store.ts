@@ -49,6 +49,7 @@ export class WorkspaceStore {
       cwd: input.cwd,
       url: input.url ?? null,
       windowId: null,
+      groupId: null,
       model: input.model ?? null,
       lastTabUrls: [],
       pr: input.pr ?? null,
@@ -60,24 +61,34 @@ export class WorkspaceStore {
     return { ...workspace };
   }
 
-  /** One window per workspace and one workspace per window: pairing takes the window from anyone else. */
-  pairWindow(id: string, windowId: number): void {
+  /** A workspace has one window, which it may share; a tab group belongs to one workspace, so pairing takes it from anyone else. */
+  pairWindow(id: string, windowId: number, groupId: number | null = null): void {
     const target = this.require(id);
-    for (const ws of this.workspaces) if (ws.windowId === windowId) ws.windowId = null;
+    if (groupId !== null) for (const ws of this.workspaces) if (ws.groupId === groupId) ws.groupId = null;
     target.windowId = windowId;
+    target.groupId = groupId;
     this.save();
   }
 
-  /** Keeps `lastTabUrls`, which is what re-pairs the workspace when its window comes back. */
+  /** Frees every workspace in the window. Keeps `lastTabUrls`, which is what re-pairs a workspace when its tabs come back. */
   unpairWindow(windowId: number): void {
-    const ws = this.workspaces.find((w) => w.windowId === windowId);
+    const paired = this.workspaces.filter((w) => w.windowId === windowId);
+    for (const ws of paired) {
+      ws.windowId = null;
+      ws.groupId = null;
+    }
+    if (paired.length) this.save();
+  }
+
+  unpairGroup(groupId: number): void {
+    const ws = this.workspaces.find((w) => w.groupId === groupId);
     if (!ws) return;
-    ws.windowId = null;
+    ws.groupId = null;
     this.save();
   }
 
-  setTabs(windowId: number, urls: string[]): void {
-    const ws = this.workspaces.find((w) => w.windowId === windowId);
+  setTabs(windowId: number, urls: string[], groupId: number | null = null): void {
+    const ws = this.workspaces.find((w) => w.windowId === windowId && w.groupId === groupId);
     if (!ws) return;
     ws.lastTabUrls = [...urls];
     this.save();
@@ -125,7 +136,7 @@ export class WorkspaceStore {
     try {
       const { workspaces } = JSON.parse(readFileSync(this.file, 'utf8')) as { workspaces: Workspace[] };
       // Files written before a field existed load with it unset.
-      return workspaces.map((ws) => ({ ...ws, pr: ws.pr ?? null, prompt: ws.prompt ?? null, model: ws.model ?? null }));
+      return workspaces.map((ws) => ({ ...ws, pr: ws.pr ?? null, prompt: ws.prompt ?? null, groupId: ws.groupId ?? null, model: ws.model ?? null }));
     } catch (error) {
       throw new Error(`cannot read ${this.file}: ${error instanceof Error ? error.message : String(error)}`);
     }

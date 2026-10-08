@@ -46,10 +46,11 @@ async function windowExists(windowId: number): Promise<boolean> {
   }
 }
 
-/** Brings the workspace's window forward as sized, opening one if it has none. Returns its window id. */
+/** Brings the workspace's window forward as sized, and its tab group if it has one, opening a window if it has none. Returns its window id. */
 export async function switchTo(workspace: Workspace, send: (message: ControlToHelper) => boolean): Promise<number | undefined> {
   if (workspace.windowId !== null && (await windowExists(workspace.windowId))) {
     await chrome.windows.update(workspace.windowId, { focused: true });
+    if (workspace.groupId !== null) await focusGroup(workspace.groupId);
     return workspace.windowId;
   }
   return openWindow(workspace, send);
@@ -65,4 +66,26 @@ export async function openWindow(workspace: Workspace, send: (message: ControlTo
   await updateWindow(created.id, size);
   send({ type: 'pair', id: workspace.id, windowId: created.id });
   return created.id;
+}
+
+/** Expands the group and activates the tab last used in it. */
+async function focusGroup(groupId: number): Promise<void> {
+  try {
+    const tabs = await chrome.tabs.query({ groupId });
+    const tab = tabs.find((t) => t.active) ?? [...tabs].sort((a, b) => (b.lastAccessed ?? 0) - (a.lastAccessed ?? 0))[0];
+    await chrome.tabGroups.update(groupId, { collapsed: false });
+    if (tab?.id !== undefined) await chrome.tabs.update(tab.id, { active: true });
+  } catch {
+    // The group closed; its removal unpairs it.
+  }
+}
+
+/** Opens the workspace's first tab as a titled tab group in its window. */
+export async function createGroup(workspace: Workspace, send: (message: ControlToHelper) => boolean): Promise<void> {
+  if (workspace.windowId === null || !(await windowExists(workspace.windowId))) return;
+  const tab = await chrome.tabs.create({ windowId: workspace.windowId, url: workspace.url ?? undefined, active: true });
+  if (tab.id === undefined) return;
+  const groupId = await chrome.tabs.group({ tabIds: [tab.id] });
+  await chrome.tabGroups.update(groupId, { title: workspace.name, collapsed: false });
+  send({ type: 'pair', id: workspace.id, windowId: workspace.windowId, groupId });
 }

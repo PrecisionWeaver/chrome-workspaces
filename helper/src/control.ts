@@ -80,13 +80,16 @@ export class ControlHub {
     const { store } = this.options;
     switch (message.type) {
       case 'pair':
-        if (store.get(message.id)) store.pairWindow(message.id, message.windowId);
+        if (store.get(message.id)) store.pairWindow(message.id, message.windowId, message.groupId ?? null);
         break;
       case 'unpair':
         store.unpairWindow(message.windowId);
         break;
+      case 'unpairGroup':
+        store.unpairGroup(message.groupId);
+        break;
       case 'tabs':
-        store.setTabs(message.windowId, message.urls);
+        store.setTabs(message.windowId, message.urls, message.groupId ?? null);
         break;
       case 'create': {
         const existing = message.pr ? store.findByPr(message.pr) : undefined;
@@ -104,7 +107,11 @@ export class ControlHub {
           model: message.model ?? null,
         });
         if (message.windowId === null) this.send({ type: 'open', id: workspace.id });
-        else store.pairWindow(workspace.id, message.windowId);
+        else {
+          store.pairWindow(workspace.id, message.windowId);
+          // A workspace joining a window another one holds gets its own tab group there.
+          if (message.group) this.send({ type: 'group', id: workspace.id });
+        }
         break;
       }
       case 'rename':
@@ -158,11 +165,18 @@ function isControlToHelper(value: unknown): value is ControlToHelper {
   const m = value as Record<string, unknown>;
   switch (m.type) {
     case 'pair':
-      return typeof m.id === 'string' && isWindowId(m.windowId);
+      return typeof m.id === 'string' && isWindowId(m.windowId) && (m.groupId === undefined || isWindowId(m.groupId));
     case 'unpair':
       return isWindowId(m.windowId);
+    case 'unpairGroup':
+      return isWindowId(m.groupId);
     case 'tabs':
-      return isWindowId(m.windowId) && Array.isArray(m.urls) && m.urls.every((u) => typeof u === 'string');
+      return (
+        isWindowId(m.windowId) &&
+        (m.groupId === undefined || isWindowId(m.groupId)) &&
+        Array.isArray(m.urls) &&
+        m.urls.every((u) => typeof u === 'string')
+      );
     case 'remove':
       return typeof m.id === 'string';
     case 'rename':
@@ -176,7 +190,8 @@ function isControlToHelper(value: unknown): value is ControlToHelper {
         (m.pr === undefined || (typeof m.pr === 'string' && isPullRequestUrl(m.pr))) &&
         (m.prompt === undefined || (typeof m.prompt === 'string' && m.prompt.length <= MAX_PROMPT_LENGTH)) &&
         (m.cwd === undefined || (typeof m.cwd === 'string' && m.cwd.length <= 1024)) &&
-        (m.model === undefined || (typeof m.model === 'string' && MODEL_PATTERN.test(m.model)))
+        (m.model === undefined || (typeof m.model === 'string' && MODEL_PATTERN.test(m.model))) &&
+        (m.group === undefined || typeof m.group === 'boolean')
       );
     case 'listPrompts':
     case 'listRepos':
