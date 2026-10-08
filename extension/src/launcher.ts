@@ -1,5 +1,5 @@
 import { fillPrompt } from '../../shared/prompts';
-import type { ControlToHelper, PrDetails, Prompt, ReviewRequest, ReviewsState, Workspace } from '../../shared/protocol';
+import type { ControlToHelper, MergeState, PrDetails, Prompt, ReviewRequest, ReviewsState, Workspace } from '../../shared/protocol';
 import { el, promptCard } from './dom';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -109,8 +109,13 @@ function renderDetails(pr: PrDetails): Node[] {
   return nodes;
 }
 
-type Facet = 'author' | 'repo';
-const FACET_LABELS: Record<Facet, string> = { author: 'Authors', repo: 'Repos' };
+type Facet = 'author' | 'repo' | 'status';
+const FACETS: readonly Facet[] = ['author', 'repo', 'status'];
+const FACET_LABELS: Record<Facet, string> = { author: 'Authors', repo: 'Repos', status: 'Status' };
+const MERGE_LABELS: Record<MergeState, string> = { ready: 'Can merge', blocked: "Can't merge", unknown: 'Unknown' };
+
+/** What a request is filtered on for a facet. */
+const facetValue = (item: ReviewRequest, facet: Facet): string => (facet === 'status' ? MERGE_LABELS[item.merge] : item[facet]);
 
 /** Every word of the query must appear somewhere in the request. */
 function matches(item: ReviewRequest, query: string): boolean {
@@ -136,7 +141,7 @@ export function createLauncher({ send, onToggle, openWorkspace, here }: Launcher
   const reviewsTitle = $<HTMLSpanElement>('reviews-title');
   const reviewsError = $<HTMLDivElement>('reviews-error');
   const reviewsList = $<HTMLUListElement>('reviews-list');
-  const reviewsFilter = $<HTMLInputElement>('reviews-filter');
+  const reviewsSearch = $<HTMLInputElement>('reviews-search');
   const reviewsFacet = $<HTMLDivElement>('reviews-facet');
   const facetButtons = [...document.querySelectorAll<HTMLButtonElement>('#reviews-tools .facet')];
   const reviewsRefresh = $<HTMLButtonElement>('reviews-refresh');
@@ -147,7 +152,7 @@ export function createLauncher({ send, onToggle, openWorkspace, here }: Launcher
   let lastReviews: ReviewsState = { items: [], error: null, fetchedAt: null };
   let lastWorkspaces: readonly Workspace[] = [];
   // Deselected values are stored rather than selected ones, so new authors and repos show up.
-  const hidden: Record<Facet, Set<string>> = { author: new Set(), repo: new Set() };
+  const hidden: Record<Facet, Set<string>> = { author: new Set(), repo: new Set(), status: new Set() };
   let openFacet: Facet | null = null;
   // Shown straight away when a PR is reopened, while its fresh details load behind it.
   const detailsCache = new Map<string, PrDetails>();
@@ -257,11 +262,11 @@ export function createLauncher({ send, onToggle, openWorkspace, here }: Launcher
 
   reviewsRefresh.addEventListener('click', () => send({ type: 'refreshReviews' }));
 
-  reviewsFilter.addEventListener('input', () => renderReviews(lastReviews, lastWorkspaces));
-  reviewsFilter.addEventListener('keydown', (event) => {
+  reviewsSearch.addEventListener('input', () => renderReviews(lastReviews, lastWorkspaces));
+  reviewsSearch.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') return;
     event.stopPropagation();
-    reviewsFilter.value = '';
+    reviewsSearch.value = '';
     renderReviews(lastReviews, lastWorkspaces);
   });
 
@@ -275,7 +280,7 @@ export function createLauncher({ send, onToggle, openWorkspace, here }: Launcher
 
   function setHidden(facet: Facet, values: Iterable<string>, hide: boolean): void {
     for (const value of values) hidden[facet][hide ? 'add' : 'delete'](value);
-    void chrome.storage.local.set({ reviewsHidden: { author: [...hidden.author], repo: [...hidden.repo] } });
+    void chrome.storage.local.set({ reviewsHidden: { author: [...hidden.author], repo: [...hidden.repo], status: [...hidden.status] } });
     renderReviews(lastReviews, lastWorkspaces);
   }
 
@@ -287,7 +292,7 @@ export function createLauncher({ send, onToggle, openWorkspace, here }: Launcher
   void chrome.storage.local.get(['reviewsCollapsed', 'reviewsHidden']).then(({ reviewsCollapsed, reviewsHidden }) => {
     reviewsSection.classList.toggle('collapsed', reviewsCollapsed === true);
     const saved = reviewsHidden as Partial<Record<Facet, string[]>> | undefined;
-    for (const facet of ['author', 'repo'] as const) for (const value of saved?.[facet] ?? []) hidden[facet].add(value);
+    for (const facet of FACETS) for (const value of saved?.[facet] ?? []) hidden[facet].add(value);
     renderReviews(lastReviews, lastWorkspaces);
   });
 
@@ -295,7 +300,7 @@ export function createLauncher({ send, onToggle, openWorkspace, here }: Launcher
   function renderFacets(items: readonly ReviewRequest[]): void {
     for (const button of facetButtons) {
       const facet = button.dataset.facet as Facet;
-      const values = new Set(items.map((item) => item[facet]));
+      const values = new Set(items.map((item) => facetValue(item, facet)));
       const shown = [...values].filter((value) => !hidden[facet].has(value)).length;
       button.textContent = shown === values.size ? FACET_LABELS[facet] : `${FACET_LABELS[facet]} ${shown}/${values.size}`;
       button.classList.toggle('active', shown !== values.size);
@@ -305,7 +310,7 @@ export function createLauncher({ send, onToggle, openWorkspace, here }: Launcher
     if (!openFacet) return;
     const facet = openFacet;
     const counts = new Map<string, number>();
-    for (const item of items) counts.set(item[facet], (counts.get(item[facet]) ?? 0) + 1);
+    for (const item of items) counts.set(facetValue(item, facet), (counts.get(facetValue(item, facet)) ?? 0) + 1);
     const values = [...counts.keys()].sort((a, b) => a.localeCompare(b));
 
     const bulk = el('div', '', 'facet-bulk');
@@ -335,9 +340,9 @@ export function createLauncher({ send, onToggle, openWorkspace, here }: Launcher
   function renderReviews(state: ReviewsState, workspaces: readonly Workspace[]): void {
     lastReviews = state;
     lastWorkspaces = workspaces;
-    const query = reviewsFilter.value.trim().toLowerCase();
+    const query = reviewsSearch.value.trim().toLowerCase();
     const items = state.items.filter(
-      (item) => !hidden.author.has(item.author) && !hidden.repo.has(item.repo) && (!query || matches(item, query)),
+      (item) => FACETS.every((facet) => !hidden[facet].has(facetValue(item, facet))) && (!query || matches(item, query)),
     );
     renderFacets(state.items);
     const count = items.length === state.items.length ? `${items.length}` : `${items.length} of ${state.items.length}`;
@@ -363,6 +368,12 @@ export function createLauncher({ send, onToggle, openWorkspace, here }: Launcher
           draft.className = 'draft';
           draft.textContent = 'draft';
           head.append(draft);
+        }
+        if (item.merge !== 'unknown') {
+          const ready = item.merge === 'ready';
+          const merge = el('span', ready ? MERGE_LABELS.ready : (item.mergeReason ?? MERGE_LABELS.blocked), `merge ${item.merge}`);
+          merge.title = ready ? 'Approved, checks passing, no conflicts' : `Cannot merge yet: ${item.mergeReason ?? 'blocked'}`;
+          head.append(merge);
         }
         if (existing) {
           const dot = document.createElement('span');

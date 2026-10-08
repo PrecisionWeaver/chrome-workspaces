@@ -1,4 +1,4 @@
-import type { ReviewRequest, ReviewsState } from '../../shared/protocol';
+import type { MergeState, ReviewRequest, ReviewsState } from '../../shared/protocol';
 
 const GH_FIELDS = '--json number,title,url,repository,author,isDraft,updatedAt';
 export const GH_REVIEW_REQUESTS = `gh search prs --review-requested=@me --state=open ${GH_FIELDS} --limit 50`;
@@ -6,6 +6,39 @@ export const GH_REVIEW_REQUESTS = `gh search prs --review-requested=@me --state=
 /** Every open PR in the watched repos except your own, for repos where nobody requests reviewers. */
 export function ghWatchedPrs(repos: readonly string[]): string {
   return `gh search prs ${repos.map((repo) => `--repo ${repo}`).join(' ')} --state=open ${GH_FIELDS} --limit 100 -- -author:@me`;
+}
+
+const SAFE_NAME = /^[\w.-]+$/;
+
+/** One GraphQL request for every PR's merge state, which `gh search` does not report. */
+export function mergeStatusQuery(items: readonly ReviewRequest[]): string {
+  const lookups = items.flatMap((item, index) => {
+    const [owner, name] = item.repo.split('/');
+    if (!owner || !name || !SAFE_NAME.test(owner) || !SAFE_NAME.test(name)) return [];
+    return [`r${index}: repository(owner: "${owner}", name: "${name}") { pullRequest(number: ${item.number}) { url mergeStateStatus } }`];
+  });
+  return `query { ${lookups.join(' ')} }`;
+}
+
+const BLOCKED_REASONS: Record<string, string> = {
+  BLOCKED: 'Blocked',
+  BEHIND: 'Behind',
+  DIRTY: 'Conflicts',
+  UNSTABLE: 'Checks failing',
+  DRAFT: 'Draft',
+};
+
+/** Reads the response of `mergeStatusQuery`; PRs missing from it, e.g. in a repo the token cannot see, stay unknown. */
+export function parseMergeStatuses(json: string): Map<string, Pick<ReviewRequest, 'merge' | 'mergeReason'>> {
+  const parsed = JSON.parse(json) as { data?: Record<string, { pullRequest?: { url: string; mergeStateStatus: string } | null } | null> | null };
+  const result = new Map<string, Pick<ReviewRequest, 'merge' | 'mergeReason'>>();
+  for (const lookup of Object.values(parsed.data ?? {})) {
+    const pr = lookup?.pullRequest;
+    if (!pr) continue;
+    const merge: MergeState = pr.mergeStateStatus === 'CLEAN' || pr.mergeStateStatus === 'HAS_HOOKS' ? 'ready' : pr.mergeStateStatus in BLOCKED_REASONS ? 'blocked' : 'unknown';
+    result.set(pr.url, { merge, mergeReason: merge === 'blocked' ? BLOCKED_REASONS[pr.mergeStateStatus] : null });
+  }
+  return result;
 }
 
 const TICKET = /[A-Z][A-Z0-9]*-\d+/;
@@ -43,6 +76,8 @@ export function parseReviewRequests(jsons: readonly string[]): ReviewRequest[] {
       isDraft: pr.isDraft,
       updatedAt: pr.updatedAt,
       ticket: ticketFromTitle(pr.title),
+      merge: 'unknown' as MergeState,
+      mergeReason: null,
     }))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
@@ -54,7 +89,11 @@ export class ReviewsPoller {
   private timer: ReturnType<typeof setInterval> | undefined;
   private readonly listeners = new Set<() => void>();
 
-  constructor(private readonly fetchJson: () => Promise<string[]>) {}
+  /** `fetchMerge` runs `mergeStatusQuery`'s result; without it, or if it fails, merge states stay unknown. */
+  constructor(
+    private readonly fetchJson: () => Promise<string[]>,
+    private readonly fetchMerge?: (query: string) => Promise<string>,
+  ) {}
 
   state(): ReviewsState {
     return { ...this.current, items: [...this.current.items] };
@@ -63,6 +102,7 @@ export class ReviewsPoller {
   refresh(): Promise<void> {
     this.inFlight ??= this.fetchJson()
       .then(parseReviewRequests)
+      .then((items) => this.withMergeStatus(items))
       .then(
         (items) => {
           this.current = { items, error: null, fetchedAt: new Date().toISOString() };
@@ -76,6 +116,17 @@ export class ReviewsPoller {
         for (const listener of this.listeners) listener();
       });
     return this.inFlight;
+  }
+
+  private async withMergeStatus(items: ReviewRequest[]): Promise<ReviewRequest[]> {
+    if (!this.fetchMerge || items.length === 0) return items;
+    try {
+      const statuses = parseMergeStatuses(await this.fetchMerge(mergeStatusQuery(items)));
+      return items.map((item) => ({ ...item, ...statuses.get(item.url) }));
+    } catch (error) {
+      console.warn('could not read merge states', error);
+      return items;
+    }
   }
 
   start(intervalMs: number): void {

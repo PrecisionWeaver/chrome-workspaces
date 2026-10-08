@@ -60,6 +60,9 @@ export interface Repo {
   root: string;
 }
 
+/** Whether GitHub would let a PR merge now: approved, checks passing, no conflicts. */
+export type MergeState = 'ready' | 'blocked' | 'unknown';
+
 /** An open PR that requests the user's review. */
 export interface ReviewRequest {
   /** `owner/name`. */
@@ -71,6 +74,9 @@ export interface ReviewRequest {
   isDraft: boolean;
   updatedAt: string;
   ticket: string | null;
+  merge: MergeState;
+  /** Why a `blocked` PR cannot merge, in a word or two; null otherwise. */
+  mergeReason: string | null;
 }
 
 export interface ReviewsState {

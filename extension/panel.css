@@ -287,6 +287,8 @@ code {
 /* Review requests */
 
 #reviews {
+  /* Lets the tools row below react to the list's width, which the user drags. */
+  container-type: inline-size;
   flex: none;
   max-height: 45%;
   display: flex;
@@ -318,11 +320,12 @@ code {
 
 #reviews-tools {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
   padding: 0 8px 6px;
 }
 
-#reviews-filter,
+#reviews-search,
 #reviews-tools .facet {
   min-width: 0;
   box-sizing: border-box;
@@ -334,8 +337,15 @@ code {
   outline: none;
 }
 
-#reviews-filter {
-  flex: 1;
+#reviews-search {
+  flex: 1 1 120px;
+}
+
+/* In a narrow list the search takes a line of its own, with the facet buttons below it. */
+@container (max-width: 320px) {
+  #reviews-search {
+    flex-basis: 100%;
+  }
 }
 
 #reviews-tools .facet {
@@ -353,7 +363,7 @@ code {
   background: var(--raised);
 }
 
-#reviews-filter:focus,
+#reviews-search:focus,
 #reviews-tools .facet:focus-visible {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
@@ -466,6 +476,23 @@ code {
   border-radius: 8px;
   color: var(--muted);
   font-size: 9.5px;
+}
+
+.review .merge {
+  padding: 0 5px;
+  border-radius: 8px;
+  font-size: 9.5px;
+  white-space: nowrap;
+}
+
+.review .merge.ready {
+  background: color-mix(in srgb, var(--good) 18%, transparent);
+  color: var(--good);
+}
+
+.review .merge.blocked {
+  background: color-mix(in srgb, var(--wait) 16%, transparent);
+  color: var(--wait);
 }
 
 .review .has-workspace {

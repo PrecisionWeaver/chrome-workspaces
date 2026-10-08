@@ -32,7 +32,17 @@ const execFileAsync = promisify(execFile);
 const gh = async (command: string) =>
   (await execFileAsync(shell, ['-l', '-c', command], { timeout: 30_000, maxBuffer: 4 * 1024 * 1024 })).stdout;
 const reviewSearches = [GH_REVIEW_REQUESTS, ...(config.watchRepos.length ? [ghWatchedPrs(config.watchRepos)] : [])];
-const reviews = new ReviewsPoller(() => Promise.all(reviewSearches.map(gh)));
+// gh exits non-zero when GraphQL reports an error for any PR, but its stdout still holds the rest.
+const ghMergeStates = async (query: string) => {
+  try {
+    return (await execFileAsync(shell, ['-l', '-c', 'gh api graphql -f query="$CW_QUERY"'], { env: { ...process.env, CW_QUERY: query }, timeout: 30_000, maxBuffer: 4 * 1024 * 1024 })).stdout;
+  } catch (error) {
+    const { stdout } = error as { stdout?: string };
+    if (stdout) return stdout;
+    throw error;
+  }
+};
+const reviews = new ReviewsPoller(() => Promise.all(reviewSearches.map(gh)), ghMergeStates);
 const prompts = () => readPrompts(config.promptsFile);
 const prDetails = async (url: string) =>
   (await execFileAsync(shell, ['-l', '-c', GH_PR_DETAILS], { env: { ...process.env, CW_PR_URL: url }, timeout: 30_000, maxBuffer: 4 * 1024 * 1024 })).stdout;
