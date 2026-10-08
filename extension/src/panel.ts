@@ -33,6 +33,7 @@ let reviews: ReviewsState = { items: [], error: null, fetchedAt: null };
 const control = connectControl(
   (message) => {
     if (message.type === 'prompts') launcher.setPrompts(message.prompts, message.error);
+    if (message.type === 'prDetails') launcher.setPrDetails(message.url, message.details, message.error);
     if (message.type !== 'state') return;
     workspaces = workspaceOrder(message.workspaces);
     statuses = message.statuses;
@@ -115,6 +116,7 @@ function renderList(): void {
       item.append(badge, name, remove);
       item.addEventListener('click', () => {
         if (ws.id !== here?.id) openWorkspace(ws);
+        else if (launcher.isOpen) launcher.close();
       });
       return item;
     }),
@@ -188,8 +190,35 @@ $<HTMLButtonElement>('collapse').addEventListener('click', () => {
   fitTerminal();
 });
 
-void chrome.storage.local.get('listCollapsed').then(({ listCollapsed }) => {
+void chrome.storage.local.get(['listCollapsed', 'listWidth']).then(({ listCollapsed, listWidth }) => {
   document.body.classList.toggle('collapsed', listCollapsed === true);
+  if (typeof listWidth === 'number') setListWidth(listWidth);
+  fitTerminal();
+});
+
+const MIN_LIST_WIDTH = 140;
+const MAX_LIST_WIDTH = 520;
+const resizer = $<HTMLDivElement>('list-resizer');
+
+function setListWidth(width: number): number {
+  const clamped = Math.min(MAX_LIST_WIDTH, Math.max(MIN_LIST_WIDTH, Math.round(width)));
+  document.body.style.setProperty('--list-width', `${clamped}px`);
+  return clamped;
+}
+
+resizer.addEventListener('pointerdown', (event) => {
+  resizer.setPointerCapture(event.pointerId);
+  resizer.classList.add('dragging');
+});
+
+resizer.addEventListener('pointermove', (event) => {
+  if (resizer.hasPointerCapture(event.pointerId)) setListWidth(event.clientX);
+});
+
+resizer.addEventListener('pointerup', (event) => {
+  resizer.releasePointerCapture(event.pointerId);
+  resizer.classList.remove('dragging');
+  void chrome.storage.local.set({ listWidth: setListWidth(event.clientX) });
   fitTerminal();
 });
 

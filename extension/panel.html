@@ -30,6 +30,7 @@
         <ul id="reviews-list"></ul>
       </section>
     </nav>
+    <div id="list-resizer" title="Drag to resize"></div>
     <main id="main">
       <div id="notice" hidden></div>
       <section id="picker" hidden>
@@ -40,8 +41,13 @@
         </form>
       </section>
       <section id="launch" hidden>
+        <div id="launch-bar">
+          <button type="button" id="launch-close" title="Back to the terminal (Esc)">← Back</button>
+          <button type="button" id="launch-github" hidden>Open in GitHub ↗</button>
+        </div>
+        <h2 id="launch-title"></h2>
+        <div id="launch-details" hidden></div>
         <div id="launch-choose">
-          <h2 id="launch-title"></h2>
           <input id="launch-filter" placeholder="Filter prompts" autocomplete="off" />
           <div id="launch-error" hidden></div>
           <div id="launch-prompts"></div>
