@@ -87,6 +87,19 @@ describe('WorkspaceStore', () => {
     expect(() => new WorkspaceStore(tempFile()).rename('ws-00000000', 'x')).toThrow(/unknown workspace/);
   });
 
+  it('moves a workspace within the list, persisting the order', () => {
+    const file = tempFile();
+    const store = new WorkspaceStore(file);
+    const [a, b, c] = ['a', 'b', 'c'].map((name) => store.create({ name, cwd: '/tmp' }));
+    store.move(a.id, 2);
+    expect(new WorkspaceStore(file).list().map((w) => w.id)).toEqual([b.id, c.id, a.id]);
+    store.move(a.id, 0);
+    expect(store.list().map((w) => w.id)).toEqual([a.id, b.id, c.id]);
+    store.move(b.id, 99);
+    expect(store.list().map((w) => w.id)).toEqual([a.id, c.id, b.id]);
+    expect(() => store.move('ws-00000000', 0)).toThrow(/unknown workspace/);
+  });
+
   it('removes workspaces', () => {
     const file = tempFile();
     const store = new WorkspaceStore(file);

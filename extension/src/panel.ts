@@ -1,6 +1,6 @@
 import { FitAddon } from '@xterm/addon-fit';
 import { Terminal } from '@xterm/xterm';
-import { similarity, workspaceOrder } from '../../shared/pairing';
+import { similarity } from '../../shared/pairing';
 import type { ClientMessage, ReviewsState, ServerMessage, Workspace, WorkspaceStatus } from '../../shared/protocol';
 import { connectControl, getHelper, openSocket } from './helper-client';
 import { createLauncher } from './launcher';
@@ -36,7 +36,7 @@ const control = connectControl(
     if (message.type === 'prompts') launcher.setPrompts(message.prompts, message.error);
     if (message.type === 'prDetails') launcher.setPrDetails(message.url, message.details, message.error);
     if (message.type !== 'state') return;
-    workspaces = workspaceOrder(message.workspaces);
+    workspaces = message.workspaces;
     statuses = message.statuses;
     reviews = message.reviews;
     render();
@@ -70,12 +70,13 @@ function render(): void {
   }
 }
 
-// While a name is being edited the list isn't redrawn (status updates arrive constantly and
-// would discard the input); it catches up when editing ends.
+// While a name is being edited or a workspace dragged the list isn't redrawn (status updates
+// arrive constantly and would discard the input or the drag); it catches up when that ends.
 let editing = false;
+let dragged: Workspace | null = null;
 
 function renderList(): void {
-  if (editing) return;
+  if (editing || dragged) return;
   const here = current();
   listEl.replaceChildren(
     ...workspaces.map((ws, index) => {
@@ -119,9 +120,45 @@ function renderList(): void {
         if (ws.id !== here?.id) openWorkspace(ws);
         else if (launcher.isOpen) launcher.close();
       });
+      addDragHandlers(item, ws);
       return item;
     }),
   );
+}
+
+function addDragHandlers(item: HTMLLIElement, ws: Workspace): void {
+  item.draggable = true;
+  item.addEventListener('dragstart', (event) => {
+    dragged = ws;
+    item.classList.add('dragging');
+    event.dataTransfer?.setData('text/plain', ws.name);
+    if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+  });
+  item.addEventListener('dragover', (event) => {
+    if (!dragged) return;
+    event.preventDefault();
+    const { top, height } = item.getBoundingClientRect();
+    const after = event.clientY > top + height / 2;
+    item.classList.toggle('drop-before', !after);
+    item.classList.toggle('drop-after', after);
+  });
+  item.addEventListener('dragleave', () => item.classList.remove('drop-before', 'drop-after'));
+  item.addEventListener('drop', (event) => {
+    event.preventDefault();
+    const moving = dragged;
+    const after = item.classList.contains('drop-after');
+    if (!moving || moving.id === ws.id) return;
+    const rest = workspaces.filter((w) => w.id !== moving.id);
+    const index = rest.findIndex((w) => w.id === ws.id) + (after ? 1 : 0);
+    // Reorder now rather than waiting for the helper's state, so the list doesn't jump back.
+    workspaces = [...rest.slice(0, index), moving, ...rest.slice(index)];
+    send({ type: 'move', id: moving.id, index });
+  });
+  // Fires after drop, or alone when the drag is cancelled.
+  item.addEventListener('dragend', () => {
+    dragged = null;
+    renderList();
+  });
 }
 
 function openWorkspace(ws: Workspace): void {

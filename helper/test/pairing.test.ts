@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { matchWindows, workspaceOrder } from '../../shared/pairing';
+import { matchWindows } from '../../shared/pairing';
 import type { Workspace } from '../../shared/protocol';
 
-function ws(id: string, lastTabUrls: string[], windowId: number | null = null, createdAt = '2026-01-01T00:00:00Z'): Workspace {
-  return { id, name: id, ticket: null, cwd: '/tmp', url: null, windowId, lastTabUrls, pr: null, prompt: null, createdAt };
+function ws(id: string, lastTabUrls: string[], windowId: number | null = null): Workspace {
+  return { id, name: id, ticket: null, cwd: '/tmp', url: null, windowId, lastTabUrls, pr: null, prompt: null, createdAt: '2026-01-01T00:00:00Z' };
 }
 
 describe('matchWindows', () => {
@@ -41,12 +41,5 @@ describe('matchWindows', () => {
 
   it('ignores workspaces with no remembered tabs', () => {
     expect(matchWindows([ws('a', [])], [{ id: 8, urls: [] }])).toEqual([]);
-  });
-});
-
-describe('workspaceOrder', () => {
-  it('orders by creation time', () => {
-    const order = workspaceOrder([ws('late', [], null, '2026-02-01T00:00:00Z'), ws('early', [], null, '2026-01-01T00:00:00Z')]);
-    expect(order.map((w) => w.id)).toEqual(['early', 'late']);
   });
 });

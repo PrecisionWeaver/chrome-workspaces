@@ -50,7 +50,3 @@ export function matchWindows(workspaces: readonly Workspace[], windows: readonly
   return result;
 }
 
-/** The order of the workspace list and of next/previous switching. */
-export function workspaceOrder(workspaces: readonly Workspace[]): Workspace[] {
-  return [...workspaces].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-}

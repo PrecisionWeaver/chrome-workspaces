@@ -107,6 +107,19 @@ describe('control channel', () => {
     ws.close();
   });
 
+  it('moves a workspace, ignoring unknown ids and bad indexes', async () => {
+    const [a, b, c] = ['a', 'b', 'c'].map((name) => h.store.create({ name, cwd: h.defaultCwd }));
+    const { ws } = connectControl(h);
+    await opened(ws);
+    ws.send(JSON.stringify({ type: 'move', id: a.id, index: -1 }));
+    ws.send(JSON.stringify({ type: 'move', id: a.id, index: 1.5 }));
+    ws.send(JSON.stringify({ type: 'move', id: 'ws-unknown0', index: 0 }));
+    ws.send(JSON.stringify({ type: 'move', id: c.id, index: 0 }));
+    await waitFor(() => h.store.list()[0]?.id === c.id);
+    expect(h.store.list().map((w) => w.id)).toEqual([c.id, a.id, b.id]);
+    ws.close();
+  });
+
   it('ignores malformed messages without dropping the connection', async () => {
     const a = h.store.create({ name: 'a', cwd: h.defaultCwd });
     const { ws } = connectControl(h);

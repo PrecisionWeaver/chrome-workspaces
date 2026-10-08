@@ -141,6 +141,18 @@ code {
   box-shadow: inset 2px 0 0 var(--accent);
 }
 
+.ws.dragging {
+  opacity: 0.4;
+}
+
+.ws.drop-before {
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+
+.ws.drop-after {
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
 .ws .badge {
   flex: none;
   width: 18px;

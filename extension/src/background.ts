@@ -1,4 +1,4 @@
-import { matchWindows, workspaceOrder } from '../../shared/pairing';
+import { matchWindows } from '../../shared/pairing';
 import type { ControlToClient, Workspace } from '../../shared/protocol';
 import { placeClaudeGroups } from './claude-groups';
 import { connectControl } from './helper-client';
@@ -93,11 +93,10 @@ chrome.commands.onCommand.addListener((command) => {
 });
 
 function cycle(step: 1 | -1): void {
-  const ordered = workspaceOrder(workspaces);
-  if (ordered.length === 0) return;
-  const current = ordered.findIndex((ws) => ws.windowId === focusedWindowId);
-  const next = current === -1 ? ordered[0] : ordered[(current + step + ordered.length) % ordered.length];
-  if (next.id === ordered[current]?.id) return;
+  if (workspaces.length === 0) return;
+  const current = workspaces.findIndex((ws) => ws.windowId === focusedWindowId);
+  const next = current === -1 ? workspaces[0] : workspaces[(current + step + workspaces.length) % workspaces.length];
+  if (next.id === workspaces[current]?.id) return;
   // Reopens the panel in a window whose panel closed, e.g. after the extension reloaded.
   if (next.windowId !== null) chrome.sidePanel.open({ windowId: next.windowId }).catch(() => {});
   void switchTo(next, send);

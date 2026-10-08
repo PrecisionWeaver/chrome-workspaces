@@ -113,6 +113,8 @@ export type ControlToHelper =
   | { type: 'create'; name: string; windowId: number | null; pr?: string; prompt?: string }
   | { type: 'remove'; id: string }
   | { type: 'rename'; id: string; name: string }
+  /** `index` is the workspace's position in the list once moved. */
+  | { type: 'move'; id: string; index: number }
   | { type: 'listPrompts' }
   | { type: 'refreshReviews' }
   | { type: 'prDetails'; url: string };

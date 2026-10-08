@@ -101,6 +101,9 @@ export class ControlHub {
       case 'rename':
         if (store.get(message.id)) store.rename(message.id, message.name.trim());
         break;
+      case 'move':
+        if (store.get(message.id)) store.move(message.id, message.index);
+        break;
       case 'remove':
         this.options.sessions.remove(message.id);
         store.remove(message.id);
@@ -152,6 +155,8 @@ function isControlToHelper(value: unknown): value is ControlToHelper {
       return typeof m.id === 'string';
     case 'rename':
       return typeof m.id === 'string' && isWorkspaceName(m.name);
+    case 'move':
+      return typeof m.id === 'string' && Number.isInteger(m.index) && (m.index as number) >= 0;
     case 'create':
       return (
         isWorkspaceName(m.name) &&

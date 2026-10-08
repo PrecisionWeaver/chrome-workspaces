@@ -20,6 +20,7 @@ Design: [`docs/superpowers/specs/2026-10-07-chrome-workspaces-design.md`](docs/s
 ## Using it
 
 - **Switch:** `⌃⇧←` / `⌃⇧→`, or click a workspace in the list. Every workspace window takes the size of whichever one you last resized or maximized, so switching looks like the content swapping in place.
+- **Reorder:** drag a workspace up or down the list. `⌃⇧←` / `⌃⇧→` follow the same order.
 - **New workspace:** `devspace PROJ-1234` (see below), or `+` in the list. A window that isn't a workspace yet offers to become one when you open the panel in it.
 - **Review requests:** the section under the list shows open PRs that request your review (from `gh`, refreshed every 5 minutes or with ↻). Click one to pick a prompt. A dot means it already has a workspace; clicking focuses it.
 - **From a prompt:** `+` → **From prompt…** lists the prompts in your vault note. Pick one, edit it (`PR-URL` and `PROJ-XXX` are filled from the PR when there is one), and **Start**: the new workspace's `claude` begins with that prompt. It runs once; reopening the workspace resumes the conversation.

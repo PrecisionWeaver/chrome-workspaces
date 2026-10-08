@@ -86,6 +86,15 @@ export class WorkspaceStore {
     this.save();
   }
 
+  /** Moves a workspace to `index` in the list, which is the order the panel shows and switching follows. */
+  move(id: string, index: number): void {
+    const ws = this.require(id);
+    const rest = this.workspaces.filter((w) => w !== ws);
+    rest.splice(Math.max(0, Math.min(index, rest.length)), 0, ws);
+    this.workspaces = rest;
+    this.save();
+  }
+
   clearPrompt(id: string): void {
     const ws = this.require(id);
     if (ws.prompt === null) return;
