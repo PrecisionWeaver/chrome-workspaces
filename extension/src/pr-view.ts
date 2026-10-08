@@ -1,4 +1,4 @@
-import type { PrDetails, ReviewRequest } from '../../shared/protocol';
+import { PR_COMMITS_SHOWN, PR_FILES_SHOWN, type PrDetails, type ReviewRequest } from '../../shared/protocol';
 import { el } from './dom';
 
 export const repoName = (review: ReviewRequest) => review.repo.split('/')[1] ?? review.repo;
@@ -49,6 +49,7 @@ export function renderDetails(pr: PrDetails): Node[] {
     el('span', `${pr.changedFiles} files`, 'files'),
     byline(`opened ${relative(pr.createdAt)} · updated ${relative(pr.updatedAt)}`, pr.author, 'by '),
   );
+  if (pr.comments) stats.append(el('span', `${pr.comments} comment${pr.comments === 1 ? '' : 's'}`, 'comments'));
 
   const pills = el('div', '', 'pills');
   const [label, tone] = DECISIONS[pr.reviewDecision ?? ''] ?? ['No review required', ''];
@@ -61,6 +62,17 @@ export function renderDetails(pr: PrDetails): Node[] {
   if (passed) pills.append(el('span', `${passed} passed`, 'pill good'));
 
   const nodes: Node[] = [branches, stats, pills];
+  if (pr.labels.length) {
+    const labels = el('div', '', 'labels');
+    labels.append(...pr.labels.map((name) => el('span', name, 'label')));
+    nodes.push(labels);
+  }
+  if (pr.summary) {
+    const summary = el('p', pr.summary, 'summary');
+    summary.title = 'Click to expand';
+    summary.addEventListener('click', () => summary.classList.toggle('open'));
+    nodes.push(summary);
+  }
   if (failing.length) {
     const failingEl = el('div', 'Failing: ', 'failing');
     failingEl.append(el('span', failing.join(', ')));
@@ -90,5 +102,50 @@ export function renderDetails(pr: PrDetails): Node[] {
     people.append(waiting);
   }
   nodes.push(people);
+  nodes.push(...glanceLists(pr));
   return nodes;
+}
+
+/** Files and commits as collapsed counts, so the details stay brief until you open one. */
+function glanceLists(pr: PrDetails): Node[] {
+  const lists: Node[] = [];
+
+  if (pr.files.length) {
+    const files = el('details', '', 'glance');
+    files.append(el('summary', `${pr.changedFiles} file${pr.changedFiles === 1 ? '' : 's'} changed`));
+    const list = el('ul');
+    for (const file of pr.files) {
+      const slash = file.path.lastIndexOf('/');
+      const row = el('li', '', 'glance-row');
+      row.title = file.path;
+      row.append(
+        el('span', file.path.slice(slash + 1), 'glance-name'),
+        el('span', slash === -1 ? '' : file.path.slice(0, slash), 'glance-dir'),
+        el('span', `+${file.additions}`, 'add'),
+        el('span', `−${file.deletions}`, 'del'),
+      );
+      list.append(row);
+    }
+    const more = pr.changedFiles - Math.min(pr.files.length, PR_FILES_SHOWN);
+    if (more > 0) list.append(el('li', `…and ${more} more`, 'glance-more'));
+    files.append(list);
+    lists.push(files);
+  }
+
+  if (pr.commits.length) {
+    const commits = el('details', '', 'glance');
+    commits.append(el('summary', `${pr.commitCount} commit${pr.commitCount === 1 ? '' : 's'}`));
+    const list = el('ul');
+    for (const commit of pr.commits) {
+      const row = el('li', '', 'glance-row');
+      row.title = `${commit.sha} · ${commit.author}`;
+      row.append(el('span', commit.headline, 'glance-name'), el('span', `${commit.author} · ${relative(commit.date)}`, 'glance-dir'));
+      list.append(row);
+    }
+    const more = pr.commitCount - Math.min(pr.commits.length, PR_COMMITS_SHOWN);
+    if (more > 0) list.append(el('li', `…and ${more} more`, 'glance-more'));
+    commits.append(list);
+    lists.push(commits);
+  }
+  return lists;
 }

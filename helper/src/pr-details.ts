@@ -1,8 +1,8 @@
-import type { PrDetails } from '../../shared/protocol';
+import { PR_COMMITS_SHOWN, PR_FILES_SHOWN, type PrDetails } from '../../shared/protocol';
 
 /** Runs with the PR url in `$CW_PR_URL`, so the url never becomes shell syntax. */
 export const GH_PR_DETAILS =
-  'gh pr view "$CW_PR_URL" --json title,url,author,headRefName,baseRefName,isDraft,additions,deletions,changedFiles,reviewDecision,mergeable,createdAt,updatedAt,latestReviews,reviewRequests,statusCheckRollup';
+  'gh pr view "$CW_PR_URL" --json title,url,author,headRefName,baseRefName,isDraft,additions,deletions,changedFiles,reviewDecision,mergeable,createdAt,updatedAt,latestReviews,reviewRequests,statusCheckRollup,body,labels,comments,files,commits';
 
 interface GhCheck {
   __typename: string;
@@ -30,6 +30,34 @@ interface GhPrView {
   latestReviews: { author: { login: string }; state: string; submittedAt?: string }[] | null;
   reviewRequests: { login?: string; name?: string; slug?: string }[] | null;
   statusCheckRollup: GhCheck[] | null;
+  body: string | null;
+  labels: { name: string }[] | null;
+  comments: unknown[] | null;
+  files: { path: string; additions: number; deletions: number }[] | null;
+  commits: { oid: string; messageHeadline: string; committedDate: string; authors: { login?: string; name?: string }[] }[] | null;
+}
+
+const SUMMARY_LENGTH = 420;
+
+/**
+ * Reduces a PR description to plain text for a glance: template comments, images, HTML tags and
+ * headings and markdown markers go, links keep their text, and what is left is cut at a word.
+ */
+export function summarizeBody(body: string | null): string {
+  const plain = (body ?? '')
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    // Section headings in a PR template name the section, not the change.
+    .replace(/^\s{0,3}#{1,6}\s.*$/gm, ' ')
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    .replace(/^\s{0,3}(>|[-*+]|\d+\.)\s+(\[[ xX]\]\s+)?/gm, '')
+    .replace(/[`*_~]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (plain.length <= SUMMARY_LENGTH) return plain;
+  const cut = plain.slice(0, SUMMARY_LENGTH);
+  return `${cut.slice(0, cut.lastIndexOf(' ') > 200 ? cut.lastIndexOf(' ') : SUMMARY_LENGTH)}…`;
 }
 
 const PASSED = new Set(['SUCCESS', 'NEUTRAL', 'SKIPPED']);
@@ -73,5 +101,18 @@ export function parsePrDetails(json: string): PrDetails {
     reviews: (pr.latestReviews ?? []).map((r) => ({ login: r.author.login, state: r.state, at: r.submittedAt ?? null })),
     requested: (pr.reviewRequests ?? []).map((r) => r.login ?? r.name ?? r.slug ?? 'unknown'),
     checks,
+    summary: summarizeBody(pr.body),
+    labels: (pr.labels ?? []).map((label) => label.name),
+    comments: (pr.comments ?? []).length,
+    files: [...(pr.files ?? [])]
+      .sort((a, b) => b.additions + b.deletions - (a.additions + a.deletions))
+      .slice(0, PR_FILES_SHOWN)
+      .map(({ path, additions, deletions }) => ({ path, additions, deletions })),
+    // gh lists commits oldest first.
+    commits: [...(pr.commits ?? [])]
+      .reverse()
+      .slice(0, PR_COMMITS_SHOWN)
+      .map((c) => ({ sha: c.oid.slice(0, 7), headline: c.messageHeadline, author: c.authors[0]?.login ?? c.authors[0]?.name ?? 'unknown', date: c.committedDate })),
+    commitCount: (pr.commits ?? []).length,
   };
 }

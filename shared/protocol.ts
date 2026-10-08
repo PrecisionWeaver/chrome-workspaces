@@ -158,7 +158,33 @@ export interface PrDetails {
   /** Users and teams whose review is still requested. */
   requested: string[];
   checks: { passed: number; failed: number; pending: number; failing: string[] };
+  /** The description as plain text, shortened to what reads at a glance. */
+  summary: string;
+  labels: string[];
+  /** Conversation comments, not counting review comments on code. */
+  comments: number;
+  /** The files with the most changes first, at most `PR_FILES_SHOWN`. */
+  files: PrFile[];
+  /** Newest first, at most `PR_COMMITS_SHOWN`. */
+  commits: PrCommit[];
+  commitCount: number;
 }
+
+export interface PrFile {
+  path: string;
+  additions: number;
+  deletions: number;
+}
+
+export interface PrCommit {
+  sha: string;
+  headline: string;
+  author: string;
+  date: string;
+}
+
+export const PR_FILES_SHOWN = 10;
+export const PR_COMMITS_SHOWN = 6;
 
 export type ControlToClient =
   | { type: 'state'; workspaces: Workspace[]; statuses: Record<string, WorkspaceStatus>; reviews: ReviewsState }

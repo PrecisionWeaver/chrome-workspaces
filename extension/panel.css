@@ -863,6 +863,98 @@ body.collapsed #collapse {
   color: var(--text);
 }
 
+#create-details .comments {
+  color: var(--muted);
+}
+
+#create-details .labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+#create-details .label {
+  padding: 0 7px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 10.5px;
+}
+
+#create-details .summary {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin: 10px 0 0;
+  color: var(--muted);
+  line-height: 1.5;
+  cursor: pointer;
+}
+
+#create-details .summary.open {
+  display: block;
+}
+
+#create-details .glance {
+  margin-top: 10px;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
+#create-details .glance summary {
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+#create-details .glance summary:hover {
+  color: var(--text);
+}
+
+#create-details .glance ul {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+}
+
+#create-details .glance-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 2px 0;
+}
+
+#create-details .glance-name {
+  flex: none;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#create-details .glance-dir {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--faint);
+  font-size: 11px;
+}
+
+#create-details .glance-row .add,
+#create-details .glance-row .del {
+  flex: none;
+  font: 11px var(--mono);
+}
+
+#create-details .glance-more {
+  padding: 2px 0;
+  color: var(--faint);
+}
+
 #create-details .people {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));

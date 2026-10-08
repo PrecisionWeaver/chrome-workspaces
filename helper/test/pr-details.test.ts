@@ -29,6 +29,18 @@ const GH = {
     { __typename: 'StatusContext', context: 'deploy/preview', state: 'PENDING' },
     { __typename: 'StatusContext', context: 'codecov', state: 'ERROR' },
   ],
+  body: '<!-- template -->\n## Summary\n- Adds the **sync cache** ([PROJ-1737](https://jira.example/PROJ-1737))\n![shot](https://x/y.png)\n\n## Testing\n- [x] ran the suite',
+  labels: [{ name: 'backend' }, { name: 'needs-qa' }],
+  comments: [{}, {}, {}],
+  files: [
+    { path: 'app/Small.php', additions: 1, deletions: 0 },
+    { path: 'app/Big.php', additions: 400, deletions: 10 },
+    { path: 'tests/Mid.php', additions: 50, deletions: 20 },
+  ],
+  commits: [
+    { oid: 'aaaaaaa1111', messageHeadline: 'first', committedDate: '2026-10-07T21:00:00Z', authors: [{ login: 'bstanley-pec' }] },
+    { oid: 'bbbbbbb2222', messageHeadline: 'second', committedDate: '2026-10-07T22:00:00Z', authors: [{ name: 'Brian Stanley' }] },
+  ],
 };
 
 describe('parsePrDetails', () => {
@@ -53,12 +65,44 @@ describe('parsePrDetails', () => {
       ],
       requested: ['PrecisionWeaver', 'Platform'],
       checks: { passed: 2, failed: 2, pending: 2, failing: ['Pest (3)', 'codecov'] },
+      summary: 'Adds the sync cache (PROJ-1737) ran the suite',
+      labels: ['backend', 'needs-qa'],
+      comments: 3,
+      files: [
+        { path: 'app/Big.php', additions: 400, deletions: 10 },
+        { path: 'tests/Mid.php', additions: 50, deletions: 20 },
+        { path: 'app/Small.php', additions: 1, deletions: 0 },
+      ],
+      commits: [
+        { sha: 'bbbbbbb', headline: 'second', author: 'Brian Stanley', date: '2026-10-07T22:00:00Z' },
+        { sha: 'aaaaaaa', headline: 'first', author: 'bstanley-pec', date: '2026-10-07T21:00:00Z' },
+      ],
+      commitCount: 2,
     });
   });
 
+  it('cuts a long description at a word, and caps files and commits', () => {
+    const long = { ...GH, body: 'word '.repeat(300), files: Array.from({ length: 30 }, (_, i) => ({ path: `f${i}`, additions: i, deletions: 0 })), commits: Array.from({ length: 12 }, (_, i) => ({ oid: `${i}`.padStart(7, '0'), messageHeadline: `c${i}`, committedDate: '2026-10-07T00:00:00Z', authors: [] })) };
+    const details = parsePrDetails(JSON.stringify(long));
+    expect(details.summary.length).toBeLessThanOrEqual(421);
+    expect(details.summary.endsWith('word…')).toBe(true);
+    expect(details.files).toHaveLength(10);
+    expect(details.files[0].path).toBe('f29');
+    expect(details.commits).toHaveLength(6);
+    expect(details.commits[0].headline).toBe('c11');
+    expect(details.commitCount).toBe(12);
+    expect(details.commits[0].author).toBe('unknown');
+  });
+
   it('treats missing optional fields as empty', () => {
-    const minimal = { ...GH, reviewDecision: '', latestReviews: null, reviewRequests: null, statusCheckRollup: null };
+    const minimal = { ...GH, reviewDecision: '', latestReviews: null, reviewRequests: null, statusCheckRollup: null, body: null, labels: null, comments: null, files: null, commits: null };
     expect(parsePrDetails(JSON.stringify(minimal))).toMatchObject({
+      summary: '',
+      labels: [],
+      comments: 0,
+      files: [],
+      commits: [],
+      commitCount: 0,
       reviewDecision: null,
       reviews: [],
       requested: [],
