@@ -186,4 +186,23 @@ describe('control channel', () => {
     await waitFor(() => h.reviewRefreshes === 1);
     ws.close();
   });
+
+  it('answers prDetails to the asking client, reporting fetch errors and ignoring non-PR urls', async () => {
+    h.prDetailsJson = JSON.stringify({ number: 482, title: 't', url: PR, author: { login: 'drew' }, headRefName: 'h', baseRefName: 'b', isDraft: false, additions: 1, deletions: 2, changedFiles: 3, reviewDecision: 'APPROVED', mergeable: 'MERGEABLE', createdAt: 'c', updatedAt: 'u', latestReviews: [], reviewRequests: [], statusCheckRollup: [] });
+    const { ws, messages } = connectControl(h);
+    await opened(ws);
+    ws.send(JSON.stringify({ type: 'prDetails', url: 'https://evil.example/o/r/pull/1' }));
+    ws.send(JSON.stringify({ type: 'prDetails', url: PR }));
+    await waitFor(() => messages.some((m) => m.type === 'prDetails'));
+    expect(messages.filter((m) => m.type === 'prDetails')).toEqual([
+      { type: 'prDetails', url: PR, details: expect.objectContaining({ title: 't', reviewDecision: 'APPROVED' }), error: null },
+    ]);
+    expect(h.prDetailsRequests).toEqual([PR]);
+
+    h.prDetailsJson = null;
+    ws.send(JSON.stringify({ type: 'prDetails', url: PR }));
+    await waitFor(() => messages.filter((m) => m.type === 'prDetails').length === 2);
+    expect(messages.filter((m) => m.type === 'prDetails')[1]).toEqual({ type: 'prDetails', url: PR, details: null, error: 'gh failed' });
+    ws.close();
+  });
 });

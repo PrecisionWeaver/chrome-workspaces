@@ -64,6 +64,36 @@ export interface ReviewsState {
   fetchedAt: string | null;
 }
 
+export interface PrReview {
+  login: string;
+  /** APPROVED, CHANGES_REQUESTED, COMMENTED, DISMISSED, or PENDING. */
+  state: string;
+  at: string | null;
+}
+
+export interface PrDetails {
+  url: string;
+  title: string;
+  author: string;
+  head: string;
+  base: string;
+  isDraft: boolean;
+  additions: number;
+  deletions: number;
+  changedFiles: number;
+  /** APPROVED, CHANGES_REQUESTED, REVIEW_REQUIRED, or null when no review is required. */
+  reviewDecision: string | null;
+  /** MERGEABLE, CONFLICTING, or UNKNOWN. */
+  mergeable: string;
+  createdAt: string;
+  updatedAt: string;
+  /** Each reviewer's latest review. */
+  reviews: PrReview[];
+  /** Users and teams whose review is still requested. */
+  requested: string[];
+  checks: { passed: number; failed: number; pending: number; failing: string[] };
+}
+
 export type ControlToClient =
   | { type: 'state'; workspaces: Workspace[]; statuses: Record<string, WorkspaceStatus>; reviews: ReviewsState }
   | { type: 'open'; id: string }
@@ -71,7 +101,9 @@ export type ControlToClient =
   /** The workspace's claude used Claude in Chrome at `at` (epoch ms). */
   | { type: 'browser'; id: string; at: number }
   /** Reply to `listPrompts`, sent only to the client that asked. */
-  | { type: 'prompts'; prompts: Prompt[]; error: string | null };
+  | { type: 'prompts'; prompts: Prompt[]; error: string | null }
+  /** Reply to `prDetails`, sent only to the client that asked. */
+  | { type: 'prDetails'; url: string; details: PrDetails | null; error: string | null };
 
 export type ControlToHelper =
   | { type: 'pair'; id: string; windowId: number }
@@ -82,4 +114,5 @@ export type ControlToHelper =
   | { type: 'remove'; id: string }
   | { type: 'rename'; id: string; name: string }
   | { type: 'listPrompts' }
-  | { type: 'refreshReviews' };
+  | { type: 'refreshReviews' }
+  | { type: 'prDetails'; url: string };

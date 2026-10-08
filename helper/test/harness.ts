@@ -26,6 +26,9 @@ export interface Harness {
   /** When set, reading prompts fails with this message. */
   promptsError: string | null;
   repoDirs: Record<string, string>;
+  /** What the fake `gh pr view` returns; null makes it fail with "gh failed". */
+  prDetailsJson: string | null;
+  prDetailsRequests: string[];
   url(path: string): string;
   close(): Promise<void>;
 }
@@ -42,6 +45,13 @@ export async function startHarness(): Promise<Harness> {
     prompts: [] as Prompt[],
     promptsError: null as string | null,
     repoDirs: {} as Record<string, string>,
+    prDetailsJson: null as string | null,
+    prDetailsRequests: [] as string[],
+  };
+  const prDetails = async (url: string) => {
+    fakes.prDetailsRequests.push(url);
+    if (fakes.prDetailsJson === null) throw new Error('gh failed');
+    return fakes.prDetailsJson;
   };
   const reviews = {
     state: () => ({ items: fakes.reviews, error: null, fetchedAt: null }),
@@ -54,7 +64,7 @@ export async function startHarness(): Promise<Harness> {
     return fakes.prompts;
   };
   const statuses = () => fakes.statuses;
-  const control = new ControlHub({ store, sessions, defaultCwd, statuses, reviews, prompts, repoDirs: fakes.repoDirs });
+  const control = new ControlHub({ store, sessions, defaultCwd, statuses, reviews, prompts, prDetails, repoDirs: fakes.repoDirs });
   const auth = { token: TOKEN, allowedOrigins: [ORIGIN] };
   const server = await startServer({
     host: '127.0.0.1',

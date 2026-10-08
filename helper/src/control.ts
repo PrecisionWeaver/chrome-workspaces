@@ -1,5 +1,6 @@
 import type { WebSocket } from 'ws';
 import { MAX_PROMPT_LENGTH, type ControlToClient, type ControlToHelper, type Prompt, type ReviewsState, type WorkspaceStatus } from '../../shared/protocol';
+import { parsePrDetails } from './pr-details';
 import { isPullRequestUrl, prWorkspace } from './pr-workspace';
 import type { SessionManager } from './session';
 import type { WorkspaceStore } from './workspace-store';
@@ -17,6 +18,8 @@ export interface ControlHubOptions {
   reviews: ReviewSource;
   /** Throws when the prompts file cannot be read. */
   prompts: () => Prompt[];
+  /** Raw `gh pr view` JSON for a PR url. */
+  prDetails: (url: string) => Promise<string>;
   repoDirs: Record<string, string>;
 }
 
@@ -108,6 +111,17 @@ export class ControlHub {
       case 'refreshReviews':
         void this.options.reviews.refresh();
         break;
+      case 'prDetails': {
+        const { url } = message;
+        this.options
+          .prDetails(url)
+          .then(parsePrDetails)
+          .then(
+            (details) => this.sendTo(ws, { type: 'prDetails', url, details, error: null }),
+            (error: unknown) => this.sendTo(ws, { type: 'prDetails', url, details: null, error: error instanceof Error ? error.message : String(error) }),
+          );
+        break;
+      }
     }
   }
 
@@ -148,6 +162,8 @@ function isControlToHelper(value: unknown): value is ControlToHelper {
     case 'listPrompts':
     case 'refreshReviews':
       return true;
+    case 'prDetails':
+      return typeof m.url === 'string' && isPullRequestUrl(m.url);
     default:
       return false;
   }
