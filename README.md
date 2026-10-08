@@ -1,36 +1,38 @@
 # Chrome Workspaces
 
-A terminal for every Chrome window, docked in Chrome's side panel.
+A Claude terminal for every Chrome window or tab group, docked in Chrome's side panel, with source control and pull-request review built in.
 
-Each workspace is a regular Chrome window, with your profile, logins, extensions, and DevTools, paired with a terminal running `claude`. Keep a task's tabs in its window and switch between workspaces with `⌃⇧←` / `⌃⇧→`.
+Each workspace is a regular Chrome window, or a tab group inside one, with your profile, logins, extensions, and DevTools, paired with a terminal running `claude`. Keep a task's tabs in its window or group and switch between workspaces with `⌃⇧←` / `⌃⇧→`.
 
 ```
 ┌───────────────────────────────────────────────────────────────┐
 │  Chrome tabs + toolbar                                        │
-├──────────┬───────────────────────┬────────────────────────────┤
-│ 1 PROJ-12 │                       │                            │
-│▸2 PROJ-13●│  terminal (claude)    │   web page                 │
-│ 3 OPS-88 │                       │                            │
-│ +        │                       │                            │
-└──────────┴───────────────────────┴────────────────────────────┘
+├───────────┬───────────────────────┬───────────────────────────┤
+│ 1 PROJ-12 │                       │                           │
+│▸2 PROJ-13●│  terminal (claude)    │   web page                │
+│ 3 OPS-88  │                       │                           │
+│ + New     │                       │                           │
+│ ⎇ Source  │                       │                           │
+│ ▾ Reviews │                       │                           │
+└───────────┴───────────────────────┴───────────────────────────┘
 ```
-
 
 ## Features
 
 | | |
 |---|---|
 | **Switch** | `⌃⇧←` / `⌃⇧→` or click a workspace. All workspace windows share the size you last set, so switching swaps content in place. |
+| **Create** | `+ New workspace` opens one view: a **Name**, the **Repo** to start in, the **Model** (`claude --model`), optional **Tabs** (one URL per line, opened with the workspace), a first message, and where it lives. Or run `devspace PROJ-1234`. A window that isn't a workspace offers to become one. |
+| **First message** | **Blank**, **From prompt** (pick from your notes file; `PR-URL` and `PROJ-XXX` are filled in from the PR), or **From text** (type anything). The message runs once; reopening resumes the conversation. |
+| **Window or group** | **New window**, or **This window**. Joining a window that already holds a workspace gives the new one its own tab group beside it, so several terminals can share a window. Pick one from the list or by clicking a tab in its group; its badge takes the group's color. Switching collapses the window's other groups and shows the new one's; expand any by hand and it stays that way until the next switch. Merging windows into tab groups keeps their workspaces. |
+| **From a review request** | Clicking a review request opens the same view with the PR's details above it: branches, size, review and check status, labels, a short plain-text description, and collapsed lists of the biggest files and latest commits. It is named for the PR, starts in its repo, uses From prompt with `PR-URL` and `PROJ-XXX` filled in, and opens the PR as its first tab. Everything else works as for any new workspace. |
+| **Source control** | An accordion for the workspace in view: its branch (↑ahead ↓behind), what Claude is doing, staged and unstaged changes, and a commit graph like VS Code's. Click a file for its diff against HEAD, or a commit for its files and diffs. It refreshes every 5 seconds and whenever Claude starts or stops working, and files that just changed are highlighted, so you can watch the work as it happens. |
+| **Review requests** | Open PRs requesting your review, every open PR in `watchRepos`, and your own open PRs (drafts included) in any repo in `watchRepos` or `repoDirs`. Refreshes every 5 minutes or on ↻. Each carries a badge: **Draft**, **Ready for review** (open, waiting on a review), **Can merge** (approved, checks passing, no conflicts), or why it can't merge. Search by text, or filter by author, repo and status. A green dot means the PR already has a workspace. Clicking one also opens the PR in your workspace's tab group, unless it's already open there. |
 | **Resize** | Drag the list's right edge to widen it, and the top edge of **Source control** or **Review requests** to make them taller or shorter (double-click an edge to reset). Sizes are remembered. |
 | **Reorder** | Drag workspaces in the list; the shortcuts follow that order. |
-| **Create** | `+` opens one view: a name, the **Repo** to start in, **Blank**, **From prompt** or **From text** (any first message you type), and **New window**, or **This window**. A window that already holds a workspace gives the new one a tab group beside it, so several terminals can live in one window; pick one from the list, or by clicking a tab in its group (its badge takes the group's color). Switching workspaces in a shared window collapses the other tab groups and shows the new one's; expand any by hand and it stays that way until the next switch. Merging windows into tab groups keeps their workspaces. **Tabs** opens URLs with the workspace, in its new window or its tab group; the last list is kept. The **Model** picker sets `claude --model`. Or `devspace PROJ-1234`. A window that isn't a workspace offers to become one. |
-| **From a review request** | Clicking a review request opens the same view with the PR's details above it (branches, size, review and check status, labels, a short plain-text description, and collapsed lists of the biggest files and latest commits): named for the PR, in its repo, From prompt selected with `PR-URL` and `PROJ-XXX` filled in, and the PR as the first tab. Everything else, including repo, model, tabs and window, works as for any new workspace. |
-| **Prompts** | **From prompt** lists prompts from your notes file. `PR-URL` and `PROJ-XXX` are filled in from the PR. The prompt runs once; reopening resumes the conversation. |
-| **Source control** | An accordion for the workspace in view: its branch (↑ahead ↓behind), what Claude is doing, staged and unstaged changes, and a commit graph like VS Code's. Click a file for its diff against HEAD, or a commit for its files and diffs. It refreshes every 5 seconds and whenever Claude starts or stops working, and files that just changed are highlighted, so you can watch the work as it happens. |
-| **Review requests** | Open PRs requesting your review, plus every PR in `watchRepos`. Refreshes every 5 minutes or on ↻. Each carries a badge: **Draft**, **Ready for review** (open, waiting on a review), **Can merge** (approved, checks passing, no conflicts), or why it can't merge. Search by text, or filter by author, repo and status with **Authors** / **Repos** / **Status**. A green dot means the PR already has a workspace. Clicking one also opens the PR beside your workspace's tabs, in its tab group, unless it's already open there. |
 | **Status** | Red dot: `claude` needs input. Green: working. Sourced from [Claude Mission Control](https://github.com/PrecisionWeaver/claude-mission-control). |
 | **Sessions** | Closing the panel leaves `claude` running; reopening reattaches with scrollback. `exit` closes the shell; the next open resumes the last conversation. |
-| **Rename / remove** | Double-click a name to rename. Hover and click × twice to end the session; the window stays open. |
+| **Rename / remove** | Double-click a name to rename (a tab group takes the new name). Hover and click × twice to end the session; the window stays open. |
 | **Collapse** | `‹` shrinks the list to a narrow rail. |
 
 **Limitations**
@@ -82,7 +84,7 @@ Optional fields in `~/.chrome-workspaces/config.json` (preserved by `setup`). Re
 | `promptsFile` | Prompt note. Default `~/.chrome-workspaces/prompts.md`. Each `**Heading**` starts a section; each `- ` bullet is a prompt. |
 | `defaultModel` | `claude --model` for workspaces that pick none, e.g. `"opus"`. Unset leaves it to claude. |
 | `repoRoots` | Folders whose git repos the **Repo** picker lists. Default `["~/Documents/Websites", "~/Herd"]`. |
-| `repoDirs` | Starting directory for PR workspaces by repo, e.g. `{ "acme/web-app": "~/code/web-app" }`. Unlisted repos use the default. |
+| `repoDirs` | Starting directory for PR workspaces by repo, e.g. `{ "acme/web-app": "~/code/web-app" }`. Unlisted repos use the default. These repos also get your own open PRs listed under review requests. |
 | `watchRepos` | Repos whose open PRs (yours included) appear under review requests, for repos that don't request reviewers, e.g. `["acme/api"]`. |
 
 ### devspace and Mission Control
@@ -115,9 +117,9 @@ npm run build:extension   # then reload the extension in chrome://extensions
 
 | Path | Contents |
 |---|---|
-| `shared/` | Protocol types and window re-pairing |
-| `helper/src/` | Workspace store, sessions, launch, Mission Control status, HTTP API, control channel |
-| `extension/src/` | Service worker, side panel, helper connection, window handling |
+| `shared/` | Protocol types, window and tab-group re-pairing, commit-graph layout |
+| `helper/src/` | Workspace store, sessions, launch, git, review requests and PR details, Mission Control status, HTTP API, control channel |
+| `extension/src/` | Service worker, side panel, new-workspace, source-control and review views, helper connection, window and tab-group handling |
 | `extension/icons/` | SVG icon sources; PNGs are rendered at build |
 | `scripts/` | Key generation, setup, extension build |
 | `docs/` | Spike results |
