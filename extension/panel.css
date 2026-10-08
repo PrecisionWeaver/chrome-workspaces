@@ -571,3 +571,18 @@ body.collapsed #list-resizer {
   margin: 0;
   padding: 0;
 }
+
+/* New window or this one */
+
+.here {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+  cursor: pointer;
+  margin-top: 4px;
+}
+
+#launch-actions .here {
+  margin: 0 auto 0 0;
+}

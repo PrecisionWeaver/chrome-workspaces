@@ -8,6 +8,8 @@ export interface LauncherOptions {
   /** Called when the launch view opens or closes, so the panel can swap it with the terminal. */
   onToggle(): void;
   openWorkspace(workspace: Workspace): void;
+  /** The window this panel is in, and the workspace it holds, if any. */
+  here(): { windowId: number | undefined; workspace: Workspace | undefined };
 }
 
 export interface Launcher {
@@ -80,7 +82,7 @@ function renderDetails(pr: PrDetails): Node[] {
   return nodes;
 }
 
-export function createLauncher({ send, onToggle, openWorkspace }: LauncherOptions): Launcher {
+export function createLauncher({ send, onToggle, openWorkspace, here }: LauncherOptions): Launcher {
   const section = $<HTMLElement>('launch');
   const choose = $<HTMLDivElement>('launch-choose');
   const title = $<HTMLHeadingElement>('launch-title');
@@ -92,6 +94,8 @@ export function createLauncher({ send, onToggle, openWorkspace }: LauncherOption
   const editForm = $<HTMLFormElement>('launch-edit');
   const nameInput = $<HTMLInputElement>('launch-name');
   const textInput = $<HTMLTextAreaElement>('launch-text');
+  const hereInput = $<HTMLInputElement>('launch-here');
+  const hereLabel = $<HTMLSpanElement>('launch-here-label');
   const reviewsSection = $<HTMLElement>('reviews');
   const reviewsTitle = $<HTMLSpanElement>('reviews-title');
   const reviewsError = $<HTMLDivElement>('reviews-error');
@@ -160,6 +164,11 @@ export function createLauncher({ send, onToggle, openWorkspace }: LauncherOption
     editForm.hidden = false;
     nameInput.value = review ? ref(review) : '';
     textInput.value = fillPrompt(prompt.text, { prUrl: review?.url ?? null, ticket: review?.ticket ?? null });
+    const current = here().workspace;
+    hereLabel.textContent = current ? `Use this window (moves ${current.name} out)` : 'Use this window';
+    void chrome.storage.local.get('useThisWindow').then(({ useThisWindow }) => {
+      hereInput.checked = useThisWindow === true;
+    });
     (review ? textInput : nameInput).focus();
   }
 
@@ -182,7 +191,12 @@ export function createLauncher({ send, onToggle, openWorkspace }: LauncherOption
     const name = nameInput.value.trim();
     const prompt = textInput.value.trim();
     if (!name || !prompt) return;
-    send({ type: 'create', name, windowId: null, prompt, ...(review ? { pr: review.url } : {}) });
+    const { windowId } = here();
+    const useHere = hereInput.checked && windowId !== undefined;
+    void chrome.storage.local.set({ useThisWindow: hereInput.checked });
+    send({ type: 'create', name, windowId: useHere ? windowId : null, prompt, ...(review ? { pr: review.url } : {}) });
+    // A new window opens at the PR on its own; this one needs a tab for it.
+    if (useHere && review) void chrome.tabs.create({ windowId, url: review.url });
     close();
   });
 

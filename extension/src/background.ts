@@ -79,18 +79,28 @@ function webUrls(tabs: chrome.tabs.Tab[]): string[] {
   return tabs.flatMap((tab) => (tab.url && /^https?:/.test(tab.url) ? [tab.url] : []));
 }
 
-chrome.commands.onCommand.addListener((command) => {
-  if (command === 'next-workspace') void cycle(1);
-  if (command === 'prev-workspace') void cycle(-1);
+// Tracked as it changes so a shortcut can pick the next workspace without awaiting: opening the
+// side panel only works synchronously inside the shortcut's user gesture.
+let focusedWindowId: number | undefined;
+void chrome.windows.getLastFocused().then((win) => (focusedWindowId ??= win.id));
+chrome.windows.onFocusChanged.addListener((windowId) => {
+  if (windowId !== chrome.windows.WINDOW_ID_NONE) focusedWindowId = windowId;
 });
 
-async function cycle(step: 1 | -1): Promise<void> {
+chrome.commands.onCommand.addListener((command) => {
+  if (command === 'next-workspace') cycle(1);
+  if (command === 'prev-workspace') cycle(-1);
+});
+
+function cycle(step: 1 | -1): void {
   const ordered = workspaceOrder(workspaces);
   if (ordered.length === 0) return;
-  const focused = await chrome.windows.getLastFocused();
-  const current = ordered.findIndex((ws) => ws.windowId === focused.id);
+  const current = ordered.findIndex((ws) => ws.windowId === focusedWindowId);
   const next = current === -1 ? ordered[0] : ordered[(current + step + ordered.length) % ordered.length];
-  if (next.id !== ordered[current]?.id) await switchTo(next, send);
+  if (next.id === ordered[current]?.id) return;
+  // Reopens the panel in a window whose panel closed, e.g. after the extension reloaded.
+  if (next.windowId !== null) chrome.sidePanel.open({ windowId: next.windowId }).catch(() => {});
+  void switchTo(next, send);
 }
 
 // Remember each workspace window's tabs so it can be re-paired after Chrome restarts.
