@@ -39,6 +39,7 @@ body {
 
 button,
 input,
+select,
 textarea {
   font: inherit;
   color: inherit;
@@ -292,6 +293,7 @@ code {
   flex: 1;
 }
 
+#reviews.collapsed #reviews-tools,
 #reviews.collapsed #reviews-list,
 #reviews.collapsed #reviews-error {
   display: none;
@@ -299,6 +301,39 @@ code {
 
 #reviews.collapsed #reviews-toggle {
   transform: rotate(-90deg);
+}
+
+#reviews-tools {
+  display: flex;
+  gap: 4px;
+  padding: 0 8px 6px;
+}
+
+#reviews-filter,
+#reviews-sort {
+  min-width: 0;
+  box-sizing: border-box;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 3px 6px;
+  font-size: 11.5px;
+  outline: none;
+}
+
+#reviews-filter {
+  flex: 1;
+}
+
+#reviews-sort {
+  flex: none;
+  color: var(--muted);
+}
+
+#reviews-filter:focus,
+#reviews-sort:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 #reviews-error {
@@ -851,8 +886,12 @@ body.collapsed #collapse {
   margin-top: 6px;
 }
 
-#launch-actions .here {
-  margin: 0 auto 0 0;
+#launch-bar .here {
+  margin: 0 auto 0 12px;
+}
+
+#launch-back {
+  margin-right: auto;
 }
 
 .here input {

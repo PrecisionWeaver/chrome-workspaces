@@ -115,6 +115,19 @@ function renderDetails(pr: PrDetails): Node[] {
   return nodes;
 }
 
+const SORTS: Record<string, (a: ReviewRequest, b: ReviewRequest) => number> = {
+  updated: (a, b) => b.updatedAt.localeCompare(a.updatedAt),
+  oldest: (a, b) => a.updatedAt.localeCompare(b.updatedAt),
+  repo: (a, b) => a.repo.localeCompare(b.repo) || a.number - b.number,
+  author: (a, b) => a.author.localeCompare(b.author) || b.updatedAt.localeCompare(a.updatedAt),
+};
+
+/** Every word of the query must appear somewhere in the request. */
+function matches(item: ReviewRequest, query: string): boolean {
+  const haystack = `${ref(item)} ${item.repo} ${item.title} ${item.author} ${item.ticket ?? ''}${item.isDraft ? ' draft' : ''}`.toLowerCase();
+  return query.split(/\s+/).every((word) => haystack.includes(word));
+}
+
 /** Splits a leading slash command off a prompt, so cards can set the command apart. */
 function promptCard(text: string): Node[] {
   const match = text.match(/^(\/[\w:-]+)\s*(.*)$/s);
@@ -142,10 +155,15 @@ export function createLauncher({ send, onToggle, openWorkspace, here }: Launcher
   const reviewsTitle = $<HTMLSpanElement>('reviews-title');
   const reviewsError = $<HTMLDivElement>('reviews-error');
   const reviewsList = $<HTMLUListElement>('reviews-list');
+  const reviewsFilter = $<HTMLInputElement>('reviews-filter');
+  const reviewsSort = $<HTMLSelectElement>('reviews-sort');
+  const reviewsRefresh = $<HTMLButtonElement>('reviews-refresh');
 
   let isOpen = false;
   let review: ReviewRequest | null = null;
   let prompts: Prompt[] = [];
+  let lastReviews: ReviewsState = { items: [], error: null, fetchedAt: null };
+  let lastWorkspaces: readonly Workspace[] = [];
 
   function show(target: ReviewRequest | null): void {
     review = target;
@@ -163,6 +181,11 @@ export function createLauncher({ send, onToggle, openWorkspace, here }: Launcher
       send({ type: 'prDetails', url: target.url });
     }
     send({ type: 'listPrompts' });
+    const current = here().workspace;
+    hereLabel.textContent = current ? `Use this window (moves ${current.name} out)` : 'Use this window';
+    void chrome.storage.local.get('useThisWindow').then(({ useThisWindow }) => {
+      hereInput.checked = useThisWindow === true;
+    });
     onToggle();
     filter.focus();
   }
@@ -208,11 +231,6 @@ export function createLauncher({ send, onToggle, openWorkspace, here }: Launcher
     editForm.hidden = false;
     nameInput.value = review ? ref(review) : '';
     textInput.value = fillPrompt(prompt.text, { prUrl: review?.url ?? null, ticket: review?.ticket ?? null });
-    const current = here().workspace;
-    hereLabel.textContent = current ? `Use this window (moves ${current.name} out)` : 'Use this window';
-    void chrome.storage.local.get('useThisWindow').then(({ useThisWindow }) => {
-      hereInput.checked = useThisWindow === true;
-    });
     (review ? textInput : nameInput).focus();
   }
 
@@ -248,24 +266,49 @@ export function createLauncher({ send, onToggle, openWorkspace, here }: Launcher
     if (event.key === 'Escape' && isOpen) close();
   });
 
-  $<HTMLButtonElement>('reviews-refresh').addEventListener('click', () => send({ type: 'refreshReviews' }));
+  reviewsRefresh.addEventListener('click', () => send({ type: 'refreshReviews' }));
+
+  reviewsFilter.addEventListener('input', () => renderReviews(lastReviews, lastWorkspaces));
+  reviewsFilter.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    event.stopPropagation();
+    reviewsFilter.value = '';
+    renderReviews(lastReviews, lastWorkspaces);
+  });
+
+  reviewsSort.addEventListener('change', () => {
+    void chrome.storage.local.set({ reviewsSort: reviewsSort.value });
+    renderReviews(lastReviews, lastWorkspaces);
+  });
 
   $<HTMLButtonElement>('reviews-toggle').addEventListener('click', () => {
     const collapsed = reviewsSection.classList.toggle('collapsed');
     void chrome.storage.local.set({ reviewsCollapsed: collapsed });
   });
 
-  void chrome.storage.local.get('reviewsCollapsed').then(({ reviewsCollapsed }) => {
+  void chrome.storage.local.get(['reviewsCollapsed', 'reviewsSort']).then(({ reviewsCollapsed, reviewsSort: sort }) => {
     reviewsSection.classList.toggle('collapsed', reviewsCollapsed === true);
+    if (typeof sort === 'string' && sort in SORTS) {
+      reviewsSort.value = sort;
+      renderReviews(lastReviews, lastWorkspaces);
+    }
   });
 
   function renderReviews(state: ReviewsState, workspaces: readonly Workspace[]): void {
-    reviewsTitle.textContent = `Review requests (${state.items.length})`;
+    lastReviews = state;
+    lastWorkspaces = workspaces;
+    const query = reviewsFilter.value.trim().toLowerCase();
+    const items = state.items.filter((item) => !query || matches(item, query)).sort(SORTS[reviewsSort.value] ?? SORTS.updated);
+    const count = items.length === state.items.length ? `${items.length}` : `${items.length} of ${state.items.length}`;
+    reviewsTitle.textContent = `Review requests (${count})`;
+    reviewsRefresh.title = state.fetchedAt
+      ? `Refresh review requests (updated ${relative(state.fetchedAt)})`
+      : 'Refresh review requests';
     reviewsError.hidden = state.error === null;
     reviewsError.textContent = state.error?.split('\n')[0] ?? '';
     reviewsError.title = state.error ?? '';
     reviewsList.replaceChildren(
-      ...state.items.map((item) => {
+      ...items.map((item) => {
         const existing = workspaces.find((ws) => ws.pr === item.url);
         const row = document.createElement('li');
         row.className = `review${item.url === review?.url ? ' selected' : ''}`;
