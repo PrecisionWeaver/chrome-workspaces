@@ -505,8 +505,27 @@ body.collapsed #list-resizer {
   display: none;
 }
 
-body.collapsed .ws {
+body.collapsed .ws,
+body.collapsed #list-header {
   justify-content: center;
+}
+
+/* The expand arrow and + match as two equal square buttons. */
+body.collapsed #collapse,
+body.collapsed #new {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  font-size: 16px;
+  line-height: 1;
+}
+
+body.collapsed #new {
+  margin: 2px 0 8px;
 }
 
 body.collapsed #collapse {
