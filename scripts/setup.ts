@@ -1,4 +1,4 @@
-import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { NATIVE_HOST_NAME } from '../shared/protocol';
@@ -24,6 +24,10 @@ const defaultCwd = requestedCwd ?? existing.defaultCwd ?? homedir();
 writeFileSync(configFile, `${JSON.stringify({ ...existing, extensionId, defaultCwd }, null, 2)}\n`);
 
 // Chrome launches the host with an unknown cwd and a minimal PATH, so pin both.
+// A starter prompts note, only if there is none, so From prompt has something to pick on a fresh install.
+const promptsFile = join(DATA_DIR, 'prompts.md');
+if (!existsSync(promptsFile) && !('promptsFile' in existing)) copyFileSync(join(repo, 'prompts.example.md'), promptsFile);
+
 const wrapper = join(DATA_DIR, 'native-host.sh');
 writeFileSync(wrapper, `#!/bin/sh\ncd "${repo}" && exec "${process.execPath}" --import tsx helper/src/native-host.ts\n`);
 chmodSync(wrapper, 0o755);

@@ -58,4 +58,12 @@ describe('fillPrompt', () => {
     expect(fillPrompt('PR-URL-1 and PR-URL-2', { prUrl: 'u', ticket: null })).toBe('PR-URL-1 and PR-URL-2');
     expect(fillPrompt('see PR-URL', { prUrl: 'https://x/$&', ticket: null })).toBe('see https://x/$&');
   });
+
+  it('replaces a PR link ending /pull/XXXX with the PR, leaving a real link alone', () => {
+    const text = '/code-review - PROJ-XXX - go/no-go @ https://github.com/acme/web-app/pull/XXXX, see also https://github.com/acme/web-app/pull/12';
+    expect(fillPrompt(text, { prUrl: 'https://github.com/acme/web-app/pull/482', ticket: 'PROJ-9' })).toBe(
+      '/code-review - PROJ-9 - go/no-go @ https://github.com/acme/web-app/pull/482, see also https://github.com/acme/web-app/pull/12',
+    );
+    expect(fillPrompt(text, { prUrl: null, ticket: null })).toBe(text);
+  });
 });
