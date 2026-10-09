@@ -213,6 +213,7 @@ export function createAdmin(options: AdminOptions): AdminService {
           watchRepos: config.watchRepos,
           limits: config.limits,
           pricing: config.pricing,
+          jiraBaseUrl: config.jiraBaseUrl,
         },
         reviews: { fetchedAt: reviews.fetchedAt, count: reviews.items.length, error: reviews.error },
         setup: { promptsFileExists: existsSync(config.promptsFile), repoRoots: config.repoRoots.map((path) => ({ path, exists: existsSync(path) })) },

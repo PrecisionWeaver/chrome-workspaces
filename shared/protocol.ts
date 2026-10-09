@@ -115,6 +115,7 @@ export interface SystemSnapshot {
     watchRepos: string[];
     limits: { memoryWarnMb: number; idleServerHours: number };
     pricing: Record<string, { input: number; output: number }>;
+    jiraBaseUrl: string | null;
   };
   /** Tokens and estimated cost across every workspace, by day (UTC), oldest first; see `shared/pricing.ts`. */
   usage: { daily: { day: string; tokens: number; costUsd: number }[]; costUsd: number; todayUsd: number; counting: boolean; /** Models used that have no rate, so are missing from the cost. */ unpriced: string[] };

@@ -15,6 +15,8 @@ export interface CreateViewOptions {
   onToggle(): void;
   /** The window this panel is in, and the workspace it holds, if any. */
   here(): { windowId: number | undefined; workspace: Workspace | undefined };
+  /** The Jira address of a ticket key, or null when no Jira site is configured. */
+  ticketLink(ticket: string | null): string | null;
 }
 
 export interface CreateView {
@@ -45,7 +47,7 @@ function segmented(container: HTMLElement, onChange: () => void) {
   return { select, value: () => container.querySelector<HTMLButtonElement>('.active')?.dataset.value ?? '' };
 }
 
-export function createCreateView({ send, onToggle, here }: CreateViewOptions): CreateView {
+export function createCreateView({ send, onToggle, here, ticketLink }: CreateViewOptions): CreateView {
   const section = $<HTMLElement>('create');
   const form = $<HTMLFormElement>('create-form');
   const nameInput = $<HTMLInputElement>('create-name');
@@ -65,6 +67,7 @@ export function createCreateView({ send, onToggle, here }: CreateViewOptions): C
   const title = $<HTMLHeadingElement>('create-title');
   const detailsEl = $<HTMLDivElement>('create-details');
   const githubButton = $<HTMLButtonElement>('create-github');
+  const ticketButton = $<HTMLButtonElement>('create-ticket');
   const threadsEl = $<HTMLDivElement>('create-threads');
   const tabsLabel = $<HTMLSpanElement>('create-tabs-label');
   const templateBox = $<HTMLDivElement>('create-templates');
@@ -197,6 +200,10 @@ export function createCreateView({ send, onToggle, here }: CreateViewOptions): C
     syncStart();
     section.hidden = false;
     githubButton.hidden = detailsEl.hidden = threadsEl.hidden = request === null;
+    const ticket = ticketLink(request?.ticket ?? null);
+    ticketButton.hidden = ticket === null;
+    ticketButton.textContent = request?.ticket ? `${request.ticket} in Jira ↗` : '';
+    ticketButton.dataset.url = ticket ?? '';
     threadsEl.replaceChildren();
     tabsLabel.textContent = request ? 'The PR opens first, then these' : 'optional, one URL per line';
     if (request) {
@@ -307,6 +314,10 @@ export function createCreateView({ send, onToggle, here }: CreateViewOptions): C
   });
 
   $<HTMLButtonElement>('create-close').addEventListener('click', close);
+
+  ticketButton.addEventListener('click', () => {
+    if (ticketButton.dataset.url) void chrome.tabs.create({ url: ticketButton.dataset.url });
+  });
 
   githubButton.addEventListener('click', () => {
     if (review) void openInWorkspace(here().workspace, here().windowId, review.url);

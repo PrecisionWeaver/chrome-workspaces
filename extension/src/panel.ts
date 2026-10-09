@@ -9,6 +9,7 @@ import { createGitView } from './git-view';
 import { needsInputCount } from '../../shared/attention';
 import { nextIndex, resolveTheme } from '../../shared/keynav';
 import { splitList } from '../../shared/list-filter';
+import { ticketUrl } from '../../shared/jira';
 import { closeMenu, menuItem, openMenu } from './menu';
 import { loadPrefs, onPrefsChange, type Prefs } from './prefs';
 import { createPalette, type PaletteItem } from './palette';
@@ -58,6 +59,8 @@ let workspaces: Workspace[] = [];
 let statuses: Record<string, WorkspaceStatus> = {};
 let reviews: ReviewsState = { items: [], error: null, fetchedAt: null };
 let history: HistoryEntry[] = [];
+// The Jira site from the config, learned from the system snapshot; null hides every ticket link.
+let jiraBase: string | null = null;
 
 const control = connectControl(
   (message) => {
@@ -70,6 +73,7 @@ const control = connectControl(
     if (message.type === 'timeline') settings.setTimeline(message);
     if (message.type === 'system') {
       settings.setSystem(message);
+      jiraBase = message.snapshot?.config.jiraBaseUrl ?? jiraBase;
       const attention = settings.warningCount + settings.setupRemaining;
       $<HTMLButtonElement>('settings-open').classList.toggle('has-warning', attention > 0);
       $<HTMLButtonElement>('settings-open').title = attention ? `Settings · ${attention} to look at` : 'Settings';
@@ -132,6 +136,7 @@ const creator = createCreateView({
     render();
   },
   here,
+  ticketLink: (ticket) => ticketUrl(jiraBase, ticket),
 });
 const git = createGitView({
   send,
@@ -442,6 +447,7 @@ function workspaceRow(ws: Workspace, number: number | null, here: Workspace | un
 // ---- right-click menu ----
 
 function showContextMenu(x: number, y: number, ws: Workspace, nameEl: HTMLElement): void {
+  const ticket = ticketUrl(jiraBase, ws.ticket);
   const swatches = document.createElement('div');
   swatches.className = 'ctx-swatches';
   for (const color of [null, ...WORKSPACE_COLORS]) {
@@ -464,6 +470,7 @@ function showContextMenu(x: number, y: number, ws: Workspace, nameEl: HTMLElemen
       menuItem(ws.pinned ? 'Unpin' : 'Pin to top', () => send({ type: 'mark', id: ws.id, pinned: !ws.pinned })),
       menuItem(ws.archived ? 'Unarchive' : 'Archive', () => send({ type: 'mark', id: ws.id, archived: !ws.archived })),
       menuItem('Rename', () => startRename(ws, nameEl)),
+      ...(ticket ? [menuItem(`Open ${ws.ticket}`, () => void chrome.tabs.create({ url: ticket }))] : []),
       swatches,
     ],
     'ctx-menu',
@@ -725,6 +732,10 @@ function paletteItems(): PaletteItem[] {
       hint: [ws.id === shown?.id ? 'current' : '', status === 'needs_input' ? 'needs input' : status === 'working' ? 'working' : '', ws.cwd.replace(/^\/Users\/[^/]+/, '~')].filter(Boolean).join(' · '),
       run: () => openWorkspace(ws),
     });
+  }
+  for (const ws of workspaces) {
+    const url = ticketUrl(jiraBase, ws.ticket);
+    if (url) items.push({ kind: 'Ticket', label: `${ws.ticket} · ${ws.name}`, hint: 'Open in Jira', run: () => void chrome.tabs.create({ url }) });
   }
   for (const entry of history) {
     items.push({ kind: 'Restore', label: entry.name, hint: `closed ${new Date(entry.closedAt).toLocaleDateString()}${entry.resumeId ? ' · resumes its conversation' : ''}`, run: () => restoreWorkspace(entry) });

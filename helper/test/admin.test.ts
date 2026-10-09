@@ -103,6 +103,8 @@ describe('warnings', () => {
     // A freshly started shell is neither big nor a long-running server.
     expect(reply.snapshot.warnings).toEqual([]);
     expect(reply.snapshot.config.limits).toEqual({ memoryWarnMb: 4096, idleServerHours: 4 });
+    // No Jira site is configured in the harness, so ticket links stay hidden.
+    expect(reply.snapshot.config.jiraBaseUrl).toBeNull();
     ws.close();
   });
 });
