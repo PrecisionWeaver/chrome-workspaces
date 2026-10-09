@@ -1,4 +1,4 @@
-import { PR_COMMITS_SHOWN, PR_FILES_SHOWN, type PrDetails, type ReviewRequest } from '../../shared/protocol';
+import { PR_COMMITS_SHOWN, PR_FILES_SHOWN, type PrDetails, type PrThread, type ReviewRequest } from '../../shared/protocol';
 import { el } from './dom';
 import { renderMarkdown } from './markdown-view';
 
@@ -144,4 +144,48 @@ function glanceLists(pr: PrDetails): Node[] {
     lists.push(commits);
   }
   return lists;
+}
+
+/**
+ * A pull request's review threads, read-only: open ones first and shown, resolved ones folded under their
+ * count. Each comment links to GitHub, where it can be answered.
+ */
+export function renderThreads(threads: readonly PrThread[], total: number): Node[] {
+  if (threads.length === 0) return [el('div', 'No review comments.', 'threads-empty')];
+  const open = threads.filter((t) => !t.resolved);
+  const resolved = threads.filter((t) => t.resolved);
+  const nodes: Node[] = [];
+
+  const heading = el('h3', 'Review comments');
+  heading.append(el('span', open.length ? `${open.length} open` : 'all resolved', `thread-count${open.length ? ' open' : ''}`));
+  if (resolved.length) heading.append(el('span', `${resolved.length} resolved`, 'thread-count'));
+  nodes.push(heading);
+
+  const card = (thread: PrThread): HTMLElement => {
+    const box = el('div', '', `thread${thread.resolved ? ' resolved' : ''}`);
+    const where = el('button', `${thread.path}${thread.line ? `:${thread.line}` : ''}`, 'thread-where');
+    where.type = 'button';
+    where.title = 'Open on GitHub';
+    where.addEventListener('click', () => thread.comments[0]?.url && void chrome.tabs.create({ url: thread.comments[0].url }));
+    box.append(where);
+    if (thread.outdated) box.append(el('span', 'outdated', 'thread-flag'));
+    for (const comment of thread.comments) {
+      const line = el('div', '', 'thread-comment');
+      const head = el('div', '', 'thread-head');
+      head.append(el('strong', comment.author, 'author'), el('span', comment.at ? relative(comment.at) : '', 'thread-when'));
+      line.append(head, renderMarkdown(comment.body, 320));
+      box.append(line);
+    }
+    return box;
+  };
+
+  nodes.push(...open.map(card));
+  if (resolved.length) {
+    const folded = el('details', '', 'glance');
+    folded.append(el('summary', `${resolved.length} resolved thread${resolved.length === 1 ? '' : 's'}`));
+    folded.append(...resolved.map(card));
+    nodes.push(folded);
+  }
+  if (total > threads.length) nodes.push(el('div', `Showing ${threads.length} of ${total} threads.`, 'threads-empty'));
+  return nodes;
 }

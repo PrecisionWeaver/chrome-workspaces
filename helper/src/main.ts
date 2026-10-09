@@ -8,7 +8,7 @@ import { DATA_DIR, HOST, loadConfig, MC_STATE_DIR, PORT, SCROLLBACK_LIMIT } from
 import { ControlHub } from './control';
 import { launchSpec } from './launch';
 import { readMcStatus, lastTranscriptCwd, watchMcStatus, type McWorkspaceStatus } from './mc-status';
-import { GH_BRANCH_PR, GH_PR_DETAILS } from './pr-details';
+import { GH_BRANCH_PR, GH_PR_DETAILS, GH_PR_THREADS, PR_THREADS_QUERY } from './pr-details';
 import { readPrompts } from './prompts';
 import { createGitService } from './git';
 import { HistoryStore } from './history';
@@ -86,7 +86,20 @@ const branchPr = async (cwd: string) =>
     })
   ).stdout;
 
-const control = new ControlHub({ store, sessions, defaultCwd: config.defaultCwd, statuses, reviews, prompts, prDetails, branchPr, repoDirs: config.repoDirs, repos: () => listRepos(config.repoRoots), git: createGitService(), admin, history, resumeId: (id) => mcStatus.get(id)?.claudeSessionId ?? store.get(id)?.resume ?? null, workingDir: (id) => {
+const prThreads = async ({ owner, repo, number }: { owner: string; repo: string; number: string }) =>
+  (
+    await execFileAsync(shell, ['-l', '-c', GH_PR_THREADS], {
+      env: { ...process.env, CW_QUERY: PR_THREADS_QUERY, CW_OWNER: owner, CW_REPO: repo, CW_NUMBER: number },
+      timeout: 30_000,
+      maxBuffer: 4 * 1024 * 1024,
+    }).catch((error: { stdout?: string; stderr?: string; message: string }) => {
+      // gh exits non-zero when GraphQL reports an error but still prints the answer; the parser reads the message from it.
+      if (error.stdout) return { stdout: error.stdout };
+      throw new Error(error.stderr?.trim() || error.message);
+    })
+  ).stdout;
+
+const control = new ControlHub({ store, sessions, defaultCwd: config.defaultCwd, statuses, reviews, prompts, prDetails, prThreads, branchPr, repoDirs: config.repoDirs, repos: () => listRepos(config.repoRoots), git: createGitService(), admin, history, resumeId: (id) => mcStatus.get(id)?.claudeSessionId ?? store.get(id)?.resume ?? null, workingDir: (id) => {
     const session = mcStatus.get(id);
     return (session?.transcriptPath && lastTranscriptCwd(session.transcriptPath)) || session?.cwd || null;
   } });

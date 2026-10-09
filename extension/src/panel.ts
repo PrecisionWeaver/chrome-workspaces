@@ -90,6 +90,7 @@ const control = connectControl(
     if (message.type === 'gitChecks') git.setChecks(message);
     if (message.type === 'gitCompare') git.setCompare(message);
     if (message.type === 'prDetails') creator.setPrDetails(message.url, message.details, message.error);
+    if (message.type === 'prThreads') creator.setPrThreads(message);
     if (message.type !== 'state') return;
     selectJoiners(message.workspaces);
     const shown = current();

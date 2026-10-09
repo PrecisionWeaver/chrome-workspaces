@@ -976,6 +976,83 @@ body.collapsed #collapse {
   font-size: 10.5px;
 }
 
+/* Review comments */
+
+#create-threads {
+  margin-bottom: 20px;
+}
+
+#create-threads h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+}
+
+.thread-count {
+  padding: 0 6px;
+  border-radius: 8px;
+  background: var(--raised);
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0;
+}
+
+.thread-count.open {
+  background: color-mix(in srgb, var(--wait) 18%, transparent);
+  color: var(--wait);
+}
+
+.thread {
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--wait);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.thread.resolved {
+  border-left-color: var(--good);
+  opacity: 0.8;
+}
+
+.thread-where {
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--accent);
+  font: 11px var(--mono);
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.thread-flag {
+  margin-left: 8px;
+  color: var(--faint);
+  font-size: 10px;
+}
+
+.thread-comment {
+  margin-top: 6px;
+}
+
+.thread-head {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.thread-when {
+  color: var(--faint);
+  font-size: 10.5px;
+}
+
+.threads-empty {
+  color: var(--faint);
+}
+
 /* PR description */
 
 .md {

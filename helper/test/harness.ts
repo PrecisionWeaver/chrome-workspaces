@@ -34,6 +34,9 @@ export interface Harness {
   workingDirs: Record<string, string>;
   /** Commands the admin service started detached, instead of running them. */
   spawned: string[];
+  /** What the fake review-threads query returns; null makes it fail. */
+  prThreadsJson: string | null;
+  prThreadRequests: string[];
   /** What the fake `gh pr view` for a branch returns; null means the branch has no pull request. */
   branchPrJson: string | null;
   /** The claude session each workspace is on, by id, for restoring. */
@@ -66,6 +69,8 @@ export async function startHarness(): Promise<Harness> {
     repos: [] as Repo[],
     workingDirs: {} as Record<string, string>,
     spawned: [] as string[],
+    prThreadsJson: null as string | null,
+    prThreadRequests: [] as string[],
     branchPrJson: null as string | null,
     resumeIds: {} as Record<string, string>,
     transcripts: {} as Record<string, string>,
@@ -103,7 +108,11 @@ export async function startHarness(): Promise<Harness> {
     spawnDetached: (command) => fakes.spawned.push(command),
     isManaged: async () => fakes.managed,
   });
-  const control = new ControlHub({ store, sessions, defaultCwd, statuses, reviews, prompts, prDetails, branchPr: async () => {
+  const control = new ControlHub({ store, sessions, defaultCwd, statuses, reviews, prompts, prDetails, prThreads: async (parts) => {
+      fakes.prThreadRequests.push(`${parts.owner}/${parts.repo}#${parts.number}`);
+      if (fakes.prThreadsJson === null) throw new Error('gh failed');
+      return fakes.prThreadsJson;
+    }, branchPr: async () => {
       if (fakes.branchPrJson === null) throw new Error('no pull requests found for branch "x"');
       return fakes.branchPrJson;
     }, repoDirs: fakes.repoDirs, repos: () => fakes.repos, git: createGitService(), admin, history: new HistoryStore(join(dir, 'history.json')), resumeId: (id) => fakes.resumeIds[id] ?? null, workingDir: (id) => fakes.workingDirs[id] ?? null });

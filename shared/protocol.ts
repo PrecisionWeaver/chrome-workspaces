@@ -284,6 +284,26 @@ export interface PrReview {
   at: string | null;
 }
 
+/** One comment in a pull request's review thread. */
+export interface PrThreadComment {
+  author: string;
+  body: string;
+  at: string;
+  /** Opens the comment on GitHub. */
+  url: string;
+}
+
+/** A thread of review comments on a line of the diff. */
+export interface PrThread {
+  path: string;
+  /** The line it is on now, or where it was before the code moved; null for a comment on the whole file. */
+  line: number | null;
+  resolved: boolean;
+  /** The code it was written on has since changed. */
+  outdated: boolean;
+  comments: PrThreadComment[];
+}
+
 export interface PrDetails {
   url: string;
   title: string;
@@ -368,6 +388,8 @@ export type ControlToClient =
   /** `pr` is null when the branch has no pull request. */
   | { type: 'gitChecks'; id: string; pr: BranchPr | null; checks: PrDetails['checks'] | null; error: string | null }
   | { type: 'gitCompare'; id: string; compare: GitCompare | null; error: string | null }
+  /** Reply to `prThreads`, sent only to the client that asked; `total` can exceed `threads.length`. */
+  | { type: 'prThreads'; url: string; threads: PrThread[]; total: number; error: string | null }
   /** Reply to `prDetails`, sent only to the client that asked. */
   | { type: 'prDetails'; url: string; details: PrDetails | null; error: string | null };
 
@@ -418,4 +440,6 @@ export type ControlToHelper =
   | { type: 'gitSwitch'; id: string; branch: string }
   | { type: 'gitCompare'; id: string }
   | { type: 'refreshReviews' }
-  | { type: 'prDetails'; url: string };
+  | { type: 'prDetails'; url: string }
+  /** The review threads on a pull request; read-only. */
+  | { type: 'prThreads'; url: string };

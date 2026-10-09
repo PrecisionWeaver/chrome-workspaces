@@ -6,7 +6,7 @@ import type { AdminService } from './admin';
 import { asPaste } from './paste';
 import type { GitService } from './git';
 import type { HistoryStore } from './history';
-import { parseBranchChecks, parsePrDetails } from './pr-details';
+import { parseBranchChecks, parsePrDetails, parsePrThreads, parsePrUrl } from './pr-details';
 import { isPullRequestUrl, prWorkspace } from './pr-workspace';
 import type { SessionManager } from './session';
 import type { WorkspaceStore } from './workspace-store';
@@ -26,6 +26,8 @@ export interface ControlHubOptions {
   prompts: () => Prompt[];
   /** Raw `gh pr view` JSON for a PR url. */
   prDetails: (url: string) => Promise<string>;
+  /** Raw GraphQL JSON of a pull request's review threads. */
+  prThreads: (parts: { owner: string; repo: string; number: string }) => Promise<string>;
   /** Raw `gh pr view` JSON for the branch checked out in a directory; rejects when it has no pull request. */
   branchPr: (cwd: string) => Promise<string>;
   repoDirs: Record<string, string>;
@@ -230,6 +232,23 @@ export class ControlHub {
       case 'refreshReviews':
         void this.options.reviews.refresh();
         break;
+      case 'prThreads': {
+        const { url } = message;
+        const parts = parsePrUrl(url);
+        const fail = (error: string) => this.sendTo(ws, { type: 'prThreads', url, threads: [], total: 0, error });
+        if (!parts) {
+          fail('not a pull request URL');
+          break;
+        }
+        this.options
+          .prThreads(parts)
+          .then(parsePrThreads)
+          .then(
+            ({ threads, total }) => this.sendTo(ws, { type: 'prThreads', url, threads, total, error: null }),
+            (error: unknown) => fail(error instanceof Error ? error.message : String(error)),
+          );
+        break;
+      }
       case 'prDetails': {
         const { url } = message;
         this.options
@@ -468,6 +487,7 @@ function isControlToHelper(value: unknown): value is ControlToHelper {
     case 'refreshReviews':
       return true;
     case 'prDetails':
+    case 'prThreads':
       return typeof m.url === 'string' && isPullRequestUrl(m.url);
     default:
       return false;

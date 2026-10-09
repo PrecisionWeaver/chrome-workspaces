@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseBranchChecks, parsePrDetails, summarizeChecks } from '../src/pr-details';
+import { parseBranchChecks, parsePrDetails, parsePrThreads, parsePrUrl, summarizeChecks } from '../src/pr-details';
 
 const GH = {
   number: 3005,
@@ -127,5 +127,37 @@ describe('branch checks', () => {
     expect(parseBranchChecks('not json')).toBeNull();
     expect(parseBranchChecks('{"message":"nope"}')).toBeNull();
     expect(summarizeChecks(null)).toEqual({ passed: 0, failed: 0, pending: 0, failing: [] });
+  });
+});
+
+describe('review threads', () => {
+  const answer = (nodes: unknown[], totalCount = nodes.length) => JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { totalCount, nodes } } } } });
+  const comment = (login: string | null, body: string) => ({ author: login ? { login } : null, body, createdAt: '2026-10-08T10:00:00Z', url: `https://github.com/acme/web-app/pull/1#discussion_r${body.length}` });
+
+  it('reads each thread with its comments, open threads first, and the line it is on', () => {
+    const { threads, total } = parsePrThreads(
+      answer([
+        { isResolved: true, isOutdated: false, path: 'a.ts', line: 3, comments: { nodes: [comment('drew', 'done')] } },
+        { isResolved: false, isOutdated: true, path: 'b.ts', line: null, originalLine: 9, comments: { nodes: [comment('drew', 'Please rename'), comment(null, 'ok')] } },
+        { isResolved: false, isOutdated: false, path: 'c.ts', line: null, originalLine: null, comments: { nodes: [] } },
+      ]),
+    );
+    expect(total).toBe(3);
+    expect(threads.map((t) => [t.path, t.resolved])).toEqual([['b.ts', false], ['c.ts', false], ['a.ts', true]]);
+    expect(threads[0]).toMatchObject({ line: 9, outdated: true });
+    expect(threads[0].comments.map((c) => c.author)).toEqual(['drew', 'ghost']);
+    expect(threads[1].line).toBeNull();
+  });
+
+  it('reports a total larger than what was returned, and fails clearly for an error or a PR that is not there', () => {
+    expect(parsePrThreads(answer([], 120))).toEqual({ threads: [], total: 120 });
+    expect(() => parsePrThreads(JSON.stringify({ errors: [{ message: 'Could not resolve to a PullRequest' }], data: { repository: { pullRequest: null } } }))).toThrow('Could not resolve');
+    expect(() => parsePrThreads('{}')).toThrow('unexpected');
+  });
+
+  it('splits a pull request URL into the parts that go to gh, and rejects anything else', () => {
+    expect(parsePrUrl('https://github.com/acme/web-app/pull/482')).toEqual({ owner: 'acme', repo: 'web-app', number: '482' });
+    expect(parsePrUrl('https://github.com/acme/web-app/pull/482/')).not.toBeNull();
+    for (const bad of ['https://evil.example/acme/web-app/pull/1', 'https://github.com/acme/web-app/pull/1; rm -rf ~', 'https://github.com/a b/c/pull/1', 'https://github.com/acme/web-app/issues/1']) expect(parsePrUrl(bad)).toBeNull();
   });
 });

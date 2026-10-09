@@ -2,9 +2,9 @@ import { fillPrompt } from '../../shared/prompts';
 import { MAX_TAB_URLS, MODEL_ALIASES } from '../../shared/protocol';
 import { parseTabUrls } from '../../shared/tab-urls';
 import { parseTemplates, removeTemplate, upsertTemplate, type Template } from '../../shared/templates';
-import type { ControlToHelper, PrDetails, Prompt, Repo, ReviewRequest, Workspace } from '../../shared/protocol';
+import type { ControlToClient, ControlToHelper, PrDetails, Prompt, Repo, ReviewRequest, Workspace } from '../../shared/protocol';
 import { el, promptCard } from './dom';
-import { ref, renderDetails, repoName } from './pr-view';
+import { ref, renderDetails, renderThreads, repoName } from './pr-view';
 import { findTab, openInWorkspace } from './tabs';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -27,6 +27,7 @@ export interface CreateView {
   setPrompts(prompts: Prompt[], error: string | null): void;
   setRepos(repos: Repo[]): void;
   setPrDetails(url: string, details: PrDetails | null, error: string | null): void;
+  setPrThreads(message: Extract<ControlToClient, { type: 'prThreads' }>): void;
 }
 
 /** Marks one button of a segmented control active and returns a getter for its value. */
@@ -64,6 +65,7 @@ export function createCreateView({ send, onToggle, here }: CreateViewOptions): C
   const title = $<HTMLHeadingElement>('create-title');
   const detailsEl = $<HTMLDivElement>('create-details');
   const githubButton = $<HTMLButtonElement>('create-github');
+  const threadsEl = $<HTMLDivElement>('create-threads');
   const tabsLabel = $<HTMLSpanElement>('create-tabs-label');
   const templateBox = $<HTMLDivElement>('create-templates');
   const templateSelect = $<HTMLSelectElement>('create-template');
@@ -194,7 +196,8 @@ export function createCreateView({ send, onToggle, here }: CreateViewOptions): C
     start.select(request ? 'prompt' : 'blank');
     syncStart();
     section.hidden = false;
-    githubButton.hidden = detailsEl.hidden = request === null;
+    githubButton.hidden = detailsEl.hidden = threadsEl.hidden = request === null;
+    threadsEl.replaceChildren();
     tabsLabel.textContent = request ? 'The PR opens first, then these' : 'optional, one URL per line';
     if (request) {
       title.replaceChildren(el('code', ref(request), 'ref-chip'), el('span', request.title));
@@ -202,6 +205,8 @@ export function createCreateView({ send, onToggle, here }: CreateViewOptions): C
       detailsEl.replaceChildren(...(cached ? renderDetails(cached) : [el('div', 'Loading PR details…', 'loading')]));
       detailsEl.classList.toggle('refreshing', cached !== undefined);
       send({ type: 'prDetails', url: request.url });
+      send({ type: 'prThreads', url: request.url });
+      threadsEl.replaceChildren(el('div', 'Loading review comments…', 'threads-empty'));
     } else {
       title.textContent = 'New workspace';
     }
@@ -372,6 +377,11 @@ export function createCreateView({ send, onToggle, here }: CreateViewOptions): C
     setRepos(next) {
       repos = next;
       renderRepos();
+    },
+    setPrThreads(message) {
+      if (message.url !== review?.url) return;
+      if (message.error) threadsEl.replaceChildren(el('div', `Could not load review comments: ${message.error}`, 'threads-empty'));
+      else threadsEl.replaceChildren(...renderThreads(message.threads, message.total));
     },
     get review() {
       return review;

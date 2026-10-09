@@ -1,4 +1,4 @@
-import { MAX_PR_BODY, PR_COMMITS_SHOWN, PR_FILES_SHOWN, type BranchPr, type PrDetails } from '../../shared/protocol';
+import { MAX_PR_BODY, PR_COMMITS_SHOWN, PR_FILES_SHOWN, type BranchPr, type PrDetails, type PrThread } from '../../shared/protocol';
 
 /** Runs with the PR url in `$CW_PR_URL`, so the url never becomes shell syntax. */
 export const GH_PR_DETAILS =
@@ -117,4 +117,45 @@ export function parsePrDetails(json: string): PrDetails {
       .map((c) => ({ sha: c.oid.slice(0, 7), headline: c.messageHeadline, author: c.authors[0]?.login ?? c.authors[0]?.name ?? 'unknown', date: c.committedDate })),
     commitCount: (pr.commits ?? []).length,
   };
+}
+
+/** Runs with the PR's owner, repo and number in the environment, so none of it becomes shell syntax. */
+export const GH_PR_THREADS =
+  'gh api graphql -f query="$CW_QUERY" -f owner="$CW_OWNER" -f repo="$CW_REPO" -F number="$CW_NUMBER"';
+
+export const PR_THREADS_QUERY =
+  'query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$number){reviewThreads(first:60){totalCount nodes{isResolved isOutdated path line originalLine comments(first:4){nodes{author{login} body createdAt url}}}}}}}';
+
+const PR_PARTS = /^https:\/\/github\.com\/([\w.-]+)\/([\w.-]+)\/pull\/(\d+)\/?$/;
+
+/** The owner, repo and number a pull request URL names, or null if it is not one. */
+export function parsePrUrl(url: string): { owner: string; repo: string; number: string } | null {
+  const m = url.match(PR_PARTS);
+  return m ? { owner: m[1], repo: m[2], number: m[3] } : null;
+}
+
+interface GhThread {
+  isResolved?: boolean;
+  isOutdated?: boolean;
+  path?: string;
+  line?: number | null;
+  originalLine?: number | null;
+  comments?: { nodes?: { author?: { login?: string } | null; body?: string; createdAt?: string; url?: string }[] };
+}
+
+/** Reads the GraphQL answer: the review threads, unresolved first, each with its first few comments. */
+export function parsePrThreads(json: string): { threads: PrThread[]; total: number } {
+  const parsed = JSON.parse(json) as { data?: { repository?: { pullRequest?: { reviewThreads?: { totalCount?: number; nodes?: GhThread[] } } | null } | null }; errors?: { message?: string }[] };
+  const threads = parsed.data?.repository?.pullRequest?.reviewThreads;
+  if (!threads) throw new Error(parsed.errors?.[0]?.message ?? `unexpected gh output: ${json.slice(0, 200)}`);
+  const nodes: PrThread[] = (threads.nodes ?? []).map((t) => ({
+    path: t.path ?? '',
+    line: t.line ?? t.originalLine ?? null,
+    resolved: t.isResolved === true,
+    outdated: t.isOutdated === true,
+    comments: (t.comments?.nodes ?? []).map((c) => ({ author: c.author?.login ?? 'ghost', body: c.body ?? '', at: c.createdAt ?? '', url: c.url ?? '' })),
+  }));
+  // Open threads first; within each group GitHub's own order (by file) is kept.
+  nodes.sort((a, b) => Number(a.resolved) - Number(b.resolved));
+  return { threads: nodes, total: threads.totalCount ?? nodes.length };
 }
