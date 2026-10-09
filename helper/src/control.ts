@@ -129,6 +129,9 @@ export class ControlHub {
       case 'move':
         if (store.get(message.id)) store.move(message.id, message.index);
         break;
+      case 'order':
+        store.reorder(message.ids);
+        break;
       case 'remove':
         this.options.sessions.remove(message.id);
         store.remove(message.id);
@@ -276,6 +279,8 @@ function isControlToHelper(value: unknown): value is ControlToHelper {
       return typeof m.id === 'string';
     case 'rename':
       return typeof m.id === 'string' && isWorkspaceName(m.name);
+    case 'order':
+      return Array.isArray(m.ids) && m.ids.length <= 500 && m.ids.every((id) => typeof id === 'string');
     case 'move':
       return typeof m.id === 'string' && Number.isInteger(m.index) && (m.index as number) >= 0;
     case 'create':

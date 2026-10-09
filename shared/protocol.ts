@@ -310,6 +310,8 @@ export type ControlToHelper =
   | { type: 'rename'; id: string; name: string }
   /** `index` is the workspace's position in the list once moved. */
   | { type: 'move'; id: string; index: number }
+  /** Sets the whole list order at once; ignored unless `ids` is exactly the current workspaces. */
+  | { type: 'order'; ids: string[] }
   | { type: 'listPrompts' }
   | { type: 'listRepos' }
   /** A snapshot of the helper, the workspaces' sessions and their processes. */

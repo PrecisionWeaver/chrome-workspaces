@@ -306,6 +306,17 @@ describe('control channel', () => {
     ws.close();
   });
 
+  it('reorders the whole list in one step, and ignores an order that is not the current workspaces', async () => {
+    const [a, b, c] = ['a', 'b', 'c'].map((name) => h.store.create({ name, cwd: h.defaultCwd }));
+    const { ws } = connectControl(h);
+    await opened(ws);
+    ws.send(JSON.stringify({ type: 'order', ids: [b.id, a.id] }));
+    ws.send(JSON.stringify({ type: 'order', ids: [c.id, a.id, b.id] }));
+    await waitFor(() => h.store.list()[0].id === c.id);
+    expect(h.store.list().map((w) => w.name)).toEqual(['c', 'a', 'b']);
+    ws.close();
+  });
+
   it('answers listRepos to the asking client only', async () => {
     h.repos.push({ name: 'chrome-workspaces', path: '/w/chrome-workspaces', root: 'Websites' });
     const asker = connectControl(h);

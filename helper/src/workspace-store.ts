@@ -110,6 +110,17 @@ export class WorkspaceStore {
     this.save();
   }
 
+  /** Sets the list order. Ignored unless `ids` holds every workspace exactly once. Returns whether it applied. */
+  reorder(ids: readonly string[]): boolean {
+    const byId = new Map(this.workspaces.map((w) => [w.id, w]));
+    if (ids.length !== byId.size || new Set(ids).size !== ids.length || !ids.every((id) => byId.has(id))) return false;
+    const next = ids.map((id) => byId.get(id)!);
+    if (next.every((w, i) => w === this.workspaces[i])) return true;
+    this.workspaces = next;
+    this.save();
+    return true;
+  }
+
   clearPrompt(id: string): void {
     const ws = this.require(id);
     if (ws.prompt === null) return;

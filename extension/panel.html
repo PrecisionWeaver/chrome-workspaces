@@ -6,20 +6,26 @@
     <link rel="stylesheet" href="panel.css" />
   </head>
   <body>
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+      <symbol id="i-chevron-left" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></symbol>
+      <symbol id="i-chevron-down" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></symbol>
+      <symbol id="i-refresh" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></symbol>
+      <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></symbol>
+    </svg>
     <nav id="list">
       <div id="list-header" class="section-header">
-        <button id="collapse" class="icon-btn" title="Collapse list">‹</button>
+        <button id="collapse" class="icon-btn" title="Collapse list" aria-label="Collapse list"><svg class="icon"><use href="#i-chevron-left"/></svg></button>
         <span id="list-title" class="section-title">Workspaces</span>
-        <button id="settings-open" class="icon-btn" title="Settings" aria-label="Settings"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+        <button id="settings-open" class="icon-btn" title="Settings" aria-label="Settings"><svg class="icon"><use href="#i-gear"/></svg></button>
       </div>
       <ul id="workspaces"></ul>
       <button id="new" title="New workspace"><span class="plus">+</span><span class="label">New workspace</span></button>
       <section id="git" class="section">
         <div class="v-resizer" data-resize="git" title="Drag to resize, double-click to reset"></div>
         <div id="git-header" class="section-header">
-          <button id="git-toggle" class="icon-btn section-toggle" title="Collapse source control">▾</button>
+          <button id="git-toggle" class="icon-btn section-toggle" title="Collapse source control" aria-label="Collapse source control"><svg class="icon"><use href="#i-chevron-down"/></svg></button>
           <span id="git-title" class="section-title">Source control</span>
-          <button id="git-refresh" class="icon-btn" title="Refresh source control">↻</button>
+          <button id="git-refresh" class="icon-btn" title="Refresh source control" aria-label="Refresh source control"><svg class="icon"><use href="#i-refresh"/></svg></button>
         </div>
         <div id="git-body">
           <div id="git-branch"></div>
@@ -31,9 +37,9 @@
       <section id="reviews" class="section">
         <div class="v-resizer" data-resize="reviews" title="Drag to resize, double-click to reset"></div>
         <div id="reviews-header" class="section-header">
-          <button id="reviews-toggle" class="icon-btn section-toggle" title="Collapse review requests">▾</button>
+          <button id="reviews-toggle" class="icon-btn section-toggle" title="Collapse review requests" aria-label="Collapse review requests"><svg class="icon"><use href="#i-chevron-down"/></svg></button>
           <span id="reviews-title" class="section-title">Review requests</span>
-          <button id="reviews-refresh" class="icon-btn" title="Refresh review requests">↻</button>
+          <button id="reviews-refresh" class="icon-btn" title="Refresh review requests" aria-label="Refresh review requests"><svg class="icon"><use href="#i-refresh"/></svg></button>
         </div>
         <div id="reviews-tools">
           <input id="reviews-search" type="search" placeholder="Search" aria-label="Search review requests" autocomplete="off" />
@@ -118,7 +124,7 @@
         <div id="settings-bar">
           <button type="button" id="settings-close" title="Back to the terminal (Esc)">← Back</button>
           <span id="settings-updated"></span>
-          <button type="button" id="settings-refresh" title="Refresh now">↻</button>
+          <button type="button" id="settings-refresh" title="Refresh now" aria-label="Refresh now"><svg class="icon"><use href="#i-refresh"/></svg></button>
         </div>
         <h2 id="settings-title">Settings</h2>
         <div id="settings-result" hidden></div>

@@ -90,6 +90,24 @@ describe('WorkspaceStore', () => {
     expect(store.get(a.id)).toMatchObject({ windowId: null, lastTabUrls: ['u1'] });
   });
 
+  it('sets the whole order at once, and refuses a list that is not exactly the workspaces', () => {
+    const file = tempFile();
+    const store = new WorkspaceStore(file);
+    const [a, b, c] = ['a', 'b', 'c'].map((name) => store.create({ name, cwd: '/tmp' }));
+    let changes = 0;
+    store.onChange(() => changes++);
+
+    expect(store.reorder([c.id, a.id, b.id])).toBe(true);
+    expect(store.list().map((w) => w.name)).toEqual(['c', 'a', 'b']);
+    expect(new WorkspaceStore(file).list().map((w) => w.name)).toEqual(['c', 'a', 'b']);
+    expect(changes).toBe(1);
+
+    expect(store.reorder([c.id, a.id, b.id])).toBe(true);
+    expect(changes).toBe(1);
+    for (const bad of [[a.id, b.id], [a.id, a.id, b.id], [a.id, b.id, 'ws-ffffffff'], [a.id, b.id, c.id, c.id]]) expect(store.reorder(bad)).toBe(false);
+    expect(store.list().map((w) => w.name)).toEqual(['c', 'a', 'b']);
+  });
+
   it('finds workspaces by ticket case-insensitively', () => {
     const store = new WorkspaceStore(tempFile());
     const a = store.create({ name: 'PROJ-1', ticket: 'PROJ-1', cwd: '/tmp' });
