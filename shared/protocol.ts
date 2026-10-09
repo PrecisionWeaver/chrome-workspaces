@@ -78,6 +78,10 @@ export interface GitCommit {
 }
 
 export interface GitState {
+  /** The working tree's top directory. */
+  root: string;
+  /** The name of the linked worktree this is, or null for the main working tree. */
+  worktree: string | null;
   /** Null on a detached HEAD. */
   branch: string | null;
   upstream: string | null;

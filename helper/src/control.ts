@@ -1,6 +1,6 @@
 import { isAbsolute } from 'node:path';
 import type { WebSocket } from 'ws';
-import { MAX_PROMPT_LENGTH, MAX_TAB_URLS, MODEL_PATTERN, type ControlToClient, type ControlToHelper, type Prompt, type Repo, type ReviewsState, type WorkspaceStatus } from '../../shared/protocol';
+import { MAX_PROMPT_LENGTH, MAX_TAB_URLS, MODEL_PATTERN, type ControlToClient, type ControlToHelper, type Prompt, type Repo, type ReviewsState, type Workspace, type WorkspaceStatus } from '../../shared/protocol';
 import { isDirectory } from './config';
 import type { GitService } from './git';
 import { parsePrDetails } from './pr-details';
@@ -26,6 +26,8 @@ export interface ControlHubOptions {
   repoDirs: Record<string, string>;
   repos: () => Repo[];
   git: GitService;
+  /** The directory a workspace's claude last reported working in, if it has reported one. */
+  workingDir: (id: string) => string | null;
 }
 
 /** Keeps every connected extension context (service worker, panels) in sync with the store. */
@@ -157,6 +159,16 @@ export class ControlHub {
     }
   }
 
+  /**
+   * Where to run git for a workspace: the directory its claude reports, when that is another worktree
+   * of the same repository (claude moves into worktrees on its own), else the workspace's own.
+   */
+  private async gitDirectory(workspace: Workspace): Promise<string> {
+    const reported = this.options.workingDir(workspace.id);
+    if (!reported || reported === workspace.cwd || !isAbsolute(reported) || !isDirectory(reported)) return workspace.cwd;
+    return (await this.options.git.sameRepository(workspace.cwd, reported)) ? reported : workspace.cwd;
+  }
+
   /** Answers a git request for a workspace's directory; the reply goes to the asking client only. */
   private handleGit(message: Extract<ControlToHelper, { type: 'git' | 'gitCommit' | 'gitDiff' }>, ws: WebSocket): void {
     const { store, git } = this.options;
@@ -164,24 +176,25 @@ export class ControlHub {
     const text = (error: unknown) => (error instanceof Error ? error.message : String(error));
     const workspace = store.get(id);
     const missing = 'unknown workspace';
+    const dir = workspace ? this.gitDirectory(workspace) : null;
     if (message.type === 'git') {
-      if (!workspace) return this.sendTo(ws, { type: 'git', id, state: null, error: missing });
-      git.state(workspace.cwd).then(
+      if (!dir) return this.sendTo(ws, { type: 'git', id, state: null, error: missing });
+      dir.then((cwd) => git.state(cwd)).then(
         (state) => this.sendTo(ws, { type: 'git', id, state, error: null }),
         (error: unknown) => this.sendTo(ws, { type: 'git', id, state: null, error: text(error) }),
       );
     } else if (message.type === 'gitCommit') {
       const { sha } = message;
-      if (!workspace) return this.sendTo(ws, { type: 'gitCommit', id, sha, files: [], error: missing });
-      git.commitFiles(workspace.cwd, sha).then(
+      if (!dir) return this.sendTo(ws, { type: 'gitCommit', id, sha, files: [], error: missing });
+      dir.then((cwd) => git.commitFiles(cwd, sha)).then(
         (files) => this.sendTo(ws, { type: 'gitCommit', id, sha, files, error: null }),
         (error: unknown) => this.sendTo(ws, { type: 'gitCommit', id, sha, files: [], error: text(error) }),
       );
     } else {
       const { path } = message;
       const sha = message.sha ?? null;
-      if (!workspace) return this.sendTo(ws, { type: 'gitDiff', id, path, sha, diff: '', truncated: false, error: missing });
-      git.diff(workspace.cwd, path, sha).then(
+      if (!dir) return this.sendTo(ws, { type: 'gitDiff', id, path, sha, diff: '', truncated: false, error: missing });
+      dir.then((cwd) => git.diff(cwd, path, sha)).then(
         ({ diff, truncated }) => this.sendTo(ws, { type: 'gitDiff', id, path, sha, diff, truncated, error: null }),
         (error: unknown) => this.sendTo(ws, { type: 'gitDiff', id, path, sha, diff: '', truncated: false, error: text(error) }),
       );

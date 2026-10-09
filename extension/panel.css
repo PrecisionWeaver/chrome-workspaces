@@ -1393,6 +1393,14 @@ body.collapsed #collapse {
   font-weight: 400;
 }
 
+.git-worktree {
+  padding: 0 6px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 10.5px;
+}
+
 .git-claude {
   margin-left: auto;
   padding: 0 6px;

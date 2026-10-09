@@ -28,6 +28,8 @@ export interface Harness {
   promptsError: string | null;
   repoDirs: Record<string, string>;
   repos: Repo[];
+  /** Where each workspace's claude reports working, by workspace id. */
+  workingDirs: Record<string, string>;
   /** What the fake `gh pr view` returns; null makes it fail with "gh failed". */
   prDetailsJson: string | null;
   prDetailsRequests: string[];
@@ -48,6 +50,7 @@ export async function startHarness(): Promise<Harness> {
     promptsError: null as string | null,
     repoDirs: {} as Record<string, string>,
     repos: [] as Repo[],
+    workingDirs: {} as Record<string, string>,
     prDetailsJson: null as string | null,
     prDetailsRequests: [] as string[],
   };
@@ -67,7 +70,7 @@ export async function startHarness(): Promise<Harness> {
     return fakes.prompts;
   };
   const statuses = () => fakes.statuses;
-  const control = new ControlHub({ store, sessions, defaultCwd, statuses, reviews, prompts, prDetails, repoDirs: fakes.repoDirs, repos: () => fakes.repos, git: createGitService() });
+  const control = new ControlHub({ store, sessions, defaultCwd, statuses, reviews, prompts, prDetails, repoDirs: fakes.repoDirs, repos: () => fakes.repos, git: createGitService(), workingDir: (id) => fakes.workingDirs[id] ?? null });
   const auth = { token: TOKEN, allowedOrigins: [ORIGIN] };
   const server = await startServer({
     host: '127.0.0.1',

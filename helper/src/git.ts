@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
-import { isAbsolute } from 'node:path';
+import { realpathSync } from 'node:fs';
+import { basename, isAbsolute, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import type { GitCommit, GitCommitFile, GitFile, GitState } from '../../shared/protocol';
 
@@ -10,6 +11,8 @@ const DIFF_LIMIT = 400_000;
 const TIMEOUT_MS = 15_000;
 
 export interface GitService {
+  /** Whether both directories belong to one repository, as the main tree and its linked worktrees do. */
+  sameRepository(a: string, b: string): Promise<boolean>;
   /** Rejects when `cwd` is not inside a git repository. */
   state(cwd: string): Promise<GitState>;
   commitFiles(cwd: string, sha: string): Promise<GitCommitFile[]>;
@@ -41,7 +44,7 @@ async function run(cwd: string, args: string[], acceptCodes: readonly number[] =
 }
 
 /** Parses `git status --porcelain=v1 -z --branch`. */
-export function parseStatus(output: string): Omit<GitState, 'commits'> {
+export function parseStatus(output: string): Omit<GitState, 'commits' | 'root' | 'worktree'> {
   const tokens = output.split('\0');
   const header = tokens.shift() ?? '';
   let branch: string | null = null;
@@ -128,6 +131,28 @@ function cap(text: string): { diff: string; truncated: boolean } {
   return text.length > DIFF_LIMIT ? { diff: text.slice(0, DIFF_LIMIT), truncated: true } : { diff: text, truncated: false };
 }
 
+interface Locations {
+  root: string;
+  gitDir: string;
+  commonDir: string;
+}
+
+/** Where a directory's working tree, git directory, and the git directory shared by every worktree are. */
+async function locate(cwd: string): Promise<Locations> {
+  const { stdout } = await run(cwd, ['rev-parse', '--path-format=absolute', '--show-toplevel', '--git-dir', '--git-common-dir']);
+  const [root, gitDir, commonDir] = stdout.trim().split('\n');
+  if (!root || !gitDir || !commonDir) throw new Error('not a git repository');
+  return { root, gitDir, commonDir };
+}
+
+const real = (path: string): string => {
+  try {
+    return realpathSync(path);
+  } catch {
+    return resolve(path);
+  }
+};
+
 export function createGitService(): GitService {
   const inFlight = new Map<string, Promise<GitState>>();
 
@@ -135,11 +160,22 @@ export function createGitService(): GitService {
     const status = run(cwd, ['status', '--porcelain=v1', '-z', '--branch', '--untracked-files=all']);
     // A repository with no commits yet has no log.
     const log = run(cwd, ['log', '-n', String(LOG_LIMIT), '--topo-order', `--format=${LOG_FORMAT}`, '--decorate=short']).catch(() => ({ stdout: '', code: 0 }));
-    const [s, l] = await Promise.all([status, log]);
-    return { ...parseStatus(s.stdout), commits: parseLog(l.stdout) };
+    const [s, l, where] = await Promise.all([status, log, locate(cwd)]);
+    // A linked worktree's git directory differs from the one every worktree shares.
+    const linked = real(where.gitDir) !== real(where.commonDir);
+    return { ...parseStatus(s.stdout), root: where.root, worktree: linked ? basename(where.root) : null, commits: parseLog(l.stdout) };
   }
 
   return {
+    async sameRepository(a, b) {
+      try {
+        const [first, second] = await Promise.all([locate(a), locate(b)]);
+        return real(first.commonDir) === real(second.commonDir);
+      } catch {
+        return false;
+      }
+    },
+
     // Polling asks again before the last answer is back on a big repository; share the run.
     state(cwd) {
       const running = inFlight.get(cwd);

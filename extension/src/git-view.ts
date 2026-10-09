@@ -111,6 +111,12 @@ export function createGitView({ send, onToggle, status }: GitViewOptions): GitVi
       const branch = el('span', '', 'git-branch-name');
       branch.append(el('span', '⎇', 'git-branch-icon'), el('span', state.branch ?? 'detached HEAD'));
       branchEl.append(branch);
+      // Claude moves into worktrees on its own; say so when this is one, since it has its own branch and history.
+      if (state.worktree) {
+        const chip = el('span', `worktree · ${state.worktree}`, 'git-worktree');
+        chip.title = `Claude is working in a linked worktree\n${state.root}`;
+        branchEl.append(chip);
+      }
       if (state.ahead) branchEl.append(el('span', `↑${state.ahead}`, 'git-sync'));
       if (state.behind) branchEl.append(el('span', `↓${state.behind}`, 'git-sync'));
     }

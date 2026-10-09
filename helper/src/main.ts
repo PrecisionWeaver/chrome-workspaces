@@ -54,7 +54,7 @@ const prompts = () => readPrompts(config.promptsFile);
 const prDetails = async (url: string) =>
   (await execFileAsync(shell, ['-l', '-c', GH_PR_DETAILS], { env: { ...process.env, CW_PR_URL: url }, timeout: 30_000, maxBuffer: 4 * 1024 * 1024 })).stdout;
 
-const control = new ControlHub({ store, sessions, defaultCwd: config.defaultCwd, statuses, reviews, prompts, prDetails, repoDirs: config.repoDirs, repos: () => listRepos(config.repoRoots), git: createGitService() });
+const control = new ControlHub({ store, sessions, defaultCwd: config.defaultCwd, statuses, reviews, prompts, prDetails, repoDirs: config.repoDirs, repos: () => listRepos(config.repoRoots), git: createGitService(), workingDir: (id) => mcStatus.get(id)?.cwd ?? null });
 reviews.onChange(() => control.broadcastState());
 reviews.start(REVIEW_POLL_MS);
 const stopWatching = watchMcStatus(MC_STATE_DIR, () => {

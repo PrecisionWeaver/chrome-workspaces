@@ -7,6 +7,8 @@ export interface McWorkspaceStatus {
   claudeSessionId: string;
   /** Last Claude in Chrome tool call (epoch ms). */
   browserAt: number | null;
+  /** The directory claude last reported working in; a worktree once it has entered one. */
+  cwd: string | null;
 }
 
 interface McSessionFile {
@@ -15,6 +17,7 @@ interface McSessionFile {
   status?: string;
   started_at?: string;
   browser_at?: string;
+  cwd?: string;
 }
 
 const LIVE_STATUSES = new Set(['needs_input', 'working', 'idle']);
@@ -46,7 +49,7 @@ export function readMcStatus(dir: string): Map<string, McWorkspaceStatus> {
   for (const [workspaceId, session] of newest) {
     const status = LIVE_STATUSES.has(session.status ?? '') ? (session.status as WorkspaceStatus) : null;
     const browserAt = session.browser_at ? Date.parse(session.browser_at) : NaN;
-    result.set(workspaceId, { status, claudeSessionId: session.session_id!, browserAt: Number.isNaN(browserAt) ? null : browserAt });
+    result.set(workspaceId, { status, claudeSessionId: session.session_id!, browserAt: Number.isNaN(browserAt) ? null : browserAt, cwd: session.cwd ?? null });
   }
   return result;
 }

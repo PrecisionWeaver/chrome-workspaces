@@ -90,6 +90,26 @@ describe('git service', () => {
     expect((await service.diff(dir, 'new.txt', null)).diff).toContain('+brand new');
   });
 
+  it('reports a linked worktree by name, with its own branch and history, and links it to the main tree', async () => {
+    const dir = repo();
+    const worktree = join(mkdtempSync(join(tmpdir(), 'cw-wt-')), 'topic-tree');
+    git(dir, 'worktree', 'add', '-q', '-b', 'topic', worktree);
+    writeFileSync(join(worktree, 'only-here.txt'), 'x\n');
+    git(worktree, 'add', '.');
+    git(worktree, 'commit', '-qm', 'on topic');
+
+    const main = await service.state(dir);
+    expect(main).toMatchObject({ branch: 'main', worktree: null });
+    const linked = await service.state(worktree);
+    expect(linked).toMatchObject({ branch: 'topic', worktree: 'topic-tree' });
+    expect(linked.commits[0].subject).toBe('on topic');
+    expect(main.commits.map((c) => c.subject)).not.toContain('on topic');
+
+    expect(await service.sameRepository(dir, worktree)).toBe(true);
+    expect(await service.sameRepository(dir, repo())).toBe(false);
+    expect(await service.sameRepository(dir, mkdtempSync(join(tmpdir(), 'cw-nogit-')))).toBe(false);
+  });
+
   it('refuses paths and ids that could reach outside or inject arguments', async () => {
     const dir = repo();
     await expect(service.diff(dir, '../../etc/passwd', null)).rejects.toThrow('path');

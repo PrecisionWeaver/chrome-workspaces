@@ -270,6 +270,42 @@ describe('control channel', () => {
     other.ws.close();
   });
 
+  it('shows the worktree claude has moved into, but only one of the workspace\'s own repository', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'cw-wt-main-'));
+    const git = (cwd: string, ...args: string[]) => execFileSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.com', ...args], { cwd });
+    git(dir, 'init', '-q', '-b', 'main');
+    writeFileSync(join(dir, 'f.txt'), 'x\n');
+    git(dir, 'add', '.');
+    git(dir, 'commit', '-qm', 'init');
+    const tree = join(mkdtempSync(join(tmpdir(), 'cw-wt-')), 'feature-tree');
+    git(dir, 'worktree', 'add', '-q', '-b', 'feature', tree);
+    const stranger = mkdtempSync(join(tmpdir(), 'cw-other-'));
+    git(stranger, 'init', '-q', '-b', 'elsewhere');
+    const workspace = h.store.create({ name: 'w', cwd: dir });
+
+    const { ws, messages } = connectControl(h);
+    await opened(ws);
+    const branchAfter = async (n: number) => {
+      await waitFor(() => messages.filter((m) => m.type === 'git').length === n);
+      const reply = messages.filter((m) => m.type === 'git')[n - 1];
+      return reply.type === 'git' ? reply.state?.branch : undefined;
+    };
+
+    ws.send(JSON.stringify({ type: 'git', id: workspace.id }));
+    expect(await branchAfter(1)).toBe('main');
+    h.workingDirs[workspace.id] = tree;
+    ws.send(JSON.stringify({ type: 'git', id: workspace.id }));
+    expect(await branchAfter(2)).toBe('feature');
+    // A directory outside the repository, or one that does not exist, is ignored.
+    h.workingDirs[workspace.id] = stranger;
+    ws.send(JSON.stringify({ type: 'git', id: workspace.id }));
+    expect(await branchAfter(3)).toBe('main');
+    h.workingDirs[workspace.id] = '/no/such/dir';
+    ws.send(JSON.stringify({ type: 'git', id: workspace.id }));
+    expect(await branchAfter(4)).toBe('main');
+    ws.close();
+  });
+
   it('answers listRepos to the asking client only', async () => {
     h.repos.push({ name: 'chrome-workspaces', path: '/w/chrome-workspaces', root: 'Websites' });
     const asker = connectControl(h);
