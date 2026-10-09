@@ -7,18 +7,18 @@
   </head>
   <body>
     <nav id="list">
-      <div id="list-header">
-        <button id="collapse" title="Collapse list">‹</button>
-        <span id="list-title">Workspaces</span>
+      <div id="list-header" class="section-header">
+        <button id="collapse" class="icon-btn" title="Collapse list">‹</button>
+        <span id="list-title" class="section-title">Workspaces</span>
       </div>
       <ul id="workspaces"></ul>
       <button id="new" title="New workspace"><span class="plus">+</span><span class="label">New workspace</span></button>
-      <section id="git">
+      <section id="git" class="section">
         <div class="v-resizer" data-resize="git" title="Drag to resize, double-click to reset"></div>
-        <div id="git-header">
-          <button id="git-toggle" title="Collapse source control">▾</button>
-          <span id="git-title">Source control</span>
-          <button id="git-refresh" title="Refresh">↻</button>
+        <div id="git-header" class="section-header">
+          <button id="git-toggle" class="icon-btn section-toggle" title="Collapse source control">▾</button>
+          <span id="git-title" class="section-title">Source control</span>
+          <button id="git-refresh" class="icon-btn" title="Refresh source control">↻</button>
         </div>
         <div id="git-body">
           <div id="git-branch"></div>
@@ -27,12 +27,12 @@
           <div id="git-commits"></div>
         </div>
       </section>
-      <section id="reviews">
+      <section id="reviews" class="section">
         <div class="v-resizer" data-resize="reviews" title="Drag to resize, double-click to reset"></div>
-        <div id="reviews-header">
-          <button id="reviews-toggle" title="Collapse review requests">▾</button>
-          <span id="reviews-title">Review requests</span>
-          <button id="reviews-refresh" title="Refresh review requests">↻</button>
+        <div id="reviews-header" class="section-header">
+          <button id="reviews-toggle" class="icon-btn section-toggle" title="Collapse review requests">▾</button>
+          <span id="reviews-title" class="section-title">Review requests</span>
+          <button id="reviews-refresh" class="icon-btn" title="Refresh review requests">↻</button>
         </div>
         <div id="reviews-tools">
           <input id="reviews-search" type="search" placeholder="Search" aria-label="Search review requests" autocomplete="off" />
