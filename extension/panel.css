@@ -2359,6 +2359,36 @@ body.collapsed .list-empty {
   line-height: 1.45;
 }
 
+.setup-row {
+  display: flex;
+  gap: 8px;
+  padding: 3px 0;
+}
+
+.setup-mark {
+  flex: none;
+  width: 14px;
+  color: var(--wait);
+}
+
+.setup-row.done .setup-mark {
+  color: var(--good);
+}
+
+.setup-row.done {
+  color: var(--muted);
+}
+
+.setup-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.setup-detail {
+  color: var(--faint);
+  line-height: 1.45;
+}
+
 .warning-row {
   display: flex;
   align-items: center;

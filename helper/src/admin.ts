@@ -177,6 +177,7 @@ export function createAdmin(options: AdminOptions): AdminService {
           limits: config.limits,
         },
         reviews: { fetchedAt: reviews.fetchedAt, count: reviews.items.length, error: reviews.error },
+        setup: { promptsFileExists: existsSync(config.promptsFile), repoRoots: config.repoRoots.map((path) => ({ path, exists: existsSync(path) })) },
       };
     },
 

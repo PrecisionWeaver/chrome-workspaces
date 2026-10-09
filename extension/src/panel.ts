@@ -69,8 +69,9 @@ const control = connectControl(
     }
     if (message.type === 'system') {
       settings.setSystem(message);
-      $<HTMLButtonElement>('settings-open').classList.toggle('has-warning', settings.warningCount > 0);
-      $<HTMLButtonElement>('settings-open').title = settings.warningCount ? `Settings · ${settings.warningCount} to look at` : 'Settings';
+      const attention = settings.warningCount + settings.setupRemaining;
+      $<HTMLButtonElement>('settings-open').classList.toggle('has-warning', attention > 0);
+      $<HTMLButtonElement>('settings-open').title = attention ? `Settings · ${attention} to look at` : 'Settings';
     }
     if (message.type === 'adminResult') settings.setResult(message);
     if (message.type === 'systemLog') settings.setLog(message.text);

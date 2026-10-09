@@ -117,6 +117,8 @@ export interface SystemSnapshot {
   /** Workspaces using a lot of memory, and servers left running; see `findWarnings`. */
   warnings: GuardrailWarning[];
   reviews: { fetchedAt: string | null; count: number; error: string | null };
+  /** Facts about the install that only the helper can see, for the setup checklist. */
+  setup: { promptsFileExists: boolean; repoRoots: { path: string; exists: boolean }[] };
 }
 
 export type AdminAction =

@@ -5,9 +5,11 @@ export interface Prefs {
   notify: boolean;
   theme: Theme;
   density: Density;
+  /** The setup checklist in Settings was dismissed. */
+  setupDismissed: boolean;
 }
 
-const DEFAULTS: Prefs = { notify: false, theme: 'system', density: 'comfortable' };
+const DEFAULTS: Prefs = { notify: false, theme: 'system', density: 'comfortable', setupDismissed: false };
 
 /** Stored preferences with anything missing or invalid replaced by its default, since storage can hold anything. */
 export function normalizePrefs(stored: unknown): Prefs {
@@ -16,6 +18,7 @@ export function normalizePrefs(stored: unknown): Prefs {
     notify: p.notify === true,
     theme: THEMES.includes(p.theme as Theme) ? (p.theme as Theme) : DEFAULTS.theme,
     density: DENSITIES.includes(p.density as Density) ? (p.density as Density) : DEFAULTS.density,
+    setupDismissed: p.setupDismissed === true,
   };
 }
 

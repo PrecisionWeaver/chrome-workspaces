@@ -1,6 +1,7 @@
 import type { AdminAction, ControlToClient, ControlToHelper, SystemProcess, SystemSession, SystemSnapshot, TokenTotals } from '../../shared/protocol';
 import { el } from './dom';
 import { DENSITIES, THEMES } from '../../shared/keynav';
+import { buildChecklist, remaining, type SetupItem } from '../../shared/onboarding';
 import { loadPrefs, normalizePrefs, savePrefs, type Prefs } from './prefs';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -18,6 +19,8 @@ export interface SettingsView {
   setSystem(message: Extract<ControlToClient, { type: 'system' }>): void;
   /** How many warnings the last snapshot had, for a marker on the settings button. */
   readonly warningCount: number;
+  /** How many setup steps are still open, 0 once everything is done or the checklist is dismissed. */
+  readonly setupRemaining: number;
   setResult(message: Extract<ControlToClient, { type: 'adminResult' }>): void;
   setLog(text: string): void;
   download(json: string): void;
@@ -67,6 +70,11 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
   let resultTimer: ReturnType<typeof setTimeout> | undefined;
   let logText: string | null = null;
   let prefs: Prefs = normalizePrefs(undefined);
+  // Read once per snapshot; the shortcut is a browser setting the helper cannot see.
+  let switchShortcut = '';
+  const readShortcut = () => chrome.commands.getAll().then((commands) => (switchShortcut = commands.find((c) => c.name === 'next-workspace')?.shortcut ?? ''));
+  void readShortcut();
+  let workspaceCount = 0;
   void loadPrefs().then((loaded) => {
     prefs = loaded;
     if (isOpen) render();
@@ -308,6 +316,40 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
     return wrapper;
   }
 
+  function checklist(s: SystemSnapshot): SetupItem[] {
+    return buildChecklist({
+      managed: s.helper.managed,
+      helperExtensionId: s.helper.extensionId,
+      extensionId: chrome.runtime.id,
+      reviewsWork: s.reviews.fetchedAt !== null && s.reviews.error === null,
+      promptsFileExists: s.setup.promptsFileExists,
+      repoRoots: s.setup.repoRoots,
+      switchShortcut,
+      workspaceCount: s.sessions.length,
+    });
+  }
+
+  function setupCard(s: SystemSnapshot): HTMLElement | null {
+    const items = checklist(s);
+    const open = remaining(items);
+    if (open === 0 || prefs.setupDismissed) return null;
+    const rows = items.map((item) => {
+      const line = el('div', '', `setup-row${item.ok ? ' done' : ''}`);
+      line.append(el('span', item.ok ? '✓' : '○', 'setup-mark'));
+      const text = el('span', '', 'setup-text');
+      text.append(el('span', item.label, 'setup-label'));
+      if (!item.ok) text.append(el('span', `${item.detail} ${item.fix ?? ''}`.trim(), 'setup-detail'));
+      line.append(text);
+      return line;
+    });
+    const dismiss = plain('Dismiss', () => {
+      prefs = { ...prefs, setupDismissed: true };
+      void savePrefs({ setupDismissed: true });
+      render();
+    }, 'Hide this checklist; the same checks stay in Diagnostics');
+    return card(`Getting started · ${items.length - open} of ${items.length} done`, ...rows, actions(dismiss));
+  }
+
   function warningsCard(s: SystemSnapshot): HTMLElement | null {
     if (s.warnings.length === 0) return null;
     const rows = s.warnings.map((warning) => {
@@ -362,7 +404,7 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       body.replaceChildren(el('div', error ? `Could not read the system: ${error}` : 'Loading…', 'settings-empty'));
       return;
     }
-    body.replaceChildren(...([warningsCard(snapshot)].filter((card): card is HTMLElement => card !== null)), preferencesCard(), helperCard(snapshot), sessionsCard(snapshot), housekeepingCard(snapshot), configCard(snapshot), diagnosticsCard(snapshot));
+    body.replaceChildren(...[setupCard(snapshot), warningsCard(snapshot)].filter((card): card is HTMLElement => card !== null), preferencesCard(), helperCard(snapshot), sessionsCard(snapshot), housekeepingCard(snapshot), configCard(snapshot), diagnosticsCard(snapshot));
     body.scrollTop = scroll;
   }
 
@@ -410,11 +452,15 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
     },
     show,
     close,
+    get setupRemaining() {
+      return snapshot && !prefs.setupDismissed ? remaining(checklist(snapshot)) : 0;
+    },
     get warningCount() {
       return snapshot?.warnings.length ?? 0;
     },
     setSystem(message) {
       snapshot = message.snapshot ?? snapshot;
+      void readShortcut();
       error = message.error;
       if (isOpen) render();
     },
