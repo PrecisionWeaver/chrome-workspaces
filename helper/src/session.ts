@@ -40,6 +40,17 @@ export class Session {
     });
   }
 
+  /** The shell's process id, or null once it has exited. */
+  get pid(): number | null {
+    return this.exited ? null : this.pty.pid;
+  }
+
+  /** Stops reporting output and exit to attached clients, for a session about to be replaced. */
+  silence(): void {
+    this.dataListeners.clear();
+    this.exitListeners.clear();
+  }
+
   get exited(): boolean {
     return this.exitCode !== null;
   }
@@ -100,6 +111,10 @@ export class SessionManager {
 
   get(id: string): Session | undefined {
     return this.sessions.get(id);
+  }
+
+  list(): Session[] {
+    return [...this.sessions.values()];
   }
 
   remove(id: string): void {

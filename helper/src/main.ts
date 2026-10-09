@@ -1,7 +1,8 @@
-import { execFile } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import type { WorkspaceStatus } from '../../shared/protocol';
+import { createAdmin, defaultIsManaged, defaultRunShell, defaultSpawnDetached } from './admin';
 import { createApi } from './api';
 import { DATA_DIR, HOST, loadConfig, MC_STATE_DIR, PORT, SCROLLBACK_LIMIT } from './config';
 import { ControlHub } from './control';
@@ -56,7 +57,26 @@ const prompts = () => readPrompts(config.promptsFile);
 const prDetails = async (url: string) =>
   (await execFileAsync(shell, ['-l', '-c', GH_PR_DETAILS], { env: { ...process.env, CW_PR_URL: url }, timeout: 30_000, maxBuffer: 4 * 1024 * 1024 })).stdout;
 
-const control = new ControlHub({ store, sessions, defaultCwd: config.defaultCwd, statuses, reviews, prompts, prDetails, repoDirs: config.repoDirs, repos: () => listRepos(config.repoRoots), git: createGitService(), workingDir: (id) => {
+const admin = createAdmin({
+  sessions,
+  store,
+  config,
+  paths: { dataDir: DATA_DIR, uploadDir: join(DATA_DIR, 'uploads'), logFile: join(DATA_DIR, 'helper.log'), configFile: join(DATA_DIR, 'config.json'), workspacesFile: join(DATA_DIR, 'workspaces.json') },
+  port: PORT,
+  commit: (() => {
+    try {
+      return execFileSync('git', ['rev-parse', '--short', 'HEAD'], { encoding: 'utf8', timeout: 3000 }).trim();
+    } catch {
+      return null;
+    }
+  })(),
+  status: (id) => ({ status: mcStatus.get(id)?.status ?? null, claudeSessionId: mcStatus.get(id)?.claudeSessionId ?? null }),
+  runShell: defaultRunShell(shell),
+  spawnDetached: defaultSpawnDetached,
+  isManaged: defaultIsManaged,
+});
+
+const control = new ControlHub({ store, sessions, defaultCwd: config.defaultCwd, statuses, reviews, prompts, prDetails, repoDirs: config.repoDirs, repos: () => listRepos(config.repoRoots), git: createGitService(), admin, workingDir: (id) => {
     const session = mcStatus.get(id);
     return (session?.transcriptPath && lastTranscriptCwd(session.transcriptPath)) || session?.cwd || null;
   } });

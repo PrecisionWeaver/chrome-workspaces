@@ -10,6 +10,7 @@
       <div id="list-header" class="section-header">
         <button id="collapse" class="icon-btn" title="Collapse list">‹</button>
         <span id="list-title" class="section-title">Workspaces</span>
+        <button id="settings-open" class="icon-btn" title="Settings">⚙</button>
       </div>
       <ul id="workspaces"></ul>
       <button id="new" title="New workspace"><span class="plus">+</span><span class="label">New workspace</span></button>
@@ -112,6 +113,16 @@
             <button type="submit" id="create-submit">Create</button>
           </div>
         </form>
+      </section>
+      <section id="settings" hidden>
+        <div id="settings-bar">
+          <button type="button" id="settings-close" title="Back to the terminal (Esc)">← Back</button>
+          <span id="settings-updated"></span>
+          <button type="button" id="settings-refresh" title="Refresh now">↻</button>
+        </div>
+        <h2 id="settings-title">Settings</h2>
+        <div id="settings-result" hidden></div>
+        <div id="settings-body"></div>
       </section>
       <section id="diff" hidden>
         <div id="diff-bar">

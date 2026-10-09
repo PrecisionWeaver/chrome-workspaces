@@ -2,6 +2,7 @@ import { isAbsolute } from 'node:path';
 import type { WebSocket } from 'ws';
 import { MAX_PROMPT_LENGTH, MAX_TAB_URLS, MODEL_PATTERN, type ControlToClient, type ControlToHelper, type Prompt, type Repo, type ReviewsState, type Workspace, type WorkspaceStatus } from '../../shared/protocol';
 import { isDirectory } from './config';
+import type { AdminService } from './admin';
 import type { GitService } from './git';
 import { parsePrDetails } from './pr-details';
 import { isPullRequestUrl, prWorkspace } from './pr-workspace';
@@ -26,6 +27,7 @@ export interface ControlHubOptions {
   repoDirs: Record<string, string>;
   repos: () => Repo[];
   git: GitService;
+  admin: AdminService;
   /** The directory a workspace's claude last reported working in, if it has reported one. */
   workingDir: (id: string) => string | null;
 }
@@ -134,6 +136,29 @@ export class ControlHub {
       case 'listPrompts':
         this.sendTo(ws, this.prompts());
         break;
+      case 'system':
+        this.options.admin.snapshot({ reviews: this.options.reviews.state(), clients: this.clients.size }).then(
+          (snapshot) => this.sendTo(ws, { type: 'system', snapshot, error: null }),
+          (error: unknown) => this.sendTo(ws, { type: 'system', snapshot: null, error: error instanceof Error ? error.message : String(error) }),
+        );
+        break;
+      case 'admin': {
+        const { request } = message;
+        this.options.admin.run(request).then(
+          (result) => {
+            this.sendTo(ws, { type: 'adminResult', action: request.action, ok: result.ok, message: result.message });
+            for (const id of result.reset ?? []) this.send({ type: 'sessionReset', id });
+          },
+          (error: unknown) => this.sendTo(ws, { type: 'adminResult', action: request.action, ok: false, message: error instanceof Error ? error.message : String(error) }),
+        );
+        break;
+      }
+      case 'systemLog':
+        this.sendTo(ws, { type: 'systemLog', text: this.options.admin.log() });
+        break;
+      case 'exportData':
+        this.sendTo(ws, { type: 'exportData', json: this.options.admin.exportData() });
+        break;
       case 'git':
       case 'gitCommit':
       case 'gitDiff':
@@ -218,6 +243,18 @@ function isWorkspaceName(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0 && value.trim().length <= 80;
 }
 
+const PLAIN_ACTIONS = new Set(['restartHelper', 'stopHelper', 'clearUploads', 'clearLog', 'pruneWorktrees', 'checkGh']);
+
+function isAdminAction(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null) return false;
+  const r = value as Record<string, unknown>;
+  if (typeof r.action !== 'string') return false;
+  if (PLAIN_ACTIONS.has(r.action)) return true;
+  if (r.action === 'restartSession') return typeof r.id === 'string';
+  if (r.action === 'killProcess') return typeof r.id === 'string' && Number.isInteger(r.pid) && (r.pid as number) > 1 && (r.force === undefined || typeof r.force === 'boolean');
+  return false;
+}
+
 function isControlToHelper(value: unknown): value is ControlToHelper {
   if (typeof value !== 'object' || value === null) return false;
   const m = value as Record<string, unknown>;
@@ -252,6 +289,12 @@ function isControlToHelper(value: unknown): value is ControlToHelper {
         (m.group === undefined || typeof m.group === 'boolean') &&
         (m.urls === undefined || (Array.isArray(m.urls) && m.urls.length <= MAX_TAB_URLS && m.urls.every(isWebUrl)))
       );
+    case 'system':
+    case 'systemLog':
+    case 'exportData':
+      return true;
+    case 'admin':
+      return isAdminAction(m.request);
     case 'git':
       return typeof m.id === 'string';
     case 'gitCommit':

@@ -570,6 +570,7 @@ body.collapsed #list {
 body.collapsed #list-title,
 body.collapsed .ws .name,
 body.collapsed .ws .remove,
+body.collapsed #settings-open,
 body.collapsed #git,
 body.collapsed #reviews,
 body.collapsed #list-resizer {
@@ -1701,6 +1702,328 @@ body.collapsed #collapse {
 
 .diff-line.meta {
   color: var(--faint);
+}
+
+/* Settings view */
+
+#settings {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 14px 20px 20px;
+}
+
+#settings[hidden] {
+  display: none;
+}
+
+#settings-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+#settings-bar button {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 5px 11px;
+}
+
+#settings-bar button:hover {
+  border-color: var(--border-strong);
+  background: var(--raised);
+}
+
+#settings-updated {
+  flex: 1;
+  color: var(--faint);
+  text-align: right;
+}
+
+#settings-title {
+  margin: 0 0 10px;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+#settings-result {
+  margin-bottom: 10px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+#settings-result.ok {
+  border-color: color-mix(in srgb, var(--good) 45%, transparent);
+  color: var(--good);
+}
+
+#settings-result.bad {
+  border-color: color-mix(in srgb, var(--bad) 45%, transparent);
+  color: var(--bad);
+}
+
+#settings-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 900px;
+}
+
+.settings-card {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.settings-card h3 {
+  margin: 0 0 8px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.settings-note {
+  margin: 0 0 10px;
+  color: var(--faint);
+  line-height: 1.5;
+}
+
+.settings-empty {
+  color: var(--faint);
+}
+
+.kv-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 2px 20px;
+}
+
+.kv {
+  display: flex;
+  gap: 12px;
+  padding: 2px 0;
+}
+
+.kv .k {
+  flex: none;
+  width: 118px;
+  color: var(--muted);
+}
+
+.kv .v {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+.kv .ok,
+.settings-card .ok {
+  color: var(--good);
+}
+
+.kv .bad,
+.settings-card .bad {
+  color: var(--bad);
+}
+
+.mono {
+  font: 11.5px var(--mono);
+}
+
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.settings-btn {
+  padding: 4px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.settings-btn:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  background: var(--raised);
+}
+
+.settings-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.settings-btn.danger {
+  color: var(--bad);
+}
+
+.settings-btn.armed {
+  background: var(--needs-input);
+  border-color: var(--needs-input);
+  color: #1b0d0d;
+  font-weight: 600;
+}
+
+.settings-log {
+  max-height: 220px;
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  font: 11px/1.5 var(--mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.session {
+  border-top: 1px solid var(--border);
+}
+
+.session:first-child {
+  border-top: 0;
+}
+
+.session-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+}
+
+.session-toggle {
+  flex: none;
+  width: 18px;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.session-summary {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+}
+
+.session-name {
+  font-weight: 600;
+}
+
+.session-detail {
+  color: var(--faint);
+  font-size: 11px;
+}
+
+.chip {
+  padding: 0 6px;
+  border-radius: 8px;
+  background: var(--raised);
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.chip.working {
+  color: var(--working);
+}
+
+.chip.needs_input,
+.chip.bad {
+  color: var(--needs-input);
+}
+
+.procs {
+  margin: 0 0 8px 26px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+
+.proc {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 8px;
+  border-top: 1px solid var(--border);
+}
+
+.proc:first-child {
+  border-top: 0;
+}
+
+.proc.shell {
+  color: var(--muted);
+}
+
+.proc .pid {
+  flex: none;
+  width: 52px;
+  color: var(--faint);
+  font: 11px var(--mono);
+}
+
+.proc .cmd {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 11px var(--mono);
+}
+
+.proc-meta {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.proc-meta .num {
+  min-width: 48px;
+  color: var(--faint);
+  font: 11px var(--mono);
+  text-align: right;
+}
+
+.proc-meta .port {
+  padding: 0 6px;
+  background: var(--accent-soft);
+  border: 0;
+  border-radius: 8px;
+  color: var(--accent);
+  font: 11px var(--mono);
+  cursor: pointer;
+}
+
+.proc-actions {
+  flex: none;
+  display: flex;
+  gap: 4px;
+}
+
+.proc-actions .settings-btn {
+  padding: 1px 8px;
+  font-size: 11px;
 }
 
 @media (prefers-reduced-motion: reduce) {

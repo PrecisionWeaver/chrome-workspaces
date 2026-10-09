@@ -28,6 +28,68 @@ export type NativeHostReply =
   | { ok: true; token: string; port: number }
   | { ok: false; error: string };
 
+/** One process in a workspace's shell tree. */
+export interface SystemProcess {
+  pid: number;
+  ppid: number;
+  command: string;
+  cpu: number;
+  rssKb: number;
+  /** Time since it started, as `ps` prints it, e.g. `01:23:45`. */
+  elapsed: string;
+  /** TCP ports it is listening on. */
+  ports: number[];
+}
+
+export interface SystemSession {
+  id: string;
+  name: string;
+  /** The shell's pid; null when no session is running for the workspace. */
+  pid: number | null;
+  status: WorkspaceStatus;
+  cwd: string;
+  cwdMissing: boolean;
+  claudeSessionId: string | null;
+  /** The shell and everything beneath it, shell first. */
+  processes: SystemProcess[];
+}
+
+export interface SystemSnapshot {
+  takenAt: string;
+  helper: {
+    pid: number;
+    uptimeSec: number;
+    rssKb: number;
+    port: number;
+    node: string;
+    commit: string | null;
+    /** Whether launchd runs and can restart it; false when started by hand. */
+    managed: boolean;
+    clients: number;
+    logPath: string;
+    configPath: string;
+    extensionId: string;
+  };
+  sessions: SystemSession[];
+  storage: { uploadsBytes: number; logBytes: number; dataBytes: number };
+  config: {
+    defaultCwd: string;
+    promptsFile: string;
+    defaultModel: string | null;
+    repoRoots: string[];
+    repoDirs: Record<string, string>;
+    watchRepos: string[];
+  };
+  reviews: { fetchedAt: string | null; count: number; error: string | null };
+}
+
+export type AdminAction =
+  /** Ends the workspace's shell and everything in it; it starts again, resuming the conversation, when opened. */
+  | { action: 'restartSession'; id: string }
+  /** Signals a process in a workspace's tree, and its descendants. */
+  | { action: 'killProcess'; id: string; pid: number; force?: boolean }
+  | { action: 'restartHelper' | 'stopHelper' | 'clearUploads' | 'clearLog' | 'pruneWorktrees' | 'checkGh' };
+
 export interface Workspace {
   /** `ws-<8 hex>`; also the id of its terminal session. */
   id: string;
@@ -207,6 +269,13 @@ export type ControlToClient =
   | { type: 'browser'; id: string; at: number }
   /** Reply to `listPrompts`, sent only to the client that asked. */
   | { type: 'prompts'; prompts: Prompt[]; error: string | null }
+  /** Reply to `system`, to the client that asked. */
+  | { type: 'system'; snapshot: SystemSnapshot | null; error: string | null }
+  | { type: 'adminResult'; action: string; ok: boolean; message: string }
+  | { type: 'systemLog'; text: string }
+  | { type: 'exportData'; json: string }
+  /** The workspace's session was replaced; a panel attached to it should attach again. */
+  | { type: 'sessionReset'; id: string }
   /** Reply to `listRepos`, sent only to the client that asked. */
   | { type: 'repos'; repos: Repo[] }
   /** Reply to `git`, to the client that asked; `state` is null when the workspace is not in a git repository. */
@@ -230,6 +299,11 @@ export type ControlToHelper =
   | { type: 'move'; id: string; index: number }
   | { type: 'listPrompts' }
   | { type: 'listRepos' }
+  /** A snapshot of the helper, the workspaces' sessions and their processes. */
+  | { type: 'system' }
+  | { type: 'admin'; request: AdminAction }
+  | { type: 'systemLog' }
+  | { type: 'exportData' }
   /** Status and recent history of the workspace's repository. */
   | { type: 'git'; id: string }
   | { type: 'gitCommit'; id: string; sha: string }

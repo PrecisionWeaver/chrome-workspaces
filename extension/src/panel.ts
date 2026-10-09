@@ -6,6 +6,7 @@ import { connectControl, getHelper, openSocket } from './helper-client';
 import { createCreateView } from './create-view';
 import { attachFileDrop } from './file-drop';
 import { createGitView } from './git-view';
+import { createSettingsView } from './settings-view';
 import { makeSectionsResizable } from './sections';
 import { openInWorkspace } from './tabs';
 import { createLauncher } from './launcher';
@@ -37,6 +38,15 @@ const control = connectControl(
   (message) => {
     if (message.type === 'prompts') creator.setPrompts(message.prompts, message.error);
     if (message.type === 'repos') creator.setRepos(message.repos);
+    if (message.type === 'system') settings.setSystem(message);
+    if (message.type === 'adminResult') settings.setResult(message);
+    if (message.type === 'systemLog') settings.setLog(message.text);
+    if (message.type === 'exportData') settings.download(message.json);
+    if (message.type === 'sessionReset' && attachedId === message.id) {
+      // The helper replaced this workspace's session; attach to the new one.
+      detach();
+      render();
+    }
     if (message.type === 'git') git.setState(message);
     if (message.type === 'gitCommit') git.setCommit(message);
     if (message.type === 'gitDiff') git.setDiff(message);
@@ -72,7 +82,10 @@ const launcher = createLauncher({
 const creator = createCreateView({
   send,
   onToggle() {
-    if (creator.isOpen) git.close();
+    if (creator.isOpen) {
+      git.close();
+      settings.close();
+    }
     render();
   },
   here,
@@ -81,10 +94,24 @@ const git = createGitView({
   send,
   status: (id) => statuses[id] ?? null,
   onToggle() {
-    if (git.isOpen) creator.close();
+    if (git.isOpen) {
+      creator.close();
+      settings.close();
+    }
     render();
   },
 });
+const settings = createSettingsView({
+  send,
+  onToggle() {
+    if (settings.isOpen) {
+      creator.close();
+      git.close();
+    }
+    render();
+  },
+});
+$<HTMLButtonElement>('settings-open').addEventListener('click', () => (settings.isOpen ? settings.close() : settings.show()));
 
 // Which workspace this window shows when it holds several; chosen from the list, or by the tab being worked in.
 let selection: Selection = {};
@@ -158,11 +185,12 @@ function render(): void {
     shownId = workspace?.id;
     creator.close();
     git.close();
+    settings.close();
   }
   shownId = workspace?.id;
   git.setWorkspace(workspace);
   git.renderStatus();
-  const overlay = creator.isOpen || git.isOpen;
+  const overlay = creator.isOpen || git.isOpen || settings.isOpen;
   pickerEl.hidden = overlay || workspace !== undefined;
   terminalEl.hidden = overlay || workspace === undefined;
   if (workspace) attach(workspace);

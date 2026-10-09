@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import WebSocket from 'ws';
 import { PROTOCOL, TOKEN_PROTOCOL_PREFIX, type ControlToClient, type Prompt, type Repo, type ReviewRequest, type WorkspaceStatus } from '../../shared/protocol';
 import { createApi } from '../src/api';
+import { createAdmin } from '../src/admin';
 import { ControlHub } from '../src/control';
 import { createGitService } from '../src/git';
 import { startServer, type RunningServer } from '../src/server';
@@ -30,6 +31,12 @@ export interface Harness {
   repos: Repo[];
   /** Where each workspace's claude reports working, by workspace id. */
   workingDirs: Record<string, string>;
+  /** Commands the admin service started detached, instead of running them. */
+  spawned: string[];
+  /** Whether the fake launchd manages the helper. */
+  managed: boolean;
+  /** Where uploads, the log and the data folder are for admin tests. */
+  dataDir: string;
   /** What the fake `gh pr view` returns; null makes it fail with "gh failed". */
   prDetailsJson: string | null;
   prDetailsRequests: string[];
@@ -51,6 +58,9 @@ export async function startHarness(): Promise<Harness> {
     repoDirs: {} as Record<string, string>,
     repos: [] as Repo[],
     workingDirs: {} as Record<string, string>,
+    spawned: [] as string[],
+    managed: true,
+    dataDir: dir,
     prDetailsJson: null as string | null,
     prDetailsRequests: [] as string[],
   };
@@ -70,7 +80,19 @@ export async function startHarness(): Promise<Harness> {
     return fakes.prompts;
   };
   const statuses = () => fakes.statuses;
-  const control = new ControlHub({ store, sessions, defaultCwd, statuses, reviews, prompts, prDetails, repoDirs: fakes.repoDirs, repos: () => fakes.repos, git: createGitService(), workingDir: (id) => fakes.workingDirs[id] ?? null });
+  const admin = createAdmin({
+    sessions,
+    store,
+    config: { extensionId: 'abcdefghijklmnopabcdefghijklmnop', defaultCwd, promptsFile: '/p.md', defaultModel: null, repoRoots: [], repoDirs: {}, watchRepos: [] },
+    paths: { dataDir: dir, uploadDir: join(dir, 'uploads'), logFile: join(dir, 'helper.log'), configFile: join(dir, 'config.json'), workspacesFile: join(dir, 'workspaces.json') },
+    port: 4178,
+    commit: 'abc1234',
+    status: (id) => ({ status: fakes.statuses[id] ?? null, claudeSessionId: null }),
+    runShell: async (command) => ({ output: `ran: ${command}`, ok: true }),
+    spawnDetached: (command) => fakes.spawned.push(command),
+    isManaged: async () => fakes.managed,
+  });
+  const control = new ControlHub({ store, sessions, defaultCwd, statuses, reviews, prompts, prDetails, repoDirs: fakes.repoDirs, repos: () => fakes.repos, git: createGitService(), admin, workingDir: (id) => fakes.workingDirs[id] ?? null });
   const auth = { token: TOKEN, allowedOrigins: [ORIGIN] };
   const server = await startServer({
     host: '127.0.0.1',
