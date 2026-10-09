@@ -3,6 +3,7 @@ import { closeSync, existsSync, fstatSync, openSync, readdirSync, readSync, rmSy
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { findWarnings } from '../../shared/guardrails';
+import { costOf, isRealModel, rateFor } from '../../shared/pricing';
 import type { AdminAction, ReviewsState, SystemSnapshot, WorkspaceStatus } from '../../shared/protocol';
 import type { HelperConfig } from './config';
 import type { SessionManager } from './session';
@@ -76,6 +77,20 @@ export async function defaultIsManaged(): Promise<boolean> {
   }
 }
 
+const TREND_DAYS = 14;
+
+/** The last two weeks, oldest first, with a day that had no usage shown as zero so the trend has no gaps. */
+export function usageTrend(dayTotals: ReadonlyMap<string, { tokens: number; costUsd: number }>, counting: boolean, unpriced: string[] = [], now = new Date()): SystemSnapshot['usage'] {
+  const daily: SystemSnapshot['usage']['daily'] = [];
+  for (let back = TREND_DAYS - 1; back >= 0; back--) {
+    const day = new Date(now.getTime() - back * 86_400_000).toISOString().slice(0, 10);
+    daily.push({ day, ...(dayTotals.get(day) ?? { tokens: 0, costUsd: 0 }) });
+  }
+  let costUsd = 0;
+  for (const total of dayTotals.values()) costUsd += total.costUsd;
+  return { daily, costUsd, todayUsd: daily[daily.length - 1].costUsd, counting, unpriced };
+}
+
 export function createAdmin(options: AdminOptions): AdminService {
   const { sessions, store, config, paths } = options;
   const readProcs = options.processes ?? readProcesses;
@@ -130,6 +145,10 @@ export function createAdmin(options: AdminOptions): AdminService {
       const [procs, listening, managed] = await Promise.all([readProcs(), readListening(), options.isManaged()]);
       const snapshotSessions = store.list();
       tokens.keepOnly(snapshotSessions.flatMap((ws) => options.transcript(ws.id) ?? []));
+      // Every counted transcript's usage by model and day, for the trend across workspaces.
+      const dayTotals = new Map<string, { tokens: number; costUsd: number }>();
+      let counting = false;
+      const unpriced = new Set<string>();
       const sessionRows = snapshotSessions.map((ws) => {
         const pid = sessions.get(ws.id)?.pid ?? null;
         const live = options.status(ws.id);
@@ -137,6 +156,20 @@ export function createAdmin(options: AdminOptions): AdminService {
         // Counting a large transcript the first time takes a while, so it runs behind the answer.
         if (transcript) void tokens.refresh(transcript);
         const counted = transcript ? tokens.peek(transcript) : null;
+        let costUsd = 0;
+        for (const bucket of counted?.buckets ?? []) {
+          const cost = costOf(bucket.usage, bucket.model, config.pricing);
+          if (isRealModel(bucket.model) && !rateFor(bucket.model, config.pricing)) unpriced.add(bucket.model);
+          costUsd += cost;
+          if (bucket.day) {
+            const day = dayTotals.get(bucket.day) ?? { tokens: 0, costUsd: 0 };
+            // New work only, as everywhere else: cache reads repeat earlier input.
+            day.tokens += bucket.usage.input + bucket.usage.output + bucket.usage.cacheWrite;
+            day.costUsd += cost;
+            dayTotals.set(bucket.day, day);
+          }
+        }
+        if (counted?.scanning) counting = true;
         return {
           id: ws.id,
           name: ws.name,
@@ -145,7 +178,7 @@ export function createAdmin(options: AdminOptions): AdminService {
           cwd: ws.cwd,
           cwdMissing: !existsSync(ws.cwd),
           claudeSessionId: live.claudeSessionId,
-          tokens: counted ? { ...counted.totals, counting: counted.scanning } : null,
+          tokens: counted ? { ...counted.totals, counting: counted.scanning, costUsd } : null,
           processes: pid === null ? [] : subtree(procs, pid).map((p) => toSystemProcess(p, listening)),
         };
       });
@@ -165,6 +198,7 @@ export function createAdmin(options: AdminOptions): AdminService {
           extensionId: config.extensionId,
         },
         sessions: sessionRows,
+        usage: usageTrend(dayTotals, counting, [...unpriced].sort()),
         warnings: findWarnings(sessionRows, config.limits),
         storage: { uploadsBytes: pathBytes(paths.uploadDir), logBytes: pathBytes(paths.logFile), dataBytes: pathBytes(paths.dataDir) },
         config: {
@@ -175,6 +209,7 @@ export function createAdmin(options: AdminOptions): AdminService {
           repoDirs: config.repoDirs,
           watchRepos: config.watchRepos,
           limits: config.limits,
+          pricing: config.pricing,
         },
         reviews: { fetchedAt: reviews.fetchedAt, count: reviews.items.length, error: reviews.error },
         setup: { promptsFileExists: existsSync(config.promptsFile), repoRoots: config.repoRoots.map((path) => ({ path, exists: existsSync(path) })) },

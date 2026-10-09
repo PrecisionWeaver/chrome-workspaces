@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { ControlToClient } from '../../shared/protocol';
 import { readProcesses, subtree } from '../src/system';
+import { usageTrend } from '../src/admin';
 import { connectControl, opened, startHarness, type Harness } from './harness';
 import { waitFor } from './wait-for';
 
@@ -89,7 +90,8 @@ describe('session tokens', () => {
       }
       await new Promise((resolve) => setTimeout(resolve, 20));
     }
-    expect(tokens).toEqual({ input: 6, output: 75, cacheWrite: 200, cacheRead: 2000, counting: false });
+    // That transcript names no model, so there is no rate to price it with.
+    expect(tokens).toEqual({ input: 6, output: 75, cacheWrite: 200, cacheRead: 2000, counting: false, costUsd: 0 });
   });
 });
 
@@ -102,6 +104,45 @@ describe('warnings', () => {
     expect(reply.snapshot.warnings).toEqual([]);
     expect(reply.snapshot.config.limits).toEqual({ memoryWarnMb: 4096, idleServerHours: 4 });
     ws.close();
+  });
+});
+
+describe('usage and cost', () => {
+  it('prices a transcript by its model and puts each day in the trend, with quiet days as zero', async () => {
+    const workspace = h.store.create({ name: 'priced', cwd: h.defaultCwd });
+    const file = join(mkdtempSync(join(tmpdir(), 'cw-adm-cost-')), 't.jsonl');
+    const today = new Date().toISOString().slice(0, 10);
+    const msg = (id: string, out: number) => JSON.stringify({ type: 'assistant', timestamp: `${today}T10:00:00.000Z`, message: { id, model: 'claude-opus-5-5', usage: { input_tokens: 1_000_000, output_tokens: out, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } } });
+    writeFileSync(file, [msg('a', 1_000_000), msg('a', 1_000_000)].join('\n') + '\n');
+    h.transcripts[workspace.id] = file;
+
+    for (let i = 0; i < 50; i++) {
+      const { ws, reply } = await ask({ type: 'system' }, 'system');
+      ws.close();
+      if (reply.type !== 'system' || !reply.snapshot) throw new Error('no snapshot');
+      const mine = reply.snapshot.sessions.find((x) => x.id === workspace.id)!;
+      if (mine.tokens && !mine.tokens.counting && mine.tokens.output > 0) {
+        // The harness prices opus at $10 in and $50 out per million: $10 + $50 for one counted message.
+        expect(mine.tokens.costUsd).toBeCloseTo(60);
+        expect(reply.snapshot.usage.daily).toHaveLength(14);
+        expect(reply.snapshot.usage.daily.at(-1)).toMatchObject({ day: today, tokens: 2_000_000 });
+        expect(reply.snapshot.usage.daily[0].tokens).toBe(0);
+        expect(reply.snapshot.usage).toMatchObject({ costUsd: expect.closeTo(60), todayUsd: expect.closeTo(60), unpriced: [] });
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    throw new Error('the transcript was never counted');
+  });
+
+  it('builds a 14-day series ending today, and sums every day\'s cost', () => {
+    const now = new Date('2026-10-09T12:00:00Z');
+    const trend = usageTrend(new Map([['2026-10-09', { tokens: 5, costUsd: 2 }], ['2026-10-01', { tokens: 3, costUsd: 1.5 }], ['2025-01-01', { tokens: 9, costUsd: 4 }]]), true, ['mystery-1'], now);
+    expect(trend.daily[0].day).toBe('2026-09-26');
+    expect(trend.daily.at(-1)).toEqual({ day: '2026-10-09', tokens: 5, costUsd: 2 });
+    expect(trend.daily.find((d) => d.day === '2026-10-01')).toMatchObject({ tokens: 3 });
+    // The total includes older days too; only the chart shows two weeks.
+    expect(trend).toMatchObject({ costUsd: 7.5, todayUsd: 2, counting: true, unpriced: ['mystery-1'] });
   });
 });
 

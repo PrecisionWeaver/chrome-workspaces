@@ -82,7 +82,7 @@ export interface SystemSession {
   cwdMissing: boolean;
   claudeSessionId: string | null;
   /** What its claude session has used, counted from the transcript; null when there is none. `counting` while the first read is still running. */
-  tokens: (TokenTotals & { counting: boolean }) | null;
+  tokens: (TokenTotals & { counting: boolean; costUsd: number }) | null;
   /** The shell and everything beneath it, shell first. */
   processes: SystemProcess[];
 }
@@ -113,7 +113,10 @@ export interface SystemSnapshot {
     repoDirs: Record<string, string>;
     watchRepos: string[];
     limits: { memoryWarnMb: number; idleServerHours: number };
+    pricing: Record<string, { input: number; output: number }>;
   };
+  /** Tokens and estimated cost across every workspace, by day (UTC), oldest first; see `shared/pricing.ts`. */
+  usage: { daily: { day: string; tokens: number; costUsd: number }[]; costUsd: number; todayUsd: number; counting: boolean; /** Models used that have no rate, so are missing from the cost. */ unpriced: string[] };
   /** Workspaces using a lot of memory, and servers left running; see `findWarnings`. */
   warnings: GuardrailWarning[];
   reviews: { fetchedAt: string | null; count: number; error: string | null };

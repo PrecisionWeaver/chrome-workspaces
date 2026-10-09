@@ -1,6 +1,7 @@
 import type { AdminAction, ControlToClient, ControlToHelper, SystemProcess, SystemSession, SystemSnapshot, TokenTotals } from '../../shared/protocol';
 import { el } from './dom';
 import { DENSITIES, THEMES } from '../../shared/keynav';
+import { formatUsd } from '../../shared/pricing';
 import { buildChecklist, remaining, type SetupItem } from '../../shared/onboarding';
 import { loadPrefs, normalizePrefs, savePrefs, type Prefs } from './prefs';
 
@@ -221,8 +222,9 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
     if (status) summary.append(status);
     if (session.cwdMissing) summary.append(el('span', 'directory missing', 'chip bad'));
     if (session.tokens) {
-      const tokens = el('span', session.tokens.counting ? 'counting tokens…' : `${formatTokens(newTokens(session.tokens))} tokens`, 'session-tokens');
-      tokens.title = `${tokenBreakdown(session.tokens)}\nCache reads are repeats of earlier input, so they are not in the headline figure.`;
+      const cost = session.tokens.costUsd > 0 ? ` · ~${formatUsd(session.tokens.costUsd)}` : '';
+      const tokens = el('span', session.tokens.counting ? 'counting tokens…' : `${formatTokens(newTokens(session.tokens))} tokens${cost}`, 'session-tokens');
+      tokens.title = `${tokenBreakdown(session.tokens)}\nCache reads are repeats of earlier input, so they are not in the headline figure.${cost ? '\nThe dollar figure is an estimate, using the rates under "pricing" in the config.' : ''}`;
       summary.append(tokens);
     }
     summary.append(
@@ -284,6 +286,7 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       row('Repo folders', mono(config.repoRoots.join('\n') || 'none')),
       row('Repo directories', mono(map(config.repoDirs))),
       row('Watched repos', mono(config.watchRepos.join('\n') || 'none')),
+      row('Prices', mono(Object.entries(config.pricing).map(([family, r]) => `${family}: $${r.input} in / $${r.output} out`).join('\n'))),
       row('Warn above', `${config.limits.memoryWarnMb} MB per workspace · servers idle ${config.limits.idleServerHours} h`),
     );
   }
@@ -327,6 +330,31 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       switchShortcut,
       workspaceCount: s.sessions.length,
     });
+  }
+
+  function usageCard(s: SystemSnapshot): HTMLElement {
+    const { daily, costUsd, todayUsd } = s.usage;
+    const peak = Math.max(1, ...daily.map((d) => d.tokens));
+    const chart = el('div', '', 'usage-chart');
+    for (const day of daily) {
+      const bar = el('div', '', 'usage-bar');
+      const fill = el('span', '', 'usage-fill');
+      // A day with any use shows a sliver, so it is not mistaken for a quiet one.
+      fill.style.height = `${day.tokens > 0 ? Math.max(4, (day.tokens / peak) * 100) : 0}%`;
+      bar.title = `${day.day}\n${formatTokens(day.tokens)} tokens${day.costUsd > 0 ? ` · ~${formatUsd(day.costUsd)}` : ''}`;
+      bar.append(fill);
+      chart.append(bar);
+    }
+    const rates = Object.entries(s.config.pricing).map(([family, r]) => `${family} $${r.input}/$${r.output}`).join(', ');
+    return card(
+      'Usage',
+      chart,
+      row('Today', `${formatTokens(daily[daily.length - 1].tokens)} tokens${todayUsd > 0 ? ` · ~${formatUsd(todayUsd)}` : ''}`),
+      row('Last 14 days', `${formatTokens(daily.reduce((sum, d) => sum + d.tokens, 0))} tokens`),
+      row('Since sessions began', `~${formatUsd(costUsd)} estimated${s.usage.counting ? ' (still counting…)' : ''}`, 'Across every workspace transcript still on disk'),
+      ...(s.usage.unpriced.length ? [el('p', `No rate for ${s.usage.unpriced.join(', ')}, so ${s.usage.unpriced.length === 1 ? 'it is' : 'they are'} missing from the cost. Add ${s.usage.unpriced.length === 1 ? 'it' : 'them'} under "pricing" in the config.`, 'settings-note warn')] : []),
+      el('p', `Dollar figures are estimates. Rates (per million tokens, input/output): ${rates}. Cache writes cost 1.25× input and cache reads 0.1×. Set "pricing" in the config to correct them.`, 'settings-note'),
+    );
   }
 
   function setupCard(s: SystemSnapshot): HTMLElement | null {
@@ -404,7 +432,7 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       body.replaceChildren(el('div', error ? `Could not read the system: ${error}` : 'Loading…', 'settings-empty'));
       return;
     }
-    body.replaceChildren(...[setupCard(snapshot), warningsCard(snapshot)].filter((card): card is HTMLElement => card !== null), preferencesCard(), helperCard(snapshot), sessionsCard(snapshot), housekeepingCard(snapshot), configCard(snapshot), diagnosticsCard(snapshot));
+    body.replaceChildren(...[setupCard(snapshot), warningsCard(snapshot)].filter((card): card is HTMLElement => card !== null), preferencesCard(), helperCard(snapshot), usageCard(snapshot), sessionsCard(snapshot), housekeepingCard(snapshot), configCard(snapshot), diagnosticsCard(snapshot));
     body.scrollTop = scroll;
   }
 

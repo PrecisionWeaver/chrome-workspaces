@@ -2290,6 +2290,10 @@ body.collapsed .list-empty {
   line-height: 1.5;
 }
 
+.settings-note.warn {
+  color: var(--wait);
+}
+
 .settings-empty {
   color: var(--faint);
 }
@@ -2357,6 +2361,34 @@ body.collapsed .list-empty {
   margin-left: 22px;
   color: var(--faint);
   line-height: 1.45;
+}
+
+.usage-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 56px;
+  margin-bottom: 8px;
+}
+
+.usage-bar {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  background: var(--bg);
+  border-radius: 3px;
+}
+
+.usage-fill {
+  display: block;
+  width: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+}
+
+.usage-bar:last-child .usage-fill {
+  background: var(--working);
 }
 
 .setup-row {

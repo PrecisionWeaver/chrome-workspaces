@@ -4,12 +4,26 @@ import type { TokenTotals } from '../../shared/protocol';
 
 const CHUNK_BYTES = 4 * 1024 * 1024;
 
+/** One assistant message's usage, with the model that produced it and the day it was written (UTC). */
+interface Counted {
+  usage: TokenTotals;
+  model: string;
+  day: string;
+}
+
+/** Usage split by model and day, e.g. for pricing and a trend. */
+export interface UsageBucket {
+  model: string;
+  day: string;
+  usage: TokenTotals;
+}
+
 interface Tracked {
   offset: number;
   carry: string;
   decoder: StringDecoder;
   /** Each assistant message's usage once: claude writes a message several times as it streams. */
-  byMessage: Map<string, TokenTotals>;
+  byMessage: Map<string, Counted>;
   totals: TokenTotals;
   /** Whether the whole file has been counted at least once. */
   counted: boolean;
@@ -20,15 +34,32 @@ interface Tracked {
 
 const zero = (): TokenTotals => ({ input: 0, output: 0, cacheWrite: 0, cacheRead: 0 });
 
+/** Messages grouped by model and day, which is all that pricing and a trend need. */
+function bucketsOf(messages: ReadonlyMap<string, Counted>): UsageBucket[] {
+  const buckets = new Map<string, UsageBucket>();
+  for (const { model, day, usage } of messages.values()) {
+    const key = `${model}|${day}`;
+    const bucket = buckets.get(key) ?? { model, day, usage: zero() };
+    bucket.usage.input += usage.input;
+    bucket.usage.output += usage.output;
+    bucket.usage.cacheWrite += usage.cacheWrite;
+    bucket.usage.cacheRead += usage.cacheRead;
+    buckets.set(key, bucket);
+  }
+  return [...buckets.values()];
+}
+
 interface UsageLine {
+  timestamp?: string;
   message?: {
     id?: string;
+    model?: string;
     usage?: { input_tokens?: number; output_tokens?: number; cache_creation_input_tokens?: number; cache_read_input_tokens?: number };
   };
 }
 
 /** The usage a transcript line carries, with the id of the message it belongs to; null for any other line. */
-export function usageFromLine(line: string): { id: string; usage: TokenTotals } | null {
+export function usageFromLine(line: string): { id: string; usage: TokenTotals; model: string; day: string } | null {
   // Most lines carry none, and parsing every line of a large transcript is the cost to avoid.
   if (!line.includes('"usage"')) return null;
   let parsed: UsageLine;
@@ -37,12 +68,15 @@ export function usageFromLine(line: string): { id: string; usage: TokenTotals } 
   } catch {
     return null;
   }
-  const { id, usage } = parsed.message ?? {};
+  const { id, usage, model } = parsed.message ?? {};
   if (typeof id !== 'string' || !usage) return null;
   const n = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : 0);
   return {
     id,
     usage: { input: n(usage.input_tokens), output: n(usage.output_tokens), cacheWrite: n(usage.cache_creation_input_tokens), cacheRead: n(usage.cache_read_input_tokens) },
+    model: typeof model === 'string' ? model : '',
+    // The timestamp is ISO 8601 in UTC, so its first ten characters are the day.
+    day: typeof parsed.timestamp === 'string' && /^\d{4}-\d{2}-\d{2}/.test(parsed.timestamp) ? parsed.timestamp.slice(0, 10) : '',
   };
 }
 
@@ -56,11 +90,11 @@ export class TranscriptTokens {
   constructor(private readonly chunkBytes = CHUNK_BYTES) {}
 
   /** What has been counted so far, and whether the first full read is still running; null if the file was never asked about. */
-  peek(path: string): { totals: TokenTotals; scanning: boolean } | null {
+  peek(path: string): { totals: TokenTotals; scanning: boolean; buckets: UsageBucket[] } | null {
     const t = this.tracked.get(path);
     // A transcript that cannot be read, and has never been counted, has no figure to show.
     if (!t || (t.failed && t.byMessage.size === 0)) return null;
-    return { totals: { ...t.totals }, scanning: !t.counted };
+    return { totals: { ...t.totals }, scanning: !t.counted, buckets: bucketsOf(t.byMessage) };
   }
 
   /** Counts what was appended since the last scan; resolves when it is up to date. */
@@ -118,19 +152,25 @@ export class TranscriptTokens {
           if (!found) continue;
           const seen = t.byMessage.get(found.id);
           // A message repeated while streaming grows; the largest of each figure is its final usage.
-          t.byMessage.set(found.id, seen ? {
-            input: Math.max(seen.input, found.usage.input),
-            output: Math.max(seen.output, found.usage.output),
-            cacheWrite: Math.max(seen.cacheWrite, found.usage.cacheWrite),
-            cacheRead: Math.max(seen.cacheRead, found.usage.cacheRead),
-          } : found.usage);
+          t.byMessage.set(found.id, {
+            model: found.model || seen?.model || '',
+            day: found.day || seen?.day || '',
+            usage: seen
+              ? {
+                  input: Math.max(seen.usage.input, found.usage.input),
+                  output: Math.max(seen.usage.output, found.usage.output),
+                  cacheWrite: Math.max(seen.usage.cacheWrite, found.usage.cacheWrite),
+                  cacheRead: Math.max(seen.usage.cacheRead, found.usage.cacheRead),
+                }
+              : found.usage,
+          });
         }
       }
     } finally {
       await file.close();
     }
     const totals = zero();
-    for (const u of t.byMessage.values()) {
+    for (const { usage: u } of t.byMessage.values()) {
       totals.input += u.input;
       totals.output += u.output;
       totals.cacheWrite += u.cacheWrite;

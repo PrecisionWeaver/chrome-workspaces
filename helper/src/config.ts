@@ -2,6 +2,7 @@ import { readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { DEFAULT_LIMITS, type Limits } from '../../shared/guardrails';
+import { mergePricing, type Pricing } from '../../shared/pricing';
 import { MODEL_PATTERN } from '../../shared/protocol';
 
 export const HOST = '127.0.0.1';
@@ -20,6 +21,8 @@ export interface HelperConfig {
   defaultModel: string | null;
   /** When Settings warns about a workspace using a lot of memory, or a server left running. */
   limits: Limits;
+  /** Dollars per million tokens by model family, for the cost estimates. */
+  pricing: Pricing;
   /** Folders whose git repos can be picked as the start of a new workspace. */
   repoRoots: string[];
   /** `owner/name` to the directory PR workspaces for that repo start in. */
@@ -40,6 +43,7 @@ export function loadConfig(): HelperConfig {
     defaultCwd: raw.defaultCwd ?? homedir(),
     promptsFile: expandHome(raw.promptsFile ?? DEFAULT_PROMPTS_FILE),
     defaultModel: raw.defaultModel && MODEL_PATTERN.test(raw.defaultModel) ? raw.defaultModel : null,
+    pricing: mergePricing((raw as { pricing?: unknown }).pricing),
     limits: {
       memoryWarnMb: positive(raw.limits?.memoryWarnMb) ?? DEFAULT_LIMITS.memoryWarnMb,
       idleServerHours: positive(raw.limits?.idleServerHours) ?? DEFAULT_LIMITS.idleServerHours,
