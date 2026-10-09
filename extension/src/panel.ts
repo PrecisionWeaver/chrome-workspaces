@@ -145,10 +145,20 @@ function showNotice(text: string | null): void {
 
 // ---- list ----
 
+// The workspace the last render showed; the views over the terminal belong to it.
+let shownId: string | undefined;
+
 function render(): void {
   renderList();
   launcher.renderReviews(reviews, workspaces);
   const workspace = current();
+  // Switching workspaces returns to the terminal: the new-workspace, review and diff views are left behind.
+  if (shownId !== undefined && workspace?.id !== shownId) {
+    shownId = workspace?.id;
+    creator.close();
+    git.close();
+  }
+  shownId = workspace?.id;
   git.setWorkspace(workspace);
   git.renderStatus();
   const overlay = creator.isOpen || git.isOpen;
