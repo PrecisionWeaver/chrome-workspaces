@@ -2440,6 +2440,27 @@ body.collapsed .list-empty {
   line-height: 1.45;
 }
 
+.update-commits {
+  margin: 6px 0 4px;
+  padding: 6px 10px;
+  max-height: 160px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+
+.update-commit {
+  font: 11px/1.6 var(--mono);
+  white-space: pre;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.update-commit.more {
+  color: var(--faint);
+}
+
 .usage-chart {
   display: flex;
   align-items: flex-end;

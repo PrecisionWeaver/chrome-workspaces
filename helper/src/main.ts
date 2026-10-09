@@ -1,5 +1,5 @@
 import { execFile, execFileSync } from 'node:child_process';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import type { WorkspaceStatus } from '../../shared/protocol';
 import { createAdmin, defaultIsManaged, defaultRunShell, defaultSpawnDetached } from './admin';
@@ -64,6 +64,7 @@ const admin = createAdmin({
   config,
   paths: { dataDir: DATA_DIR, uploadDir: join(DATA_DIR, 'uploads'), logFile: join(DATA_DIR, 'helper.log'), configFile: join(DATA_DIR, 'config.json'), workspacesFile: join(DATA_DIR, 'workspaces.json') },
   port: PORT,
+  repoDir: resolve(import.meta.dirname, '..', '..'),
   commit: (() => {
     try {
       return execFileSync('git', ['rev-parse', '--short', 'HEAD'], { encoding: 'utf8', timeout: 3000 }).trim();

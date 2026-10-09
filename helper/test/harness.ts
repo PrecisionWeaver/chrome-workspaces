@@ -34,6 +34,8 @@ export interface Harness {
   workingDirs: Record<string, string>;
   /** Commands the admin service started detached, instead of running them. */
   spawned: string[];
+  /** The folder the fake admin updates; null means it is not a git checkout. */
+  repoDir: string | null;
   /** What the fake review-threads query returns; null makes it fail. */
   prThreadsJson: string | null;
   prThreadRequests: string[];
@@ -69,6 +71,7 @@ export async function startHarness(): Promise<Harness> {
     repos: [] as Repo[],
     workingDirs: {} as Record<string, string>,
     spawned: [] as string[],
+    repoDir: null as string | null,
     prThreadsJson: null as string | null,
     prThreadRequests: [] as string[],
     branchPrJson: null as string | null,
@@ -101,6 +104,10 @@ export async function startHarness(): Promise<Harness> {
     config: { extensionId: 'abcdefghijklmnopabcdefghijklmnop', defaultCwd, promptsFile: '/p.md', defaultModel: null, limits: { memoryWarnMb: 4096, idleServerHours: 4 }, pricing: { opus: { input: 10, output: 50 } }, jiraBaseUrl: null, repoRoots: [], repoDirs: {}, watchRepos: [] },
     paths: { dataDir: dir, uploadDir: join(dir, 'uploads'), logFile: join(dir, 'helper.log'), configFile: join(dir, 'config.json'), workspacesFile: join(dir, 'workspaces.json') },
     port: 4178,
+    // Read when used, so a test can point the admin service at a repository after it starts.
+    get repoDir() {
+      return fakes.repoDir;
+    },
     commit: 'abc1234',
     status: (id) => ({ status: fakes.statuses[id] ?? null, claudeSessionId: null }),
     transcript: (id) => fakes.transcripts[id] ?? null,

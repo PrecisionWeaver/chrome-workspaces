@@ -71,6 +71,7 @@ const control = connectControl(
       renderList();
     }
     if (message.type === 'timeline') settings.setTimeline(message);
+    if (message.type === 'updates') settings.setUpdates(message);
     if (message.type === 'system') {
       settings.setSystem(message);
       jiraBase = message.snapshot?.config.jiraBaseUrl ?? jiraBase;

@@ -214,6 +214,12 @@ export class ControlHub {
       case 'exportData':
         this.sendTo(ws, { type: 'exportData', json: this.options.admin.exportData() });
         break;
+      case 'checkUpdates':
+        this.options.admin.checkUpdates().then(
+          (status) => this.sendTo(ws, { type: 'updates', status, error: null }),
+          (error: unknown) => this.sendTo(ws, { type: 'updates', status: null, error: error instanceof Error ? error.message : String(error) }),
+        );
+        break;
       case 'git':
       case 'gitCommit':
       case 'gitDiff':
@@ -388,7 +394,7 @@ function isPathList(value: unknown): boolean {
   return Array.isArray(value) && value.length <= 500 && value.every((p) => typeof p === 'string' && p.length > 0 && p.length <= 1024);
 }
 
-const PLAIN_ACTIONS = new Set(['restartHelper', 'stopHelper', 'clearUploads', 'clearLog', 'pruneWorktrees', 'checkGh']);
+const PLAIN_ACTIONS = new Set(['applyUpdate', 'restartHelper', 'stopHelper', 'clearUploads', 'clearLog', 'pruneWorktrees', 'checkGh']);
 
 function isAdminAction(value: unknown): boolean {
   if (typeof value !== 'object' || value === null) return false;
@@ -454,6 +460,7 @@ function isControlToHelper(value: unknown): value is ControlToHelper {
     case 'system':
     case 'systemLog':
     case 'exportData':
+    case 'checkUpdates':
       return true;
     case 'admin':
       return isAdminAction(m.request);

@@ -1,5 +1,5 @@
 import type { TimelineEvent } from '../../shared/timeline';
-import type { AdminAction, ControlToClient, ControlToHelper, SystemProcess, SystemSession, SystemSnapshot, TokenTotals } from '../../shared/protocol';
+import type { AdminAction, ControlToClient, ControlToHelper, SystemProcess, SystemSession, SystemSnapshot, TokenTotals, UpdateStatus } from '../../shared/protocol';
 import { el } from './dom';
 import { DENSITIES, THEMES } from '../../shared/keynav';
 import { formatUsd } from '../../shared/pricing';
@@ -24,6 +24,7 @@ export interface SettingsView {
   /** How many setup steps are still open, 0 once everything is done or the checklist is dismissed. */
   readonly setupRemaining: number;
   setTimeline(message: Extract<ControlToClient, { type: 'timeline' }>): void;
+  setUpdates(message: Extract<ControlToClient, { type: 'updates' }>): void;
   setResult(message: Extract<ControlToClient, { type: 'adminResult' }>): void;
   setLog(text: string): void;
   download(json: string): void;
@@ -72,6 +73,8 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
   let pollTimer: ReturnType<typeof setInterval> | undefined;
   let resultTimer: ReturnType<typeof setTimeout> | undefined;
   let logText: string | null = null;
+  // The last update check: its answer, whether one is running, and whether an update has just been applied.
+  let updates: { status: UpdateStatus | null; error: string | null; checking: boolean; applied: boolean } | null = null;
   let prefs: Prefs = normalizePrefs(undefined);
   // Read once per snapshot; the shortcut is a browser setting the helper cannot see.
   let switchShortcut = '';
@@ -378,6 +381,44 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
     });
   }
 
+  function updatesCard(): HTMLElement {
+    const check = plain(updates?.checking ? 'Checking…' : 'Check for updates', () => {
+      updates = { status: updates?.status ?? null, error: null, checking: true, applied: false };
+      send({ type: 'checkUpdates' });
+      render();
+    }, 'Fetches from the remote; nothing is changed');
+    check.disabled = updates?.checking === true;
+
+    const children: Node[] = [];
+    const { status, error } = updates ?? { status: null, error: null };
+    if (updates?.applied) {
+      const reload = plain('Reload extension', () => chrome.runtime.reload(), 'Finishes the update: the new panel code loads');
+      children.push(el('p', 'Updated. The helper is restarting, so every terminal ends; reload the extension to load the new panel.', 'settings-note'), actions(reload));
+    } else if (error) {
+      children.push(el('p', `Could not check: ${error}`, 'settings-note warn'), actions(check));
+    } else if (status) {
+      children.push(row('Running', `${status.current} on ${status.branch}${status.upstream ? ` (tracks ${status.upstream})` : ''}`));
+      if (status.behind === 0) children.push(el('p', status.reason ?? 'Already up to date.', 'settings-note'));
+      else {
+        children.push(row('Available', `${status.behind} new commit${status.behind === 1 ? '' : 's'}`));
+        const list = el('div', '', 'update-commits');
+        list.append(...status.commits.map((c) => el('div', `${c.short}  ${c.subject}`, 'update-commit')));
+        if (status.behind > status.commits.length) list.append(el('div', `…and ${status.behind - status.commits.length} more`, 'update-commit more'));
+        children.push(list);
+        if (!status.canUpdate && status.reason) children.push(el('p', status.reason, 'settings-note warn'));
+      }
+      const apply = guarded('apply-update', 'Update now', 'Pull, rebuild and restart?', () => {
+        updates = { status, error: null, checking: false, applied: true };
+        request({ action: 'applyUpdate' });
+        render();
+      }, { disabled: status.canUpdate ? undefined : (status.reason ?? 'Nothing to update.') });
+      children.push(actions(check, ...(status.behind > 0 ? [apply] : [])));
+    } else {
+      children.push(el('p', 'Checks this copy of the app against its remote. It only ever fast-forwards, never over uncommitted changes, then installs dependencies if they changed, rebuilds the extension and restarts the helper.', 'settings-note'), actions(check));
+    }
+    return card('Updates', ...children);
+  }
+
   function usageCard(s: SystemSnapshot): HTMLElement {
     const { daily, costUsd, todayUsd } = s.usage;
     const peak = Math.max(1, ...daily.map((d) => d.tokens));
@@ -478,7 +519,7 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       body.replaceChildren(el('div', error ? `Could not read the system: ${error}` : 'Loading…', 'settings-empty'));
       return;
     }
-    body.replaceChildren(...[setupCard(snapshot), warningsCard(snapshot)].filter((card): card is HTMLElement => card !== null), preferencesCard(), helperCard(snapshot), usageCard(snapshot), sessionsCard(snapshot), housekeepingCard(snapshot), configCard(snapshot), diagnosticsCard(snapshot));
+    body.replaceChildren(...[setupCard(snapshot), warningsCard(snapshot)].filter((card): card is HTMLElement => card !== null), preferencesCard(), helperCard(snapshot), updatesCard(), usageCard(snapshot), sessionsCard(snapshot), housekeepingCard(snapshot), configCard(snapshot), diagnosticsCard(snapshot));
     body.scrollTop = scroll;
   }
 
@@ -528,6 +569,10 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
     },
     show,
     close,
+    setUpdates(message) {
+      updates = { status: message.status, error: message.error, checking: false, applied: false };
+      if (isOpen) render();
+    },
     setTimeline(message) {
       activity.set(message.id, { events: message.events, error: message.error });
       if (isOpen) render();

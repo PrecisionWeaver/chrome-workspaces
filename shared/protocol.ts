@@ -126,11 +126,30 @@ export interface SystemSnapshot {
   setup: { promptsFileExists: boolean; repoRoots: { path: string; exists: boolean }[] };
 }
 
+/** Whether this copy of the app is behind its remote, and whether it is safe to fast-forward. */
+export interface UpdateStatus {
+  /** Short id of the commit running now. */
+  current: string;
+  branch: string;
+  upstream: string | null;
+  behind: number;
+  ahead: number;
+  /** Tracked files have uncommitted changes. */
+  dirty: boolean;
+  /** What the update brings, newest first. */
+  commits: { short: string; subject: string }[];
+  canUpdate: boolean;
+  /** Why it cannot be updated, or that it is already current. */
+  reason: string | null;
+}
+
 export type AdminAction =
   /** Ends the workspace's shell and everything in it; it starts again, resuming the conversation, when opened. */
   | { action: 'restartSession'; id: string }
   /** Signals a process in a workspace's tree, and its descendants. */
   | { action: 'killProcess'; id: string; pid: number; force?: boolean }
+  /** Fast-forwards this copy of the app, installs and rebuilds, then restarts the helper. */
+  | { action: 'applyUpdate' }
   | { action: 'restartHelper' | 'stopHelper' | 'clearUploads' | 'clearLog' | 'pruneWorktrees' | 'checkGh' };
 
 export interface Workspace {
@@ -366,6 +385,8 @@ export type ControlToClient =
   | { type: 'prompts'; prompts: Prompt[]; error: string | null }
   /** Recently removed workspaces, newest first; sent on connect and whenever they change. */
   | { type: 'history'; entries: HistoryEntry[] }
+  /** Reply to `checkUpdates`. */
+  | { type: 'updates'; status: UpdateStatus | null; error: string | null }
   /** Reply to `timeline`. */
   | { type: 'timeline'; id: string; events: TimelineEvent[]; error: string | null }
   /** Reply to `sendText`. */
@@ -422,6 +443,8 @@ export type ControlToHelper =
   | { type: 'system' }
   | { type: 'admin'; request: AdminAction }
   | { type: 'systemLog' }
+  /** Fetches and reports whether a newer version of the app is available. */
+  | { type: 'checkUpdates' }
   /** What the workspace's claude has recently done, from its transcript. */
   | { type: 'timeline'; id: string }
   | { type: 'exportData' }

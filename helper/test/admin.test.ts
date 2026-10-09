@@ -148,6 +148,59 @@ describe('usage and cost', () => {
   });
 });
 
+describe('updates', () => {
+  const git = (cwd: string, ...args: string[]) => execFileSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.com', '-c', 'commit.gpgsign=false', ...args], { cwd, encoding: 'utf8' }).trim();
+
+  function installedWithNewCommit() {
+    const root = mkdtempSync(join(tmpdir(), 'cw-adm-upd-'));
+    const origin = join(root, 'origin.git');
+    git(root, 'init', '-q', '--bare', '-b', 'main', origin);
+    const seed = join(root, 'seed');
+    git(root, 'clone', '-q', origin, seed);
+    writeFileSync(join(seed, 'a.txt'), '1\n');
+    git(seed, 'add', '.');
+    git(seed, 'commit', '-qm', 'first');
+    git(seed, 'push', '-q', 'origin', 'HEAD:main');
+    const installed = join(root, 'installed');
+    git(root, 'clone', '-q', origin, installed);
+    writeFileSync(join(seed, 'b.txt'), 'new\n');
+    git(seed, 'add', '.');
+    git(seed, 'commit', '-qm', 'a new feature');
+    git(seed, 'push', '-q', 'origin', 'HEAD:main');
+    return installed;
+  }
+
+  it('reports what an update brings, applies it, rebuilds, and restarts only when launchd manages the helper', async () => {
+    h.repoDir = installedWithNewCommit();
+    const checked = await ask({ type: 'checkUpdates' }, 'updates');
+    expect(checked.reply).toMatchObject({ status: { behind: 1, canUpdate: true, commits: [{ subject: 'a new feature' }] }, error: null });
+    checked.ws.close();
+
+    const applied = await ask({ type: 'admin', request: { action: 'applyUpdate' } }, 'adminResult');
+    expect(applied.reply).toMatchObject({ ok: true, message: expect.stringContaining('Updated') });
+    expect(existsSync(join(h.repoDir, 'b.txt'))).toBe(true);
+    expect(h.spawned).toHaveLength(1);
+    expect(h.spawned[0]).toContain('launchctl kickstart -k');
+    applied.ws.close();
+  });
+
+  it('does not restart a helper that launchd does not manage, and says to do it by hand', async () => {
+    h.repoDir = installedWithNewCommit();
+    h.managed = false;
+    const { reply } = await ask({ type: 'admin', request: { action: 'applyUpdate' } }, 'adminResult');
+    expect(reply).toMatchObject({ ok: true, message: expect.stringContaining('Restart the helper by hand') });
+    expect(h.spawned).toHaveLength(0);
+  });
+
+  it('explains when this copy is not a git checkout', async () => {
+    h.repoDir = null;
+    const checked = await ask({ type: 'checkUpdates' }, 'updates');
+    expect(checked.reply).toMatchObject({ status: null, error: expect.stringContaining('not a git checkout') });
+    const applied = await ask({ type: 'admin', request: { action: 'applyUpdate' } }, 'adminResult');
+    expect(applied.reply).toMatchObject({ ok: false, message: expect.stringContaining('not a git checkout') });
+  });
+});
+
 describe('killProcess', () => {
   it('stops a process inside the workspace, and only with a force when asked', async () => {
     const { workspace } = await workspaceWithSleep('a');

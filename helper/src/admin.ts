@@ -4,10 +4,11 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { findWarnings } from '../../shared/guardrails';
 import { costOf, isRealModel, rateFor } from '../../shared/pricing';
-import type { AdminAction, ReviewsState, SystemSnapshot, WorkspaceStatus } from '../../shared/protocol';
+import type { AdminAction, ReviewsState, SystemSnapshot, UpdateStatus, WorkspaceStatus } from '../../shared/protocol';
 import type { HelperConfig } from './config';
 import type { SessionManager } from './session';
 import { readTimeline } from './timeline';
+import { applyUpdate, checkUpdates } from './updates';
 import { TranscriptTokens } from './tokens';
 import { pathBytes, readListening, readProcesses, subtree, toSystemProcess, type Proc } from './system';
 import type { WorkspaceStore } from './workspace-store';
@@ -23,6 +24,8 @@ export interface AdminOptions {
   config: HelperConfig;
   paths: { dataDir: string; uploadDir: string; logFile: string; configFile: string; workspacesFile: string };
   port: number;
+  /** Where this copy of the app is installed, for updating it; null when it is not a git checkout. */
+  repoDir: string | null;
   /** The helper's own commit, when it can be read. */
   commit: string | null;
   status: (id: string) => { status: WorkspaceStatus; claudeSessionId: string | null };
@@ -48,6 +51,7 @@ export interface AdminService {
   snapshot(extra: { reviews: ReviewsState; clients: number }): Promise<SystemSnapshot>;
   run(request: AdminAction): Promise<ActionResult>;
   log(): string;
+  checkUpdates(): Promise<UpdateStatus>;
   /** Recent events from a workspace's claude transcript; null when it has none. */
   timeline(id: string): ReturnType<typeof readTimeline> | null;
   exportData(): string;
@@ -260,11 +264,26 @@ export function createAdmin(options: AdminOptions): AdminService {
           }
         case 'pruneWorktrees':
           return pruneWorktrees();
+        case 'applyUpdate': {
+          if (!options.repoDir) return { ok: false, message: 'This copy of the app is not a git checkout, so it cannot update itself.' };
+          const outcome = await applyUpdate(options.repoDir, (command) => options.runShell(`cd "${options.repoDir}" && ${command}`));
+          // The new code only runs after a restart, which ends every terminal, so it is left to launchd and only when it manages us.
+          if (outcome.ok && outcome.restart && !(await options.isManaged())) {
+            return { ok: true, message: `${outcome.message.split(' The helper')[0]} Restart the helper by hand, then reload the extension.` };
+          }
+          if (outcome.ok && outcome.restart) options.spawnDetached(launchctl('kickstart -k'));
+          return { ok: outcome.ok, message: outcome.message };
+        }
         case 'checkGh': {
           const { output, ok } = await options.runShell('gh auth status 2>&1');
           return { ok, message: output.split('\n').slice(0, 4).join(' · ') || (ok ? 'gh is signed in.' : 'gh is not signed in.') };
         }
       }
+    },
+
+    async checkUpdates() {
+      if (!options.repoDir) throw new Error('This copy of the app is not a git checkout, so it cannot check for updates.');
+      return checkUpdates(options.repoDir);
     },
 
     timeline(id) {
