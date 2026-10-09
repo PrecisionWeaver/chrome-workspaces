@@ -1,6 +1,7 @@
 import { readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { DEFAULT_LIMITS, type Limits } from '../../shared/guardrails';
 import { MODEL_PATTERN } from '../../shared/protocol';
 
 export const HOST = '127.0.0.1';
@@ -17,6 +18,8 @@ export interface HelperConfig {
   promptsFile: string;
   /** `claude --model` for workspaces that pick none; unset leaves it to claude. */
   defaultModel: string | null;
+  /** When Settings warns about a workspace using a lot of memory, or a server left running. */
+  limits: Limits;
   /** Folders whose git repos can be picked as the start of a new workspace. */
   repoRoots: string[];
   /** `owner/name` to the directory PR workspaces for that repo start in. */
@@ -37,11 +40,17 @@ export function loadConfig(): HelperConfig {
     defaultCwd: raw.defaultCwd ?? homedir(),
     promptsFile: expandHome(raw.promptsFile ?? DEFAULT_PROMPTS_FILE),
     defaultModel: raw.defaultModel && MODEL_PATTERN.test(raw.defaultModel) ? raw.defaultModel : null,
+    limits: {
+      memoryWarnMb: positive(raw.limits?.memoryWarnMb) ?? DEFAULT_LIMITS.memoryWarnMb,
+      idleServerHours: positive(raw.limits?.idleServerHours) ?? DEFAULT_LIMITS.idleServerHours,
+    },
     repoRoots: (raw.repoRoots ?? DEFAULT_REPO_ROOTS).map(expandHome),
     repoDirs: Object.fromEntries(Object.entries(raw.repoDirs ?? {}).map(([repo, dir]) => [repo, expandHome(dir)])),
     watchRepos: raw.watchRepos ?? [],
   };
 }
+
+const positive = (value: unknown): number | null => (typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null);
 
 function expandHome(path: string): string {
   return path.startsWith('~/') ? join(homedir(), path.slice(2)) : path;

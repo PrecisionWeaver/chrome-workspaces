@@ -1,5 +1,7 @@
 // Shared by the helper and the extension bundle — keep this free of Node imports.
 
+import type { GuardrailWarning } from './guardrails';
+
 export const PROTOCOL = 'cw.v1';
 export const TOKEN_PROTOCOL_PREFIX = 'token.';
 export const NATIVE_HOST_NAME = 'com.chrome_workspaces.helper';
@@ -110,7 +112,10 @@ export interface SystemSnapshot {
     repoRoots: string[];
     repoDirs: Record<string, string>;
     watchRepos: string[];
+    limits: { memoryWarnMb: number; idleServerHours: number };
   };
+  /** Workspaces using a lot of memory, and servers left running; see `findWarnings`. */
+  warnings: GuardrailWarning[];
   reviews: { fetchedAt: string | null; count: number; error: string | null };
 }
 

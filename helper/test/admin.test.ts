@@ -93,6 +93,18 @@ describe('session tokens', () => {
   });
 });
 
+describe('warnings', () => {
+  it('carries the guardrail findings and the limits they were judged by', async () => {
+    await workspaceWithSleep('quiet');
+    const { ws, reply } = await ask({ type: 'system' }, 'system');
+    if (reply.type !== 'system' || !reply.snapshot) throw new Error('no snapshot');
+    // A freshly started shell is neither big nor a long-running server.
+    expect(reply.snapshot.warnings).toEqual([]);
+    expect(reply.snapshot.config.limits).toEqual({ memoryWarnMb: 4096, idleServerHours: 4 });
+    ws.close();
+  });
+});
+
 describe('killProcess', () => {
   it('stops a process inside the workspace, and only with a force when asked', async () => {
     const { workspace } = await workspaceWithSleep('a');

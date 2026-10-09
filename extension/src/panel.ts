@@ -47,7 +47,11 @@ const control = connectControl(
       history = message.entries;
       renderList();
     }
-    if (message.type === 'system') settings.setSystem(message);
+    if (message.type === 'system') {
+      settings.setSystem(message);
+      $<HTMLButtonElement>('settings-open').classList.toggle('has-warning', settings.warningCount > 0);
+      $<HTMLButtonElement>('settings-open').title = settings.warningCount ? `Settings · ${settings.warningCount} to look at` : 'Settings';
+    }
     if (message.type === 'adminResult') settings.setResult(message);
     if (message.type === 'systemLog') settings.setLog(message.text);
     if (message.type === 'exportData') settings.download(message.json);
@@ -632,6 +636,13 @@ function fitTerminal(): void {
 }
 
 new ResizeObserver(fitTerminal).observe(terminalEl);
+
+// Resource warnings are checked once a minute while the panel is open, so the gear can say so; Settings
+// itself polls faster while it is showing.
+setInterval(() => {
+  if (document.visibilityState === 'visible' && !settings.isOpen) send({ type: 'system' });
+}, 60_000);
+send({ type: 'system' });
 
 function paletteItems(): PaletteItem[] {
   const items: PaletteItem[] = [

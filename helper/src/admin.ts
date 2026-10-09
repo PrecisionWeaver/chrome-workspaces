@@ -2,6 +2,7 @@ import { execFile, spawn } from 'node:child_process';
 import { closeSync, existsSync, fstatSync, openSync, readdirSync, readSync, rmSync, truncateSync } from 'node:fs';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
+import { findWarnings } from '../../shared/guardrails';
 import type { AdminAction, ReviewsState, SystemSnapshot, WorkspaceStatus } from '../../shared/protocol';
 import type { HelperConfig } from './config';
 import type { SessionManager } from './session';
@@ -129,6 +130,25 @@ export function createAdmin(options: AdminOptions): AdminService {
       const [procs, listening, managed] = await Promise.all([readProcs(), readListening(), options.isManaged()]);
       const snapshotSessions = store.list();
       tokens.keepOnly(snapshotSessions.flatMap((ws) => options.transcript(ws.id) ?? []));
+      const sessionRows = snapshotSessions.map((ws) => {
+        const pid = sessions.get(ws.id)?.pid ?? null;
+        const live = options.status(ws.id);
+        const transcript = options.transcript(ws.id);
+        // Counting a large transcript the first time takes a while, so it runs behind the answer.
+        if (transcript) void tokens.refresh(transcript);
+        const counted = transcript ? tokens.peek(transcript) : null;
+        return {
+          id: ws.id,
+          name: ws.name,
+          pid,
+          status: live.status,
+          cwd: ws.cwd,
+          cwdMissing: !existsSync(ws.cwd),
+          claudeSessionId: live.claudeSessionId,
+          tokens: counted ? { ...counted.totals, counting: counted.scanning } : null,
+          processes: pid === null ? [] : subtree(procs, pid).map((p) => toSystemProcess(p, listening)),
+        };
+      });
       return {
         takenAt: new Date().toISOString(),
         helper: {
@@ -144,25 +164,8 @@ export function createAdmin(options: AdminOptions): AdminService {
           configPath: paths.configFile,
           extensionId: config.extensionId,
         },
-        sessions: store.list().map((ws) => {
-          const pid = sessions.get(ws.id)?.pid ?? null;
-          const live = options.status(ws.id);
-          const transcript = options.transcript(ws.id);
-          // Counting a large transcript the first time takes a while, so it runs behind the answer.
-          if (transcript) void tokens.refresh(transcript);
-          const counted = transcript ? tokens.peek(transcript) : null;
-          return {
-            id: ws.id,
-            name: ws.name,
-            pid,
-            status: live.status,
-            cwd: ws.cwd,
-            cwdMissing: !existsSync(ws.cwd),
-            claudeSessionId: live.claudeSessionId,
-            tokens: counted ? { ...counted.totals, counting: counted.scanning } : null,
-            processes: pid === null ? [] : subtree(procs, pid).map((p) => toSystemProcess(p, listening)),
-          };
-        }),
+        sessions: sessionRows,
+        warnings: findWarnings(sessionRows, config.limits),
         storage: { uploadsBytes: pathBytes(paths.uploadDir), logBytes: pathBytes(paths.logFile), dataBytes: pathBytes(paths.dataDir) },
         config: {
           defaultCwd: config.defaultCwd,
@@ -171,6 +174,7 @@ export function createAdmin(options: AdminOptions): AdminService {
           repoRoots: config.repoRoots,
           repoDirs: config.repoDirs,
           watchRepos: config.watchRepos,
+          limits: config.limits,
         },
         reviews: { fetchedAt: reviews.fetchedAt, count: reviews.items.length, error: reviews.error },
       };

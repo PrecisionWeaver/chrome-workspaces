@@ -93,7 +93,7 @@ export async function startHarness(): Promise<Harness> {
   const admin = createAdmin({
     sessions,
     store,
-    config: { extensionId: 'abcdefghijklmnopabcdefghijklmnop', defaultCwd, promptsFile: '/p.md', defaultModel: null, repoRoots: [], repoDirs: {}, watchRepos: [] },
+    config: { extensionId: 'abcdefghijklmnopabcdefghijklmnop', defaultCwd, promptsFile: '/p.md', defaultModel: null, limits: { memoryWarnMb: 4096, idleServerHours: 4 }, repoRoots: [], repoDirs: {}, watchRepos: [] },
     paths: { dataDir: dir, uploadDir: join(dir, 'uploads'), logFile: join(dir, 'helper.log'), configFile: join(dir, 'config.json'), workspacesFile: join(dir, 'workspaces.json') },
     port: 4178,
     commit: 'abc1234',

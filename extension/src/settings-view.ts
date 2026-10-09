@@ -15,6 +15,8 @@ export interface SettingsView {
   show(): void;
   close(): void;
   setSystem(message: Extract<ControlToClient, { type: 'system' }>): void;
+  /** How many warnings the last snapshot had, for a marker on the settings button. */
+  readonly warningCount: number;
   setResult(message: Extract<ControlToClient, { type: 'adminResult' }>): void;
   setLog(text: string): void;
   download(json: string): void;
@@ -273,6 +275,7 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       row('Repo folders', mono(config.repoRoots.join('\n') || 'none')),
       row('Repo directories', mono(map(config.repoDirs))),
       row('Watched repos', mono(config.watchRepos.join('\n') || 'none')),
+      row('Warn above', `${config.limits.memoryWarnMb} MB per workspace · servers idle ${config.limits.idleServerHours} h`),
     );
   }
 
@@ -304,6 +307,21 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
     return wrapper;
   }
 
+  function warningsCard(s: SystemSnapshot): HTMLElement | null {
+    if (s.warnings.length === 0) return null;
+    const rows = s.warnings.map((warning) => {
+      const line = el('div', '', 'warning-row');
+      line.append(el('span', '⚠', 'warning-mark'), el('span', warning.message, 'warning-text'));
+      // A forgotten server can be stopped from here, with the same confirm as in the process list.
+      if (warning.kind === 'idle-server' && warning.pid !== undefined) {
+        const pid = warning.pid;
+        line.append(guarded(`warn-stop-${pid}`, 'Stop it', 'Stop it?', () => request({ action: 'killProcess', id: warning.id, pid })));
+      }
+      return line;
+    });
+    return card(`Needs attention · ${s.warnings.length}`, ...rows, el('p', `Limits: ${s.config.limits.memoryWarnMb} MB per workspace, servers idle over ${s.config.limits.idleServerHours} h. Change them under "limits" in the config.`, 'settings-note'));
+  }
+
   function preferencesCard(): HTMLElement {
     return card(
       'Preferences',
@@ -326,7 +344,7 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       body.replaceChildren(el('div', error ? `Could not read the system: ${error}` : 'Loading…', 'settings-empty'));
       return;
     }
-    body.replaceChildren(preferencesCard(), helperCard(snapshot), sessionsCard(snapshot), housekeepingCard(snapshot), configCard(snapshot), diagnosticsCard(snapshot));
+    body.replaceChildren(...([warningsCard(snapshot)].filter((card): card is HTMLElement => card !== null)), preferencesCard(), helperCard(snapshot), sessionsCard(snapshot), housekeepingCard(snapshot), configCard(snapshot), diagnosticsCard(snapshot));
     body.scrollTop = scroll;
   }
 
@@ -374,6 +392,9 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
     },
     show,
     close,
+    get warningCount() {
+      return snapshot?.warnings.length ?? 0;
+    },
     setSystem(message) {
       snapshot = message.snapshot ?? snapshot;
       error = message.error;

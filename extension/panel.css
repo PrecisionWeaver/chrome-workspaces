@@ -2288,6 +2288,40 @@ body.collapsed .list-empty {
   line-height: 1.45;
 }
 
+.warning-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+}
+
+.warning-mark {
+  flex: none;
+  color: var(--wait);
+}
+
+.warning-text {
+  flex: 1;
+  min-width: 0;
+}
+
+#settings-open.has-warning {
+  position: relative;
+  color: var(--wait);
+}
+
+#settings-open.has-warning::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 7px;
+  height: 7px;
+  border: 2px solid var(--list-bg);
+  border-radius: 50%;
+  background: var(--wait);
+}
+
 .settings-actions {
   display: flex;
   flex-wrap: wrap;
