@@ -11,6 +11,9 @@ export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 /** What `--model` accepts that is safe to put in a shell command: an alias or id, optionally with a `[1m]`-style suffix. */
 export const MODEL_PATTERN = /^[A-Za-z0-9][\w.-]{0,63}(\[\w{1,8}\])?$/;
 export const MODEL_ALIASES = ['opus', 'sonnet', 'haiku'] as const;
+/** Colors a workspace can be marked with; the names Chrome uses for tab groups. */
+export const WORKSPACE_COLORS = ['grey', 'blue', 'red', 'yellow', 'green', 'pink', 'purple', 'cyan', 'orange'] as const;
+export type WorkspaceColor = (typeof WORKSPACE_COLORS)[number];
 
 export type ClientMessage =
   | { type: 'input'; data: string }
@@ -116,6 +119,11 @@ export interface Workspace {
   windowId: number | null;
   /** The Chrome tab group holding its tabs, for a workspace that shares a window; null when it has none. */
   groupId: number | null;
+  /** Kept at the top of the list. */
+  pinned: boolean;
+  /** Tucked away under Archived, and skipped by the switch shortcuts. */
+  archived: boolean;
+  color: WorkspaceColor | null;
   /** `claude --model` value; null uses the helper's `defaultModel`. */
   model: string | null;
   /** Tab URLs last seen in its window or group; used to re-pair after Chrome restarts. */
@@ -308,6 +316,8 @@ export type ControlToHelper =
   | { type: 'create'; name: string; windowId: number | null; pr?: string; prompt?: string; cwd?: string; model?: string; group?: boolean; urls?: string[] }
   | { type: 'remove'; id: string }
   | { type: 'rename'; id: string; name: string }
+  /** Pins, archives or colors a workspace; a missing field is left as it is. */
+  | { type: 'mark'; id: string; pinned?: boolean; archived?: boolean; color?: WorkspaceColor | null }
   /** `index` is the workspace's position in the list once moved. */
   | { type: 'move'; id: string; index: number }
   /** Sets the whole list order at once; ignored unless `ids` is exactly the current workspaces. */

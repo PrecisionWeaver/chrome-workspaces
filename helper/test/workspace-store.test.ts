@@ -108,6 +108,38 @@ describe('WorkspaceStore', () => {
     expect(store.list().map((w) => w.name)).toEqual(['c', 'a', 'b']);
   });
 
+  it('pins to the end of the pinned block at the top, and unpins to just below it', () => {
+    const store = new WorkspaceStore(tempFile());
+    const [a, b, c, d] = ['a', 'b', 'c', 'd'].map((name) => store.create({ name, cwd: '/tmp' }));
+    const names = () => store.list().map((w) => w.name).join('');
+    store.mark(c.id, { pinned: true });
+    expect(names()).toBe('cabd');
+    store.mark(d.id, { pinned: true });
+    expect(names()).toBe('cdab');
+    store.mark(c.id, { pinned: false });
+    expect(names()).toBe('dcab');
+    expect(store.get(d.id)?.pinned).toBe(true);
+    expect(store.get(c.id)?.pinned).toBe(false);
+    // Marking again with the same value does not move it.
+    store.mark(d.id, { pinned: true });
+    expect(names()).toBe('dcab');
+    expect(b.name).toBe('b');
+  });
+
+  it('archives and colors a workspace, remembers both, and loads older files without them', () => {
+    const file = tempFile();
+    const store = new WorkspaceStore(file);
+    const a = store.create({ name: 'a', cwd: '/tmp' });
+    store.mark(a.id, { archived: true, color: 'purple' });
+    expect(new WorkspaceStore(file).get(a.id)).toMatchObject({ archived: true, color: 'purple', pinned: false });
+    store.mark(a.id, { archived: false, color: null });
+    expect(store.get(a.id)).toMatchObject({ archived: false, color: null });
+
+    const legacy = tempFile();
+    writeFileSync(legacy, JSON.stringify({ workspaces: [{ id: 'ws-00000001', name: 'old', ticket: null, cwd: '/tmp', url: null, windowId: null, lastTabUrls: [], createdAt: '2026-01-01T00:00:00Z' }] }));
+    expect(new WorkspaceStore(legacy).list()[0]).toMatchObject({ pinned: false, archived: false, color: null });
+  });
+
   it('finds workspaces by ticket case-insensitively', () => {
     const store = new WorkspaceStore(tempFile());
     const a = store.create({ name: 'PROJ-1', ticket: 'PROJ-1', cwd: '/tmp' });

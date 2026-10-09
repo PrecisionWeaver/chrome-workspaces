@@ -133,11 +133,13 @@ chrome.commands.onCommand.addListener((command) => {
 });
 
 function cycle(step: 1 | -1): void {
-  if (workspaces.length === 0) return;
+  // Archived workspaces are tucked away, so the shortcuts skip them.
+  const list = workspaces.filter((ws) => !ws.archived);
+  if (list.length === 0) return;
   const shown = shownIn(focusedWindowId, workspaces, selection);
-  const current = workspaces.findIndex((ws) => ws.id === shown?.id);
-  const next = current === -1 ? workspaces[0] : workspaces[(current + step + workspaces.length) % workspaces.length];
-  if (next.id === workspaces[current]?.id) return;
+  const current = list.findIndex((ws) => ws.id === shown?.id);
+  const next = current === -1 ? list[0] : list[(current + step + list.length) % list.length];
+  if (next.id === list[current]?.id) return;
   // Reopens the panel in a window whose panel closed, e.g. after the extension reloaded.
   if (next.windowId !== null) chrome.sidePanel.open({ windowId: next.windowId }).catch(() => {});
   void select(next);

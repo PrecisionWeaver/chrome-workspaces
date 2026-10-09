@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import type { Workspace } from '../../shared/protocol';
+import type { Workspace, WorkspaceColor } from '../../shared/protocol';
 
 export interface NewWorkspace {
   name: string;
@@ -52,6 +52,9 @@ export class WorkspaceStore {
       url: input.url ?? null,
       windowId: null,
       groupId: null,
+      pinned: false,
+      archived: false,
+      color: null,
       model: input.model ?? null,
       lastTabUrls: [...(input.tabs ?? [])],
       pr: input.pr ?? null,
@@ -121,6 +124,24 @@ export class WorkspaceStore {
     return true;
   }
 
+  /**
+   * Pins, archives or colors a workspace. Pinning moves it to the end of the pinned block at the top
+   * of the list, and unpinning to just below it, so the list stays the one order everything follows.
+   */
+  mark(id: string, patch: { pinned?: boolean; archived?: boolean; color?: WorkspaceColor | null }): void {
+    const ws = this.require(id);
+    if (patch.archived !== undefined) ws.archived = patch.archived;
+    if (patch.color !== undefined) ws.color = patch.color;
+    if (patch.pinned !== undefined && patch.pinned !== ws.pinned) {
+      ws.pinned = patch.pinned;
+      const rest = this.workspaces.filter((w) => w !== ws);
+      const pinnedCount = rest.filter((w) => w.pinned).length;
+      rest.splice(pinnedCount, 0, ws);
+      this.workspaces = rest;
+    }
+    this.save();
+  }
+
   clearPrompt(id: string): void {
     const ws = this.require(id);
     if (ws.prompt === null) return;
@@ -149,7 +170,7 @@ export class WorkspaceStore {
     try {
       const { workspaces } = JSON.parse(readFileSync(this.file, 'utf8')) as { workspaces: Workspace[] };
       // Files written before a field existed load with it unset.
-      return workspaces.map((ws) => ({ ...ws, pr: ws.pr ?? null, prompt: ws.prompt ?? null, groupId: ws.groupId ?? null, model: ws.model ?? null }));
+      return workspaces.map((ws) => ({ ...ws, pr: ws.pr ?? null, prompt: ws.prompt ?? null, groupId: ws.groupId ?? null, pinned: ws.pinned ?? false, archived: ws.archived ?? false, color: ws.color ?? null, model: ws.model ?? null }));
     } catch (error) {
       throw new Error(`cannot read ${this.file}: ${error instanceof Error ? error.message : String(error)}`);
     }

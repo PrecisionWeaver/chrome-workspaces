@@ -1,6 +1,6 @@
 import { isAbsolute } from 'node:path';
 import type { WebSocket } from 'ws';
-import { MAX_PROMPT_LENGTH, MAX_TAB_URLS, MODEL_PATTERN, type ControlToClient, type ControlToHelper, type Prompt, type Repo, type ReviewsState, type Workspace, type WorkspaceStatus } from '../../shared/protocol';
+import { MAX_PROMPT_LENGTH, MAX_TAB_URLS, MODEL_PATTERN, WORKSPACE_COLORS, type ControlToClient, type ControlToHelper, type Prompt, type Repo, type ReviewsState, type Workspace, type WorkspaceStatus } from '../../shared/protocol';
 import { isDirectory } from './config';
 import type { AdminService } from './admin';
 import type { GitService } from './git';
@@ -128,6 +128,9 @@ export class ControlHub {
         break;
       case 'move':
         if (store.get(message.id)) store.move(message.id, message.index);
+        break;
+      case 'mark':
+        if (store.get(message.id)) store.mark(message.id, message);
         break;
       case 'order':
         store.reorder(message.ids);
@@ -279,6 +282,13 @@ function isControlToHelper(value: unknown): value is ControlToHelper {
       return typeof m.id === 'string';
     case 'rename':
       return typeof m.id === 'string' && isWorkspaceName(m.name);
+    case 'mark':
+      return (
+        typeof m.id === 'string' &&
+        (m.pinned === undefined || typeof m.pinned === 'boolean') &&
+        (m.archived === undefined || typeof m.archived === 'boolean') &&
+        (m.color === undefined || m.color === null || (WORKSPACE_COLORS as readonly string[]).includes(m.color as string))
+      );
     case 'order':
       return Array.isArray(m.ids) && m.ids.length <= 500 && m.ids.every((id) => typeof id === 'string');
     case 'move':

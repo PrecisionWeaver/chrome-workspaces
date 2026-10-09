@@ -3,7 +3,7 @@ import type { Workspace } from '../../shared/protocol';
 import { listFollowingTabs, listGroupOrder, nextGroupMove } from '../../shared/tab-order';
 
 const ws = (id: string, windowId: number | null, groupId: number | null = null): Workspace => ({
-  id, name: id, ticket: null, cwd: '/tmp', url: null, windowId, groupId, model: null, lastTabUrls: [], pr: null, prompt: null, createdAt: '2026-01-01T00:00:00Z',
+  id, name: id, ticket: null, cwd: '/tmp', url: null, windowId, groupId, pinned: false, archived: false, color: null, model: null, lastTabUrls: [], pr: null, prompt: null, createdAt: '2026-01-01T00:00:00Z',
 });
 
 describe('listGroupOrder', () => {

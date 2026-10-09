@@ -317,6 +317,20 @@ describe('control channel', () => {
     ws.close();
   });
 
+  it('marks a workspace, and drops a mark with a color that is not one of ours', async () => {
+    const a = h.store.create({ name: 'a', cwd: h.defaultCwd });
+    const b = h.store.create({ name: 'b', cwd: h.defaultCwd });
+    const { ws } = connectControl(h);
+    await opened(ws);
+    ws.send(JSON.stringify({ type: 'mark', id: b.id, color: 'hotpink' }));
+    ws.send(JSON.stringify({ type: 'mark', id: b.id, pinned: 'yes' }));
+    ws.send(JSON.stringify({ type: 'mark', id: b.id, pinned: true, color: 'green' }));
+    ws.send(JSON.stringify({ type: 'mark', id: a.id, archived: true }));
+    await waitFor(() => h.store.get(a.id)?.archived === true);
+    expect(h.store.list().map((w) => [w.name, w.pinned, w.color])).toEqual([['b', true, 'green'], ['a', false, null]]);
+    ws.close();
+  });
+
   it('answers listRepos to the asking client only', async () => {
     h.repos.push({ name: 'chrome-workspaces', path: '/w/chrome-workspaces', root: 'Websites' });
     const asker = connectControl(h);

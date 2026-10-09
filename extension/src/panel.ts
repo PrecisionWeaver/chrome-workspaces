@@ -1,12 +1,13 @@
 import { FitAddon } from '@xterm/addon-fit';
 import { Terminal } from '@xterm/xterm';
 import { similarity } from '../../shared/pairing';
-import type { ClientMessage, ReviewRequest, ReviewsState, ServerMessage, Workspace, WorkspaceStatus } from '../../shared/protocol';
+import { WORKSPACE_COLORS, type ClientMessage, type ReviewRequest, type ReviewsState, type ServerMessage, type Workspace, type WorkspaceStatus } from '../../shared/protocol';
 import { connectControl, getHelper, openSocket } from './helper-client';
 import { createCreateView } from './create-view';
 import { attachFileDrop } from './file-drop';
 import { createGitView } from './git-view';
 import { needsInputCount } from '../../shared/attention';
+import { splitList } from '../../shared/list-filter';
 import { createPalette, type PaletteItem } from './palette';
 import { createSettingsView } from './settings-view';
 import { makeSectionsResizable } from './sections';
@@ -210,63 +211,172 @@ function render(): void {
 let editing = false;
 let dragged: Workspace | null = null;
 
+const listSearch = $<HTMLInputElement>('list-search');
+let archivedOpen = false;
+void chrome.storage.local.get('archivedOpen').then(({ archivedOpen: saved }) => {
+  archivedOpen = saved === true;
+  renderList();
+});
+listSearch.addEventListener('input', renderList);
+listSearch.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape') return;
+  listSearch.value = '';
+  renderList();
+});
+
 function renderList(): void {
   const waiting = needsInputCount(statuses, workspaces.map((ws) => ws.id));
   $<HTMLSpanElement>('list-title').textContent = waiting ? `Workspaces · ${waiting} waiting` : 'Workspaces';
   if (editing || dragged) return;
+  // A filter box earns its room once the list is long enough to need one.
+  listSearch.hidden = workspaces.length < 5 && listSearch.value === '';
   const here = current();
-  listEl.replaceChildren(
-    ...workspaces.map((ws, index) => {
-      const item = document.createElement('li');
-      item.className = `ws${ws.id === here?.id ? ' current' : ''}`;
-      item.title = `${ws.name}\n${ws.cwd}${ws.groupId === null ? '' : '\nTab group'}`;
-
-      const badge = document.createElement('span');
-      badge.className = 'badge';
-      badge.textContent = String(index + 1);
-      const status = statuses[ws.id];
-      if (status) badge.dataset.status = status;
-      const groupColor = ws.groupId === null ? undefined : groupColors.get(ws.groupId);
-      if (groupColor) badge.dataset.group = groupColor;
-
-      const name = document.createElement('span');
-      name.className = `name${ws.windowId === null ? ' windowless' : ''}`;
-      name.textContent = ws.name;
-      name.title = 'Double-click to rename';
-      name.addEventListener('dblclick', (event) => {
-        event.stopPropagation();
-        startRename(ws, name);
-      });
-
-      const remove = document.createElement('button');
-      remove.className = 'remove';
-      remove.title = 'Remove workspace';
-      remove.textContent = '×';
-      remove.addEventListener('click', (event) => {
-        event.stopPropagation();
-        // Two clicks: the first arms it, so a stray click can't end a running session.
-        if (!remove.classList.contains('confirm')) {
-          remove.classList.add('confirm');
-          remove.textContent = 'remove?';
-          setTimeout(renderList, 3000);
-          return;
-        }
-        send({ type: 'remove', id: ws.id });
-      });
-
-      item.append(badge, name, remove);
-      item.addEventListener('click', () => {
-        if (ws.id !== here?.id) openWorkspace(ws);
-        else {
-          creator.close();
-          git.close();
-        }
-      });
-      addDragHandlers(item, ws);
-      return item;
-    }),
-  );
+  const { active, archived } = splitList(workspaces, statuses, listSearch.value);
+  const rows = active.map(({ ws, number }) => workspaceRow(ws, number, here));
+  if (archived.length) {
+    const toggle = document.createElement('li');
+    toggle.className = 'archived-toggle';
+    toggle.textContent = `${archivedOpen ? '▾' : '▸'} Archived (${archived.length})`;
+    toggle.addEventListener('click', () => {
+      archivedOpen = !archivedOpen;
+      void chrome.storage.local.set({ archivedOpen });
+      renderList();
+    });
+    rows.push(toggle);
+    // A search that matches only archived workspaces shows them, so they can be found.
+    if (archivedOpen || listSearch.value.trim()) rows.push(...archived.map((ws) => workspaceRow(ws, null, here)));
+  }
+  if (rows.length === 0) {
+    const empty = document.createElement('li');
+    empty.className = 'list-empty';
+    empty.textContent = listSearch.value ? 'No workspace matches' : 'No workspaces yet';
+    rows.push(empty);
+  }
+  listEl.replaceChildren(...rows);
 }
+
+function workspaceRow(ws: Workspace, number: number | null, here: Workspace | undefined): HTMLLIElement {
+  const item = document.createElement('li');
+  item.className = `ws${ws.id === here?.id ? ' current' : ''}${ws.archived ? ' archived' : ''}`;
+  item.title = `${ws.name}\n${ws.cwd}${ws.groupId === null ? '' : '\nTab group'}\nRight-click for more`;
+
+  const badge = document.createElement('span');
+  badge.className = 'badge';
+  badge.textContent = number === null ? '–' : String(number);
+  const status = statuses[ws.id];
+  if (status) badge.dataset.status = status;
+  // A workspace in a tab group wears the group's color; otherwise the one it was marked with.
+  const color = (ws.groupId === null ? undefined : groupColors.get(ws.groupId)) ?? ws.color ?? undefined;
+  if (color) badge.dataset.group = color;
+
+  const name = document.createElement('span');
+  name.className = `name${ws.windowId === null ? ' windowless' : ''}`;
+  name.textContent = ws.name;
+  name.title = 'Double-click to rename';
+  name.addEventListener('dblclick', (event) => {
+    event.stopPropagation();
+    startRename(ws, name);
+  });
+
+  const remove = document.createElement('button');
+  remove.className = 'remove';
+  remove.title = 'Remove workspace';
+  remove.textContent = '×';
+  remove.addEventListener('click', (event) => {
+    event.stopPropagation();
+    // Two clicks: the first arms it, so a stray click can't end a running session.
+    if (!remove.classList.contains('confirm')) {
+      remove.classList.add('confirm');
+      remove.textContent = 'remove?';
+      setTimeout(renderList, 3000);
+      return;
+    }
+    send({ type: 'remove', id: ws.id });
+  });
+
+  item.append(badge, name);
+  if (ws.pinned) {
+    const pin = document.createElement('span');
+    pin.innerHTML = '<svg class="icon"><use href="#i-pin"/></svg>';
+    pin.className = 'pin';
+    pin.title = 'Pinned';
+    item.append(pin);
+  }
+  item.append(remove);
+  item.addEventListener('click', () => {
+    if (ws.id !== here?.id) openWorkspace(ws);
+    else {
+      creator.close();
+      git.close();
+    }
+  });
+  item.addEventListener('contextmenu', (event) => {
+    event.preventDefault();
+    showContextMenu(event.clientX, event.clientY, ws, name);
+  });
+  addDragHandlers(item, ws);
+  return item;
+}
+
+// ---- right-click menu ----
+
+let menuEl: HTMLDivElement | null = null;
+
+function closeContextMenu(): void {
+  menuEl?.remove();
+  menuEl = null;
+}
+
+function showContextMenu(x: number, y: number, ws: Workspace, nameEl: HTMLElement): void {
+  closeContextMenu();
+  const menu = document.createElement('div');
+  menu.id = 'ctx-menu';
+  menu.setAttribute('role', 'menu');
+  const entry = (label: string, run: () => void): HTMLButtonElement => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = label;
+    button.addEventListener('click', () => {
+      closeContextMenu();
+      run();
+    });
+    return button;
+  };
+  const swatches = document.createElement('div');
+  swatches.className = 'ctx-swatches';
+  for (const color of [null, ...WORKSPACE_COLORS]) {
+    const swatch = document.createElement('button');
+    swatch.type = 'button';
+    swatch.className = `swatch${ws.color === color ? ' selected' : ''}`;
+    swatch.title = color ?? 'No color';
+    if (color) swatch.dataset.group = color;
+    else swatch.textContent = '×';
+    swatch.addEventListener('click', () => {
+      closeContextMenu();
+      send({ type: 'mark', id: ws.id, color });
+    });
+    swatches.append(swatch);
+  }
+  menu.append(
+    entry(ws.pinned ? 'Unpin' : 'Pin to top', () => send({ type: 'mark', id: ws.id, pinned: !ws.pinned })),
+    entry(ws.archived ? 'Unarchive' : 'Archive', () => send({ type: 'mark', id: ws.id, archived: !ws.archived })),
+    entry('Rename', () => startRename(ws, nameEl)),
+    swatches,
+  );
+  document.body.append(menu);
+  // Kept inside the panel, whichever corner it was opened from.
+  menu.style.left = `${Math.max(4, Math.min(x, window.innerWidth - menu.offsetWidth - 4))}px`;
+  menu.style.top = `${Math.max(4, Math.min(y, window.innerHeight - menu.offsetHeight - 4))}px`;
+  menuEl = menu;
+}
+
+document.addEventListener('mousedown', (event) => {
+  if (menuEl && !menuEl.contains(event.target as Node)) closeContextMenu();
+});
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') closeContextMenu();
+});
+window.addEventListener('blur', closeContextMenu);
 
 function addDragHandlers(item: HTMLLIElement, ws: Workspace): void {
   item.draggable = true;
@@ -511,7 +621,7 @@ function paletteItems(): PaletteItem[] {
   for (const ws of workspaces) {
     const status = statuses[ws.id];
     items.push({
-      kind: 'Workspace',
+      kind: ws.archived ? 'Workspace · archived' : 'Workspace',
       label: ws.name,
       hint: [ws.id === shown?.id ? 'current' : '', status === 'needs_input' ? 'needs input' : status === 'working' ? 'working' : '', ws.cwd.replace(/^\/Users\/[^/]+/, '~')].filter(Boolean).join(' · '),
       run: () => openWorkspace(ws),

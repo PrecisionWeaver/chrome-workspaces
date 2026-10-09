@@ -1730,6 +1730,126 @@ body.collapsed #collapse {
   color: var(--faint);
 }
 
+/* Workspace list: filter, archive, pins and the right-click menu */
+
+#list-search {
+  margin: 0 8px 6px;
+  padding: 4px 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  outline: none;
+  font-size: 11.5px;
+}
+
+#list-search:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+#list-search[hidden] {
+  display: none;
+}
+
+.archived-toggle,
+.list-empty {
+  padding: 6px 8px;
+  color: var(--faint);
+  font-size: 11px;
+}
+
+.archived-toggle {
+  margin-top: 4px;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.archived-toggle:hover {
+  color: var(--muted);
+}
+
+.ws.archived {
+  opacity: 0.55;
+}
+
+.ws .pin {
+  flex: none;
+  display: inline-flex;
+  color: var(--faint);
+}
+
+.ws .pin .icon {
+  width: 11px;
+  height: 11px;
+}
+
+#ctx-menu {
+  position: fixed;
+  z-index: 60;
+  min-width: 150px;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+}
+
+#ctx-menu > button {
+  display: block;
+  width: 100%;
+  padding: 5px 10px;
+  background: none;
+  border: 0;
+  border-radius: 5px;
+  text-align: left;
+}
+
+#ctx-menu > button:hover {
+  background: var(--raised);
+}
+
+.ctx-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 6px 8px 4px;
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+}
+
+.swatch {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  background: var(--group, var(--raised));
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1;
+}
+
+.swatch.selected {
+  border-color: var(--text);
+}
+
+.swatch[data-group='grey'] { --group: #9aa0a6; }
+.swatch[data-group='blue'] { --group: #6fa3ff; }
+.swatch[data-group='red'] { --group: #f28b82; }
+.swatch[data-group='yellow'] { --group: #fdd663; }
+.swatch[data-group='green'] { --group: #81c995; }
+.swatch[data-group='pink'] { --group: #ff8bcb; }
+.swatch[data-group='purple'] { --group: #c58af9; }
+.swatch[data-group='cyan'] { --group: #78d9ec; }
+.swatch[data-group='orange'] { --group: #fcad70; }
+
+body.collapsed #list-search,
+body.collapsed .archived-toggle,
+body.collapsed .list-empty {
+  display: none;
+}
+
 /* Command palette */
 
 #palette {
