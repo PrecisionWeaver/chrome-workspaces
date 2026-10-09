@@ -1968,6 +1968,25 @@ body.collapsed #collapse {
   font: 11.5px var(--mono);
 }
 
+.pref {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  cursor: pointer;
+}
+
+.pref input {
+  accent-color: var(--accent);
+}
+
+.pref-hint {
+  flex-basis: 100%;
+  margin-left: 22px;
+  color: var(--faint);
+  line-height: 1.45;
+}
+
 .settings-actions {
   display: flex;
   flex-wrap: wrap;

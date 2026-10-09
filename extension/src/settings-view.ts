@@ -1,5 +1,6 @@
 import type { AdminAction, ControlToClient, ControlToHelper, SystemProcess, SystemSession, SystemSnapshot, TokenTotals } from '../../shared/protocol';
 import { el } from './dom';
+import { loadPrefs, savePrefs, type Prefs } from './prefs';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -62,6 +63,11 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
   let pollTimer: ReturnType<typeof setInterval> | undefined;
   let resultTimer: ReturnType<typeof setTimeout> | undefined;
   let logText: string | null = null;
+  let prefs: Prefs = { notify: false };
+  void loadPrefs().then((loaded) => {
+    prefs = loaded;
+    if (isOpen) render();
+  });
   const expanded = new Set<string>();
   const armed = new Set<string>();
 
@@ -287,6 +293,32 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
     );
   }
 
+  function checkbox(label: string, checked: boolean, onChange: (value: boolean) => void, hint = ''): HTMLElement {
+    const wrapper = el('label', '', 'pref');
+    const box = el('input');
+    box.type = 'checkbox';
+    box.checked = checked;
+    box.addEventListener('change', () => onChange(box.checked));
+    wrapper.append(box, el('span', label, 'pref-label'));
+    if (hint) wrapper.append(el('span', hint, 'pref-hint'));
+    return wrapper;
+  }
+
+  function preferencesCard(): HTMLElement {
+    return card(
+      'Preferences',
+      checkbox(
+        'Desktop notifications',
+        prefs.notify,
+        (notify) => {
+          prefs = { ...prefs, notify };
+          void savePrefs({ notify });
+        },
+        'When a workspace starts waiting for input or finishes. The toolbar icon always shows how many are waiting.',
+      ),
+    );
+  }
+
   function render(): void {
     const scroll = body.scrollTop;
     updatedEl.textContent = snapshot ? `updated ${new Date(snapshot.takenAt).toLocaleTimeString()}` : '';
@@ -294,7 +326,7 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       body.replaceChildren(el('div', error ? `Could not read the system: ${error}` : 'Loading…', 'settings-empty'));
       return;
     }
-    body.replaceChildren(helperCard(snapshot), sessionsCard(snapshot), housekeepingCard(snapshot), configCard(snapshot), diagnosticsCard(snapshot));
+    body.replaceChildren(preferencesCard(), helperCard(snapshot), sessionsCard(snapshot), housekeepingCard(snapshot), configCard(snapshot), diagnosticsCard(snapshot));
     body.scrollTop = scroll;
   }
 

@@ -6,6 +6,7 @@ import { connectControl, getHelper, openSocket } from './helper-client';
 import { createCreateView } from './create-view';
 import { attachFileDrop } from './file-drop';
 import { createGitView } from './git-view';
+import { needsInputCount } from '../../shared/attention';
 import { createPalette, type PaletteItem } from './palette';
 import { createSettingsView } from './settings-view';
 import { makeSectionsResizable } from './sections';
@@ -210,6 +211,8 @@ let editing = false;
 let dragged: Workspace | null = null;
 
 function renderList(): void {
+  const waiting = needsInputCount(statuses, workspaces.map((ws) => ws.id));
+  $<HTMLSpanElement>('list-title').textContent = waiting ? `Workspaces · ${waiting} waiting` : 'Workspaces';
   if (editing || dragged) return;
   const here = current();
   listEl.replaceChildren(

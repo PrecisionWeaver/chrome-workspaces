@@ -1,6 +1,7 @@
 import { matchGroups, matchWindows } from '../../shared/pairing';
+import { attentionEvents, needsInputCount } from '../../shared/attention';
 import { listFollowingTabs, listGroupOrder, nextGroupMove } from '../../shared/tab-order';
-import type { ControlToClient, Workspace } from '../../shared/protocol';
+import type { ControlToClient, Workspace, WorkspaceStatus } from '../../shared/protocol';
 import { placeClaudeGroups } from './claude-groups';
 import { connectControl } from './helper-client';
 import { loadSelection, onSelectionChange, select, shownIn, type Selection } from './selection';
@@ -43,6 +44,7 @@ function handle(message: ControlToClient): void {
       const reordered = previousOrder !== null && previousOrder !== orderKey(message.workspaces);
       previousOrder = orderKey(message.workspaces);
       workspaces = message.workspaces;
+      void announce(message.statuses);
       // The list was reordered, here or in a panel: put the tab groups in the same order.
       if (reordered) void tabsFollowList();
       void clearStalePairings();
@@ -172,6 +174,42 @@ chrome.tabs.onUpdated.addListener((_id, change, tab) => (change.url || change.gr
 chrome.tabs.onRemoved.addListener((_id, info) => !info.isWindowClosing && scheduleTabs(info.windowId));
 chrome.tabs.onAttached.addListener((_id, info) => scheduleTabs(info.newWindowId));
 chrome.tabGroups.onRemoved.addListener((group) => send({ type: 'unpairGroup', groupId: group.id }));
+
+// ---- attention: the toolbar badge and optional notifications ----
+
+let previousStatuses: Record<string, WorkspaceStatus> | null = null;
+
+async function notificationsOn(): Promise<boolean> {
+  const { prefs } = (await chrome.storage.local.get('prefs')) as { prefs?: { notify?: boolean } };
+  return prefs?.notify === true;
+}
+
+/** Shows how many workspaces wait on the user, and notifies when one starts waiting or finishes. */
+async function announce(statuses: Record<string, WorkspaceStatus>): Promise<void> {
+  const waiting = needsInputCount(statuses, workspaces.map((ws) => ws.id));
+  await chrome.action.setBadgeText({ text: waiting ? String(waiting) : '' });
+  await chrome.action.setBadgeBackgroundColor({ color: '#f26d6d' });
+  const events = previousStatuses ? attentionEvents(previousStatuses, statuses) : [];
+  previousStatuses = statuses;
+  if (events.length === 0 || !(await notificationsOn())) return;
+  for (const event of events) {
+    const workspace = find(event.id);
+    if (!workspace) continue;
+    chrome.notifications.create(`ws-${event.id}`, {
+      type: 'basic',
+      iconUrl: 'icons/icon-128.png',
+      title: event.kind === 'needs_input' ? `${workspace.name} needs your input` : `${workspace.name} finished`,
+      message: event.kind === 'needs_input' ? 'Claude is waiting for you.' : 'Claude is idle again.',
+      priority: 1,
+    });
+  }
+}
+
+chrome.notifications.onClicked.addListener((notificationId) => {
+  const workspace = find(notificationId.replace(/^ws-/, ''));
+  chrome.notifications.clear(notificationId);
+  if (workspace) void switchTo(workspace, send, workspaces);
+});
 
 // ---- order: the panel's list and the tab strip stay in step ----
 
