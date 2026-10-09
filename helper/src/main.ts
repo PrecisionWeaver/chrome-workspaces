@@ -6,7 +6,7 @@ import { createApi } from './api';
 import { DATA_DIR, HOST, loadConfig, MC_STATE_DIR, PORT, SCROLLBACK_LIMIT } from './config';
 import { ControlHub } from './control';
 import { launchSpec } from './launch';
-import { readMcStatus, watchMcStatus, type McWorkspaceStatus } from './mc-status';
+import { readMcStatus, lastTranscriptCwd, watchMcStatus, type McWorkspaceStatus } from './mc-status';
 import { GH_PR_DETAILS } from './pr-details';
 import { readPrompts } from './prompts';
 import { createGitService } from './git';
@@ -54,7 +54,10 @@ const prompts = () => readPrompts(config.promptsFile);
 const prDetails = async (url: string) =>
   (await execFileAsync(shell, ['-l', '-c', GH_PR_DETAILS], { env: { ...process.env, CW_PR_URL: url }, timeout: 30_000, maxBuffer: 4 * 1024 * 1024 })).stdout;
 
-const control = new ControlHub({ store, sessions, defaultCwd: config.defaultCwd, statuses, reviews, prompts, prDetails, repoDirs: config.repoDirs, repos: () => listRepos(config.repoRoots), git: createGitService(), workingDir: (id) => mcStatus.get(id)?.cwd ?? null });
+const control = new ControlHub({ store, sessions, defaultCwd: config.defaultCwd, statuses, reviews, prompts, prDetails, repoDirs: config.repoDirs, repos: () => listRepos(config.repoRoots), git: createGitService(), workingDir: (id) => {
+    const session = mcStatus.get(id);
+    return (session?.transcriptPath && lastTranscriptCwd(session.transcriptPath)) || session?.cwd || null;
+  } });
 reviews.onChange(() => control.broadcastState());
 reviews.start(REVIEW_POLL_MS);
 const stopWatching = watchMcStatus(MC_STATE_DIR, () => {
