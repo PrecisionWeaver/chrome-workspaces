@@ -65,7 +65,7 @@ describe('parsePrDetails', () => {
       ],
       requested: ['PrecisionWeaver', 'Platform'],
       checks: { passed: 2, failed: 2, pending: 2, failing: ['Pest (3)', 'codecov'] },
-      summary: 'Adds the sync cache (PROJ-1737) ran the suite',
+      body: GH.body,
       labels: ['backend', 'needs-qa'],
       comments: 3,
       files: [
@@ -81,11 +81,10 @@ describe('parsePrDetails', () => {
     });
   });
 
-  it('cuts a long description at a word, and caps files and commits', () => {
-    const long = { ...GH, body: 'word '.repeat(300), files: Array.from({ length: 30 }, (_, i) => ({ path: `f${i}`, additions: i, deletions: 0 })), commits: Array.from({ length: 12 }, (_, i) => ({ oid: `${i}`.padStart(7, '0'), messageHeadline: `c${i}`, committedDate: '2026-10-07T00:00:00Z', authors: [] })) };
+  it('keeps the description as written, capped, and caps files and commits', () => {
+    const long = { ...GH, body: 'word '.repeat(2000), files: Array.from({ length: 30 }, (_, i) => ({ path: `f${i}`, additions: i, deletions: 0 })), commits: Array.from({ length: 12 }, (_, i) => ({ oid: `${i}`.padStart(7, '0'), messageHeadline: `c${i}`, committedDate: '2026-10-07T00:00:00Z', authors: [] })) };
     const details = parsePrDetails(JSON.stringify(long));
-    expect(details.summary.length).toBeLessThanOrEqual(421);
-    expect(details.summary.endsWith('word…')).toBe(true);
+    expect(details.body).toHaveLength(6000);
     expect(details.files).toHaveLength(10);
     expect(details.files[0].path).toBe('f29');
     expect(details.commits).toHaveLength(6);
@@ -97,7 +96,7 @@ describe('parsePrDetails', () => {
   it('treats missing optional fields as empty', () => {
     const minimal = { ...GH, reviewDecision: '', latestReviews: null, reviewRequests: null, statusCheckRollup: null, body: null, labels: null, comments: null, files: null, commits: null };
     expect(parsePrDetails(JSON.stringify(minimal))).toMatchObject({
-      summary: '',
+      body: '',
       labels: [],
       comments: 0,
       files: [],

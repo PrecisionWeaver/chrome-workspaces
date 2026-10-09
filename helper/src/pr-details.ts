@@ -1,4 +1,4 @@
-import { PR_COMMITS_SHOWN, PR_FILES_SHOWN, type PrDetails } from '../../shared/protocol';
+import { MAX_PR_BODY, PR_COMMITS_SHOWN, PR_FILES_SHOWN, type PrDetails } from '../../shared/protocol';
 
 /** Runs with the PR url in `$CW_PR_URL`, so the url never becomes shell syntax. */
 export const GH_PR_DETAILS =
@@ -37,28 +37,6 @@ interface GhPrView {
   commits: { oid: string; messageHeadline: string; committedDate: string; authors: { login?: string; name?: string }[] }[] | null;
 }
 
-const SUMMARY_LENGTH = 420;
-
-/**
- * Reduces a PR description to plain text for a glance: template comments, images, HTML tags and
- * headings and markdown markers go, links keep their text, and what is left is cut at a word.
- */
-export function summarizeBody(body: string | null): string {
-  const plain = (body ?? '')
-    .replace(/<!--[\s\S]*?-->/g, ' ')
-    // Section headings in a PR template name the section, not the change.
-    .replace(/^\s{0,3}#{1,6}\s.*$/gm, ' ')
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
-    .replace(/^\s{0,3}(>|[-*+]|\d+\.)\s+(\[[ xX]\]\s+)?/gm, '')
-    .replace(/[`*_~]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-  if (plain.length <= SUMMARY_LENGTH) return plain;
-  const cut = plain.slice(0, SUMMARY_LENGTH);
-  return `${cut.slice(0, cut.lastIndexOf(' ') > 200 ? cut.lastIndexOf(' ') : SUMMARY_LENGTH)}…`;
-}
 
 const PASSED = new Set(['SUCCESS', 'NEUTRAL', 'SKIPPED']);
 const PENDING_STATES = new Set(['PENDING', 'EXPECTED']);
@@ -101,7 +79,7 @@ export function parsePrDetails(json: string): PrDetails {
     reviews: (pr.latestReviews ?? []).map((r) => ({ login: r.author.login, state: r.state, at: r.submittedAt ?? null })),
     requested: (pr.reviewRequests ?? []).map((r) => r.login ?? r.name ?? r.slug ?? 'unknown'),
     checks,
-    summary: summarizeBody(pr.body),
+    body: (pr.body ?? '').slice(0, MAX_PR_BODY),
     labels: (pr.labels ?? []).map((label) => label.name),
     comments: (pr.comments ?? []).length,
     files: [...(pr.files ?? [])]

@@ -5,6 +5,7 @@ export const TOKEN_PROTOCOL_PREFIX = 'token.';
 export const NATIVE_HOST_NAME = 'com.chrome_workspaces.helper';
 export const MAX_PROMPT_LENGTH = 8000;
 export const MAX_TAB_URLS = 20;
+export const MAX_PR_BODY = 6000;
 /** What `--model` accepts that is safe to put in a shell command: an alias or id, optionally with a `[1m]`-style suffix. */
 export const MODEL_PATTERN = /^[A-Za-z0-9][\w.-]{0,63}(\[\w{1,8}\])?$/;
 export const MODEL_ALIASES = ['opus', 'sonnet', 'haiku'] as const;
@@ -158,8 +159,8 @@ export interface PrDetails {
   /** Users and teams whose review is still requested. */
   requested: string[];
   checks: { passed: number; failed: number; pending: number; failing: string[] };
-  /** The description as plain text, shortened to what reads at a glance. */
-  summary: string;
+  /** The description as written, in GitHub markdown, cut at `MAX_PR_BODY` characters. */
+  body: string;
   labels: string[];
   /** Conversation comments, not counting review comments on code. */
   comments: number;

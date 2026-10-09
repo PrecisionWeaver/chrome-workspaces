@@ -884,19 +884,148 @@ body.collapsed #collapse {
   font-size: 10.5px;
 }
 
-#create-details .summary {
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  margin: 10px 0 0;
-  color: var(--muted);
-  line-height: 1.5;
-  cursor: pointer;
+/* PR description */
+
+.md {
+  line-height: 1.55;
+  overflow-wrap: anywhere;
 }
 
-#create-details .summary.open {
+.md > :first-child {
+  margin-top: 0;
+}
+
+.md > :last-child {
+  margin-bottom: 0;
+}
+
+.md p,
+.md ul,
+.md ol,
+.md pre,
+.md blockquote,
+.md table {
+  margin: 0 0 8px;
+}
+
+.md h3,
+.md h4,
+.md h5,
+.md h6 {
+  margin: 12px 0 4px;
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.md ul,
+.md ol {
+  padding-left: 20px;
+}
+
+.md li {
+  margin: 1px 0;
+}
+
+.md li.task {
+  list-style: none;
+  margin-left: -20px;
+}
+
+.md li.task input {
+  margin: 0 6px 0 0;
+  vertical-align: -1px;
+  accent-color: var(--accent);
+}
+
+.md code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--raised);
+  font: 11.5px var(--mono);
+}
+
+.md pre {
+  overflow-x: auto;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+
+.md pre code {
+  padding: 0;
+  background: none;
+}
+
+.md blockquote {
+  padding-left: 10px;
+  border-left: 3px solid var(--border-strong);
+  color: var(--muted);
+}
+
+.md hr {
+  margin: 10px 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+
+.md a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.md a:hover {
+  text-decoration: underline;
+}
+
+.md table {
   display: block;
+  overflow-x: auto;
+  border-collapse: collapse;
+}
+
+.md th,
+.md td {
+  padding: 3px 9px;
+  border: 1px solid var(--border);
+  text-align: left;
+}
+
+.md th {
+  background: var(--surface);
+  font-weight: 600;
+}
+
+.md del {
+  color: var(--faint);
+}
+
+.md-fold {
+  position: relative;
+  margin-top: 10px;
+}
+
+#create-details > .md {
+  margin-top: 10px;
+}
+
+.md-fold.folded .md {
+  max-height: 9.5em;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(#000 70%, transparent);
+  mask-image: linear-gradient(#000 70%, transparent);
+}
+
+.md-toggle {
+  margin-top: 4px;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--accent);
+  cursor: pointer;
 }
 
 #create-details .glance {

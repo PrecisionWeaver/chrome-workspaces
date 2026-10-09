@@ -1,5 +1,6 @@
 import { PR_COMMITS_SHOWN, PR_FILES_SHOWN, type PrDetails, type ReviewRequest } from '../../shared/protocol';
 import { el } from './dom';
+import { renderMarkdown } from './markdown-view';
 
 export const repoName = (review: ReviewRequest) => review.repo.split('/')[1] ?? review.repo;
 export const ref = (review: ReviewRequest) => `${repoName(review)}#${review.number}`;
@@ -67,12 +68,7 @@ export function renderDetails(pr: PrDetails): Node[] {
     labels.append(...pr.labels.map((name) => el('span', name, 'label')));
     nodes.push(labels);
   }
-  if (pr.summary) {
-    const summary = el('p', pr.summary, 'summary');
-    summary.title = 'Click to expand';
-    summary.addEventListener('click', () => summary.classList.toggle('open'));
-    nodes.push(summary);
-  }
+  if (pr.body.trim()) nodes.push(renderMarkdown(pr.body));
   if (failing.length) {
     const failingEl = el('div', 'Failing: ', 'failing');
     failingEl.append(el('span', failing.join(', ')));
