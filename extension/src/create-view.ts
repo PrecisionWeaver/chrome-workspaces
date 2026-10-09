@@ -1,6 +1,7 @@
 import { fillPrompt } from '../../shared/prompts';
 import { MAX_TAB_URLS, MODEL_ALIASES } from '../../shared/protocol';
 import { parseTabUrls } from '../../shared/tab-urls';
+import { parseTemplates, removeTemplate, upsertTemplate, type Template } from '../../shared/templates';
 import type { ControlToHelper, PrDetails, Prompt, Repo, ReviewRequest, Workspace } from '../../shared/protocol';
 import { el, promptCard } from './dom';
 import { ref, renderDetails, repoName } from './pr-view';
@@ -64,6 +65,11 @@ export function createCreateView({ send, onToggle, here }: CreateViewOptions): C
   const detailsEl = $<HTMLDivElement>('create-details');
   const githubButton = $<HTMLButtonElement>('create-github');
   const tabsLabel = $<HTMLSpanElement>('create-tabs-label');
+  const templateBox = $<HTMLDivElement>('create-templates');
+  const templateSelect = $<HTMLSelectElement>('create-template');
+  const templateDelete = $<HTMLButtonElement>('template-delete');
+  const templateNameRow = $<HTMLDivElement>('template-name-row');
+  const templateName = $<HTMLInputElement>('template-name');
 
   let isOpen = false;
   let prompts: Prompt[] = [];
@@ -89,9 +95,96 @@ export function createCreateView({ send, onToggle, here }: CreateViewOptions): C
     if (mode === 'text') messageInput.focus();
   }
 
+  // ---- templates ----
+
+  let templates: Template[] = [];
+
+  async function loadTemplates(): Promise<void> {
+    const { templates: stored } = await chrome.storage.local.get('templates');
+    templates = parseTemplates(stored);
+    renderTemplates();
+  }
+
+  function renderTemplates(selected = ''): void {
+    const none = el('option', 'None');
+    none.value = '';
+    templateSelect.replaceChildren(none, ...templates.map((t) => Object.assign(el('option', t.name), { value: t.id })));
+    templateSelect.value = selected;
+    templateDelete.hidden = !selected;
+  }
+
+  /** Fills the form from a template; the name is left alone, since each workspace has its own. */
+  function applyTemplate(template: Template): void {
+    repoSelect.value = template.repo;
+    if (repoSelect.value !== template.repo) repoSelect.value = '';
+    modelSelect.value = template.model;
+    if (modelSelect.value !== template.model) modelSelect.value = '';
+    tabsInput.value = template.tabs;
+    messageInput.value = template.message;
+    start.select(template.message ? 'text' : 'blank');
+    syncStart();
+    const { windowId } = here();
+    target.select(template.window === 'here' && windowId !== undefined ? 'here' : 'new');
+  }
+
+  templateSelect.addEventListener('change', () => {
+    const chosen = templates.find((t) => t.id === templateSelect.value);
+    templateDelete.hidden = !chosen;
+    if (chosen) applyTemplate(chosen);
+  });
+
+  $<HTMLButtonElement>('template-save').addEventListener('click', () => {
+    templateNameRow.hidden = false;
+    templateName.value = templates.find((t) => t.id === templateSelect.value)?.name ?? '';
+    templateName.focus();
+    templateName.select();
+  });
+
+  async function saveTemplate(): Promise<void> {
+    const name = templateName.value.trim();
+    if (!name) return;
+    // The first message is whichever is showing: typed text, or the prompt that was picked and edited.
+    const mode = start.value();
+    const message = mode === 'text' ? messageInput.value.trim() : mode === 'prompt' ? textInput.value.trim() : '';
+    const saved = upsertTemplate(templates, {
+      id: crypto.randomUUID(),
+      name,
+      repo: repoSelect.value,
+      model: modelSelect.value,
+      tabs: tabsInput.value.trim(),
+      message,
+      window: target.value() === 'here' ? 'here' : 'new',
+    });
+    await chrome.storage.local.set({ templates: saved });
+    templates = saved;
+    templateNameRow.hidden = true;
+    renderTemplates(saved.find((t) => t.name.toLowerCase() === name.toLowerCase())?.id ?? '');
+  }
+
+  $<HTMLButtonElement>('template-confirm').addEventListener('click', () => void saveTemplate());
+  templateName.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      void saveTemplate();
+    } else if (event.key === 'Escape') {
+      event.stopPropagation();
+      templateNameRow.hidden = true;
+    }
+  });
+  templateDelete.addEventListener('click', async () => {
+    const remaining = removeTemplate(templates, templateSelect.value);
+    await chrome.storage.local.set({ templates: remaining });
+    templates = remaining;
+    renderTemplates();
+  });
+
   function show(request: ReviewRequest | null = null): void {
     isOpen = true;
     review = request;
+    // A review starts from its PR, so templates are for workspaces made from scratch.
+    templateBox.hidden = request !== null;
+    templateNameRow.hidden = true;
+    void loadTemplates();
     nameInput.value = request ? ref(request) : '';
     filter.value = '';
     textInput.value = '';

@@ -1299,6 +1299,27 @@ body.collapsed #collapse {
   color: var(--text);
 }
 
+.template-row {
+  display: flex;
+  gap: 6px;
+}
+
+.template-row select,
+.template-row input {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  outline: none;
+}
+
+#create-templates[hidden],
+.template-row[hidden] {
+  display: none;
+}
+
 .segmented {
   display: inline-flex;
   align-self: flex-start;

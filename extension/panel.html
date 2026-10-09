@@ -72,6 +72,18 @@
         <h2 id="create-title">New workspace</h2>
         <div id="create-details" hidden></div>
         <form id="create-form">
+          <div class="field" id="create-templates">
+            <span class="label">Template <span class="optional">repo, model, tabs, message and window</span></span>
+            <div class="template-row">
+              <select id="create-template" aria-label="Template"></select>
+              <button type="button" id="template-save" class="settings-btn">Save current…</button>
+              <button type="button" id="template-delete" class="settings-btn danger" hidden>Delete</button>
+            </div>
+            <div class="template-row" id="template-name-row" hidden>
+              <input id="template-name" placeholder="Template name" maxlength="60" autocomplete="off" />
+              <button type="button" id="template-confirm" class="settings-btn">Save</button>
+            </div>
+          </div>
           <label class="field">
             <span class="label">Name</span>
             <input id="create-name" placeholder="Name or ticket" maxlength="80" autocomplete="off" required />
