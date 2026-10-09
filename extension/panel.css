@@ -111,22 +111,33 @@ code {
   color: var(--text);
 }
 
+/* With its body hidden a collapsed header stands alone, so it gets the same room above and below. */
+.section.collapsed .section-header {
+  padding-bottom: 10px;
+}
+
 /* The chevron turns when its section collapses. */
 .section.collapsed .section-toggle {
   transform: rotate(-90deg);
 }
 
+/* Sized and padded like a workspace row, so it lines up with the list above it. */
 #new {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin: 2px 8px 8px;
-  font-size: 16px;
+  gap: 8px;
+  margin: 2px 6px 8px;
+  padding: 6px 8px;
+  font-size: 12px;
+  line-height: normal;
   text-align: left;
 }
 
-#new .label {
-  font-size: 12px;
+#new .plus {
+  width: 18px;
+  font-size: 16px;
+  line-height: 1;
+  text-align: center;
 }
 
 body.collapsed #new .label {
