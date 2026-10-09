@@ -3,7 +3,7 @@ import type { Workspace } from '../../shared/protocol';
 import { splitList, workspaceMatches } from '../../shared/list-filter';
 
 const ws = (id: string, name: string, extra: Partial<Workspace> = {}): Workspace => ({
-  id, name, ticket: null, cwd: '/code/web-app', url: null, windowId: null, groupId: null, pinned: false, archived: false, color: null, model: null, lastTabUrls: [], pr: null, prompt: null, createdAt: '2026-01-01T00:00:00Z', ...extra,
+  id, name, ticket: null, cwd: '/code/web-app', url: null, windowId: null, groupId: null, resume: null, pinned: false, archived: false, color: null, model: null, lastTabUrls: [], pr: null, prompt: null, createdAt: '2026-01-01T00:00:00Z', ...extra,
 });
 
 describe('workspaceMatches', () => {

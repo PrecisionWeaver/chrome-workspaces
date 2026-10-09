@@ -7,6 +7,7 @@ import { createApi } from '../src/api';
 import { createAdmin } from '../src/admin';
 import { ControlHub } from '../src/control';
 import { createGitService } from '../src/git';
+import { HistoryStore } from '../src/history';
 import { startServer, type RunningServer } from '../src/server';
 import { SessionManager } from '../src/session';
 import { WorkspaceStore } from '../src/workspace-store';
@@ -33,6 +34,8 @@ export interface Harness {
   workingDirs: Record<string, string>;
   /** Commands the admin service started detached, instead of running them. */
   spawned: string[];
+  /** The claude session each workspace is on, by id, for restoring. */
+  resumeIds: Record<string, string>;
   /** The claude transcript of each workspace, by id, for token counts. */
   transcripts: Record<string, string>;
   /** Whether the fake launchd manages the helper. */
@@ -61,6 +64,7 @@ export async function startHarness(): Promise<Harness> {
     repos: [] as Repo[],
     workingDirs: {} as Record<string, string>,
     spawned: [] as string[],
+    resumeIds: {} as Record<string, string>,
     transcripts: {} as Record<string, string>,
     managed: true,
     dataDir: dir,
@@ -96,7 +100,7 @@ export async function startHarness(): Promise<Harness> {
     spawnDetached: (command) => fakes.spawned.push(command),
     isManaged: async () => fakes.managed,
   });
-  const control = new ControlHub({ store, sessions, defaultCwd, statuses, reviews, prompts, prDetails, repoDirs: fakes.repoDirs, repos: () => fakes.repos, git: createGitService(), admin, workingDir: (id) => fakes.workingDirs[id] ?? null });
+  const control = new ControlHub({ store, sessions, defaultCwd, statuses, reviews, prompts, prDetails, repoDirs: fakes.repoDirs, repos: () => fakes.repos, git: createGitService(), admin, history: new HistoryStore(join(dir, 'history.json')), resumeId: (id) => fakes.resumeIds[id] ?? null, workingDir: (id) => fakes.workingDirs[id] ?? null });
   const auth = { token: TOKEN, allowedOrigins: [ORIGIN] };
   const server = await startServer({
     host: '127.0.0.1',

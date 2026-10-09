@@ -5,6 +5,7 @@ import { isDirectory } from './config';
 import type { AdminService } from './admin';
 import { asPaste } from './paste';
 import type { GitService } from './git';
+import type { HistoryStore } from './history';
 import { parsePrDetails } from './pr-details';
 import { isPullRequestUrl, prWorkspace } from './pr-workspace';
 import type { SessionManager } from './session';
@@ -29,6 +30,9 @@ export interface ControlHubOptions {
   repos: () => Repo[];
   git: GitService;
   admin: AdminService;
+  history: HistoryStore;
+  /** The claude session a workspace is on, to resume if it is restored. */
+  resumeId: (id: string) => string | null;
   /** The directory a workspace's claude last reported working in, if it has reported one. */
   workingDir: (id: string) => string | null;
 }
@@ -39,6 +43,7 @@ export class ControlHub {
 
   constructor(private readonly options: ControlHubOptions) {
     options.store.onChange(() => this.broadcastState());
+    options.history.onChange(() => this.send(this.historyMessage()));
   }
 
   get clientCount(): number {
@@ -58,6 +63,7 @@ export class ControlHub {
       if (isControlToHelper(message)) this.handle(message, ws);
     });
     this.sendTo(ws, this.state());
+    this.sendTo(ws, this.historyMessage());
   }
 
   /** Returns whether any extension context received it. */
@@ -68,6 +74,10 @@ export class ControlHub {
 
   broadcastState(): void {
     this.send(this.state());
+  }
+
+  private historyMessage(): ControlToClient {
+    return { type: 'history', entries: this.options.history.list() };
   }
 
   private state(): ControlToClient {
@@ -147,9 +157,27 @@ export class ControlHub {
         }
         break;
       }
-      case 'remove':
+      case 'remove': {
+        const removing = store.get(message.id);
+        // Remembered before it goes, with the conversation it was on, so it can be restored.
+        if (removing) this.options.history.record(removing, this.options.resumeId(message.id));
         this.options.sessions.remove(message.id);
         store.remove(message.id);
+        break;
+      }
+      case 'restore': {
+        const entry = this.options.history.get(message.historyId);
+        if (!entry) break;
+        // The directory may be gone, e.g. a deleted worktree; the default directory is better than none.
+        const cwd = isDirectory(entry.cwd) ? entry.cwd : this.options.defaultCwd;
+        const workspace = store.create({ name: entry.name, ticket: entry.ticket, cwd, url: entry.url, pr: entry.pr, model: entry.model, tabs: entry.tabs, resume: entry.resumeId });
+        this.options.history.remove(entry.id);
+        if (message.windowId === null) this.send({ type: 'open', id: workspace.id });
+        else store.pairWindow(workspace.id, message.windowId);
+        break;
+      }
+      case 'forget':
+        this.options.history.remove(message.historyId);
         break;
       case 'listPrompts':
         this.sendTo(ws, this.prompts());
@@ -292,6 +320,10 @@ function isControlToHelper(value: unknown): value is ControlToHelper {
       );
     case 'remove':
       return typeof m.id === 'string';
+    case 'restore':
+      return typeof m.historyId === 'string' && (m.windowId === null || isWindowId(m.windowId));
+    case 'forget':
+      return typeof m.historyId === 'string';
     case 'rename':
       return typeof m.id === 'string' && isWorkspaceName(m.name);
     case 'mark':

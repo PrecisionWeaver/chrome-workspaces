@@ -42,7 +42,7 @@ Each workspace is a regular Chrome window, or a tab group inside one, with your 
 | **Send to workspace** | Right-click selected text, a link or a page and choose **Send to workspace** to paste it into that workspace's terminal. It is pasted, never submitted, and control characters are stripped. The workspace's terminal must already be open. |
 | **Attachments** | Drag files onto the terminal, or paste a screenshot, and they are saved under `~/.chrome-workspaces/uploads/` (cleared after a week) with their path typed in for `claude` to read. Up to 25 MB each. |
 | **Sessions** | Closing the panel leaves `claude` running; reopening reattaches with scrollback. `exit` closes the shell; the next open resumes the last conversation. |
-| **Rename / remove** | Double-click a name to rename (a tab group takes the new name). Hover and click × twice to end the session; the window stays open. |
+| **Rename / remove** | Double-click a name to rename (a tab group takes the new name). Hover and click × twice to end the session; the window stays open. A removed workspace moves to **Recently closed** (the last 50), and clicking it, or choosing it in `⌘K`, brings it back with its tabs and resumes its conversation. |
 | **Collapse** | `‹` shrinks the list to a narrow rail. |
 
 **Limitations**

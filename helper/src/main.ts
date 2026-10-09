@@ -11,6 +11,7 @@ import { readMcStatus, lastTranscriptCwd, watchMcStatus, type McWorkspaceStatus 
 import { GH_PR_DETAILS } from './pr-details';
 import { readPrompts } from './prompts';
 import { createGitService } from './git';
+import { HistoryStore } from './history';
 import { listRepos } from './repos';
 import { GH_REVIEW_REQUESTS, ghOwnPrs, ghWatchedPrs, ReviewsPoller } from './reviews';
 import { startServer } from './server';
@@ -77,7 +78,8 @@ const admin = createAdmin({
   isManaged: defaultIsManaged,
 });
 
-const control = new ControlHub({ store, sessions, defaultCwd: config.defaultCwd, statuses, reviews, prompts, prDetails, repoDirs: config.repoDirs, repos: () => listRepos(config.repoRoots), git: createGitService(), admin, workingDir: (id) => {
+const history = new HistoryStore(join(DATA_DIR, 'history.json'));
+const control = new ControlHub({ store, sessions, defaultCwd: config.defaultCwd, statuses, reviews, prompts, prDetails, repoDirs: config.repoDirs, repos: () => listRepos(config.repoRoots), git: createGitService(), admin, history, resumeId: (id) => mcStatus.get(id)?.claudeSessionId ?? store.get(id)?.resume ?? null, workingDir: (id) => {
     const session = mcStatus.get(id);
     return (session?.transcriptPath && lastTranscriptCwd(session.transcriptPath)) || session?.cwd || null;
   } });
@@ -103,7 +105,8 @@ const server = await startServer({
   onUnknownSession: (id) => {
     const workspace = store.get(id);
     if (!workspace) return undefined;
-    const resumeId = mcStatus.get(id)?.claudeSessionId ?? null;
+    // A restored workspace has no session of its own yet, so it resumes the one it had.
+    const resumeId = mcStatus.get(id)?.claudeSessionId ?? workspace.resume ?? null;
     const spec = launchSpec(workspace, { shell, resumeId, defaultModel: config.defaultModel });
     const session = sessions.create(spec);
     if (spec.env?.CW_PROMPT !== undefined) store.clearPrompt(id);

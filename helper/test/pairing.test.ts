@@ -3,7 +3,7 @@ import { matchGroups, matchWindows } from '../../shared/pairing';
 import type { Workspace } from '../../shared/protocol';
 
 function ws(id: string, lastTabUrls: string[], windowId: number | null = null): Workspace {
-  return { id, name: id, ticket: null, cwd: '/tmp', url: null, windowId, groupId: null, pinned: false, archived: false, color: null, model: null, lastTabUrls, pr: null, prompt: null, createdAt: '2026-01-01T00:00:00Z' };
+  return { id, name: id, ticket: null, cwd: '/tmp', url: null, windowId, groupId: null, resume: null, pinned: false, archived: false, color: null, model: null, lastTabUrls, pr: null, prompt: null, createdAt: '2026-01-01T00:00:00Z' };
 }
 
 describe('matchWindows', () => {

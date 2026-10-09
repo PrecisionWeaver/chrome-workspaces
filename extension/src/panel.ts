@@ -1,7 +1,7 @@
 import { FitAddon } from '@xterm/addon-fit';
 import { Terminal } from '@xterm/xterm';
 import { similarity } from '../../shared/pairing';
-import { WORKSPACE_COLORS, type ClientMessage, type ReviewRequest, type ReviewsState, type ServerMessage, type Workspace, type WorkspaceStatus } from '../../shared/protocol';
+import { WORKSPACE_COLORS, type ClientMessage, type HistoryEntry, type ReviewRequest, type ReviewsState, type ServerMessage, type Workspace, type WorkspaceStatus } from '../../shared/protocol';
 import { connectControl, getHelper, openSocket } from './helper-client';
 import { createCreateView } from './create-view';
 import { attachFileDrop } from './file-drop';
@@ -36,11 +36,16 @@ let myWindowId: number | undefined;
 let workspaces: Workspace[] = [];
 let statuses: Record<string, WorkspaceStatus> = {};
 let reviews: ReviewsState = { items: [], error: null, fetchedAt: null };
+let history: HistoryEntry[] = [];
 
 const control = connectControl(
   (message) => {
     if (message.type === 'prompts') creator.setPrompts(message.prompts, message.error);
     if (message.type === 'repos') creator.setRepos(message.repos);
+    if (message.type === 'history') {
+      history = message.entries;
+      renderList();
+    }
     if (message.type === 'system') settings.setSystem(message);
     if (message.type === 'adminResult') settings.setResult(message);
     if (message.type === 'systemLog') settings.setLog(message.text);
@@ -213,6 +218,7 @@ let dragged: Workspace | null = null;
 
 const listSearch = $<HTMLInputElement>('list-search');
 let archivedOpen = false;
+let closedOpen = false;
 void chrome.storage.local.get('archivedOpen').then(({ archivedOpen: saved }) => {
   archivedOpen = saved === true;
   renderList();
@@ -246,6 +252,19 @@ function renderList(): void {
     // A search that matches only archived workspaces shows them, so they can be found.
     if (archivedOpen || listSearch.value.trim()) rows.push(...archived.map((ws) => workspaceRow(ws, null, here)));
   }
+  // Removed workspaces, kept so one can be brought back with its conversation.
+  const closed = history.filter((entry) => !listSearch.value.trim() || entry.name.toLowerCase().includes(listSearch.value.trim().toLowerCase()));
+  if (closed.length) {
+    const toggle = document.createElement('li');
+    toggle.className = 'archived-toggle';
+    toggle.textContent = `${closedOpen ? '▾' : '▸'} Recently closed (${closed.length})`;
+    toggle.addEventListener('click', () => {
+      closedOpen = !closedOpen;
+      renderList();
+    });
+    rows.push(toggle);
+    if (closedOpen || listSearch.value.trim()) rows.push(...closed.map(closedRow));
+  }
   if (rows.length === 0) {
     const empty = document.createElement('li');
     empty.className = 'list-empty';
@@ -253,6 +272,35 @@ function renderList(): void {
     rows.push(empty);
   }
   listEl.replaceChildren(...rows);
+}
+
+function restoreWorkspace(entry: HistoryEntry): void {
+  const { windowId, workspace } = here();
+  // Into this window as a group when it already holds a workspace; otherwise a window of its own.
+  send({ type: 'restore', historyId: entry.id, windowId: workspace && windowId !== undefined ? windowId : null });
+}
+
+function closedRow(entry: HistoryEntry): HTMLLIElement {
+  const item = document.createElement('li');
+  item.className = 'ws archived closed';
+  item.title = `${entry.name}\n${entry.cwd}\nClosed ${new Date(entry.closedAt).toLocaleString()}${entry.resumeId ? '\nResumes its conversation' : ''}\nClick to restore`;
+  const badge = document.createElement('span');
+  badge.className = 'badge';
+  badge.textContent = '↺';
+  const name = document.createElement('span');
+  name.className = 'name';
+  name.textContent = entry.name;
+  const forget = document.createElement('button');
+  forget.className = 'remove';
+  forget.title = 'Forget this workspace';
+  forget.textContent = '×';
+  forget.addEventListener('click', (event) => {
+    event.stopPropagation();
+    send({ type: 'forget', historyId: entry.id });
+  });
+  item.append(badge, name, forget);
+  item.addEventListener('click', () => restoreWorkspace(entry));
+  return item;
 }
 
 function workspaceRow(ws: Workspace, number: number | null, here: Workspace | undefined): HTMLLIElement {
@@ -626,6 +674,9 @@ function paletteItems(): PaletteItem[] {
       hint: [ws.id === shown?.id ? 'current' : '', status === 'needs_input' ? 'needs input' : status === 'working' ? 'working' : '', ws.cwd.replace(/^\/Users\/[^/]+/, '~')].filter(Boolean).join(' · '),
       run: () => openWorkspace(ws),
     });
+  }
+  for (const entry of history) {
+    items.push({ kind: 'Restore', label: entry.name, hint: `closed ${new Date(entry.closedAt).toLocaleDateString()}${entry.resumeId ? ' · resumes its conversation' : ''}`, run: () => restoreWorkspace(entry) });
   }
   for (const review of reviews.items) {
     const existing = workspaces.find((ws) => ws.pr === review.url);

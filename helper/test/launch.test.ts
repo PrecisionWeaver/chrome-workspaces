@@ -10,6 +10,7 @@ const workspace: Workspace = {
   url: null,
   windowId: 1,
   groupId: null,
+  resume: null,
   pinned: false,
   archived: false,
   color: null,

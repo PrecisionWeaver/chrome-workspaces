@@ -31,6 +31,21 @@ export type NativeHostReply =
   | { ok: true; token: string; port: number }
   | { ok: false; error: string };
 
+/** A removed workspace, kept so it can be restored. */
+export interface HistoryEntry {
+  id: string;
+  name: string;
+  cwd: string;
+  ticket: string | null;
+  url: string | null;
+  pr: string | null;
+  model: string | null;
+  tabs: string[];
+  /** Its claude session, resumed when restored. */
+  resumeId: string | null;
+  closedAt: string;
+}
+
 /** Tokens a claude session has used. */
 export interface TokenTotals {
   /** Input not served from the cache. */
@@ -124,6 +139,8 @@ export interface Workspace {
   /** Tucked away under Archived, and skipped by the switch shortcuts. */
   archived: boolean;
   color: WorkspaceColor | null;
+  /** A claude session to resume the first time this workspace's terminal starts. */
+  resume: string | null;
   /** `claude --model` value; null uses the helper's `defaultModel`. */
   model: string | null;
   /** Tab URLs last seen in its window or group; used to re-pair after Chrome restarts. */
@@ -290,6 +307,8 @@ export type ControlToClient =
   | { type: 'browser'; id: string; at: number }
   /** Reply to `listPrompts`, sent only to the client that asked. */
   | { type: 'prompts'; prompts: Prompt[]; error: string | null }
+  /** Recently removed workspaces, newest first; sent on connect and whenever they change. */
+  | { type: 'history'; entries: HistoryEntry[] }
   /** Reply to `sendText`. */
   | { type: 'sent'; id: string; ok: boolean; message: string }
   /** Reply to `system`, to the client that asked. */
@@ -324,6 +343,10 @@ export type ControlToHelper =
   | { type: 'move'; id: string; index: number }
   /** Sets the whole list order at once; ignored unless `ids` is exactly the current workspaces. */
   | { type: 'order'; ids: string[] }
+  /** Brings a removed workspace back, in `windowId` or a new window, resuming its conversation. */
+  | { type: 'restore'; historyId: string; windowId: number | null }
+  /** Forgets a removed workspace. */
+  | { type: 'forget'; historyId: string }
   /** Pastes text into the workspace's terminal without submitting it; answered with `sent`. */
   | { type: 'sendText'; id: string; text: string }
   | { type: 'listPrompts' }
