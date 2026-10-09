@@ -1,6 +1,7 @@
 import type { AdminAction, ControlToClient, ControlToHelper, SystemProcess, SystemSession, SystemSnapshot, TokenTotals } from '../../shared/protocol';
 import { el } from './dom';
-import { loadPrefs, savePrefs, type Prefs } from './prefs';
+import { DENSITIES, THEMES } from '../../shared/keynav';
+import { loadPrefs, normalizePrefs, savePrefs, type Prefs } from './prefs';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -65,7 +66,7 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
   let pollTimer: ReturnType<typeof setInterval> | undefined;
   let resultTimer: ReturnType<typeof setTimeout> | undefined;
   let logText: string | null = null;
-  let prefs: Prefs = { notify: false };
+  let prefs: Prefs = normalizePrefs(undefined);
   void loadPrefs().then((loaded) => {
     prefs = loaded;
     if (isOpen) render();
@@ -322,9 +323,26 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
     return card(`Needs attention · ${s.warnings.length}`, ...rows, el('p', `Limits: ${s.config.limits.memoryWarnMb} MB per workspace, servers idle over ${s.config.limits.idleServerHours} h. Change them under "limits" in the config.`, 'settings-note'));
   }
 
+  function choice<T extends string>(label: string, values: readonly T[], current: T, onChange: (value: T) => void): HTMLElement {
+    const wrapper = el('label', '', 'pref');
+    const select = el('select', '', 'pref-select');
+    select.append(...values.map((value) => Object.assign(el('option', value[0].toUpperCase() + value.slice(1)), { value, selected: value === current })));
+    select.addEventListener('change', () => onChange(select.value as T));
+    wrapper.append(el('span', label, 'pref-label'), select);
+    return wrapper;
+  }
+
   function preferencesCard(): HTMLElement {
     return card(
       'Preferences',
+      choice('Theme', THEMES, prefs.theme, (theme) => {
+        prefs = { ...prefs, theme };
+        void savePrefs({ theme });
+      }),
+      choice('Density', DENSITIES, prefs.density, (density) => {
+        prefs = { ...prefs, density };
+        void savePrefs({ density });
+      }),
       checkbox(
         'Desktop notifications',
         prefs.notify,

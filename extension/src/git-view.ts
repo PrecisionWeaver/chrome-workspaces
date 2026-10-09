@@ -317,7 +317,11 @@ export function createGitView({ send, onToggle, status }: GitViewOptions): GitVi
         const graph = svg('svg', { width: lanes * CELL + 4, height: ROW, class: 'git-graph' });
         const x = (column: number) => column * CELL + CELL / 2 + 2;
         for (const s of segments) graph.append(svg('line', { x1: x(s.x1), y1: s.y1 * ROW, x2: x(s.x2), y2: s.y2 * ROW, stroke: color(s.color), 'stroke-width': 1.6 }));
-        graph.append(svg('circle', { cx: x(node), cy: ROW / 2, r: 4, fill: commit.parents.length > 1 ? '#18191d' : color(nodeColor), stroke: color(nodeColor), 'stroke-width': 1.6 }));
+        const dot = svg('circle', { cx: x(node), cy: ROW / 2, r: 4, stroke: color(nodeColor), 'stroke-width': 1.6 });
+        // A merge is drawn hollow, in the list's own color so it reads on either theme.
+        if (commit.parents.length > 1) dot.style.fill = 'var(--list-bg)';
+        else dot.setAttribute('fill', color(nodeColor));
+        graph.append(dot);
 
         const row = el('button', '', 'git-commit');
         row.type = 'button';

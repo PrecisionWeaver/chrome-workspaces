@@ -44,6 +44,7 @@ Each workspace is a regular Chrome window, or a tab group inside one, with your 
 | **Attachments** | Drag files onto the terminal, or paste a screenshot, and they are saved under `~/.chrome-workspaces/uploads/` (cleared after a week) with their path typed in for `claude` to read. Up to 25 MB each. |
 | **Sessions** | Closing the panel leaves `claude` running; reopening reattaches with scrollback. `exit` closes the shell; the next open resumes the last conversation. |
 | **Rename / remove** | Double-click a name to rename (a tab group takes the new name). Hover and click × twice to end the session; the window stays open. A removed workspace moves to **Recently closed** (the last 50), and clicking it, or choosing it in `⌘K`, brings it back with its tabs and resumes its conversation. |
+| **Appearance** | Settings has **Theme** (system, dark or light) and **Density** (comfortable or compact); the terminal's colors follow the theme. The workspace list is keyboard-friendly: Tab into it, then `↑` `↓` (or `j` `k`), `Home`, `End`, `Enter` to open, `F2` to rename. |
 | **Collapse** | `‹` shrinks the list to a narrow rail. |
 
 **Limitations**

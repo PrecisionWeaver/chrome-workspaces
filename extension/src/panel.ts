@@ -7,8 +7,10 @@ import { createCreateView } from './create-view';
 import { attachFileDrop } from './file-drop';
 import { createGitView } from './git-view';
 import { needsInputCount } from '../../shared/attention';
+import { nextIndex, resolveTheme } from '../../shared/keynav';
 import { splitList } from '../../shared/list-filter';
 import { closeMenu, menuItem, openMenu } from './menu';
+import { loadPrefs, onPrefsChange, type Prefs } from './prefs';
 import { createPalette, type PaletteItem } from './palette';
 import { createSettingsView } from './settings-view';
 import { makeSectionsResizable } from './sections';
@@ -32,6 +34,24 @@ const term = new Terminal({ fontFamily: 'Menlo, monospace', fontSize: 12, cursor
 const fit = new FitAddon();
 term.loadAddon(fit);
 term.open(terminalEl);
+
+const DARK_TERMINAL = { background: '#1e1e1e' };
+const LIGHT_TERMINAL = { background: '#ffffff', foreground: '#1f2328', cursor: '#1f2328', cursorAccent: '#ffffff', selectionBackground: 'rgba(31, 111, 235, 0.25)' };
+const systemDark = window.matchMedia('(prefers-color-scheme: dark)');
+let appearance: Prefs | null = null;
+
+/** Applies the theme and density to the page and the terminal; `system` follows the operating system. */
+function applyAppearance(prefs: Prefs | null = appearance): void {
+  if (!prefs) return;
+  appearance = prefs;
+  const theme = resolveTheme(prefs.theme, systemDark.matches);
+  document.documentElement.dataset.theme = theme;
+  document.documentElement.dataset.density = prefs.density;
+  term.options.theme = theme === 'light' ? LIGHT_TERMINAL : DARK_TERMINAL;
+}
+void loadPrefs().then(applyAppearance);
+onPrefsChange(applyAppearance);
+systemDark.addEventListener('change', () => applyAppearance());
 
 let myWindowId: number | undefined;
 let workspaces: Workspace[] = [];
@@ -280,8 +300,41 @@ function renderList(): void {
     empty.textContent = listSearch.value ? 'No workspace matches' : 'No workspaces yet';
     rows.push(empty);
   }
+  // Status updates redraw the list constantly; a row being navigated to must keep focus through that.
+  const focusedId = listEl.contains(document.activeElement) ? (document.activeElement as HTMLElement).dataset.id : undefined;
   listEl.replaceChildren(...rows);
+  if (focusedId) listEl.querySelector<HTMLElement>(`[data-id="${focusedId}"]`)?.focus();
+  // One row is a tab stop (the current one, else the first), and the arrow keys move among the rest.
+  const stops = [...listEl.querySelectorAll<HTMLElement>('.ws[data-id]')];
+  const stop = stops.find((row) => row.classList.contains('current')) ?? stops[0];
+  for (const row of stops) row.tabIndex = row === stop ? 0 : -1;
 }
+
+listEl.setAttribute('role', 'listbox');
+listEl.setAttribute('aria-label', 'Workspaces');
+listEl.addEventListener('keydown', (event) => {
+  const target = event.target as HTMLElement;
+  // Typing in the rename box must not move focus away.
+  if (target.tagName === 'INPUT') return;
+  const rows = [...listEl.querySelectorAll<HTMLElement>('.ws[data-id]')];
+  const at = rows.indexOf(target.closest<HTMLElement>('.ws[data-id]') as HTMLElement);
+  if (event.key === 'Enter' || event.key === ' ') {
+    if (at >= 0) {
+      event.preventDefault();
+      rows[at].click();
+    }
+    return;
+  }
+  if (event.key === 'F2' && at >= 0) {
+    event.preventDefault();
+    rows[at].querySelector<HTMLElement>('.name')?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    return;
+  }
+  const next = nextIndex(event.key, at, rows.length);
+  if (next === null) return;
+  event.preventDefault();
+  rows[next].focus();
+});
 
 function restoreWorkspace(entry: HistoryEntry): void {
   const { windowId, workspace } = here();
@@ -292,6 +345,9 @@ function restoreWorkspace(entry: HistoryEntry): void {
 function closedRow(entry: HistoryEntry): HTMLLIElement {
   const item = document.createElement('li');
   item.className = 'ws archived closed';
+  item.dataset.id = entry.id;
+  item.setAttribute('role', 'option');
+  item.setAttribute('aria-label', `${entry.name}, closed. Press Enter to restore.`);
   item.title = `${entry.name}\n${entry.cwd}\nClosed ${new Date(entry.closedAt).toLocaleString()}${entry.resumeId ? '\nResumes its conversation' : ''}\nClick to restore`;
   const badge = document.createElement('span');
   badge.className = 'badge';
@@ -315,6 +371,11 @@ function closedRow(entry: HistoryEntry): HTMLLIElement {
 function workspaceRow(ws: Workspace, number: number | null, here: Workspace | undefined): HTMLLIElement {
   const item = document.createElement('li');
   item.className = `ws${ws.id === here?.id ? ' current' : ''}${ws.archived ? ' archived' : ''}`;
+  item.dataset.id = ws.id;
+  item.setAttribute('role', 'option');
+  item.setAttribute('aria-selected', String(ws.id === here?.id));
+  const live = statuses[ws.id];
+  item.setAttribute('aria-label', `${ws.name}${live === 'needs_input' ? ', needs input' : live === 'working' ? ', working' : live === 'idle' ? ', idle' : ''}${ws.pinned ? ', pinned' : ''}${ws.archived ? ', archived' : ''}`);
   item.title = `${ws.name}\n${ws.cwd}${ws.groupId === null ? '' : '\nTab group'}\nRight-click for more`;
 
   const badge = document.createElement('span');

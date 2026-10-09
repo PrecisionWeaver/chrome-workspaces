@@ -17,10 +17,69 @@
   --good: #4fcf8e;
   --bad: #f26d6d;
   --wait: #e5b84d;
+  --on-accent: #0d1626;
+  --diff-add: #b8ecd0;
+  --diff-del: #f5b9b9;
+  --scrim: rgba(0, 0, 0, 0.45);
+  --shadow: rgba(0, 0, 0, 0.45);
+  color-scheme: dark;
 
   --ui: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
   --mono: 'SF Mono', ui-monospace, Menlo, monospace;
   --radius: 6px;
+}
+
+/* Light palette. Every color the panel uses is a variable, so this is the whole difference. */
+:root[data-theme='light'] {
+  --bg: #ffffff;
+  --list-bg: #f3f4f6;
+  --surface: #ffffff;
+  --raised: #e9ebef;
+  --border: #d8dbe1;
+  --border-strong: #c2c7d0;
+  --text: #1f2328;
+  --muted: #59606a;
+  --faint: #868d98;
+  --active: #dbe8ff;
+  --accent: #1f6feb;
+  --accent-soft: rgba(31, 111, 235, 0.12);
+  --needs-input: #cf222e;
+  --working: #1a7f4b;
+  --good: #1a7f4b;
+  --bad: #cf222e;
+  --wait: #9a6700;
+  --on-accent: #ffffff;
+  --diff-add: #116329;
+  --diff-del: #82071e;
+  --scrim: rgba(31, 35, 40, 0.35);
+  --shadow: rgba(31, 35, 40, 0.25);
+  color-scheme: light;
+}
+
+/* Compact density: tighter rows and headers, for a long list. */
+:root[data-density='compact'] .ws {
+  padding-top: 3px;
+  padding-bottom: 3px;
+}
+
+:root[data-density='compact'] .section-header {
+  padding-top: 6px;
+  padding-bottom: 4px;
+}
+
+:root[data-density='compact'] .review {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+:root[data-density='compact'] .git-file,
+:root[data-density='compact'] .palette-row {
+  padding-top: 1px;
+  padding-bottom: 1px;
+}
+
+:root[data-density='compact'] .settings-card {
+  padding: 8px 10px;
 }
 
 html,
@@ -210,7 +269,7 @@ body.collapsed #new .label {
 
 .ws.current {
   background: var(--active);
-  color: #fff;
+  color: var(--text);
   box-shadow: inset 2px 0 0 var(--accent);
 }
 
@@ -241,7 +300,7 @@ body.collapsed #new .label {
 
 .ws.current .badge {
   background: var(--accent);
-  color: #0d1626;
+  color: var(--on-accent);
 }
 
 /* A workspace with a tab group wears the group's color: tinted at rest, solid when current. */
@@ -252,7 +311,7 @@ body.collapsed #new .label {
 
 .ws.current .badge[data-group] {
   background: var(--group);
-  color: #0d1626;
+  color: var(--on-accent);
 }
 
 .badge[data-group='grey'] { --group: #9aa0a6; }
@@ -1375,7 +1434,7 @@ body.collapsed #collapse {
 
 #create-submit {
   background: var(--accent);
-  color: #0d1626;
+  color: var(--on-accent);
   border: 1px solid var(--accent);
   border-radius: var(--radius);
   padding: 5px 16px;
@@ -1886,12 +1945,12 @@ button.git-branch-name:hover {
 
 .diff-line.add {
   background: color-mix(in srgb, var(--good) 14%, transparent);
-  color: #b8ecd0;
+  color: var(--diff-add);
 }
 
 .diff-line.del {
   background: color-mix(in srgb, var(--bad) 14%, transparent);
-  color: #f5b9b9;
+  color: var(--diff-del);
 }
 
 .diff-line.hunk {
@@ -1923,6 +1982,10 @@ button.git-branch-name:hover {
 
 #list-search[hidden] {
   display: none;
+}
+
+.ws:focus-visible {
+  outline-offset: -2px;
 }
 
 .archived-toggle,
@@ -1967,7 +2030,7 @@ button.git-branch-name:hover {
   background: var(--surface);
   border: 1px solid var(--border-strong);
   border-radius: 8px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 10px 30px var(--shadow);
 }
 
 /* Its buttons, one per line. */
@@ -2041,7 +2104,7 @@ body.collapsed .list-empty {
   justify-content: center;
   align-items: flex-start;
   padding-top: 12vh;
-  background: rgba(0, 0, 0, 0.45);
+  background: var(--scrim);
 }
 
 #palette[hidden] {
@@ -2057,7 +2120,7 @@ body.collapsed .list-empty {
   background: var(--surface);
   border: 1px solid var(--border-strong);
   border-radius: 10px;
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 18px 50px var(--shadow);
 }
 
 #palette-input {
@@ -2279,6 +2342,14 @@ body.collapsed .list-empty {
 
 .pref input {
   accent-color: var(--accent);
+}
+
+.pref-select {
+  padding: 2px 6px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
 }
 
 .pref-hint {

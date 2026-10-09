@@ -1,13 +1,27 @@
+import { DENSITIES, THEMES, type Density, type Theme } from '../../shared/keynav';
+
 export interface Prefs {
   /** Desktop notification when a workspace starts waiting for input or finishes. */
   notify: boolean;
+  theme: Theme;
+  density: Density;
 }
 
-const DEFAULTS: Prefs = { notify: false };
+const DEFAULTS: Prefs = { notify: false, theme: 'system', density: 'comfortable' };
+
+/** Stored preferences with anything missing or invalid replaced by its default, since storage can hold anything. */
+export function normalizePrefs(stored: unknown): Prefs {
+  const p = (typeof stored === 'object' && stored !== null ? stored : {}) as Partial<Record<keyof Prefs, unknown>>;
+  return {
+    notify: p.notify === true,
+    theme: THEMES.includes(p.theme as Theme) ? (p.theme as Theme) : DEFAULTS.theme,
+    density: DENSITIES.includes(p.density as Density) ? (p.density as Density) : DEFAULTS.density,
+  };
+}
 
 export async function loadPrefs(): Promise<Prefs> {
-  const { prefs } = (await chrome.storage.local.get('prefs')) as { prefs?: Partial<Prefs> };
-  return { ...DEFAULTS, ...prefs };
+  const { prefs } = await chrome.storage.local.get('prefs');
+  return normalizePrefs(prefs);
 }
 
 export async function savePrefs(change: Partial<Prefs>): Promise<Prefs> {
@@ -19,6 +33,6 @@ export async function savePrefs(change: Partial<Prefs>): Promise<Prefs> {
 /** Calls `listener` with the new preferences whenever any context changes them. */
 export function onPrefsChange(listener: (prefs: Prefs) => void): void {
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === 'local' && 'prefs' in changes) listener({ ...DEFAULTS, ...(changes.prefs.newValue as Partial<Prefs> | undefined) });
+    if (area === 'local' && 'prefs' in changes) listener(normalizePrefs(changes.prefs.newValue));
   });
 }
