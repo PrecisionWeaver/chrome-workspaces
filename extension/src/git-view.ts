@@ -1,6 +1,7 @@
 import { layoutGraph } from '../../shared/git-graph';
-import type { ControlToClient, ControlToHelper, GitCommit, GitCommitFile, GitFile, GitState, Workspace, WorkspaceStatus } from '../../shared/protocol';
+import type { BranchPr, ControlToClient, ControlToHelper, GitBranch, GitCommit, GitCommitFile, GitFile, GitState, Workspace, WorkspaceStatus } from '../../shared/protocol';
 import { el } from './dom';
+import { menuItem, openMenu } from './menu';
 import { relative } from './pr-view';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -25,9 +26,18 @@ export interface GitView {
   setState(message: Extract<ControlToClient, { type: 'git' }>): void;
   setCommit(message: Extract<ControlToClient, { type: 'gitCommit' }>): void;
   setDiff(message: Extract<ControlToClient, { type: 'gitDiff' }>): void;
+  setResult(message: Extract<ControlToClient, { type: 'gitResult' }>): void;
+  setBranches(message: Extract<ControlToClient, { type: 'gitBranches' }>): void;
+  setChecks(message: Extract<ControlToClient, { type: 'gitChecks' }>): void;
+  setCompare(message: Extract<ControlToClient, { type: 'gitCompare' }>): void;
 }
 
 const POLL_MS = 5000;
+// CI changes slowly and each check is a call to GitHub, so it is asked about less often than status.
+const CHECKS_MS = 60_000;
+// A discard button asks twice; it disarms after this long.
+const ARM_MS = 3000;
+const NOTICE_MS = 6000;
 // How long a file that just changed stays highlighted.
 const FRESH_MS = 5000;
 const MAX_DIFF_LINES = 4000;
@@ -49,16 +59,49 @@ const svg = <K extends keyof SVGElementTagNameMap>(tag: K, attrs: Record<string,
   return node;
 };
 
-function fileRow(letter: string, path: string, from: string | undefined, onClick: () => void, fresh = false): HTMLElement {
-  const row = el('button', '', `git-file${fresh ? ' fresh' : ''}`);
-  row.type = 'button';
+/** A file in a list: name, folder and status letter, with optional actions that show on hover. */
+function fileRow(letter: string, path: string, from: string | undefined, onClick: () => void, fresh = false, actions: HTMLElement[] = []): HTMLElement {
+  const row = el('div', '', `git-file${fresh ? ' fresh' : ''}`);
+  row.tabIndex = 0;
+  row.setAttribute('role', 'button');
   const slash = path.lastIndexOf('/');
   const name = el('span', path.slice(slash + 1), 'git-file-name');
   const dir = el('span', slash === -1 ? '' : path.slice(0, slash), 'git-file-dir');
   row.title = from ? `${from} → ${path}` : path;
-  row.append(name, dir, el('span', letter, `git-letter ${LETTER_TONE[letter] ?? ''}`));
+  row.append(name, dir);
+  if (actions.length) {
+    const box = el('span', '', 'git-file-actions');
+    box.append(...actions);
+    box.addEventListener('click', (event) => event.stopPropagation());
+    row.append(box);
+  }
+  row.append(el('span', letter, `git-letter ${LETTER_TONE[letter] ?? ''}`));
   row.addEventListener('click', onClick);
+  row.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && event.target === row) onClick();
+  });
   return row;
+}
+
+/** A small button for a file or group; `armed` makes it ask twice, for something that cannot be undone. */
+function iconButton(label: string, title: string, run: () => void, confirm?: string): HTMLButtonElement {
+  const button = el('button', label, 'git-act');
+  button.type = 'button';
+  button.title = title;
+  button.addEventListener('click', (event) => {
+    event.stopPropagation();
+    if (!confirm || button.classList.contains('armed')) {
+      run();
+      return;
+    }
+    button.classList.add('armed');
+    button.textContent = confirm;
+    setTimeout(() => {
+      button.classList.remove('armed');
+      button.textContent = label;
+    }, ARM_MS);
+  });
+  return button;
 }
 
 export function createGitView({ send, onToggle, status }: GitViewOptions): GitView {
@@ -72,6 +115,10 @@ export function createGitView({ send, onToggle, status }: GitViewOptions): GitVi
   const diffMeta = $<HTMLDivElement>('diff-meta');
   const diffFiles = $<HTMLDivElement>('diff-files');
   const diffBody = $<HTMLDivElement>('diff-body');
+  const saveBox = $<HTMLDivElement>('git-save');
+  const messageInput = $<HTMLTextAreaElement>('git-message');
+  const saveButton = $<HTMLButtonElement>('git-save-btn');
+  const noticeEl = $<HTMLDivElement>('git-notice');
 
   let workspaceId: string | null = null;
   let state: GitState | null = null;
@@ -82,6 +129,15 @@ export function createGitView({ send, onToggle, status }: GitViewOptions): GitVi
   const fresh = new Set<string>();
   let freshTimer: ReturnType<typeof setTimeout> | undefined;
 
+  // What the pane knows beyond status: the branch's pull request and its checks.
+  let pr: { pr: BranchPr; checks: { passed: number; failed: number; pending: number; failing: string[] } | null } | null = null;
+  let checksAt = 0;
+  let checksBranch: string | null = null;
+  let branches: GitBranch[] = [];
+  let noticeTimer: ReturnType<typeof setTimeout> | undefined;
+  // A compare view is open: its files list, and each file's diff against the base.
+  let comparing = false;
+
   let isOpen = false;
   let openSha: string | null = null;
   let openPath: string | null = null;
@@ -89,11 +145,25 @@ export function createGitView({ send, onToggle, status }: GitViewOptions): GitVi
   const collapsed = () => section.classList.contains('collapsed');
 
   function refresh(): void {
-    if (workspaceId && !collapsed()) send({ type: 'git', id: workspaceId });
+    if (!workspaceId || collapsed()) return;
+    send({ type: 'git', id: workspaceId });
+    if (Date.now() - checksAt > CHECKS_MS) {
+      checksAt = Date.now();
+      send({ type: 'gitChecks', id: workspaceId });
+    }
+  }
+
+  function showNotice(text: string, ok: boolean): void {
+    noticeEl.hidden = false;
+    noticeEl.className = ok ? 'ok' : 'bad';
+    noticeEl.textContent = text;
+    clearTimeout(noticeTimer);
+    noticeTimer = setTimeout(() => (noticeEl.hidden = true), NOTICE_MS);
   }
 
   function closeQuietly(): void {
     isOpen = false;
+    comparing = false;
     openSha = openPath = null;
     diffSection.hidden = true;
   }
@@ -108,8 +178,11 @@ export function createGitView({ send, onToggle, status }: GitViewOptions): GitVi
     branchEl.replaceChildren();
     if (!workspaceId) return;
     if (state) {
-      const branch = el('span', '', 'git-branch-name');
-      branch.append(el('span', '⎇', 'git-branch-icon'), el('span', state.branch ?? 'detached HEAD'));
+      const branch = el('button', '', 'git-branch-name');
+      branch.type = 'button';
+      branch.title = 'Switch branch';
+      branch.append(el('span', '⎇', 'git-branch-icon'), el('span', state.branch ?? 'detached HEAD'), el('span', '▾', 'git-branch-caret'));
+      branch.addEventListener('click', () => openBranchMenu(branch));
       branchEl.append(branch);
       // Claude moves into worktrees on its own; say so when this is one, since it has its own branch and history.
       if (state.worktree) {
@@ -119,6 +192,20 @@ export function createGitView({ send, onToggle, status }: GitViewOptions): GitVi
       }
       if (state.ahead) branchEl.append(el('span', `↑${state.ahead}`, 'git-sync'));
       if (state.behind) branchEl.append(el('span', `↓${state.behind}`, 'git-sync'));
+      const compare = el('button', 'vs main', 'git-chip-btn');
+      compare.type = 'button';
+      compare.title = 'Everything this branch changes since it forked from its main branch';
+      compare.addEventListener('click', openCompare);
+      branchEl.append(compare);
+      if (pr) {
+        const { checks } = pr;
+        const summary = !checks || checks.passed + checks.failed + checks.pending === 0 ? ['no checks', ''] : checks.failed ? [`✗ ${checks.failed} failing`, 'bad'] : checks.pending ? [`● ${checks.pending} running`, 'wait'] : [`✓ ${checks.passed} passing`, 'good'];
+        const chip = el('button', `#${pr.pr.number}${pr.pr.isDraft ? ' draft' : ''} · ${summary[0]}`, `git-chip-btn ci ${summary[1]}`);
+        chip.type = 'button';
+        chip.title = `${pr.pr.title}${checks?.failing.length ? `\nFailing: ${checks.failing.join(', ')}` : ''}\nOpen on GitHub`;
+        chip.addEventListener('click', () => void chrome.tabs.create({ url: pr!.pr.url }));
+        branchEl.append(chip);
+      }
     }
     const live = status(workspaceId);
     if (live) {
@@ -133,15 +220,86 @@ export function createGitView({ send, onToggle, status }: GitViewOptions): GitVi
     if (!state) return;
     const staged = state.files.filter((f) => f.index !== ' ' && f.index !== '?');
     const unstaged = state.files.filter((f) => f.worktree !== ' ' || f.index === '?');
-    const group = (title: string, files: GitFile[], letterOf: (f: GitFile) => string) => {
+    const group = (title: string, files: GitFile[], letterOf: (f: GitFile) => string, all: HTMLElement[], each: (f: GitFile) => HTMLElement[]) => {
       if (files.length === 0) return;
       const heading = el('h3', title);
       heading.append(el('span', String(files.length), 'count'));
-      changesEl.append(heading, ...files.map((f) => fileRow(letterOf(f), f.path, f.from, () => openWorking(f.path), fresh.has(f.path))));
+      const bulk = el('span', '', 'git-bulk');
+      bulk.append(...all);
+      heading.append(bulk);
+      changesEl.append(heading, ...files.map((f) => fileRow(letterOf(f), f.path, f.from, () => openWorking(f.path), fresh.has(f.path), each(f))));
     };
-    group('Staged changes', staged, (f) => f.index);
-    group('Changes', unstaged, (f) => (f.index === '?' ? 'U' : f.worktree));
+    const stage = (paths: string[], on: boolean) => workspaceId && send({ type: 'gitStage', id: workspaceId, paths, stage: on });
+    group(
+      'Staged changes',
+      staged,
+      (f) => f.index,
+      [iconButton('−', 'Unstage all', () => stage([], false))],
+      (f) => [iconButton('−', 'Unstage', () => stage([f.path], false))],
+    );
+    group(
+      'Changes',
+      unstaged,
+      (f) => (f.index === '?' ? 'U' : f.worktree),
+      [iconButton('+', 'Stage all', () => stage([], true))],
+      (f) => [
+        iconButton('↶', f.index === '?' ? 'Delete this new file' : 'Discard changes', () => workspaceId && send({ type: 'gitDiscard', id: workspaceId, paths: [f.path] }), f.index === '?' ? 'Delete?' : 'Discard?'),
+        iconButton('+', 'Stage', () => stage([f.path], true)),
+      ],
+    );
     if (state.files.length === 0) changesEl.append(el('div', 'Working tree clean', 'git-empty'));
+    renderSave(staged.length);
+  }
+
+  function renderSave(stagedCount: number): void {
+    // Kept once a message has been started, so staging another file does not take the box away.
+    saveBox.hidden = stagedCount === 0 && !messageInput.value.trim();
+    saveButton.disabled = stagedCount === 0 || !messageInput.value.trim();
+    saveButton.title = stagedCount === 0 ? 'Stage something first' : `Commit ${stagedCount} staged file${stagedCount === 1 ? '' : 's'}`;
+  }
+
+  function commit(): void {
+    if (!workspaceId || saveButton.disabled) return;
+    send({ type: 'gitSave', id: workspaceId, message: messageInput.value });
+    saveButton.disabled = true;
+  }
+
+  saveButton.addEventListener('click', commit);
+  messageInput.addEventListener('input', () => renderSave(state?.files.filter((f) => f.index !== ' ' && f.index !== '?').length ?? 0));
+  messageInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+      event.preventDefault();
+      commit();
+    }
+  });
+
+  // ---- branches ----
+
+  function openBranchMenu(anchor: HTMLElement): void {
+    if (!workspaceId) return;
+    send({ type: 'gitBranches', id: workspaceId });
+    const box = anchor.getBoundingClientRect();
+    openMenu(box.left, box.bottom + 2, [el('div', 'Loading branches…', 'popup-note')], 'branch-menu');
+  }
+
+  function showBranches(): void {
+    if (!document.querySelector('.branch-menu')) return;
+    const anchor = branchEl.querySelector<HTMLElement>('.git-branch-name');
+    const box = anchor?.getBoundingClientRect();
+    openMenu(
+      box?.left ?? 8,
+      (box?.bottom ?? 40) + 2,
+      branches.length
+        ? branches.map((b) =>
+            menuItem(b.name, () => workspaceId && send({ type: 'gitSwitch', id: workspaceId, branch: b.name }), {
+              checked: b.current,
+              disabled: b.current,
+              title: b.upstream ? `tracks ${b.upstream}` : 'local only',
+            }),
+          )
+        : [el('div', 'No branches', 'popup-note')],
+      'branch-menu',
+    );
   }
 
   function renderCommits(): void {
@@ -198,6 +356,7 @@ export function createGitView({ send, onToggle, status }: GitViewOptions): GitVi
 
   function openWorking(path: string): void {
     if (!workspaceId) return;
+    comparing = false;
     openSha = null;
     openPath = path;
     showDiffView(path, 'Working tree against HEAD');
@@ -206,18 +365,28 @@ export function createGitView({ send, onToggle, status }: GitViewOptions): GitVi
 
   function openCommit(commit: GitCommit): void {
     if (!workspaceId) return;
+    comparing = false;
     openSha = commit.sha;
     openPath = null;
     showDiffView(commit.subject, `${commit.short} · ${commit.author} · ${new Date(commit.date).toLocaleString()}`);
     send({ type: 'gitCommit', id: workspaceId, sha: commit.sha });
   }
 
+  function openCompare(): void {
+    if (!workspaceId) return;
+    openSha = null;
+    openPath = null;
+    showDiffView(`${state?.branch ?? 'This branch'} vs main`, 'Everything this branch changes since it forked');
+    comparing = true;
+    send({ type: 'gitCompare', id: workspaceId });
+  }
+
   function selectCommitFile(file: GitCommitFile): void {
-    if (!workspaceId || !openSha) return;
+    if (!workspaceId || (!openSha && !comparing)) return;
     openPath = file.path;
     for (const button of diffFiles.querySelectorAll<HTMLElement>('.git-file')) button.classList.toggle('selected', button.dataset.path === file.path);
     diffBody.replaceChildren(el('div', 'Loading…', 'git-empty'));
-    send({ type: 'gitDiff', id: workspaceId, path: file.path, sha: openSha });
+    send({ type: 'gitDiff', id: workspaceId, path: file.path, ...(openSha ? { sha: openSha } : { base: true }) });
   }
 
   function renderDiff(diff: string, truncated: boolean): void {
@@ -272,6 +441,12 @@ export function createGitView({ send, onToggle, status }: GitViewOptions): GitVi
       workspaceId = id;
       state = null;
       error = null;
+      pr = null;
+      checksAt = 0;
+      checksBranch = null;
+      branches = [];
+      noticeEl.hidden = true;
+      messageInput.value = '';
       loaded = false;
       previous = new Map();
       fresh.clear();
@@ -283,6 +458,13 @@ export function createGitView({ send, onToggle, status }: GitViewOptions): GitVi
       if (message.id !== workspaceId) return;
       state = message.state;
       error = message.error;
+      // A different branch has different checks, so ask again at once.
+      if (state && state.branch !== checksBranch) {
+        checksBranch = state.branch;
+        pr = null;
+        checksAt = 0;
+        refresh();
+      }
       if (state) {
         // After the first answer, a file whose status differs from the last answer is highlighted: it is what claude just touched.
         if (loaded) for (const f of state.files) if (previous.get(f.path) !== `${f.index}${f.worktree}`) fresh.add(f.path);
@@ -319,6 +501,47 @@ export function createGitView({ send, onToggle, status }: GitViewOptions): GitVi
       if (message.id !== workspaceId || message.sha !== openSha || message.path !== openPath) return;
       if (message.error) diffBody.replaceChildren(el('div', `Could not read the diff: ${message.error}`, 'git-empty'));
       else renderDiff(message.diff, message.truncated);
+    },
+    setResult(message) {
+      if (message.id !== workspaceId) return;
+      showNotice(message.message, message.ok);
+      if (message.ok && message.action === 'commit') messageInput.value = '';
+      // What changed on disk shows at once, instead of at the next poll.
+      if (message.ok) {
+        checksAt = 0;
+        refresh();
+      } else renderSave(state?.files.filter((f) => f.index !== ' ' && f.index !== '?').length ?? 0);
+    },
+    setBranches(message) {
+      if (message.id !== workspaceId) return;
+      if (message.error) showNotice(`Could not list branches: ${message.error}`, false);
+      branches = message.branches;
+      showBranches();
+    },
+    setChecks(message) {
+      if (message.id !== workspaceId) return;
+      pr = message.pr ? { pr: message.pr, checks: message.checks } : null;
+      // A failed lookup (gh signed out, offline) just shows no chip; it is not worth a banner on every poll.
+      renderStatus();
+    },
+    setCompare(message) {
+      if (message.id !== workspaceId || !comparing) return;
+      if (message.error || !message.compare) {
+        diffBody.replaceChildren(el('div', message.error ?? 'Nothing to compare.', 'git-empty'));
+        return;
+      }
+      const { compare } = message;
+      diffMeta.textContent = `${compare.ahead} commit${compare.ahead === 1 ? '' : 's'} ahead of ${compare.base} (forked at ${compare.mergeBase})`;
+      diffFiles.hidden = compare.files.length === 0;
+      diffFiles.replaceChildren(
+        ...compare.files.map((file) => {
+          const row = fileRow(file.status, file.path, file.from, () => selectCommitFile(file));
+          row.dataset.path = file.path;
+          return row;
+        }),
+      );
+      if (compare.files[0]) selectCommitFile(compare.files[0]);
+      else diffBody.replaceChildren(el('div', 'No differences from the main branch.', 'git-empty'));
     },
   };
 }

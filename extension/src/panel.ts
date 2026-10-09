@@ -8,6 +8,7 @@ import { attachFileDrop } from './file-drop';
 import { createGitView } from './git-view';
 import { needsInputCount } from '../../shared/attention';
 import { splitList } from '../../shared/list-filter';
+import { closeMenu, menuItem, openMenu } from './menu';
 import { createPalette, type PaletteItem } from './palette';
 import { createSettingsView } from './settings-view';
 import { makeSectionsResizable } from './sections';
@@ -58,6 +59,10 @@ const control = connectControl(
     if (message.type === 'git') git.setState(message);
     if (message.type === 'gitCommit') git.setCommit(message);
     if (message.type === 'gitDiff') git.setDiff(message);
+    if (message.type === 'gitResult') git.setResult(message);
+    if (message.type === 'gitBranches') git.setBranches(message);
+    if (message.type === 'gitChecks') git.setChecks(message);
+    if (message.type === 'gitCompare') git.setCompare(message);
     if (message.type === 'prDetails') creator.setPrDetails(message.url, message.details, message.error);
     if (message.type !== 'state') return;
     selectJoiners(message.workspaces);
@@ -368,28 +373,7 @@ function workspaceRow(ws: Workspace, number: number | null, here: Workspace | un
 
 // ---- right-click menu ----
 
-let menuEl: HTMLDivElement | null = null;
-
-function closeContextMenu(): void {
-  menuEl?.remove();
-  menuEl = null;
-}
-
 function showContextMenu(x: number, y: number, ws: Workspace, nameEl: HTMLElement): void {
-  closeContextMenu();
-  const menu = document.createElement('div');
-  menu.id = 'ctx-menu';
-  menu.setAttribute('role', 'menu');
-  const entry = (label: string, run: () => void): HTMLButtonElement => {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.textContent = label;
-    button.addEventListener('click', () => {
-      closeContextMenu();
-      run();
-    });
-    return button;
-  };
   const swatches = document.createElement('div');
   swatches.className = 'ctx-swatches';
   for (const color of [null, ...WORKSPACE_COLORS]) {
@@ -400,31 +384,23 @@ function showContextMenu(x: number, y: number, ws: Workspace, nameEl: HTMLElemen
     if (color) swatch.dataset.group = color;
     else swatch.textContent = '×';
     swatch.addEventListener('click', () => {
-      closeContextMenu();
+      closeMenu();
       send({ type: 'mark', id: ws.id, color });
     });
     swatches.append(swatch);
   }
-  menu.append(
-    entry(ws.pinned ? 'Unpin' : 'Pin to top', () => send({ type: 'mark', id: ws.id, pinned: !ws.pinned })),
-    entry(ws.archived ? 'Unarchive' : 'Archive', () => send({ type: 'mark', id: ws.id, archived: !ws.archived })),
-    entry('Rename', () => startRename(ws, nameEl)),
-    swatches,
+  openMenu(
+    x,
+    y,
+    [
+      menuItem(ws.pinned ? 'Unpin' : 'Pin to top', () => send({ type: 'mark', id: ws.id, pinned: !ws.pinned })),
+      menuItem(ws.archived ? 'Unarchive' : 'Archive', () => send({ type: 'mark', id: ws.id, archived: !ws.archived })),
+      menuItem('Rename', () => startRename(ws, nameEl)),
+      swatches,
+    ],
+    'ctx-menu',
   );
-  document.body.append(menu);
-  // Kept inside the panel, whichever corner it was opened from.
-  menu.style.left = `${Math.max(4, Math.min(x, window.innerWidth - menu.offsetWidth - 4))}px`;
-  menu.style.top = `${Math.max(4, Math.min(y, window.innerHeight - menu.offsetHeight - 4))}px`;
-  menuEl = menu;
 }
-
-document.addEventListener('mousedown', (event) => {
-  if (menuEl && !menuEl.contains(event.target as Node)) closeContextMenu();
-});
-document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape') closeContextMenu();
-});
-window.addEventListener('blur', closeContextMenu);
 
 function addDragHandlers(item: HTMLLIElement, ws: Workspace): void {
   item.draggable = true;

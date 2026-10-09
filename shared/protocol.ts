@@ -197,6 +197,31 @@ export interface GitState {
   commits: GitCommit[];
 }
 
+/** The pull request for a workspace's current branch. */
+export interface BranchPr {
+  number: number;
+  title: string;
+  url: string;
+  isDraft: boolean;
+  reviewDecision: string | null;
+}
+
+export interface GitBranch {
+  name: string;
+  current: boolean;
+  upstream: string | null;
+}
+
+export interface GitCompare {
+  /** The branch compared against, e.g. `origin/main`. */
+  base: string;
+  /** The commit the current branch forked from. */
+  mergeBase: string;
+  /** Commits on the current branch that the base does not have. */
+  ahead: number;
+  files: GitCommitFile[];
+}
+
 export interface GitCommitFile {
   /** `A`, `M`, `D`, `R`, `C` or `T`. */
   status: string;
@@ -324,6 +349,12 @@ export type ControlToClient =
   | { type: 'git'; id: string; state: GitState | null; error: string | null }
   | { type: 'gitCommit'; id: string; sha: string; files: GitCommitFile[]; error: string | null }
   | { type: 'gitDiff'; id: string; path: string; sha: string | null; diff: string; truncated: boolean; error: string | null }
+  /** Reply to a staging, discard, commit or branch-switch request. */
+  | { type: 'gitResult'; id: string; action: string; ok: boolean; message: string }
+  | { type: 'gitBranches'; id: string; branches: GitBranch[]; error: string | null }
+  /** `pr` is null when the branch has no pull request. */
+  | { type: 'gitChecks'; id: string; pr: BranchPr | null; checks: PrDetails['checks'] | null; error: string | null }
+  | { type: 'gitCompare'; id: string; compare: GitCompare | null; error: string | null }
   /** Reply to `prDetails`, sent only to the client that asked. */
   | { type: 'prDetails'; url: string; details: PrDetails | null; error: string | null };
 
@@ -360,6 +391,16 @@ export type ControlToHelper =
   | { type: 'git'; id: string }
   | { type: 'gitCommit'; id: string; sha: string }
   /** A file's diff against HEAD, or its change in commit `sha`. */
-  | { type: 'gitDiff'; id: string; path: string; sha?: string }
+  | { type: 'gitDiff'; id: string; path: string; sha?: string; /** The file's change since the branch forked from its base. */ base?: boolean }
+  /** Stages or unstages `paths`; with no paths, everything. */
+  | { type: 'gitStage'; id: string; paths: string[]; stage: boolean }
+  /** Throws away the working-tree changes of `paths`, deleting untracked ones. */
+  | { type: 'gitDiscard'; id: string; paths: string[] }
+  /** Commits what is staged. */
+  | { type: 'gitSave'; id: string; message: string }
+  | { type: 'gitBranches'; id: string }
+  | { type: 'gitChecks'; id: string }
+  | { type: 'gitSwitch'; id: string; branch: string }
+  | { type: 'gitCompare'; id: string }
   | { type: 'refreshReviews' }
   | { type: 'prDetails'; url: string };

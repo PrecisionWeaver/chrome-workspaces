@@ -1,4 +1,4 @@
-import { MAX_PR_BODY, PR_COMMITS_SHOWN, PR_FILES_SHOWN, type PrDetails } from '../../shared/protocol';
+import { MAX_PR_BODY, PR_COMMITS_SHOWN, PR_FILES_SHOWN, type BranchPr, type PrDetails } from '../../shared/protocol';
 
 /** Runs with the PR url in `$CW_PR_URL`, so the url never becomes shell syntax. */
 export const GH_PR_DETAILS =
@@ -51,17 +51,41 @@ function checkResult(check: GhCheck): 'passed' | 'failed' | 'pending' {
   return PASSED.has(check.conclusion ?? '') ? 'passed' : 'failed';
 }
 
+/** Counts a PR's checks, naming the failing ones. */
+export function summarizeChecks(rollup: readonly GhCheck[] | null | undefined): PrDetails['checks'] {
+  const checks = { passed: 0, failed: 0, pending: 0, failing: [] as string[] };
+  for (const check of rollup ?? []) {
+    const result = checkResult(check);
+    checks[result]++;
+    if (result === 'failed') checks.failing.push(check.name ?? check.context ?? 'unnamed check');
+  }
+  return checks;
+}
+
+/** Runs in a workspace's directory: the pull request for its current branch. */
+export const GH_BRANCH_PR = 'gh pr view --json number,title,url,isDraft,reviewDecision,statusCheckRollup';
+
+/** Reads `gh pr view` for a branch: the PR and its checks, or null when the branch has no pull request. */
+export function parseBranchChecks(json: string): { pr: BranchPr; checks: PrDetails['checks'] } | null {
+  let parsed: { number?: number; title?: string; url?: string; isDraft?: boolean; reviewDecision?: string; statusCheckRollup?: GhCheck[] | null };
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    return null;
+  }
+  if (typeof parsed?.number !== 'number' || typeof parsed.url !== 'string') return null;
+  return {
+    pr: { number: parsed.number, title: parsed.title ?? '', url: parsed.url, isDraft: parsed.isDraft === true, reviewDecision: parsed.reviewDecision || null },
+    checks: summarizeChecks(parsed.statusCheckRollup),
+  };
+}
+
 export function parsePrDetails(json: string): PrDetails {
   const pr = JSON.parse(json) as GhPrView;
   if (typeof pr !== 'object' || pr === null || Array.isArray(pr) || typeof pr.url !== 'string') {
     throw new Error(`unexpected gh output: ${json.slice(0, 200)}`);
   }
-  const checks = { passed: 0, failed: 0, pending: 0, failing: [] as string[] };
-  for (const check of pr.statusCheckRollup ?? []) {
-    const result = checkResult(check);
-    checks[result]++;
-    if (result === 'failed') checks.failing.push(check.name ?? check.context ?? 'unnamed check');
-  }
+  const checks = summarizeChecks(pr.statusCheckRollup);
   return {
     url: pr.url,
     title: pr.title,

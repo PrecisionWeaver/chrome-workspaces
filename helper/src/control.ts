@@ -6,7 +6,7 @@ import type { AdminService } from './admin';
 import { asPaste } from './paste';
 import type { GitService } from './git';
 import type { HistoryStore } from './history';
-import { parsePrDetails } from './pr-details';
+import { parseBranchChecks, parsePrDetails } from './pr-details';
 import { isPullRequestUrl, prWorkspace } from './pr-workspace';
 import type { SessionManager } from './session';
 import type { WorkspaceStore } from './workspace-store';
@@ -26,6 +26,8 @@ export interface ControlHubOptions {
   prompts: () => Prompt[];
   /** Raw `gh pr view` JSON for a PR url. */
   prDetails: (url: string) => Promise<string>;
+  /** Raw `gh pr view` JSON for the branch checked out in a directory; rejects when it has no pull request. */
+  branchPr: (cwd: string) => Promise<string>;
   repoDirs: Record<string, string>;
   repos: () => Repo[];
   git: GitService;
@@ -208,6 +210,13 @@ export class ControlHub {
       case 'git':
       case 'gitCommit':
       case 'gitDiff':
+      case 'gitBranches':
+      case 'gitChecks':
+      case 'gitCompare':
+      case 'gitStage':
+      case 'gitDiscard':
+      case 'gitSave':
+      case 'gitSwitch':
         this.handleGit(message, ws);
         break;
       case 'listRepos':
@@ -241,34 +250,91 @@ export class ControlHub {
   }
 
   /** Answers a git request for a workspace's directory; the reply goes to the asking client only. */
-  private handleGit(message: Extract<ControlToHelper, { type: 'git' | 'gitCommit' | 'gitDiff' }>, ws: WebSocket): void {
+  private handleGit(message: GitRequest, ws: WebSocket): void {
     const { store, git } = this.options;
     const { id } = message;
     const text = (error: unknown) => (error instanceof Error ? error.message : String(error));
     const workspace = store.get(id);
     const missing = 'unknown workspace';
     const dir = workspace ? this.gitDirectory(workspace) : null;
-    if (message.type === 'git') {
-      if (!dir) return this.sendTo(ws, { type: 'git', id, state: null, error: missing });
-      dir.then((cwd) => git.state(cwd)).then(
-        (state) => this.sendTo(ws, { type: 'git', id, state, error: null }),
-        (error: unknown) => this.sendTo(ws, { type: 'git', id, state: null, error: text(error) }),
+    const result = (action: string, work: (cwd: string) => Promise<string>) => {
+      if (!dir) return this.sendTo(ws, { type: 'gitResult', id, action, ok: false, message: missing });
+      dir.then(work).then(
+        (done) => this.sendTo(ws, { type: 'gitResult', id, action, ok: true, message: done }),
+        (error: unknown) => this.sendTo(ws, { type: 'gitResult', id, action, ok: false, message: text(error) }),
       );
-    } else if (message.type === 'gitCommit') {
-      const { sha } = message;
-      if (!dir) return this.sendTo(ws, { type: 'gitCommit', id, sha, files: [], error: missing });
-      dir.then((cwd) => git.commitFiles(cwd, sha)).then(
-        (files) => this.sendTo(ws, { type: 'gitCommit', id, sha, files, error: null }),
-        (error: unknown) => this.sendTo(ws, { type: 'gitCommit', id, sha, files: [], error: text(error) }),
-      );
-    } else {
-      const { path } = message;
-      const sha = message.sha ?? null;
-      if (!dir) return this.sendTo(ws, { type: 'gitDiff', id, path, sha, diff: '', truncated: false, error: missing });
-      dir.then((cwd) => git.diff(cwd, path, sha)).then(
-        ({ diff, truncated }) => this.sendTo(ws, { type: 'gitDiff', id, path, sha, diff, truncated, error: null }),
-        (error: unknown) => this.sendTo(ws, { type: 'gitDiff', id, path, sha, diff: '', truncated: false, error: text(error) }),
-      );
+    };
+
+    switch (message.type) {
+      case 'git':
+        if (!dir) return this.sendTo(ws, { type: 'git', id, state: null, error: missing });
+        dir.then((cwd) => git.state(cwd)).then(
+          (state) => this.sendTo(ws, { type: 'git', id, state, error: null }),
+          (error: unknown) => this.sendTo(ws, { type: 'git', id, state: null, error: text(error) }),
+        );
+        break;
+      case 'gitCommit': {
+        const { sha } = message;
+        if (!dir) return this.sendTo(ws, { type: 'gitCommit', id, sha, files: [], error: missing });
+        dir.then((cwd) => git.commitFiles(cwd, sha)).then(
+          (files) => this.sendTo(ws, { type: 'gitCommit', id, sha, files, error: null }),
+          (error: unknown) => this.sendTo(ws, { type: 'gitCommit', id, sha, files: [], error: text(error) }),
+        );
+        break;
+      }
+      case 'gitDiff': {
+        const { path } = message;
+        const sha = message.sha ?? null;
+        if (!dir) return this.sendTo(ws, { type: 'gitDiff', id, path, sha, diff: '', truncated: false, error: missing });
+        dir.then((cwd) => git.diff(cwd, path, sha, message.base === true)).then(
+          ({ diff, truncated }) => this.sendTo(ws, { type: 'gitDiff', id, path, sha, diff, truncated, error: null }),
+          (error: unknown) => this.sendTo(ws, { type: 'gitDiff', id, path, sha, diff: '', truncated: false, error: text(error) }),
+        );
+        break;
+      }
+      case 'gitChecks':
+        if (!dir) return this.sendTo(ws, { type: 'gitChecks', id, pr: null, checks: null, error: missing });
+        dir
+          .then((cwd) => this.options.branchPr(cwd))
+          .then(
+            (json) => {
+              const found = parseBranchChecks(json);
+              this.sendTo(ws, { type: 'gitChecks', id, pr: found?.pr ?? null, checks: found?.checks ?? null, error: null });
+            },
+            // `gh` exits non-zero both for "no pull request" and for a real failure; only the first is not an error.
+            (error: unknown) => {
+              const reason = text(error);
+              const none = /no pull requests? found/i.test(reason);
+              this.sendTo(ws, { type: 'gitChecks', id, pr: null, checks: null, error: none ? null : reason.split('\n')[0] });
+            },
+          );
+        break;
+      case 'gitBranches':
+        if (!dir) return this.sendTo(ws, { type: 'gitBranches', id, branches: [], error: missing });
+        dir.then((cwd) => git.branches(cwd)).then(
+          (branches) => this.sendTo(ws, { type: 'gitBranches', id, branches, error: null }),
+          (error: unknown) => this.sendTo(ws, { type: 'gitBranches', id, branches: [], error: text(error) }),
+        );
+        break;
+      case 'gitCompare':
+        if (!dir) return this.sendTo(ws, { type: 'gitCompare', id, compare: null, error: missing });
+        dir.then((cwd) => git.compare(cwd)).then(
+          (compare) => this.sendTo(ws, { type: 'gitCompare', id, compare, error: null }),
+          (error: unknown) => this.sendTo(ws, { type: 'gitCompare', id, compare: null, error: text(error) }),
+        );
+        break;
+      case 'gitStage':
+        result(message.stage ? 'stage' : 'unstage', (cwd) => git.stage(cwd, message.paths, message.stage));
+        break;
+      case 'gitDiscard':
+        result('discard', (cwd) => git.discard(cwd, message.paths));
+        break;
+      case 'gitSave':
+        result('commit', (cwd) => git.save(cwd, message.message));
+        break;
+      case 'gitSwitch':
+        result('switch', (cwd) => git.switchBranch(cwd, message.branch));
+        break;
     }
   }
 
@@ -287,6 +353,15 @@ function isWebUrl(value: unknown): value is string {
 
 function isWorkspaceName(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0 && value.trim().length <= 80;
+}
+
+type GitRequest = Extract<
+  ControlToHelper,
+  { type: 'git' | 'gitCommit' | 'gitDiff' | 'gitBranches' | 'gitChecks' | 'gitCompare' | 'gitStage' | 'gitDiscard' | 'gitSave' | 'gitSwitch' }
+>;
+
+function isPathList(value: unknown): boolean {
+  return Array.isArray(value) && value.length <= 500 && value.every((p) => typeof p === 'string' && p.length > 0 && p.length <= 1024);
 }
 
 const PLAIN_ACTIONS = new Set(['restartHelper', 'stopHelper', 'clearUploads', 'clearLog', 'pruneWorktrees', 'checkGh']);
@@ -366,8 +441,21 @@ function isControlToHelper(value: unknown): value is ControlToHelper {
         typeof m.path === 'string' &&
         m.path.length > 0 &&
         m.path.length <= 1024 &&
-        (m.sha === undefined || (typeof m.sha === 'string' && /^[0-9a-f]{7,40}$/.test(m.sha)))
+        (m.sha === undefined || (typeof m.sha === 'string' && /^[0-9a-f]{7,40}$/.test(m.sha))) &&
+        (m.base === undefined || typeof m.base === 'boolean')
       );
+    case 'gitBranches':
+    case 'gitChecks':
+    case 'gitCompare':
+      return typeof m.id === 'string';
+    case 'gitStage':
+      return typeof m.id === 'string' && typeof m.stage === 'boolean' && isPathList(m.paths);
+    case 'gitDiscard':
+      return typeof m.id === 'string' && isPathList(m.paths);
+    case 'gitSave':
+      return typeof m.id === 'string' && typeof m.message === 'string' && m.message.length <= 10_000;
+    case 'gitSwitch':
+      return typeof m.id === 'string' && typeof m.branch === 'string' && m.branch.length > 0 && m.branch.length <= 255;
     case 'listPrompts':
     case 'listRepos':
     case 'refreshReviews':

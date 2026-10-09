@@ -34,6 +34,8 @@ export interface Harness {
   workingDirs: Record<string, string>;
   /** Commands the admin service started detached, instead of running them. */
   spawned: string[];
+  /** What the fake `gh pr view` for a branch returns; null means the branch has no pull request. */
+  branchPrJson: string | null;
   /** The claude session each workspace is on, by id, for restoring. */
   resumeIds: Record<string, string>;
   /** The claude transcript of each workspace, by id, for token counts. */
@@ -64,6 +66,7 @@ export async function startHarness(): Promise<Harness> {
     repos: [] as Repo[],
     workingDirs: {} as Record<string, string>,
     spawned: [] as string[],
+    branchPrJson: null as string | null,
     resumeIds: {} as Record<string, string>,
     transcripts: {} as Record<string, string>,
     managed: true,
@@ -100,7 +103,10 @@ export async function startHarness(): Promise<Harness> {
     spawnDetached: (command) => fakes.spawned.push(command),
     isManaged: async () => fakes.managed,
   });
-  const control = new ControlHub({ store, sessions, defaultCwd, statuses, reviews, prompts, prDetails, repoDirs: fakes.repoDirs, repos: () => fakes.repos, git: createGitService(), admin, history: new HistoryStore(join(dir, 'history.json')), resumeId: (id) => fakes.resumeIds[id] ?? null, workingDir: (id) => fakes.workingDirs[id] ?? null });
+  const control = new ControlHub({ store, sessions, defaultCwd, statuses, reviews, prompts, prDetails, branchPr: async () => {
+      if (fakes.branchPrJson === null) throw new Error('no pull requests found for branch "x"');
+      return fakes.branchPrJson;
+    }, repoDirs: fakes.repoDirs, repos: () => fakes.repos, git: createGitService(), admin, history: new HistoryStore(join(dir, 'history.json')), resumeId: (id) => fakes.resumeIds[id] ?? null, workingDir: (id) => fakes.workingDirs[id] ?? null });
   const auth = { token: TOKEN, allowedOrigins: [ORIGIN] };
   const server = await startServer({
     host: '127.0.0.1',

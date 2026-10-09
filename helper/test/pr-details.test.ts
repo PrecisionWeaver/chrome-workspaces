@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parsePrDetails } from '../src/pr-details';
+import { parseBranchChecks, parsePrDetails, summarizeChecks } from '../src/pr-details';
 
 const GH = {
   number: 3005,
@@ -111,5 +111,21 @@ describe('parsePrDetails', () => {
 
   it('rejects output that is not a PR', () => {
     expect(() => parsePrDetails('[]')).toThrow();
+  });
+});
+
+describe('branch checks', () => {
+  it('summarizes a branch\'s pull request and its checks', () => {
+    const json = JSON.stringify({ number: 12, title: 'Fix it', url: 'https://github.com/acme/web-app/pull/12', isDraft: true, reviewDecision: '', statusCheckRollup: GH.statusCheckRollup });
+    expect(parseBranchChecks(json)).toEqual({
+      pr: { number: 12, title: 'Fix it', url: 'https://github.com/acme/web-app/pull/12', isDraft: true, reviewDecision: null },
+      checks: { passed: 2, failed: 2, pending: 2, failing: ['Pest (3)', 'codecov'] },
+    });
+  });
+
+  it('has nothing for output that is not a pull request, and counts nothing for no checks', () => {
+    expect(parseBranchChecks('not json')).toBeNull();
+    expect(parseBranchChecks('{"message":"nope"}')).toBeNull();
+    expect(summarizeChecks(null)).toEqual({ passed: 0, failed: 0, pending: 0, failing: [] });
   });
 });

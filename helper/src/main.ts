@@ -8,7 +8,7 @@ import { DATA_DIR, HOST, loadConfig, MC_STATE_DIR, PORT, SCROLLBACK_LIMIT } from
 import { ControlHub } from './control';
 import { launchSpec } from './launch';
 import { readMcStatus, lastTranscriptCwd, watchMcStatus, type McWorkspaceStatus } from './mc-status';
-import { GH_PR_DETAILS } from './pr-details';
+import { GH_BRANCH_PR, GH_PR_DETAILS } from './pr-details';
 import { readPrompts } from './prompts';
 import { createGitService } from './git';
 import { HistoryStore } from './history';
@@ -79,7 +79,14 @@ const admin = createAdmin({
 });
 
 const history = new HistoryStore(join(DATA_DIR, 'history.json'));
-const control = new ControlHub({ store, sessions, defaultCwd: config.defaultCwd, statuses, reviews, prompts, prDetails, repoDirs: config.repoDirs, repos: () => listRepos(config.repoRoots), git: createGitService(), admin, history, resumeId: (id) => mcStatus.get(id)?.claudeSessionId ?? store.get(id)?.resume ?? null, workingDir: (id) => {
+const branchPr = async (cwd: string) =>
+  (
+    await execFileAsync(shell, ['-l', '-c', GH_BRANCH_PR], { cwd, timeout: 30_000, maxBuffer: 4 * 1024 * 1024 }).catch((error: { stderr?: string; message: string }) => {
+      throw new Error(error.stderr?.trim() || error.message);
+    })
+  ).stdout;
+
+const control = new ControlHub({ store, sessions, defaultCwd: config.defaultCwd, statuses, reviews, prompts, prDetails, branchPr, repoDirs: config.repoDirs, repos: () => listRepos(config.repoRoots), git: createGitService(), admin, history, resumeId: (id) => mcStatus.get(id)?.claudeSessionId ?? store.get(id)?.resume ?? null, workingDir: (id) => {
     const session = mcStatus.get(id);
     return (session?.transcriptPath && lastTranscriptCwd(session.transcriptPath)) || session?.cwd || null;
   } });

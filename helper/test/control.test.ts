@@ -356,6 +356,74 @@ describe('control channel', () => {
     ws.close();
   });
 
+  it('stages, commits, switches branch and compares over the channel, and drops a malformed write', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'cw-ctl-write-'));
+    const git = (...args: string[]) => execFileSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.com', ...args], { cwd: dir, encoding: 'utf8' });
+    git('init', '-q', '-b', 'main');
+    writeFileSync(join(dir, 'f.txt'), 'x\n');
+    git('add', '.');
+    git('commit', '-qm', 'init');
+    git('branch', 'topic');
+    const workspace = h.store.create({ name: 'w', cwd: dir });
+    writeFileSync(join(dir, 'f.txt'), 'x\ny\n');
+
+    const { ws, messages } = connectControl(h);
+    await opened(ws);
+    const results = () => messages.filter((m): m is Extract<ControlToClient, { type: 'gitResult' }> => m.type === 'gitResult');
+    const next = async (count: number) => {
+      await waitFor(() => results().length === count);
+      return results()[count - 1];
+    };
+
+    ws.send(JSON.stringify({ type: 'gitStage', id: workspace.id, paths: ['f.txt'], stage: true }));
+    expect(await next(1)).toMatchObject({ action: 'stage', ok: true });
+    ws.send(JSON.stringify({ type: 'gitSave', id: workspace.id, message: 'change f' }));
+    expect(await next(2)).toMatchObject({ action: 'commit', ok: true, message: expect.stringContaining('change f') });
+    ws.send(JSON.stringify({ type: 'gitSave', id: workspace.id, message: 'again' }));
+    expect(await next(3)).toMatchObject({ action: 'commit', ok: false, message: 'nothing is staged' });
+    ws.send(JSON.stringify({ type: 'gitStage', id: workspace.id, paths: ['../escape'], stage: true }));
+    expect(await next(4)).toMatchObject({ ok: false, message: expect.stringContaining('path') });
+    ws.send(JSON.stringify({ type: 'gitSwitch', id: workspace.id, branch: 'topic' }));
+    expect(await next(5)).toMatchObject({ action: 'switch', ok: true });
+    ws.send(JSON.stringify({ type: 'gitSwitch', id: 'ws-00000000', branch: 'topic' }));
+    expect(await next(6)).toMatchObject({ ok: false, message: 'unknown workspace' });
+
+    ws.send(JSON.stringify({ type: 'gitBranches', id: workspace.id }));
+    ws.send(JSON.stringify({ type: 'gitCompare', id: workspace.id }));
+    await waitFor(() => messages.some((m) => m.type === 'gitBranches') && messages.some((m) => m.type === 'gitCompare'));
+    expect(messages.find((m) => m.type === 'gitBranches')).toMatchObject({ branches: expect.arrayContaining([expect.objectContaining({ name: 'topic', current: true })]) });
+    expect(messages.find((m) => m.type === 'gitCompare')).toMatchObject({ compare: { base: 'main', ahead: 0 }, error: null });
+
+    // Malformed writes never reach git: no reply of any kind.
+    const before = messages.length;
+    ws.send(JSON.stringify({ type: 'gitStage', id: workspace.id, paths: 'f.txt', stage: true }));
+    ws.send(JSON.stringify({ type: 'gitDiscard', id: workspace.id, paths: [''] }));
+    ws.send(JSON.stringify({ type: 'gitSave', id: workspace.id, message: 5 }));
+    ws.send(JSON.stringify({ type: 'gitSwitch', id: workspace.id, branch: '' }));
+    ws.send(JSON.stringify({ type: 'system' }));
+    await waitFor(() => messages.length > before);
+    expect(messages.slice(before).every((m) => m.type === 'system')).toBe(true);
+    ws.close();
+  });
+
+  it('reports the checks on the branch\'s pull request, none when it has no PR, and an error when gh fails', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'cw-ctl-ci-'));
+    const workspace = h.store.create({ name: 'ci', cwd: dir });
+    const { ws, messages } = connectControl(h);
+    await opened(ws);
+    const checks = () => messages.filter((m): m is Extract<ControlToClient, { type: 'gitChecks' }> => m.type === 'gitChecks');
+
+    ws.send(JSON.stringify({ type: 'gitChecks', id: workspace.id }));
+    await waitFor(() => checks().length === 1);
+    expect(checks()[0]).toMatchObject({ pr: null, checks: null, error: null });
+
+    h.branchPrJson = JSON.stringify({ number: 5, title: 'T', url: 'https://github.com/acme/web-app/pull/5', isDraft: false, statusCheckRollup: [{ __typename: 'CheckRun', name: 'Pest', status: 'COMPLETED', conclusion: 'FAILURE' }, { __typename: 'CheckRun', name: 'Lint', status: 'COMPLETED', conclusion: 'SUCCESS' }] });
+    ws.send(JSON.stringify({ type: 'gitChecks', id: workspace.id }));
+    await waitFor(() => checks().length === 2);
+    expect(checks()[1]).toMatchObject({ pr: { number: 5 }, checks: { passed: 1, failed: 1, failing: ['Pest'] }, error: null });
+    ws.close();
+  });
+
   it('answers listRepos to the asking client only', async () => {
     h.repos.push({ name: 'chrome-workspaces', path: '/w/chrome-workspaces', root: 'Websites' });
     const asker = connectControl(h);

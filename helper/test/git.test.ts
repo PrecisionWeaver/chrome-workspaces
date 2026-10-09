@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -126,5 +126,102 @@ describe('git service', () => {
     git(empty, 'add', 'x.txt');
     expect(await service.state(empty)).toMatchObject({ branch: 'main', commits: [], files: [{ index: 'A', worktree: ' ', path: 'x.txt' }] });
     expect((await service.diff(empty, 'x.txt', null)).diff).toContain('+x');
+  });
+});
+
+describe('git service writes', () => {
+  const service = createGitService();
+  const names = async (dir: string) => (await service.state(dir)).files.map((f) => `${f.index}${f.worktree} ${f.path}`).sort();
+
+  it('stages, unstages and commits, and refuses to commit with nothing staged or no message', async () => {
+    const dir = repo();
+    writeFileSync(join(dir, 'a.txt'), 'one\ntwo\nthree\n');
+    writeFileSync(join(dir, 'b.txt'), 'new\n');
+    expect(await names(dir)).toEqual([' M a.txt', '?? b.txt']);
+
+    await service.stage(dir, ['a.txt'], true);
+    expect(await names(dir)).toEqual(['?? b.txt', 'M  a.txt']);
+    await service.stage(dir, [], false);
+    expect(await names(dir)).toEqual([' M a.txt', '?? b.txt']);
+    await service.stage(dir, [], true);
+    expect(await names(dir)).toEqual(['A  b.txt', 'M  a.txt']);
+
+    await expect(service.save(dir, '   ')).rejects.toThrow('message');
+    expect(await service.save(dir, 'add b and update a')).toMatch(/^[0-9a-f]{7} add b and update a$/);
+    expect(await names(dir)).toEqual([]);
+    expect((await service.state(dir)).commits[0].subject).toBe('add b and update a');
+    await expect(service.save(dir, 'again')).rejects.toThrow('nothing is staged');
+  });
+
+  it('unstages in a repository with no commits, where there is no HEAD to restore from', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'cw-fresh-'));
+    git(dir, 'init', '-q', '-b', 'main');
+    writeFileSync(join(dir, 'x.txt'), 'x\n');
+    await service.stage(dir, ['x.txt'], true);
+    expect(await names(dir)).toEqual(['A  x.txt']);
+    await service.stage(dir, ['x.txt'], false);
+    expect(await names(dir)).toEqual(['?? x.txt']);
+    await service.stage(dir, ['x.txt'], true);
+    expect(await service.save(dir, 'first')).toMatch(/first$/);
+  });
+
+  it('discards a tracked change by restoring it and an untracked file by deleting it, touching nothing else', async () => {
+    const dir = repo();
+    writeFileSync(join(dir, 'a.txt'), 'changed\n');
+    writeFileSync(join(dir, 'junk.txt'), 'junk\n');
+    writeFileSync(join(dir, 'keep.txt'), 'keep\n');
+    await service.discard(dir, ['a.txt', 'junk.txt']);
+    expect(readFileSync(join(dir, 'a.txt'), 'utf8')).toBe('one\ntwo\n');
+    expect(existsSync(join(dir, 'junk.txt'))).toBe(false);
+    expect(readFileSync(join(dir, 'keep.txt'), 'utf8')).toBe('keep\n');
+    await expect(service.discard(dir, [])).rejects.toThrow('choose');
+  });
+
+  it('refuses paths that climb out of the repository, for every write', async () => {
+    const dir = repo();
+    for (const bad of ['../x', '/etc/passwd', 'a/../../b']) {
+      await expect(service.stage(dir, [bad], true)).rejects.toThrow('path');
+      await expect(service.discard(dir, [bad])).rejects.toThrow('path');
+    }
+    await expect(service.stage(dir, Array.from({ length: 501 }, (_, i) => `f${i}`), true)).rejects.toThrow('too many');
+  });
+
+  it('lists branches, switches to an existing one only, and refuses names that are not branches', async () => {
+    const dir = repo();
+    git(dir, 'branch', 'topic');
+    const list = await service.branches(dir);
+    expect(list.map((b) => [b.name, b.current]).sort()).toEqual([['main', true], ['topic', false]]);
+    expect(await service.switchBranch(dir, 'topic')).toBe('Switched to topic.');
+    expect((await service.state(dir)).branch).toBe('topic');
+    await expect(service.switchBranch(dir, 'nonexistent')).rejects.toThrow('no branch');
+    await expect(service.switchBranch(dir, '--detach')).rejects.toThrow();
+    await expect(service.switchBranch(dir, 'bad name')).rejects.toThrow();
+  });
+
+  it('compares a branch with its main line: files, commit count and each file\'s diff', async () => {
+    const dir = repo();
+    git(dir, 'switch', '-q', '-c', 'feature');
+    writeFileSync(join(dir, 'a.txt'), 'one\ntwo\nthree\n');
+    writeFileSync(join(dir, 'new.txt'), 'brand new\n');
+    git(dir, 'add', '.');
+    git(dir, 'commit', '-qm', 'feature work');
+    writeFileSync(join(dir, 'more.txt'), 'more\n');
+    git(dir, 'add', '.');
+    git(dir, 'commit', '-qm', 'more feature work');
+
+    const result = await service.compare(dir);
+    expect(result).toMatchObject({ base: 'main', ahead: 2 });
+    expect(result.files.map((f) => `${f.status} ${f.path}`).sort()).toEqual(['A more.txt', 'A new.txt', 'M a.txt']);
+    expect((await service.diff(dir, 'a.txt', null, true)).diff).toContain('+three');
+    expect((await service.diff(dir, 'new.txt', null, true)).diff).toContain('+brand new');
+  });
+
+  it('has nothing to compare with when there is no main line', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'cw-nobase-'));
+    git(dir, 'init', '-q', '-b', 'trunk');
+    writeFileSync(join(dir, 'f'), 'x');
+    git(dir, 'add', '.');
+    git(dir, 'commit', '-qm', 'init');
+    await expect(service.compare(dir)).rejects.toThrow('no main branch');
   });
 });
