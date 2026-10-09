@@ -5,6 +5,7 @@ import { promisify } from 'node:util';
 import type { AdminAction, ReviewsState, SystemSnapshot, WorkspaceStatus } from '../../shared/protocol';
 import type { HelperConfig } from './config';
 import type { SessionManager } from './session';
+import { TranscriptTokens } from './tokens';
 import { pathBytes, readListening, readProcesses, subtree, toSystemProcess, type Proc } from './system';
 import type { WorkspaceStore } from './workspace-store';
 
@@ -22,6 +23,8 @@ export interface AdminOptions {
   /** The helper's own commit, when it can be read. */
   commit: string | null;
   status: (id: string) => { status: WorkspaceStatus; claudeSessionId: string | null };
+  /** The transcript of the workspace's current claude session, for counting its tokens. */
+  transcript: (id: string) => string | null;
   /** Runs a command line in a login shell, resolving with its output and whether it exited cleanly. */
   runShell: (command: string) => Promise<{ output: string; ok: boolean }>;
   /** Starts a command that outlives the helper. */
@@ -75,6 +78,7 @@ export async function defaultIsManaged(): Promise<boolean> {
 export function createAdmin(options: AdminOptions): AdminService {
   const { sessions, store, config, paths } = options;
   const readProcs = options.processes ?? readProcesses;
+  const tokens = new TranscriptTokens();
 
   const launchctl = (verb: 'kickstart -k' | 'bootout') => `sleep 1; launchctl ${verb} gui/${process.getuid?.() ?? 0}/${AGENT_LABEL}`;
 
@@ -123,6 +127,8 @@ export function createAdmin(options: AdminOptions): AdminService {
   return {
     async snapshot({ reviews, clients }) {
       const [procs, listening, managed] = await Promise.all([readProcs(), readListening(), options.isManaged()]);
+      const snapshotSessions = store.list();
+      tokens.keepOnly(snapshotSessions.flatMap((ws) => options.transcript(ws.id) ?? []));
       return {
         takenAt: new Date().toISOString(),
         helper: {
@@ -141,6 +147,10 @@ export function createAdmin(options: AdminOptions): AdminService {
         sessions: store.list().map((ws) => {
           const pid = sessions.get(ws.id)?.pid ?? null;
           const live = options.status(ws.id);
+          const transcript = options.transcript(ws.id);
+          // Counting a large transcript the first time takes a while, so it runs behind the answer.
+          if (transcript) void tokens.refresh(transcript);
+          const counted = transcript ? tokens.peek(transcript) : null;
           return {
             id: ws.id,
             name: ws.name,
@@ -149,6 +159,7 @@ export function createAdmin(options: AdminOptions): AdminService {
             cwd: ws.cwd,
             cwdMissing: !existsSync(ws.cwd),
             claudeSessionId: live.claudeSessionId,
+            tokens: counted ? { ...counted.totals, counting: counted.scanning } : null,
             processes: pid === null ? [] : subtree(procs, pid).map((p) => toSystemProcess(p, listening)),
           };
         }),

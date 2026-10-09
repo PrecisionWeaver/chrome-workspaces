@@ -67,6 +67,32 @@ describe('system snapshot', () => {
   });
 });
 
+describe('session tokens', () => {
+  it('counts a workspace\'s transcript behind the snapshot, each message once, and has none for a workspace without one', async () => {
+    const workspace = h.store.create({ name: 'counted', cwd: h.defaultCwd });
+    const bare = h.store.create({ name: 'no transcript', cwd: h.defaultCwd });
+    const file = join(mkdtempSync(join(tmpdir(), 'cw-adm-tok-')), 't.jsonl');
+    const message = (id: string, out: number) => JSON.stringify({ type: 'assistant', message: { id, usage: { input_tokens: 3, output_tokens: out, cache_creation_input_tokens: 100, cache_read_input_tokens: 1000 } } });
+    writeFileSync(file, [message('a', 50), message('a', 50), message('b', 25)].join('\n') + '\n');
+    h.transcripts[workspace.id] = file;
+
+    let tokens: unknown = null;
+    for (let i = 0; i < 50; i++) {
+      const { ws, reply } = await ask({ type: 'system' }, 'system');
+      ws.close();
+      if (reply.type !== 'system' || !reply.snapshot) throw new Error('no snapshot');
+      const mine = reply.snapshot.sessions.find((x) => x.id === workspace.id)!;
+      expect(reply.snapshot.sessions.find((x) => x.id === bare.id)!.tokens).toBeNull();
+      if (mine.tokens && !mine.tokens.counting && mine.tokens.output > 0) {
+        tokens = mine.tokens;
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    expect(tokens).toEqual({ input: 6, output: 75, cacheWrite: 200, cacheRead: 2000, counting: false });
+  });
+});
+
 describe('killProcess', () => {
   it('stops a process inside the workspace, and only with a force when asked', async () => {
     const { workspace } = await workspaceWithSleep('a');

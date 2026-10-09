@@ -71,6 +71,7 @@ const admin = createAdmin({
     }
   })(),
   status: (id) => ({ status: mcStatus.get(id)?.status ?? null, claudeSessionId: mcStatus.get(id)?.claudeSessionId ?? null }),
+  transcript: (id) => mcStatus.get(id)?.transcriptPath ?? null,
   runShell: defaultRunShell(shell),
   spawnDetached: defaultSpawnDetached,
   isManaged: defaultIsManaged,

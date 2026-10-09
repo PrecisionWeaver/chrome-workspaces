@@ -116,6 +116,16 @@ code {
   padding-bottom: 10px;
 }
 
+/* Every header button is the same box, so a glyph or an icon of any size lines up with its neighbours. */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0;
+}
+
 /* The chevron turns when its section collapses. */
 .section.collapsed .section-toggle {
   transform: rotate(-90deg);
@@ -1928,6 +1938,12 @@ body.collapsed #collapse {
 
 .session-name {
   font-weight: 600;
+}
+
+.session-tokens {
+  color: var(--accent);
+  font-size: 11px;
+  cursor: help;
 }
 
 .session-detail {

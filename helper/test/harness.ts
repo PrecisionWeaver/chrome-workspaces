@@ -33,6 +33,8 @@ export interface Harness {
   workingDirs: Record<string, string>;
   /** Commands the admin service started detached, instead of running them. */
   spawned: string[];
+  /** The claude transcript of each workspace, by id, for token counts. */
+  transcripts: Record<string, string>;
   /** Whether the fake launchd manages the helper. */
   managed: boolean;
   /** Where uploads, the log and the data folder are for admin tests. */
@@ -59,6 +61,7 @@ export async function startHarness(): Promise<Harness> {
     repos: [] as Repo[],
     workingDirs: {} as Record<string, string>,
     spawned: [] as string[],
+    transcripts: {} as Record<string, string>,
     managed: true,
     dataDir: dir,
     prDetailsJson: null as string | null,
@@ -88,6 +91,7 @@ export async function startHarness(): Promise<Harness> {
     port: 4178,
     commit: 'abc1234',
     status: (id) => ({ status: fakes.statuses[id] ?? null, claudeSessionId: null }),
+    transcript: (id) => fakes.transcripts[id] ?? null,
     runShell: async (command) => ({ output: `ran: ${command}`, ok: true }),
     spawnDetached: (command) => fakes.spawned.push(command),
     isManaged: async () => fakes.managed,

@@ -28,6 +28,17 @@ export type NativeHostReply =
   | { ok: true; token: string; port: number }
   | { ok: false; error: string };
 
+/** Tokens a claude session has used. */
+export interface TokenTotals {
+  /** Input not served from the cache. */
+  input: number;
+  output: number;
+  /** Input written to the prompt cache. */
+  cacheWrite: number;
+  /** Input read back from the prompt cache. */
+  cacheRead: number;
+}
+
 /** One process in a workspace's shell tree. */
 export interface SystemProcess {
   pid: number;
@@ -50,6 +61,8 @@ export interface SystemSession {
   cwd: string;
   cwdMissing: boolean;
   claudeSessionId: string | null;
+  /** What its claude session has used, counted from the transcript; null when there is none. `counting` while the first read is still running. */
+  tokens: (TokenTotals & { counting: boolean }) | null;
   /** The shell and everything beneath it, shell first. */
   processes: SystemProcess[];
 }

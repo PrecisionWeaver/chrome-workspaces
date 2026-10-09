@@ -1,4 +1,4 @@
-import type { AdminAction, ControlToClient, ControlToHelper, SystemProcess, SystemSession, SystemSnapshot } from '../../shared/protocol';
+import type { AdminAction, ControlToClient, ControlToHelper, SystemProcess, SystemSession, SystemSnapshot, TokenTotals } from '../../shared/protocol';
 import { el } from './dom';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -27,6 +27,19 @@ export const formatBytes = (bytes: number): string =>
   bytes < 1024 ? `${bytes} B` : bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)} KB` : bytes < 1024 ** 3 ? `${(bytes / 1024 ** 2).toFixed(1)} MB` : `${(bytes / 1024 ** 3).toFixed(2)} GB`;
 
 export const formatKb = (kb: number): string => formatBytes(kb * 1024);
+
+/** A token count as 1.2K, 3.4M or 1.1B. */
+export function formatTokens(count: number): string {
+  if (count < 1000) return String(count);
+  const [value, unit] = count < 1e6 ? [count / 1e3, 'K'] : count < 1e9 ? [count / 1e6, 'M'] : [count / 1e9, 'B'];
+  return `${value >= 100 ? value.toFixed(0) : value.toFixed(1)}${unit}`;
+}
+
+/** Tokens that were new work: everything but reads of the prompt cache, which are repeats of earlier input. */
+export const newTokens = (t: TokenTotals): number => t.input + t.output + t.cacheWrite;
+
+const tokenBreakdown = (t: TokenTotals): string =>
+  `input ${t.input.toLocaleString()} · output ${t.output.toLocaleString()} · cache written ${t.cacheWrite.toLocaleString()} · cache read ${t.cacheRead.toLocaleString()}`;
 
 export function formatDuration(seconds: number): string {
   const d = Math.floor(seconds / 86400);
@@ -190,6 +203,11 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
     const status = session.status && running ? el('span', STATUS_LABEL[session.status], `chip ${session.status}`) : null;
     if (status) summary.append(status);
     if (session.cwdMissing) summary.append(el('span', 'directory missing', 'chip bad'));
+    if (session.tokens) {
+      const tokens = el('span', session.tokens.counting ? 'counting tokens…' : `${formatTokens(newTokens(session.tokens))} tokens`, 'session-tokens');
+      tokens.title = `${tokenBreakdown(session.tokens)}\nCache reads are repeats of earlier input, so they are not in the headline figure.`;
+      summary.append(tokens);
+    }
     summary.append(
       el('span', running ? `${session.processes.length} process${session.processes.length === 1 ? '' : 'es'} · ${formatKb(memory)}${ports.length ? ` · ${ports.map((p) => `:${p}`).join(' ')}` : ''}` : 'not running', 'session-detail'),
     );
@@ -207,11 +225,13 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
 
   function sessionsCard(s: SystemSnapshot): HTMLElement {
     const running = s.sessions.filter((x) => x.pid !== null).length;
+    const counted = s.sessions.flatMap((x) => (x.tokens && !x.tokens.counting ? [x.tokens] : []));
+    const total = counted.reduce((sum, t) => sum + newTokens(t), 0);
     const list = el('div', '', 'sessions');
     // Running workspaces first, since those are the ones using the machine.
     list.append(...[...s.sessions].sort((a, b) => Number(b.pid !== null) - Number(a.pid !== null)).map(sessionRow));
     if (s.sessions.length === 0) list.append(el('div', 'No workspaces yet.', 'settings-empty'));
-    return card(`Workspace sessions · ${running} running`, el('p', 'Each runs a shell and claude. Expand one to see every process beneath it, and the ports they listen on. Stopping a process also stops its children.', 'settings-note'), list);
+    return card(`Workspace sessions · ${running} running${counted.length ? ` · ${formatTokens(total)} tokens` : ''}`, el('p', 'Each runs a shell and claude, and shows the tokens that claude session has used (input, output and cache writes; hover for the breakdown). Expand one to see every process beneath it, and the ports they listen on. Stopping a process also stops its children.', 'settings-note'), list);
   }
 
   function housekeepingCard(s: SystemSnapshot): HTMLElement {
