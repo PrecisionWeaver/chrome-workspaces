@@ -142,6 +142,13 @@
         </div>
       </section>
       <div id="terminal"></div>
+      <div id="palette" hidden>
+        <div id="palette-box" role="dialog" aria-label="Command palette">
+          <input id="palette-input" placeholder="Jump to a workspace or review, or run a command…" autocomplete="off" spellcheck="false" />
+          <ul id="palette-results" role="listbox"></ul>
+          <div id="palette-foot">↑↓ to move · Enter to choose · Esc to close</div>
+        </div>
+      </div>
     </main>
     <script type="module" src="panel.js"></script>
   </body>

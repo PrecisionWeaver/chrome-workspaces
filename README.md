@@ -24,6 +24,7 @@ Each workspace is a regular Chrome window, or a tab group inside one, with your 
 
 | | |
 |---|---|
+| **Command palette** | `⌘K` (or `Ctrl+K`), even from the terminal, opens one box that fuzzy-finds every workspace and review request and runs actions (new workspace, settings, refresh). `nw` finds *New workspace*. |
 | **Switch** | `⌃⇧←` / `⌃⇧→` or click a workspace. All workspace windows share the size you last set, so switching swaps content in place. |
 | **Create** | `+ New workspace` opens one view: a **Name**, the **Repo** to start in, the **Model** (`claude --model`), optional **Tabs** (one URL per line, opened with the workspace), a first message, and where it lives. Or run `devspace PROJ-1234`. A window that isn't a workspace offers to become one. |
 | **First message** | **Blank**, **From prompt** (pick from your notes file; `PR-URL` and `PROJ-XXX` are filled in from the PR), or **From text** (type anything). The message runs once; reopening resumes the conversation. |

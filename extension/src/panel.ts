@@ -1,11 +1,12 @@
 import { FitAddon } from '@xterm/addon-fit';
 import { Terminal } from '@xterm/xterm';
 import { similarity } from '../../shared/pairing';
-import type { ClientMessage, ReviewsState, ServerMessage, Workspace, WorkspaceStatus } from '../../shared/protocol';
+import type { ClientMessage, ReviewRequest, ReviewsState, ServerMessage, Workspace, WorkspaceStatus } from '../../shared/protocol';
 import { connectControl, getHelper, openSocket } from './helper-client';
 import { createCreateView } from './create-view';
 import { attachFileDrop } from './file-drop';
 import { createGitView } from './git-view';
+import { createPalette, type PaletteItem } from './palette';
 import { createSettingsView } from './settings-view';
 import { makeSectionsResizable } from './sections';
 import { openInWorkspace } from './tabs';
@@ -67,14 +68,17 @@ const control = connectControl(
 const send = control.send.bind(control);
 const here = () => ({ windowId: myWindowId, workspace: current() });
 // Review requests start a workspace through the same new-workspace view as the + button.
+/** Opens the new-workspace view for a review request, and its PR beside the current workspace's tabs. */
+function startReview(review: ReviewRequest): void {
+  creator.show(review);
+  // The PR is what you came to look at, so it opens beside the workspace's other tabs, once.
+  const { windowId, workspace } = here();
+  void openInWorkspace(workspace, windowId, review.url);
+}
+
 const launcher = createLauncher({
   send,
-  create(review) {
-    creator.show(review);
-    // The PR is what you came to look at, so it opens beside the workspace's other tabs, once.
-    const { windowId, workspace } = here();
-    void openInWorkspace(workspace, windowId, review.url);
-  },
+  create: startReview,
   closeCreate: () => creator.close(),
   selectedUrl: () => creator.review?.url ?? null,
   openWorkspace,
@@ -474,6 +478,11 @@ attachFileDrop(terminalEl, {
 
 // xterm sends the same \r for Enter and Shift+Enter; Claude reads ESC + \r as a newline, as iTerm can be set to send.
 term.attachCustomKeyEventHandler((event) => {
+  // ⌘K / Ctrl+K opens the command palette even while the terminal has focus.
+  if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'k') {
+    if (event.type === 'keydown') palette.open();
+    return false;
+  }
   if (event.key !== 'Enter' || !event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) return true;
   if (event.type === 'keydown') sendToSession({ type: 'input', data: '\x1b\r' });
   return false;
@@ -486,6 +495,46 @@ function fitTerminal(): void {
 }
 
 new ResizeObserver(fitTerminal).observe(terminalEl);
+
+function paletteItems(): PaletteItem[] {
+  const items: PaletteItem[] = [
+    { kind: 'Action', label: 'New workspace', hint: 'Start a workspace', run: () => creator.show() },
+    { kind: 'Action', label: 'Open settings', hint: 'Helper, sessions, housekeeping', run: () => settings.show() },
+    { kind: 'Action', label: 'Refresh review requests', run: () => send({ type: 'refreshReviews' }) },
+    { kind: 'Action', label: 'Refresh source control', run: () => git.refresh() },
+    { kind: 'Action', label: document.body.classList.contains('collapsed') ? 'Expand the list' : 'Collapse the list', run: () => $<HTMLButtonElement>('collapse').click() },
+  ];
+  const shown = current();
+  for (const ws of workspaces) {
+    const status = statuses[ws.id];
+    items.push({
+      kind: 'Workspace',
+      label: ws.name,
+      hint: [ws.id === shown?.id ? 'current' : '', status === 'needs_input' ? 'needs input' : status === 'working' ? 'working' : '', ws.cwd.replace(/^\/Users\/[^/]+/, '~')].filter(Boolean).join(' · '),
+      run: () => openWorkspace(ws),
+    });
+  }
+  for (const review of reviews.items) {
+    const existing = workspaces.find((ws) => ws.pr === review.url);
+    items.push({
+      kind: existing ? 'Review · has workspace' : 'Review',
+      label: `${review.repo.split('/')[1] ?? review.repo}#${review.number} ${review.title}`,
+      hint: review.author,
+      run: () => (existing ? openWorkspace(existing) : startReview(review)),
+    });
+  }
+  return items;
+}
+
+const palette = createPalette(paletteItems, () => (terminalEl.hidden ? undefined : term.focus()));
+// Outside the terminal the same shortcut works anywhere in the panel.
+document.addEventListener('keydown', (event) => {
+  if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'k') {
+    event.preventDefault();
+    if (palette.isOpen) palette.close();
+    else palette.open();
+  }
+});
 
 makeSectionsResizable(fitTerminal);
 
