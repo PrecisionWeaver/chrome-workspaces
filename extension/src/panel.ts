@@ -4,6 +4,7 @@ import { similarity } from '../../shared/pairing';
 import type { ClientMessage, ReviewsState, ServerMessage, Workspace, WorkspaceStatus } from '../../shared/protocol';
 import { connectControl, getHelper, openSocket } from './helper-client';
 import { createCreateView } from './create-view';
+import { attachFileDrop } from './file-drop';
 import { createGitView } from './git-view';
 import { makeSectionsResizable } from './sections';
 import { openInWorkspace } from './tabs';
@@ -382,8 +383,10 @@ let attachedId: string | null = null;
 // Set while the token is being fetched, so a state update arriving meanwhile doesn't attach twice.
 let connecting = false;
 
-function sendToSession(message: ClientMessage): void {
-  if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
+function sendToSession(message: ClientMessage): boolean {
+  if (socket?.readyState !== WebSocket.OPEN) return false;
+  socket.send(JSON.stringify(message));
+  return true;
 }
 
 function detach(): void {
@@ -413,6 +416,11 @@ function attach(workspace: Workspace): void {
     ws.onmessage = (event) => {
       const message = JSON.parse(event.data as string) as ServerMessage;
       if (message.type === 'output') term.write(message.data);
+      // The saved path is pasted, so a program that takes pastes (claude) treats it as an attachment.
+      else if (message.type === 'uploaded') {
+        if (message.path) term.paste(`${message.path} `);
+        else showNotice(`Could not add ${message.name}: ${message.error ?? 'unknown error'}`);
+      }
       // The shell is gone; close the panel. Reopening it starts a fresh session.
       else if (myWindowId !== undefined) void chrome.sidePanel.close({ windowId: myWindowId });
       else window.close();
@@ -430,6 +438,11 @@ function attach(workspace: Workspace): void {
 }
 
 term.onData((data) => sendToSession({ type: 'input', data }));
+
+attachFileDrop(terminalEl, {
+  send: (name, data) => sendToSession({ type: 'file', name, data }),
+  notice: showNotice,
+});
 
 // xterm sends the same \r for Enter and Shift+Enter; Claude reads ESC + \r as a newline, as iTerm can be set to send.
 term.attachCustomKeyEventHandler((event) => {

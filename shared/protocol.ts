@@ -6,17 +6,23 @@ export const NATIVE_HOST_NAME = 'com.chrome_workspaces.helper';
 export const MAX_PROMPT_LENGTH = 8000;
 export const MAX_TAB_URLS = 20;
 export const MAX_PR_BODY = 6000;
+/** The largest file that can be dropped or pasted into a terminal. */
+export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 /** What `--model` accepts that is safe to put in a shell command: an alias or id, optionally with a `[1m]`-style suffix. */
 export const MODEL_PATTERN = /^[A-Za-z0-9][\w.-]{0,63}(\[\w{1,8}\])?$/;
 export const MODEL_ALIASES = ['opus', 'sonnet', 'haiku'] as const;
 
 export type ClientMessage =
   | { type: 'input'; data: string }
-  | { type: 'resize'; cols: number; rows: number };
+  | { type: 'resize'; cols: number; rows: number }
+  /** A file dropped or pasted into the terminal, `data` as base64; answered with `uploaded`. */
+  | { type: 'file'; name: string; data: string };
 
 export type ServerMessage =
   | { type: 'output'; data: string }
-  | { type: 'exit'; code: number };
+  | { type: 'exit'; code: number }
+  /** Where a `file` was saved, or why it was not. */
+  | { type: 'uploaded'; name: string; path: string | null; error: string | null };
 
 export type NativeHostReply =
   | { ok: true; token: string; port: number }

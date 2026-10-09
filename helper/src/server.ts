@@ -1,9 +1,10 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
-import { PROTOCOL, type ClientMessage, type ServerMessage } from '../../shared/protocol';
+import { MAX_UPLOAD_BYTES, PROTOCOL, type ClientMessage, type ServerMessage } from '../../shared/protocol';
 import { isAuthorized, tokenFromProtocols, type AuthPolicy } from './auth';
 import type { ControlHub } from './control';
 import type { Session, SessionManager } from './session';
+import { saveUpload } from './uploads';
 
 const SESSION_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
@@ -15,6 +16,8 @@ export interface ServerOptions {
   onUnknownSession?: (id: string) => Session | undefined;
   control?: ControlHub;
   api?: (req: IncomingMessage, res: ServerResponse) => void;
+  /** Where files dropped into a terminal are saved. Without it they are refused. */
+  uploadDir?: string;
 }
 
 export interface RunningServer {
@@ -27,6 +30,8 @@ export function startServer(options: ServerOptions): Promise<RunningServer> {
   const wss = new WebSocketServer({
     noServer: true,
     handleProtocols: (protocols) => (protocols.has(PROTOCOL) ? PROTOCOL : false),
+    // Room for a file at the upload limit, which travels as base64.
+    maxPayload: Math.ceil(MAX_UPLOAD_BYTES / 3) * 4 + 64 * 1024,
   });
 
   http.on('upgrade', (req, socket, head) => {
@@ -93,6 +98,14 @@ function handleConnection(ws: WebSocket, url: string, options: ServerOptions): v
     }
     if (message.type === 'input') session.write(message.data);
     else if (message.type === 'resize') session.resize(message.cols, message.rows);
+    else if (message.type === 'file' && typeof message.name === 'string' && typeof message.data === 'string') {
+      if (!options.uploadDir) return send({ type: 'uploaded', name: message.name, path: null, error: 'uploads are not enabled' });
+      try {
+        send({ type: 'uploaded', name: message.name, path: saveUpload(options.uploadDir, id, message.name, message.data), error: null });
+      } catch (error) {
+        send({ type: 'uploaded', name: message.name, path: null, error: error instanceof Error ? error.message : String(error) });
+      }
+    }
   });
   ws.on('close', detach);
 }

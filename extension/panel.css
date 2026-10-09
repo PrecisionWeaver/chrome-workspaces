@@ -635,6 +635,12 @@ body.collapsed #collapse {
   border-bottom: 1px solid var(--border);
 }
 
+#terminal.drop-target {
+  outline: 2px dashed var(--accent);
+  outline-offset: -6px;
+  background: var(--accent-soft);
+}
+
 #terminal {
   flex: 1;
   min-height: 0;

@@ -16,9 +16,11 @@ import { startServer } from './server';
 import { SessionManager } from './session';
 import { loadOrCreateToken } from './token';
 import { WorkspaceStore } from './workspace-store';
+import { pruneUploads } from './uploads';
 
 const config = loadConfig();
 const shell = process.env.SHELL ?? '/bin/zsh';
+pruneUploads(join(DATA_DIR, 'uploads'));
 const store = new WorkspaceStore(join(DATA_DIR, 'workspaces.json'));
 const sessions = new SessionManager(SCROLLBACK_LIMIT);
 const auth = { token: loadOrCreateToken(DATA_DIR), allowedOrigins: [`chrome-extension://${config.extensionId}`] };
@@ -75,6 +77,7 @@ const server = await startServer({
   auth,
   sessions,
   control,
+  uploadDir: join(DATA_DIR, 'uploads'),
   api: createApi({ auth, store, control, sessions, defaultCwd: config.defaultCwd, statuses, reviews, repoDirs: config.repoDirs }),
   onUnknownSession: (id) => {
     const workspace = store.get(id);

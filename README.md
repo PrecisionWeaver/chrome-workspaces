@@ -34,6 +34,7 @@ Each workspace is a regular Chrome window, or a tab group inside one, with your 
 | **Resize** | Drag the list's right edge to widen it, and the top edge of **Source control** or **Review requests** to make them taller or shorter (double-click an edge to reset). Sizes are remembered. |
 | **Reorder** | Drag workspaces in the list; the shortcuts follow that order. |
 | **Status** | Red dot: `claude` needs input. Green: working. Sourced from [Claude Mission Control](https://github.com/PrecisionWeaver/claude-mission-control). |
+| **Attachments** | Drag files onto the terminal, or paste a screenshot, and they are saved under `~/.chrome-workspaces/uploads/` (cleared after a week) with their path typed in for `claude` to read. Up to 25 MB each. |
 | **Sessions** | Closing the panel leaves `claude` running; reopening reattaches with scrollback. `exit` closes the shell; the next open resumes the last conversation. |
 | **Rename / remove** | Double-click a name to rename (a tab group takes the new name). Hover and click × twice to end the session; the window stays open. |
 | **Collapse** | `‹` shrinks the list to a narrow rail. |
