@@ -45,6 +45,7 @@ function handle(message: ControlToClient): void {
       previousOrder = orderKey(message.workspaces);
       workspaces = message.workspaces;
       void announce(message.statuses);
+      void rebuildSendMenu();
       // The list was reordered, here or in a panel: put the tab groups in the same order.
       if (reordered) void tabsFollowList();
       void clearStalePairings();
@@ -73,6 +74,16 @@ function handle(message: ControlToClient): void {
     case 'focus': {
       const workspace = find(message.id);
       if (workspace) void switchTo(workspace, send, workspaces);
+      break;
+    }
+    case 'sent': {
+      const name = find(message.id)?.name ?? 'workspace';
+      chrome.notifications.create(`sent-${Date.now()}`, {
+        type: 'basic',
+        iconUrl: 'icons/icon-128.png',
+        title: message.ok ? `Sent to ${name}` : `Could not send to ${name}`,
+        message: message.ok ? 'Pasted into its terminal, not submitted.' : message.message,
+      });
       break;
     }
     case 'browser':
@@ -176,6 +187,38 @@ chrome.tabs.onUpdated.addListener((_id, change, tab) => (change.url || change.gr
 chrome.tabs.onRemoved.addListener((_id, info) => !info.isWindowClosing && scheduleTabs(info.windowId));
 chrome.tabs.onAttached.addListener((_id, info) => scheduleTabs(info.newWindowId));
 chrome.tabGroups.onRemoved.addListener((group) => send({ type: 'unpairGroup', groupId: group.id }));
+
+// ---- right-click: send a selection, link or page to a workspace's terminal ----
+
+const SEND_PARENT = 'send-to-workspace';
+const MAX_MENU_WORKSPACES = 20;
+let sendMenuKey = '';
+let sendMenuBuild: Promise<void> = Promise.resolve();
+
+/** Rebuilds the right-click menu when the workspaces it lists change. */
+function rebuildSendMenu(): Promise<void> {
+  const listed = workspaces.filter((ws) => !ws.archived).slice(0, MAX_MENU_WORKSPACES);
+  const key = listed.map((ws) => `${ws.id}:${ws.name}`).join('|');
+  if (key === sendMenuKey) return sendMenuBuild;
+  sendMenuKey = key;
+  // One build at a time: removeAll and create are asynchronous and would interleave.
+  sendMenuBuild = sendMenuBuild.then(async () => {
+    await chrome.contextMenus.removeAll();
+    if (listed.length === 0) return;
+    const contexts: ['selection', 'link', 'page'] = ['selection', 'link', 'page'];
+    chrome.contextMenus.create({ id: SEND_PARENT, title: 'Send to workspace', contexts });
+    for (const ws of listed) chrome.contextMenus.create({ id: `send:${ws.id}`, parentId: SEND_PARENT, title: ws.name, contexts });
+  });
+  return sendMenuBuild;
+}
+
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  const id = String(info.menuItemId);
+  if (!id.startsWith('send:')) return;
+  // What was right-clicked: selected text, else the link, else the page.
+  const text = info.selectionText?.trim() || info.linkUrl || [tab?.title, info.pageUrl ?? tab?.url].filter(Boolean).join('\n');
+  if (text) send({ type: 'sendText', id: id.slice('send:'.length), text });
+});
 
 // ---- attention: the toolbar badge and optional notifications ----
 

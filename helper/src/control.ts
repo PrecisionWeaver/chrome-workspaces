@@ -3,6 +3,7 @@ import type { WebSocket } from 'ws';
 import { MAX_PROMPT_LENGTH, MAX_TAB_URLS, MODEL_PATTERN, WORKSPACE_COLORS, type ControlToClient, type ControlToHelper, type Prompt, type Repo, type ReviewsState, type Workspace, type WorkspaceStatus } from '../../shared/protocol';
 import { isDirectory } from './config';
 import type { AdminService } from './admin';
+import { asPaste } from './paste';
 import type { GitService } from './git';
 import { parsePrDetails } from './pr-details';
 import { isPullRequestUrl, prWorkspace } from './pr-workspace';
@@ -135,6 +136,17 @@ export class ControlHub {
       case 'order':
         store.reorder(message.ids);
         break;
+      case 'sendText': {
+        const { id } = message;
+        const session = store.get(id) ? this.options.sessions.get(id) : undefined;
+        if (!session || session.exited) {
+          this.sendTo(ws, { type: 'sent', id, ok: false, message: 'That workspace has no running terminal. Open it first, then send again.' });
+        } else {
+          session.write(asPaste(message.text));
+          this.sendTo(ws, { type: 'sent', id, ok: true, message: 'Sent.' });
+        }
+        break;
+      }
       case 'remove':
         this.options.sessions.remove(message.id);
         store.remove(message.id);
@@ -289,6 +301,8 @@ function isControlToHelper(value: unknown): value is ControlToHelper {
         (m.archived === undefined || typeof m.archived === 'boolean') &&
         (m.color === undefined || m.color === null || (WORKSPACE_COLORS as readonly string[]).includes(m.color as string))
       );
+    case 'sendText':
+      return typeof m.id === 'string' && typeof m.text === 'string' && m.text.length > 0 && m.text.length <= 100_000;
     case 'order':
       return Array.isArray(m.ids) && m.ids.length <= 500 && m.ids.every((id) => typeof id === 'string');
     case 'move':

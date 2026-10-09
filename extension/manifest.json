@@ -16,7 +16,8 @@
     "tabs",
     "alarms",
     "tabGroups",
-    "notifications"
+    "notifications",
+    "contextMenus"
   ],
   "host_permissions": [
     "http://127.0.0.1/*"

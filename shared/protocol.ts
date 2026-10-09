@@ -290,6 +290,8 @@ export type ControlToClient =
   | { type: 'browser'; id: string; at: number }
   /** Reply to `listPrompts`, sent only to the client that asked. */
   | { type: 'prompts'; prompts: Prompt[]; error: string | null }
+  /** Reply to `sendText`. */
+  | { type: 'sent'; id: string; ok: boolean; message: string }
   /** Reply to `system`, to the client that asked. */
   | { type: 'system'; snapshot: SystemSnapshot | null; error: string | null }
   | { type: 'adminResult'; action: string; ok: boolean; message: string }
@@ -322,6 +324,8 @@ export type ControlToHelper =
   | { type: 'move'; id: string; index: number }
   /** Sets the whole list order at once; ignored unless `ids` is exactly the current workspaces. */
   | { type: 'order'; ids: string[] }
+  /** Pastes text into the workspace's terminal without submitting it; answered with `sent`. */
+  | { type: 'sendText'; id: string; text: string }
   | { type: 'listPrompts' }
   | { type: 'listRepos' }
   /** A snapshot of the helper, the workspaces' sessions and their processes. */

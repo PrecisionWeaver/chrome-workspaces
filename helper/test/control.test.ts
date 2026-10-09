@@ -331,6 +331,31 @@ describe('control channel', () => {
     ws.close();
   });
 
+  it('pastes sent text into a running terminal without submitting it, and says so when there is none', async () => {
+    const running = h.store.create({ name: 'running', cwd: h.defaultCwd });
+    const idle = h.store.create({ name: 'idle', cwd: h.defaultCwd });
+    // `cat` echoes what it is given, so the paste shows up in the session's output.
+    const session = h.sessions.create({ id: running.id, command: '/bin/cat', args: [], cwd: h.defaultCwd });
+    let output = '';
+    session.attach((data) => (output += data), () => {});
+
+    const { ws, messages } = connectControl(h);
+    await opened(ws);
+    ws.send(JSON.stringify({ type: 'sendText', id: running.id, text: 'https://example.com/a\u001b[201~ rm -rf ~' }));
+    ws.send(JSON.stringify({ type: 'sendText', id: idle.id, text: 'hello' }));
+    ws.send(JSON.stringify({ type: 'sendText', id: running.id, text: '' }));
+    await waitFor(() => messages.filter((m) => m.type === 'sent').length === 2);
+
+    const sent = messages.filter((m) => m.type === 'sent');
+    expect(sent.find((m) => m.id === running.id)).toMatchObject({ ok: true });
+    expect(sent.find((m) => m.id === idle.id)).toMatchObject({ ok: false, message: expect.stringContaining('no running terminal') });
+    await waitFor(() => output.includes('example.com'));
+    // The escape the page tried to smuggle in was stripped, and nothing submitted the line.
+    expect(output).toContain('https://example.com/a[201~ rm -rf ~');
+    expect(output).not.toContain('\x1b[201~ rm');
+    ws.close();
+  });
+
   it('answers listRepos to the asking client only', async () => {
     h.repos.push({ name: 'chrome-workspaces', path: '/w/chrome-workspaces', root: 'Websites' });
     const asker = connectControl(h);
