@@ -7,6 +7,7 @@ import { costOf, isRealModel, rateFor } from '../../shared/pricing';
 import type { AdminAction, ReviewsState, SystemSnapshot, WorkspaceStatus } from '../../shared/protocol';
 import type { HelperConfig } from './config';
 import type { SessionManager } from './session';
+import { readTimeline } from './timeline';
 import { TranscriptTokens } from './tokens';
 import { pathBytes, readListening, readProcesses, subtree, toSystemProcess, type Proc } from './system';
 import type { WorkspaceStore } from './workspace-store';
@@ -47,6 +48,8 @@ export interface AdminService {
   snapshot(extra: { reviews: ReviewsState; clients: number }): Promise<SystemSnapshot>;
   run(request: AdminAction): Promise<ActionResult>;
   log(): string;
+  /** Recent events from a workspace's claude transcript; null when it has none. */
+  timeline(id: string): ReturnType<typeof readTimeline> | null;
   exportData(): string;
 }
 
@@ -261,6 +264,11 @@ export function createAdmin(options: AdminOptions): AdminService {
           return { ok, message: output.split('\n').slice(0, 4).join(' · ') || (ok ? 'gh is signed in.' : 'gh is not signed in.') };
         }
       }
+    },
+
+    timeline(id) {
+      const path = options.transcript(id);
+      return path ? readTimeline(path) : null;
     },
 
     log() {

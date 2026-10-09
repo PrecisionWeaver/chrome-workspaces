@@ -1,3 +1,4 @@
+import type { TimelineEvent } from '../../shared/timeline';
 import type { AdminAction, ControlToClient, ControlToHelper, SystemProcess, SystemSession, SystemSnapshot, TokenTotals } from '../../shared/protocol';
 import { el } from './dom';
 import { DENSITIES, THEMES } from '../../shared/keynav';
@@ -22,6 +23,7 @@ export interface SettingsView {
   readonly warningCount: number;
   /** How many setup steps are still open, 0 once everything is done or the checklist is dismissed. */
   readonly setupRemaining: number;
+  setTimeline(message: Extract<ControlToClient, { type: 'timeline' }>): void;
   setResult(message: Extract<ControlToClient, { type: 'adminResult' }>): void;
   setLog(text: string): void;
   download(json: string): void;
@@ -81,6 +83,9 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
     if (isOpen) render();
   });
   const expanded = new Set<string>();
+  // Sessions whose activity list is open, and what each last returned.
+  const activityOpen = new Set<string>();
+  const activity = new Map<string, { events: TimelineEvent[]; error: string | null }>();
   const armed = new Set<string>();
 
   const request = (action: AdminAction): void => {
@@ -200,6 +205,34 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
     return line;
   }
 
+  const clock = (iso: string): string => (iso ? new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '');
+  const KIND_LABEL = { you: 'You', said: 'Claude', tool: '' } as const;
+
+  /** What a session has recently done: the files it changed, then each event with its time, newest first. */
+  function activityList(session: SystemSession): HTMLElement {
+    const box = el('div', '', 'activity');
+    const found = activity.get(session.id);
+    if (!found) return Object.assign(box, { textContent: 'Loading…' });
+    if (found.error) return Object.assign(box, { textContent: found.error });
+    if (found.events.length === 0) return Object.assign(box, { textContent: 'Nothing yet.' });
+
+    const changed = [...new Set(found.events.filter((e) => e.kind === 'tool' && e.file && e.tool !== 'Read').map((e) => e.file as string))];
+    if (changed.length) {
+      const files = el('div', '', 'activity-files');
+      files.append(el('span', `Changed ${changed.length} file${changed.length === 1 ? '' : 's'}: `, 'k'));
+      files.append(el('span', changed.map((f) => f.split('/').pop()).join(', '), 'v'));
+      files.title = changed.join('\n');
+      box.append(files);
+    }
+    for (const event of [...found.events].reverse()) {
+      const line = el('div', '', `activity-row ${event.kind}`);
+      line.append(el('span', clock(event.at), 'activity-time'), el('span', event.kind === 'tool' ? event.tool : KIND_LABEL[event.kind], 'activity-kind'), el('span', event.summary, 'activity-text'));
+      line.title = event.summary;
+      box.append(line);
+    }
+    return box;
+  }
+
   function sessionRow(session: SystemSession): HTMLElement {
     const running = session.pid !== null;
     const open = expanded.has(session.id) && running;
@@ -238,6 +271,19 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       const list = el('div', '', 'procs');
       session.processes.forEach((proc, index) => list.append(processRow(session, proc, index === 0)));
       wrapper.append(list);
+    }
+    if (open) {
+      const shown = activityOpen.has(session.id);
+      const toggle = plain(shown ? 'Hide activity' : 'Show activity', () => {
+        if (shown) activityOpen.delete(session.id);
+        else {
+          activityOpen.add(session.id);
+          send({ type: 'timeline', id: session.id });
+        }
+        render();
+      }, 'What this session\'s claude has recently done');
+      wrapper.append(actions(toggle));
+      if (shown) wrapper.append(activityList(session));
     }
     return wrapper;
   }
@@ -446,6 +492,8 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
 
   function poll(): void {
     send({ type: 'system' });
+    // An open activity list stays current while the view is showing.
+    for (const id of activityOpen) send({ type: 'timeline', id });
     if (logText !== null) send({ type: 'systemLog' });
   }
 
@@ -480,6 +528,10 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
     },
     show,
     close,
+    setTimeline(message) {
+      activity.set(message.id, { events: message.events, error: message.error });
+      if (isOpen) render();
+    },
     get setupRemaining() {
       return snapshot && !prefs.setupDismissed ? remaining(checklist(snapshot)) : 0;
     },

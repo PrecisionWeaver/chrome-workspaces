@@ -1,6 +1,7 @@
 // Shared by the helper and the extension bundle — keep this free of Node imports.
 
 import type { GuardrailWarning } from './guardrails';
+import type { TimelineEvent } from './timeline';
 
 export const PROTOCOL = 'cw.v1';
 export const TOKEN_PROTOCOL_PREFIX = 'token.';
@@ -344,6 +345,8 @@ export type ControlToClient =
   | { type: 'prompts'; prompts: Prompt[]; error: string | null }
   /** Recently removed workspaces, newest first; sent on connect and whenever they change. */
   | { type: 'history'; entries: HistoryEntry[] }
+  /** Reply to `timeline`. */
+  | { type: 'timeline'; id: string; events: TimelineEvent[]; error: string | null }
   /** Reply to `sendText`. */
   | { type: 'sent'; id: string; ok: boolean; message: string }
   /** Reply to `system`, to the client that asked. */
@@ -396,6 +399,8 @@ export type ControlToHelper =
   | { type: 'system' }
   | { type: 'admin'; request: AdminAction }
   | { type: 'systemLog' }
+  /** What the workspace's claude has recently done, from its transcript. */
+  | { type: 'timeline'; id: string }
   | { type: 'exportData' }
   /** Status and recent history of the workspace's repository. */
   | { type: 'git'; id: string }

@@ -204,6 +204,11 @@ export class ControlHub {
       case 'systemLog':
         this.sendTo(ws, { type: 'systemLog', text: this.options.admin.log() });
         break;
+      case 'timeline': {
+        const events = this.options.store.get(message.id) ? this.options.admin.timeline(message.id) : null;
+        this.sendTo(ws, { type: 'timeline', id: message.id, events: events ?? [], error: events === null ? 'This workspace has no claude session yet.' : null });
+        break;
+      }
       case 'exportData':
         this.sendTo(ws, { type: 'exportData', json: this.options.admin.exportData() });
         break;
@@ -425,6 +430,8 @@ function isControlToHelper(value: unknown): value is ControlToHelper {
         (m.group === undefined || typeof m.group === 'boolean') &&
         (m.urls === undefined || (Array.isArray(m.urls) && m.urls.length <= MAX_TAB_URLS && m.urls.every(isWebUrl)))
       );
+    case 'timeline':
+      return typeof m.id === 'string';
     case 'system':
     case 'systemLog':
     case 'exportData':

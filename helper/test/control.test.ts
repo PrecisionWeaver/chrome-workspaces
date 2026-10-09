@@ -424,6 +424,29 @@ describe('control channel', () => {
     ws.close();
   });
 
+  it('sends a workspace\'s recent activity from its transcript, and says so when there is none', async () => {
+    const withTranscript = h.store.create({ name: 'busy', cwd: h.defaultCwd });
+    const without = h.store.create({ name: 'new', cwd: h.defaultCwd });
+    const file = join(mkdtempSync(join(tmpdir(), 'cw-ctl-tl-')), 't.jsonl');
+    writeFileSync(file, [
+      JSON.stringify({ type: 'user', timestamp: '2026-10-08T10:00:00Z', message: { role: 'user', content: 'fix the bug' } }),
+      JSON.stringify({ type: 'assistant', timestamp: '2026-10-08T10:00:03Z', message: { role: 'assistant', content: [{ type: 'tool_use', name: 'Edit', input: { file_path: '/repo/a.ts' } }] } }),
+    ].join('\n') + '\n');
+    h.transcripts[withTranscript.id] = file;
+
+    const { ws, messages } = connectControl(h);
+    await opened(ws);
+    ws.send(JSON.stringify({ type: 'timeline', id: withTranscript.id }));
+    ws.send(JSON.stringify({ type: 'timeline', id: without.id }));
+    ws.send(JSON.stringify({ type: 'timeline', id: 'ws-00000000' }));
+    await waitFor(() => messages.filter((m) => m.type === 'timeline').length === 3);
+    const replies = messages.filter((m): m is Extract<ControlToClient, { type: 'timeline' }> => m.type === 'timeline');
+    expect(replies.find((m) => m.id === withTranscript.id)).toMatchObject({ error: null, events: [{ kind: 'you', summary: 'fix the bug' }, { kind: 'tool', tool: 'Edit', file: '/repo/a.ts' }] });
+    expect(replies.find((m) => m.id === without.id)).toMatchObject({ events: [], error: expect.stringContaining('no claude session') });
+    expect(replies.find((m) => m.id === 'ws-00000000')).toMatchObject({ events: [], error: expect.any(String) });
+    ws.close();
+  });
+
   it('answers listRepos to the asking client only', async () => {
     h.repos.push({ name: 'chrome-workspaces', path: '/w/chrome-workspaces', root: 'Websites' });
     const asker = connectControl(h);

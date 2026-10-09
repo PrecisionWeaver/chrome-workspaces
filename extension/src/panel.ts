@@ -67,6 +67,7 @@ const control = connectControl(
       history = message.entries;
       renderList();
     }
+    if (message.type === 'timeline') settings.setTimeline(message);
     if (message.type === 'system') {
       settings.setSystem(message);
       const attention = settings.warningCount + settings.setupRemaining;
