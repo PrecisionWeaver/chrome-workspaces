@@ -328,7 +328,21 @@ export function createGitView({ send, onToggle, status }: GitViewOptions): GitVi
         row.title = `${commit.short} · ${commit.author} · ${new Date(commit.date).toLocaleString()}\n${commit.subject}`;
         const text = el('span', '', 'git-commit-text');
         text.append(el('span', commit.subject, 'git-subject'));
-        for (const ref of commit.refs) text.append(el('span', ref.replace('HEAD -> ', ''), `git-ref${ref.startsWith('HEAD') ? ' head' : ref.startsWith('tag:') ? ' tag' : ''}`));
+        if (commit.refs.length) {
+          // The first ref is shown by name; any others fold into a count, so a small pane never fills with clipped pills.
+          const refs = el('span', '', 'git-refs');
+          const labels = commit.refs.map((ref) => ref.replace('HEAD -> ', ''));
+          const toneOf = (ref: string) => (ref.startsWith('HEAD') ? ' head' : ref.startsWith('tag:') ? ' tag' : '');
+          const first = el('span', labels[0], `git-ref${toneOf(commit.refs[0])}`);
+          first.title = labels[0];
+          refs.append(first);
+          if (labels.length > 1) {
+            const more = el('span', `+${labels.length - 1}`, 'git-ref more');
+            more.title = labels.slice(1).join('\n');
+            refs.append(more);
+          }
+          text.append(refs);
+        }
         row.append(graph, text, el('span', relative(commit.date), 'git-when'));
         row.addEventListener('click', () => openCommit(commit));
         return row;
