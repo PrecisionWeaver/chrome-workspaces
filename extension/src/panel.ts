@@ -691,11 +691,10 @@ attachFileDrop(terminalEl, {
 
 // xterm sends the same \r for Enter and Shift+Enter; Claude reads ESC + \r as a newline, as iTerm can be set to send.
 term.attachCustomKeyEventHandler((event) => {
-  // ⌘K / Ctrl+K opens the command palette even while the terminal has focus.
-  if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'k') {
-    if (event.type === 'keydown') palette.open();
-    return false;
-  }
+  // ⌘K / Ctrl+K is the palette's, even while the terminal has focus: the terminal ignores it, and the
+  // same keypress then reaches the page-level handler below, which opens the palette. Opening it here as
+  // well would open and immediately close it, so this only declines the key.
+  if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'k') return false;
   if (event.key !== 'Enter' || !event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) return true;
   if (event.type === 'keydown') sendToSession({ type: 'input', data: '\x1b\r' });
   return false;
