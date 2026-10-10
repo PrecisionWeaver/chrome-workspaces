@@ -140,5 +140,9 @@ npm run build:extension   # then reload the extension in chrome://extensions
 | `helper/src/` | Workspace store, sessions, launch, git, review requests and PR details, Mission Control status, HTTP API, control channel |
 | `extension/src/` | Service worker, side panel, new-workspace, source-control and review views, helper connection, window and tab-group handling |
 | `extension/icons/` | SVG icon sources; PNGs are rendered at build |
-| `scripts/` | Key generation, setup, extension build |
-| `docs/` | Spike results |
+| `scripts/` | Key generation, setup, extension build, release |
+| `docs/` | Architecture, development workflow and releasing, for contributors and Claude sessions |
+
+### Releases
+
+`npm run release -- patch|minor|major` bumps the version and prepares the commit; merging it to `main` publishes a GitHub Release with the built extension zipped. See [docs/releasing.md](docs/releasing.md).

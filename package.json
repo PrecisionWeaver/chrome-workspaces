@@ -11,6 +11,7 @@
     "gen-key": "tsx scripts/gen-key.ts",
     "setup": "tsx scripts/setup.ts",
     "build:extension": "tsx scripts/build-extension.ts",
+    "release": "tsx scripts/release.ts",
     "agent:start": "launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.chrome-workspaces.helper.plist",
     "agent:stop": "launchctl bootout gui/$(id -u)/com.chrome-workspaces.helper",
     "agent:restart": "launchctl kickstart -k gui/$(id -u)/com.chrome-workspaces.helper",

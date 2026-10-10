@@ -1,0 +1,38 @@
+# Architecture
+
+A Chrome side-panel extension plus a local Node helper (macOS). Each workspace is a Chrome window, or a tab group inside a window, paired with a `claude` terminal. The helper owns every shell and the workspace list; the panel is only a view.
+
+```
+side panel (xterm.js) ──ws://127.0.0.1:4178──▶ helper ──▶ PTY: login shell → claude
+service worker / panel ──/control (typed JSON)─▶ helper ──▶ ~/.chrome-workspaces/workspaces.json
+devspace, Mission Control ──HTTP + bearer token─▶ helper
+```
+
+## Layout
+
+| Path | Role |
+|---|---|
+| `shared/` | Pure, tested modules used by both bundles. `protocol.ts` is the single source of truth for every message and data shape (`Workspace`, `ControlToClient`, `ControlToHelper`, `SystemSnapshot`, ...). Logic that needs no DOM or Node goes here (fuzzy match, markdown parser, list filter, tab order, pairing, pricing, guardrails, git graph layout). |
+| `helper/src/` | `main.ts` wires everything. `control.ts` is the `ControlHub` (state, create/remove/restore, order, git, PR requests, timeline, admin). `server.ts`/`api.ts`/`auth.ts` are the HTTP and WebSocket surface. `session.ts`/`launch.ts` spawn PTYs. `git.ts` is the git service. `admin.ts` builds the Settings snapshot and runs admin actions. `tokens.ts`, `timeline.ts`, `mc-status.ts` read Claude's files. `reviews.ts`, `pr-details.ts` use `gh`. |
+| `extension/src/` | `panel.ts` orchestrates the side panel (list, selection, palette, appearance, message dispatch). Views: `create-view.ts`, `git-view.ts`, `settings-view.ts`, `pr-view.ts`, `launcher.ts` (review list). `background.ts` is the service worker (attention badge, notifications, tab and group tracking, order sync, context menus). `helper-client.ts` is the connection. |
+| `extension/panel.html`, `panel.css` | One page. CSS variables for every colour; the light theme is `:root[data-theme='light']`; icons come from an SVG sprite in `panel.html`. |
+| `scripts/` | `setup.ts` (data dir, native host manifest, LaunchAgent), `gen-key.ts` (pins the extension ID), `build-extension.ts`, `release.ts`. |
+
+## Things that are not obvious
+
+- **Selection is per window**, stored in `chrome.storage`. Several workspaces can share a window (tab groups); the list is the selector. The list order is the one order shared by shortcuts, tab groups and the palette; an atomic `order` message keeps the list and Chrome's groups from ping-ponging.
+- **Claude's own files are read, never written.** Mission Control session files (`~/.claude-mission-control/sessions/*.json`) give status, `transcript_path` and a *static* start `cwd`. Transcripts (`.jsonl`) carry per-message `cwd`, `timestamp`, `model`, `usage` and tool_use blocks. They are tail-read, and each message counts once (streaming repeats a message id). The worktree a session is in comes from the newest transcript `cwd`, not the session file.
+- **Shells inherit a scrubbed environment**: `CLAUDECODE` and `CLAUDE_*` are removed, otherwise `claude` thinks it is a child session and turns transcripts off.
+- **Launch** is a login shell running `claude` (or the `hr` wrapper if present), then `exec`ing the shell when it quits. The prompt travels through an env var, never the command text. Models and session ids are validated before they reach a shell.
+- **Paste and attach** use bracketed paste via `paste.ts`; dropped or pasted files are written to the uploads dir and their paths inserted.
+- **Git runs with `GIT_OPTIONAL_LOCKS=0`**, validated paths and refs, and in the worktree Claude is in (`gitDirectory()` in `control.ts`). Worktrees are detected through `--git-common-dir`. Writes (stage, discard, commit, switch branch) are explicit requests.
+- **Cost figures are estimates** from assumed per-family rates in `shared/pricing.ts`, overridable under `pricing` in config. Unknown models show as unpriced rather than $0.
+- **Restarting the helper ends every terminal**, including a Claude session running inside one. The restart is a detached `sleep N; launchctl kickstart -k`, so the reply gets out first.
+
+## Data and config
+
+Everything lives in `~/.chrome-workspaces/`: `config.json`, `token` (mode 0600, handed to the extension by a native-messaging host), `workspaces.json`, `history.json`, `uploads/`, `helper.log`. `CW_PORT` and `CW_DATA_DIR` run a second helper next to the real one. Config keys are documented in the README.
+
+## Security model
+
+The helper binds to `127.0.0.1`. WebSockets require the extension's `Origin` and the token; the HTTP API requires the token as a bearer header and rejects other origins. Markdown from PRs is parsed into DOM nodes, never injected as HTML.
