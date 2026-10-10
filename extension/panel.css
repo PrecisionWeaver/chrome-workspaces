@@ -215,6 +215,21 @@ code {
   background: var(--active);
 }
 
+#create-bar button .icon,
+#diff-bar button .icon,
+#settings-bar button .icon {
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
+
+/* The display above would otherwise win over the hidden attribute. */
+#create-bar button[hidden],
+#diff-bar button[hidden],
+#settings-bar button[hidden] {
+  display: none;
+}
+
 /* The refresh button is icon-only, so it is a square the same height as its neighbours. */
 #settings-bar button:has(.icon) {
   min-width: 30px;

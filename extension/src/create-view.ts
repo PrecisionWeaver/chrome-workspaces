@@ -3,7 +3,7 @@ import { MAX_TAB_URLS, MODEL_ALIASES } from '../../shared/protocol';
 import { parseTabUrls } from '../../shared/tab-urls';
 import { parseTemplates, removeTemplate, upsertTemplate, type Template } from '../../shared/templates';
 import type { ControlToClient, ControlToHelper, PrDetails, Prompt, Repo, ReviewRequest, Workspace } from '../../shared/protocol';
-import { el, promptCard } from './dom';
+import { el, icon, promptCard } from './dom';
 import { ref, renderDetails, renderThreads, repoName } from './pr-view';
 import { findTab, openInWorkspace } from './tabs';
 
@@ -204,7 +204,7 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
     githubButton.hidden = detailsEl.hidden = threadsEl.hidden = request === null;
     const ticket = ticketLink(request?.ticket ?? null);
     ticketButton.hidden = ticket === null;
-    ticketButton.textContent = request?.ticket ? `${request.ticket} in Jira ↗` : '';
+    ticketButton.replaceChildren(...(request?.ticket ? [icon('ticket'), `${request.ticket} in Jira`] : []));
     ticketButton.dataset.url = ticket ?? '';
     threadsEl.replaceChildren();
     tabsLabel.textContent = request ? 'The PR opens first, then these' : 'optional, one URL per line';
