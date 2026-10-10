@@ -21,6 +21,23 @@ describe('Session', () => {
     expect(exitCode).toBe(0);
   });
 
+  it('marks saved scrollback as a replay and live output as not', async () => {
+    sessions = new SessionManager(10_000);
+    const session = sessions.create({ id: 'cat', command: '/bin/cat', args: [], cwd: tmpdir() });
+    session.write('first\r');
+    let seen = '';
+    session.attach((data) => (seen += data), () => {});
+    await waitFor(() => seen.includes('first'));
+
+    const flags: Array<boolean | undefined> = [];
+    session.attach((_data, replay) => flags.push(replay), () => {});
+    session.write('second\r');
+    await waitFor(() => flags.length > 1);
+
+    expect(flags[0]).toBe(true);
+    expect(flags[1]).toBeFalsy();
+  });
+
   it('relays input to the process and its output back to attached clients', async () => {
     sessions = new SessionManager(10_000);
     const session = sessions.create({ id: 'cat', command: '/bin/cat', args: [], cwd: tmpdir() });

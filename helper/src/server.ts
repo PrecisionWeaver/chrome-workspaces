@@ -85,7 +85,7 @@ function handleConnection(ws: WebSocket, url: string, options: ServerOptions): v
     if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(message));
   };
   const detach = session.attach(
-    (data) => send({ type: 'output', data }),
+    (data, replay) => send(replay ? { type: 'output', data, replay } : { type: 'output', data }),
     (code) => send({ type: 'exit', code }),
   );
 

@@ -9,7 +9,8 @@ export interface SessionSpec {
   env?: Record<string, string>;
 }
 
-type DataListener = (data: string) => void;
+/** `replay` marks saved scrollback, as opposed to live output. */
+type DataListener = (data: string, replay?: boolean) => void;
 type ExitListener = (code: number) => void;
 
 export class Session {
@@ -58,7 +59,7 @@ export class Session {
   /** Replays scrollback, then streams live output. Returns a detach function. */
   attach(onData: DataListener, onExit: ExitListener): () => void {
     const replay = this.scrollback.snapshot();
-    if (replay) onData(replay);
+    if (replay) onData(replay, true);
 
     if (this.exitCode !== null) {
       onExit(this.exitCode);

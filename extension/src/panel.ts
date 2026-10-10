@@ -673,7 +673,13 @@ function attach(workspace: Workspace): void {
     };
     ws.onmessage = (event) => {
       const message = JSON.parse(event.data as string) as ServerMessage;
-      if (message.type === 'output') term.write(message.data);
+      if (message.type === 'output') {
+        if (!message.replay) term.write(message.data);
+        else {
+          replaying = true;
+          term.write(message.data, () => (replaying = false));
+        }
+      }
       // The saved path is pasted, so a program that takes pastes (claude) treats it as an attachment.
       else if (message.type === 'uploaded') {
         if (message.path) term.paste(`${message.path} `);
@@ -695,7 +701,12 @@ function attach(workspace: Workspace): void {
   });
 }
 
-term.onData((data) => sendToSession({ type: 'input', data }));
+// Replayed scrollback can hold terminal queries (device attributes, say); xterm answers them through onData,
+// and the shell would read each answer as typed text. Output written while a replay is parsed is dropped.
+let replaying = false;
+term.onData((data) => {
+  if (!replaying) sendToSession({ type: 'input', data });
+});
 
 attachFileDrop(terminalEl, {
   send: (name, data) => sendToSession({ type: 'file', name, data }),

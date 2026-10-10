@@ -25,7 +25,8 @@ export type ClientMessage =
   | { type: 'file'; name: string; data: string };
 
 export type ServerMessage =
-  | { type: 'output'; data: string }
+  /** `replay` is saved scrollback: its queries were already answered, so the panel must not answer them again. */
+  | { type: 'output'; data: string; replay?: boolean }
   | { type: 'exit'; code: number }
   /** Where a `file` was saved, or why it was not. */
   | { type: 'uploaded'; name: string; path: string | null; error: string | null };
