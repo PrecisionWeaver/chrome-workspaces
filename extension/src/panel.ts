@@ -454,13 +454,26 @@ function showContextMenu(x: number, y: number, ws: Workspace, nameEl: HTMLElemen
   for (const color of [null, ...WORKSPACE_COLORS]) {
     const swatch = document.createElement('button');
     swatch.type = 'button';
-    swatch.className = `swatch${ws.color === color ? ' selected' : ''}`;
+    // In a tab group the group's color is what the badge shows, so that is the one marked as selected.
+    const shown = (ws.groupId === null ? undefined : groupColors.get(ws.groupId)) ?? ws.color;
+    swatch.className = `swatch${(shown ?? null) === color ? ' selected' : ''}`;
     swatch.title = color ?? 'No color';
     if (color) swatch.dataset.group = color;
     else swatch.textContent = '×';
     swatch.addEventListener('click', () => {
       closeMenu();
       send({ type: 'mark', id: ws.id, color });
+      // The badge follows the tab group's color when there is one, so recolor the group too, as Chrome's own picker does.
+      if (color && ws.groupId !== null) {
+        const groupId = ws.groupId;
+        void chrome.tabGroups
+          .update(groupId, { color: color as chrome.tabGroups.Color })
+          .then(() => {
+            groupColors.set(groupId, color);
+            renderList();
+          })
+          .catch(() => {});
+      }
     });
     swatches.append(swatch);
   }
