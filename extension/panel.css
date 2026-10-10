@@ -22,6 +22,21 @@
   --diff-del: #f5b9b9;
   --scrim: rgba(0, 0, 0, 0.45);
   --shadow: rgba(0, 0, 0, 0.45);
+  --on-danger: #1b0d0d;
+  --notice-bg: #3a3015;
+  --notice-text: #f2cc60;
+  /* Tab group colors, as Chrome draws them in a dark window. */
+  --g-grey: #9aa0a6;
+  --g-blue: #6fa3ff;
+  --g-red: #f28b82;
+  --g-yellow: #fdd663;
+  --g-green: #81c995;
+  --g-pink: #ff8bcb;
+  --g-purple: #c58af9;
+  --g-cyan: #78d9ec;
+  --g-orange: #fcad70;
+  /* Text on a solid group color. */
+  --on-group: #0d1626;
   color-scheme: dark;
 
   --ui: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
@@ -39,20 +54,34 @@
   --border-strong: #c2c7d0;
   --text: #1f2328;
   --muted: #59606a;
-  --faint: #868d98;
+  --faint: #646b76;
   --active: #dbe8ff;
-  --accent: #1f6feb;
+  --accent: #1559c9;
   --accent-soft: rgba(31, 111, 235, 0.12);
-  --needs-input: #cf222e;
-  --working: #1a7f4b;
-  --good: #1a7f4b;
-  --bad: #cf222e;
-  --wait: #9a6700;
+  --needs-input: #b81d28;
+  --working: #166a3d;
+  --good: #166a3d;
+  --bad: #b81d28;
+  --wait: #7d5200;
   --on-accent: #ffffff;
   --diff-add: #116329;
   --diff-del: #82071e;
   --scrim: rgba(31, 35, 40, 0.35);
   --shadow: rgba(31, 35, 40, 0.25);
+  --on-danger: #ffffff;
+  --notice-bg: #fff4d1;
+  --notice-text: #6a4a00;
+  /* Group colors dark enough to carry white text and to read as text on a light tint. */
+  --g-grey: #5f6368;
+  --g-blue: #1a66d6;
+  --g-red: #c5221f;
+  --g-yellow: #8a5a00;
+  --g-green: #187a36;
+  --g-pink: #c2185b;
+  --g-purple: #7e3ad1;
+  --g-cyan: #00717a;
+  --g-orange: #b34b00;
+  --on-group: #ffffff;
   color-scheme: light;
 }
 
@@ -416,20 +445,25 @@ body.collapsed #new .label {
   color: var(--group);
 }
 
-.ws.current .badge[data-group] {
-  background: var(--group);
-  color: var(--on-accent);
+:root[data-theme='light'] .ws:not(.current) .badge[data-group] {
+  background: color-mix(in srgb, var(--group) 16%, transparent);
+  color: color-mix(in srgb, var(--group) 70%, #000);
 }
 
-.badge[data-group='grey'] { --group: #9aa0a6; }
-.badge[data-group='blue'] { --group: #6fa3ff; }
-.badge[data-group='red'] { --group: #f28b82; }
-.badge[data-group='yellow'] { --group: #fdd663; }
-.badge[data-group='green'] { --group: #81c995; }
-.badge[data-group='pink'] { --group: #ff8bcb; }
-.badge[data-group='purple'] { --group: #c58af9; }
-.badge[data-group='cyan'] { --group: #78d9ec; }
-.badge[data-group='orange'] { --group: #fcad70; }
+.ws.current .badge[data-group] {
+  background: var(--group);
+  color: var(--on-group);
+}
+
+.badge[data-group='grey'] { --group: var(--g-grey); }
+.badge[data-group='blue'] { --group: var(--g-blue); }
+.badge[data-group='red'] { --group: var(--g-red); }
+.badge[data-group='yellow'] { --group: var(--g-yellow); }
+.badge[data-group='green'] { --group: var(--g-green); }
+.badge[data-group='pink'] { --group: var(--g-pink); }
+.badge[data-group='purple'] { --group: var(--g-purple); }
+.badge[data-group='cyan'] { --group: var(--g-cyan); }
+.badge[data-group='orange'] { --group: var(--g-orange); }
 
 .ws .badge[data-status='needs_input']::after,
 .ws .badge[data-status='working']::after {
@@ -819,8 +853,8 @@ body.collapsed #collapse {
 
 #notice {
   padding: 7px 12px;
-  background: #3a3015;
-  color: #f2cc60;
+  background: var(--notice-bg);
+  color: var(--notice-text);
   border-bottom: 1px solid var(--border);
 }
 
@@ -1809,7 +1843,7 @@ body.collapsed #collapse {
 
 .git-act.armed {
   background: var(--needs-input);
-  color: #1b0d0d;
+  color: var(--on-danger);
   font-family: var(--ui);
   font-size: 10.5px;
 }
@@ -2005,20 +2039,38 @@ button.git-branch-name:hover {
   gap: 5px;
 }
 
+/* The subject always keeps some room; the branch pills give way first and truncate rather than push the time. */
 .git-subject {
+  flex: 1 1 48px;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.git-refs {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 55%;
+  display: flex;
+  gap: 4px;
+}
+
 .git-ref {
-  flex: none;
-  padding: 0 5px;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 6px;
   border-radius: 8px;
   background: var(--raised);
   color: var(--muted);
   font-size: 10px;
+}
+
+.git-ref.more {
+  flex: none;
 }
 
 .git-ref.head {
@@ -2234,15 +2286,15 @@ button.git-branch-name:hover {
   border-color: var(--text);
 }
 
-.swatch[data-group='grey'] { --group: #9aa0a6; }
-.swatch[data-group='blue'] { --group: #6fa3ff; }
-.swatch[data-group='red'] { --group: #f28b82; }
-.swatch[data-group='yellow'] { --group: #fdd663; }
-.swatch[data-group='green'] { --group: #81c995; }
-.swatch[data-group='pink'] { --group: #ff8bcb; }
-.swatch[data-group='purple'] { --group: #c58af9; }
-.swatch[data-group='cyan'] { --group: #78d9ec; }
-.swatch[data-group='orange'] { --group: #fcad70; }
+.swatch[data-group='grey'] { --group: var(--g-grey); }
+.swatch[data-group='blue'] { --group: var(--g-blue); }
+.swatch[data-group='red'] { --group: var(--g-red); }
+.swatch[data-group='yellow'] { --group: var(--g-yellow); }
+.swatch[data-group='green'] { --group: var(--g-green); }
+.swatch[data-group='pink'] { --group: var(--g-pink); }
+.swatch[data-group='purple'] { --group: var(--g-purple); }
+.swatch[data-group='cyan'] { --group: var(--g-cyan); }
+.swatch[data-group='orange'] { --group: var(--g-orange); }
 
 body.collapsed #list-search,
 body.collapsed .archived-toggle,
@@ -2720,7 +2772,7 @@ body.collapsed .list-empty {
 .settings-btn.armed {
   background: var(--needs-input);
   border-color: var(--needs-input);
-  color: #1b0d0d;
+  color: var(--on-danger);
   font-weight: 600;
 }
 
