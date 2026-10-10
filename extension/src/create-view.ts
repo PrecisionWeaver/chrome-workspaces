@@ -199,6 +199,8 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
     start.select(request ? 'prompt' : 'blank');
     syncStart();
     section.hidden = false;
+    // Opening for another review, or from scratch, starts at the top rather than wherever the last one was scrolled.
+    section.scrollTop = 0;
     githubButton.hidden = detailsEl.hidden = threadsEl.hidden = request === null;
     const ticket = ticketLink(request?.ticket ?? null);
     ticketButton.hidden = ticket === null;
