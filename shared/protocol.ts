@@ -31,9 +31,14 @@ export type ServerMessage =
   /** Where a `file` was saved, or why it was not. */
   | { type: 'uploaded'; name: string; path: string | null; error: string | null };
 
+export type NativeHostRequest = { type: 'hello' } | { type: 'start' };
+
 export type NativeHostReply =
   | { ok: true; token: string; port: number }
   | { ok: false; error: string };
+
+/** The reply to `start`: the helper was asked to start, which does not mean it is listening yet. */
+export type NativeStartReply = { ok: true } | { ok: false; error: string };
 
 /** A removed workspace, kept so it can be restored. */
 export interface HistoryEntry {

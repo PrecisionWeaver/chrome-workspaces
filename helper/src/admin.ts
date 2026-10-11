@@ -5,7 +5,7 @@ import { promisify } from 'node:util';
 import { findWarnings } from '../../shared/guardrails';
 import { costOf, isRealModel, rateFor } from '../../shared/pricing';
 import type { AdminAction, ReviewsState, SystemSnapshot, UpdateStatus, WorkspaceStatus } from '../../shared/protocol';
-import type { HelperConfig } from './config';
+import { AGENT_LABEL, type HelperConfig } from './config';
 import type { SessionManager } from './session';
 import { readTimeline } from './timeline';
 import { applyUpdate, checkUpdates } from './updates';
@@ -15,7 +15,6 @@ import type { WorkspaceStore } from './workspace-store';
 
 const execFileAsync = promisify(execFile);
 
-export const AGENT_LABEL = 'com.chrome-workspaces.helper';
 const LOG_TAIL_BYTES = 64 * 1024;
 
 export interface AdminOptions {

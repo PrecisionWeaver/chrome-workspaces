@@ -5,6 +5,7 @@ import {
   type ControlToClient,
   type ControlToHelper,
   type NativeHostReply,
+  type NativeStartReply,
 } from '../../shared/protocol';
 
 export interface HelperAddress {
@@ -16,6 +17,12 @@ export async function getHelper(): Promise<HelperAddress> {
   const reply = (await chrome.runtime.sendNativeMessage(NATIVE_HOST_NAME, { type: 'hello' })) as NativeHostReply;
   if (!reply.ok) throw new Error(reply.error);
   return { token: reply.token, port: reply.port };
+}
+
+/** Asks the native host to load the launchd agent; the control connection's retries find the helper once it listens. */
+export async function startHelper(): Promise<void> {
+  const reply = (await chrome.runtime.sendNativeMessage(NATIVE_HOST_NAME, { type: 'start' })) as NativeStartReply;
+  if (!reply.ok) throw new Error(reply.error);
 }
 
 export function openSocket({ token, port }: HelperAddress, path: string): WebSocket {

@@ -2,7 +2,8 @@ import { FitAddon } from '@xterm/addon-fit';
 import { Terminal } from '@xterm/xterm';
 import { similarity } from '../../shared/pairing';
 import { WORKSPACE_COLORS, type ClientMessage, type HistoryEntry, type ReviewRequest, type ReviewsState, type ServerMessage, type Workspace, type WorkspaceStatus } from '../../shared/protocol';
-import { connectControl, getHelper, openSocket } from './helper-client';
+import { el } from './dom';
+import { connectControl, getHelper, openSocket, startHelper } from './helper-client';
 import { createCreateView } from './create-view';
 import { attachFileDrop } from './file-drop';
 import { createGitView } from './git-view';
@@ -107,7 +108,7 @@ const control = connectControl(
     reviews = message.reviews;
     render();
   },
-  (connected) => showNotice(connected ? null : 'Helper not running. Start it with: npm run agent:start'),
+  (connected) => (connected ? showNotice(null) : showOfflineNotice()),
 );
 const send = control.send.bind(control);
 const here = () => ({ windowId: myWindowId, workspace: current() });
@@ -218,6 +219,23 @@ chrome.tabGroups.onRemoved.addListener(() => void loadGroupColors());
 function showNotice(text: string | null): void {
   noticeEl.hidden = text === null;
   noticeEl.textContent = text ?? '';
+}
+
+function showOfflineNotice(): void {
+  const start = el('button', 'Start helper', 'notice-action');
+  start.type = 'button';
+  const message = el('span', 'Helper not running.');
+  start.onclick = () => {
+    start.disabled = true;
+    message.textContent = 'Starting the helper…';
+    // On success the control connection's backoff reconnects and clears this notice.
+    startHelper().catch((error) => {
+      message.textContent = `Could not start the helper: ${error instanceof Error ? error.message : String(error)}. Try npm run agent:start.`;
+      start.disabled = false;
+    });
+  };
+  noticeEl.hidden = false;
+  noticeEl.replaceChildren(message, start);
 }
 
 // ---- list ----

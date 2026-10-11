@@ -28,6 +28,7 @@ devspace, Mission Control ──HTTP + bearer token─▶ helper
 - **Git runs with `GIT_OPTIONAL_LOCKS=0`**, validated paths and refs, and in the worktree Claude is in (`gitDirectory()` in `control.ts`). Worktrees are detected through `--git-common-dir`. Writes (stage, discard, commit, switch branch) are explicit requests.
 - **Cost figures are estimates** from assumed per-family rates in `shared/pricing.ts`, overridable under `pricing` in config. Unknown models show as unpriced rather than $0.
 - **Replayed scrollback is flagged, and its answers dropped.** Attaching replays saved output into a fresh xterm; terminal queries in it (device attributes, say) would be answered again and typed into the shell as stray `1;2c` text. The helper marks the replay (`replay: true` on `output`) and the panel drops whatever xterm emits while parsing it.
+- **The native-messaging host also starts the helper.** Settings cannot, because it talks to the helper and a stopped one is not listening. The host is launched by Chrome on demand, so a `start` request (`helper/src/start-helper.ts`) bootstraps the launchd plist, or kickstarts the agent if it is loaded but not running. The panel's offline notice sends it.
 - **Restarting the helper ends every terminal**, including a Claude session running inside one. The restart is a detached `sleep N; launchctl kickstart -k`, so the reply gets out first.
 
 ## Data and config
