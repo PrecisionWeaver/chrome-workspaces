@@ -140,6 +140,8 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
 
   const card = (title: string, ...children: Node[]): HTMLElement => {
     const node = el('section', '', 'settings-card');
+    // Matches a card across renders; the count after a "·" changes from poll to poll.
+    node.dataset.key = title.split(' · ')[0];
     node.append(el('h3', title), ...children);
     return node;
   };
@@ -519,7 +521,18 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       body.replaceChildren(el('div', error ? `Could not read the system: ${error}` : 'Loading…', 'settings-empty'));
       return;
     }
-    body.replaceChildren(...[setupCard(snapshot), warningsCard(snapshot)].filter((card): card is HTMLElement => card !== null), preferencesCard(), helperCard(snapshot), updatesCard(), usageCard(snapshot), sessionsCard(snapshot), housekeepingCard(snapshot), configCard(snapshot), diagnosticsCard(snapshot));
+    const cards = [...[setupCard(snapshot), warningsCard(snapshot)].filter((card): card is HTMLElement => card !== null), preferencesCard(), helperCard(snapshot), updatesCard(), usageCard(snapshot), sessionsCard(snapshot), housekeepingCard(snapshot), configCard(snapshot), diagnosticsCard(snapshot)];
+    // Detaching a focused dropdown closes it, so its card stays put, a poll behind, until focus leaves.
+    const active = document.activeElement;
+    const held = active instanceof HTMLSelectElement && body.contains(active) ? active.closest<HTMLElement>('.settings-card') : null;
+    const at = held ? cards.findIndex((card) => card.dataset.key === held.dataset.key) : -1;
+    if (held && at >= 0) {
+      for (const child of [...body.children]) if (child !== held) child.remove();
+      held.before(...cards.slice(0, at));
+      held.after(...cards.slice(at + 1));
+    } else {
+      body.replaceChildren(...cards);
+    }
     body.scrollTop = scroll;
   }
 
