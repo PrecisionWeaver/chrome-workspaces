@@ -30,6 +30,6 @@ Run `typecheck`, `test` and `build:extension` before committing. Extension-only 
 ## Gotchas
 
 - macOS sed is BSD sed; prefer small Python or Node edits for multi-line changes.
-- `README.md` documents every feature and config key; update it with the feature.
+- `docs/features.md` and `docs/configuration.md` document every feature and config key; update them with the feature. The README stays high level.
 - Most UI can only be verified in Chrome. Say so when it was not looked at.
 - Never put real company, ticket or user names in tests or fixtures (`acme/app`, `PROJ-123`, `/Users/me`).

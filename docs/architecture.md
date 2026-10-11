@@ -33,7 +33,7 @@ devspace, Mission Control ──HTTP + bearer token─▶ helper
 
 ## Data and config
 
-Everything lives in `~/.chrome-workspaces/`: `config.json`, `token` (mode 0600, handed to the extension by a native-messaging host), `workspaces.json`, `history.json`, `uploads/`, `helper.log`. `CW_PORT` and `CW_DATA_DIR` run a second helper next to the real one. Config keys are documented in the README.
+Everything lives in `~/.chrome-workspaces/`: `config.json`, `token` (mode 0600, handed to the extension by a native-messaging host), `workspaces.json`, `history.json`, `uploads/`, `helper.log`. `CW_PORT` and `CW_DATA_DIR` run a second helper next to the real one. Config keys are documented in [configuration.md](configuration.md).
 
 ## Security model
 

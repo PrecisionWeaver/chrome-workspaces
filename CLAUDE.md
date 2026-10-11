@@ -7,4 +7,4 @@ Read before changing things:
 - [docs/development.md](docs/development.md): commands, workflow, conventions.
 - [docs/releasing.md](docs/releasing.md): cutting a release.
 
-Essentials: work on a branch, never commit on `main`; run `npm run typecheck`, `npm test` and `npm run build:extension` before committing; message shapes live in `shared/protocol.ts`; keep README feature and config docs in sync; use placeholder names (`acme/app`, `PROJ-123`) in tests.
+Essentials: work on a branch, never commit on `main`; run `npm run typecheck`, `npm test` and `npm run build:extension` before committing; message shapes live in `shared/protocol.ts`; keep docs/features.md and docs/configuration.md in sync (the README stays high level); use placeholder names (`acme/app`, `PROJ-123`) in tests.
