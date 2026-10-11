@@ -16,6 +16,7 @@ Run `typecheck`, `test` and `build:extension` before committing. Extension-only 
 
 - Work on a feature branch (`feat/...`, `fix/...`, `chore/...`), then fast-forward merge into `main`. Do not commit on `main`.
 - Commit when asked; push and merge when asked. Delete merged branches once the user agrees.
+- `.github/workflows/ci.yml` runs typecheck, tests and the build on every pull request and every branch push except `main`; `release.yml` runs the same checks on `main`.
 - To release, see [releasing.md](releasing.md).
 
 ## Conventions
