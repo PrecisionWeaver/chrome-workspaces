@@ -4,21 +4,7 @@ A Claude terminal for every Chrome window or tab group, docked in Chrome's side 
 
 Each workspace is a regular Chrome window, or a tab group inside one, with your profile, logins, extensions, and DevTools, paired with a terminal running `claude`. Keep a task's tabs in its window or group and switch between workspaces with `⌃⇧←` / `⌃⇧→`.
 
-```
-+-----------------------------------------------------------+
-|  Chrome tabs + toolbar                                    |
-+------------+----------------------+-----------------------+
-|  1 PROJ-12 |                      |                       |
-|> 2 PROJ-13 |  terminal (claude)   |  web page             |
-|  3 OPS-88  |                      |                       |
-|  + New     |                      |                       |
-|            |                      |                       |
-|  Source    |                      |                       |
-|  Reviews   |                      |                       |
-+------------+----------------------+-----------------------+
-```
-
-`>` marks the workspace in view; the list, with Source control and Review requests below it, sits beside its terminal.
+![The Chrome Workspaces side panel: the workspace list, Source control and Review requests beside a workspace's claude terminal, with the web page on the right](docs/images/panel.png)
 
 ## Highlights
 
