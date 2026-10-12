@@ -29,4 +29,4 @@ Pushing to `main` triggers `.github/workflows/release.yml`. If `package.json`'s 
 - Release notes are auto-generated from commits since the last tag. Write commit subjects that read well, since they become the changelog.
 - A test checks that both version files match.
 - To redo a bad release, delete the GitHub release and the tag (`git push origin :refs/tags/vX.Y.Z`), fix, bump again.
-- The in-app updater still fast-forwards the checkout to the tip of `main`; it does not follow tags.
+- The in-app updater fast-forwards to the newest `vX.Y.Z` tag, so merged work reaches users only once it is released.

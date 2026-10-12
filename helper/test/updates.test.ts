@@ -26,7 +26,11 @@ function setup() {
     git(seed, 'commit', '-qm', message);
     git(seed, 'push', '-q', 'origin', 'HEAD:main');
   };
-  return { installed, publish };
+  const release = (tag: string) => {
+    git(seed, 'tag', tag);
+    git(seed, 'push', '-q', 'origin', tag);
+  };
+  return { installed, publish, release };
 }
 
 const ranAll = (commands: string[]) => async (command: string) => {
@@ -58,6 +62,28 @@ describe('checkUpdates', () => {
     expect(await checkUpdates(installed)).toMatchObject({ behind: 1, ahead: 1, canUpdate: false, reason: expect.stringContaining('cannot be fast-forwarded') });
   });
 
+  it('goes to the newest release, not to commits made since it', async () => {
+    const { installed, publish, release } = setup();
+    publish('b.txt', 'released change');
+    release('v0.9.0');
+    publish('c.txt', 'other change');
+    release('v0.10.0');
+    release('v0.11.0-beta');
+    publish('d.txt', 'unreleased change');
+    const status = await checkUpdates(installed);
+    expect(status).toMatchObject({ release: 'v0.10.0', behind: 2, ahead: 0, canUpdate: true });
+    expect(status.commits.map((c) => c.subject)).toEqual(['other change', 'released change']);
+  });
+
+  it('is up to date on a release even with newer unreleased commits checked out', async () => {
+    const { installed, publish, release } = setup();
+    publish('b.txt', 'released');
+    release('v1.0.0');
+    publish('c.txt', 'unreleased');
+    git(installed, 'pull', '-q', '--ff-only');
+    expect(await checkUpdates(installed)).toMatchObject({ release: 'v1.0.0', behind: 0, ahead: 1, canUpdate: false, reason: 'Already up to date.' });
+  });
+
   it('says so when the branch tracks nothing', async () => {
     const { installed } = setup();
     git(installed, 'checkout', '-q', '-b', 'local-only');
@@ -79,6 +105,16 @@ describe('applyUpdate', () => {
     const again: string[] = [];
     expect(await applyUpdate(installed, ranAll(again))).toMatchObject({ ok: true });
     expect(again).toEqual(['npm install --no-audit --no-fund 2>&1 | tail -5', 'npm run build:extension 2>&1 | tail -5']);
+  });
+
+  it('fast-forwards to the release tag and names it', async () => {
+    const { installed, publish, release } = setup();
+    publish('b.txt', 'released');
+    release('v1.2.3');
+    publish('c.txt', 'unreleased');
+    expect(await applyUpdate(installed, ranAll([]))).toMatchObject({ ok: true, message: expect.stringContaining('→ v1.2.3 (1 commit)') });
+    expect(existsSync(join(installed, 'b.txt'))).toBe(true);
+    expect(existsSync(join(installed, 'c.txt'))).toBe(false);
   });
 
   it('does nothing when it is not safe, leaving the copy exactly as it was', async () => {

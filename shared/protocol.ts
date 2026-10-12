@@ -140,12 +140,14 @@ export interface SystemSnapshot {
   };
 }
 
-/** Whether this copy of the app is behind its remote, and whether it is safe to fast-forward. */
+/** Whether this copy of the app is behind the newest release, and whether it is safe to fast-forward. */
 export interface UpdateStatus {
   /** Short id of the commit running now. */
   current: string;
   branch: string;
   upstream: string | null;
+  /** The newest `vX.Y.Z` tag, which updates go to; null when there are none and the upstream is followed. */
+  release: string | null;
   behind: number;
   ahead: number;
   /** Tracked files have uncommitted changes. */

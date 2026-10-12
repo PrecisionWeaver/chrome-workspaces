@@ -403,6 +403,7 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       children.push(el('p', `Could not check: ${error}`, 'settings-note warn'), actions(check));
     } else if (status) {
       children.push(row('Running', `${status.current} on ${status.branch}${status.upstream ? ` (tracks ${status.upstream})` : ''}`));
+      if (status.release) children.push(row('Latest release', status.release));
       if (status.behind === 0) children.push(el('p', status.reason ?? 'Already up to date.', 'settings-note'));
       else {
         children.push(row('Available', `${status.behind} new commit${status.behind === 1 ? '' : 's'}`));
@@ -412,14 +413,14 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
         children.push(list);
         if (!status.canUpdate && status.reason) children.push(el('p', status.reason, 'settings-note warn'));
       }
-      const apply = guarded('apply-update', 'Update now', 'Pull, rebuild and restart?', () => {
+      const apply = guarded('apply-update', 'Update now', 'Update, rebuild and restart?', () => {
         updates = { status, error: null, checking: false, applied: true };
         request({ action: 'applyUpdate' });
         render();
       }, { disabled: status.canUpdate ? undefined : (status.reason ?? 'Nothing to update.') });
       children.push(actions(check, ...(status.behind > 0 ? [apply] : [])));
     } else {
-      children.push(el('p', 'Checks this copy of the app against its remote. It only ever fast-forwards, never over uncommitted changes, then installs dependencies if they changed, rebuilds the extension and restarts the helper.', 'settings-note'), actions(check));
+      children.push(el('p', 'Checks this copy of the app against the newest release. It only ever fast-forwards, never over uncommitted changes, then installs dependencies if they changed, rebuilds the extension and restarts the helper.', 'settings-note'), actions(check));
     }
     return card('Updates', ...children);
   }
