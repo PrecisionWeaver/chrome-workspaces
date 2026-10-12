@@ -1,5 +1,15 @@
-import { describe, expect, it } from 'vitest';
-import { ghOwnPrs, ghWatchedPrs, mergeStatusQuery, parseMergeStatuses, parseReviewRequests, ReviewsPoller, ticketFromTitle } from '../src/reviews';
+import { describe, expect, it, vi } from 'vitest';
+import {
+  describeFailure,
+  ghOwnPrs,
+  ghWatchedPrs,
+  MERGE_BATCH,
+  mergeStatusQuery,
+  parseMergeStatuses,
+  parseReviewRequests,
+  ReviewsPoller,
+  ticketFromTitle,
+} from '../src/reviews';
 
 const pr = (number: number, title: string, updatedAt: string) => ({
   author: { login: 'drew', is_bot: false },
@@ -178,6 +188,7 @@ describe('merge states', () => {
       async () => {
         throw new Error('graphql down');
       },
+      0,
     );
     await poller.refresh();
     expect(poller.state().error).toBeNull();
@@ -197,5 +208,121 @@ describe('ghWatchedPrs', () => {
 describe('ghOwnPrs', () => {
   it("searches the user's own open PRs in each repo", () => {
     expect(ghOwnPrs(['acme/api', 'acme/web-app'])).toContain('--repo acme/api --repo acme/web-app --state=open --author=@me');
+  });
+});
+
+describe('merge state batches', () => {
+  const many = (count: number) =>
+    JSON.stringify(
+      Array.from({ length: count }, (_, i) => ({
+        number: i + 1,
+        title: `PR ${i + 1}`,
+        url: `https://github.com/acme/app/pull/${i + 1}`,
+        repository: { nameWithOwner: 'acme/app' },
+        author: { login: 'octo' },
+        isDraft: false,
+        updatedAt: `2026-01-01T00:${String(i % 60).padStart(2, '0')}:00Z`,
+      })),
+    );
+  const answer = (query: string, state = 'CLEAN') =>
+    JSON.stringify({
+      data: Object.fromEntries(
+        [...query.matchAll(/r(\d+): .*?pullRequest\(number: (\d+)\)/g)].map(([, key, number]) => [
+          `r${key}`,
+          merge(`https://github.com/acme/app/pull/${number}`, state),
+        ]),
+      ),
+    });
+
+  it('asks in batches of no more than MERGE_BATCH, so no one query is large', async () => {
+    const sizes: number[] = [];
+    const poller = new ReviewsPoller(
+      async () => [many(MERGE_BATCH * 2 + 3)],
+      async (query) => {
+        sizes.push((query.match(/pullRequest\(/g) ?? []).length);
+        return answer(query);
+      },
+    );
+    await poller.refresh();
+    expect(sizes.sort((a, b) => a - b)).toEqual([3, MERGE_BATCH, MERGE_BATCH]);
+    expect(poller.state().items.every((item) => item.merge === 'ready')).toBe(true);
+  });
+
+  it('retries a batch that failed once, and uses its answer', async () => {
+    let calls = 0;
+    const poller = new ReviewsPoller(
+      async () => [many(3)],
+      async (query) => {
+        if (calls++ === 0) throw Object.assign(new Error('Command failed'), { stderr: 'gh: HTTP 504' });
+        return answer(query);
+      },
+      0,
+    );
+    await poller.refresh();
+    expect(calls).toBe(2);
+    expect(poller.state().items.map((item) => item.merge)).toEqual(['ready', 'ready', 'ready']);
+  });
+
+  it('loses only the failed batch, and keeps those PRs' + "'" + ' last known state', async () => {
+    const fail = { value: false };
+    const poller = new ReviewsPoller(
+      async () => [many(MERGE_BATCH + 2)],
+      async (query) => {
+        // The second batch is the one holding PR 26 and up.
+        if (fail.value && query.includes(`pullRequest(number: ${MERGE_BATCH + 1})`)) throw Object.assign(new Error('x'), { killed: true });
+        return answer(query, fail.value ? 'BEHIND' : 'CLEAN');
+      },
+      0,
+    );
+    await poller.refresh();
+    fail.value = true;
+    await poller.refresh();
+    const byNumber = new Map(poller.state().items.map((item) => [item.number, item]));
+    expect(byNumber.get(1)).toMatchObject({ merge: 'blocked', mergeReason: 'Behind' });
+    expect(byNumber.get(MERGE_BATCH + 1)).toMatchObject({ merge: 'ready', mergeReason: null });
+    expect(byNumber.get(MERGE_BATCH + 2)).toMatchObject({ merge: 'ready' });
+  });
+
+  it('logs one line saying how much was lost and why, not a stack trace', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const poller = new ReviewsPoller(
+      async () => [many(MERGE_BATCH + 1)],
+      async () => {
+        throw Object.assign(new Error('Command failed'), { killed: true });
+      },
+      0,
+    );
+    await poller.refresh();
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(`could not read merge states for ${MERGE_BATCH + 1} of ${MERGE_BATCH + 1} PRs: timed out`);
+    warn.mockRestore();
+  });
+});
+
+describe('a merge state GitHub has not computed yet', () => {
+  it('keeps the last known badge when GitHub answers UNKNOWN, and shows unknown when there was none', async () => {
+    const state = { value: 'CLEAN' };
+    const poller = new ReviewsPoller(
+      async () => [GH],
+      async () => JSON.stringify({ data: { a: merge(URL1, state.value) } }),
+      0,
+    );
+    state.value = 'UNKNOWN';
+    await poller.refresh();
+    expect(poller.state().items.find((r) => r.number === 1)?.merge).toBe('unknown');
+    state.value = 'CLEAN';
+    await poller.refresh();
+    state.value = 'UNKNOWN';
+    await poller.refresh();
+    expect(poller.state().items.find((r) => r.number === 1)?.merge).toBe('ready');
+  });
+});
+
+describe('describeFailure', () => {
+  it("names a timeout, gh's own message, a non-JSON page, or the error text", () => {
+    expect(describeFailure(Object.assign(new Error('Command failed: gh\n'), { killed: true, signal: 'SIGTERM' }))).toBe('timed out');
+    expect(describeFailure(Object.assign(new Error('Command failed: gh'), { stderr: 'gh: HTTP 504\nmore' }))).toBe('gh: HTTP 504');
+    expect(describeFailure(new SyntaxError('Unexpected token <'))).toBe('GitHub sent a page that was not JSON');
+    expect(describeFailure(new Error('boom\nstack'))).toBe('boom');
   });
 });

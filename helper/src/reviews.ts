@@ -10,6 +10,19 @@ export function ghWatchedPrs(repos: readonly string[]): string {
 
 const SAFE_NAME = /^[\w.-]+$/;
 
+/** One request per this many PRs: GitHub's answer time grows with the size of the query, and a big one can time out. */
+export const MERGE_BATCH = 25;
+
+/** Why a lookup failed, in a few words: the log would otherwise hold a stack trace with no reason in it. */
+export function describeFailure(error: unknown): string {
+  const { killed, stderr } = error as { killed?: boolean; stderr?: string };
+  if (killed) return 'timed out';
+  const line = (stderr ?? '').trim().split('\n')[0];
+  if (line) return line;
+  if (error instanceof SyntaxError) return 'GitHub sent a page that was not JSON';
+  return error instanceof Error ? error.message.split('\n')[0] : String(error);
+}
+
 /** One GraphQL request for every PR's merge state, which `gh search` does not report. */
 export function mergeStatusQuery(items: readonly ReviewRequest[]): string {
   const lookups = items.flatMap((item, index) => {
@@ -110,6 +123,8 @@ export class ReviewsPoller {
   constructor(
     private readonly fetchJson: () => Promise<string[]>,
     private readonly fetchMerge?: (query: string) => Promise<string>,
+    /** How long to wait before trying a failed batch once more. */
+    private readonly retryDelayMs = 1500,
   ) {}
 
   state(): ReviewsState {
@@ -135,16 +150,52 @@ export class ReviewsPoller {
     return this.inFlight;
   }
 
+  /** The merge states of one batch, tried twice, or the reason it could not be read. */
+  private async mergeBatch(items: ReviewRequest[]): Promise<Map<string, Standing> | string> {
+    let failure = '';
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, this.retryDelayMs));
+      try {
+        return parseMergeStatuses(await this.fetchMerge!(mergeStatusQuery(items)));
+      } catch (error) {
+        failure = describeFailure(error);
+      }
+    }
+    return failure;
+  }
+
   private async withMergeStatus(items: ReviewRequest[]): Promise<ReviewRequest[]> {
     if (!this.fetchMerge || items.length === 0) return items;
-    try {
-      const statuses = parseMergeStatuses(await this.fetchMerge(mergeStatusQuery(items)));
+    const batches: ReviewRequest[][] = [];
+    for (let i = 0; i < items.length; i += MERGE_BATCH) batches.push(items.slice(i, i + MERGE_BATCH));
+    const results = await Promise.all(batches.map((batch) => this.mergeBatch(batch)));
+
+    const statuses = new Map<string, Standing>();
+    const failures: string[] = [];
+    let unread = 0;
+    results.forEach((result, index) => {
+      if (typeof result === 'string') {
+        failures.push(result);
+        unread += batches[index].length;
+      } else for (const [url, standing] of result) statuses.set(url, standing);
+    });
+    if (failures.length) console.warn(`could not read merge states for ${unread} of ${items.length} PRs: ${[...new Set(failures)].join('; ')}`);
+
+    // A PR whose lookup failed, or that GitHub has not finished working out (it answers UNKNOWN while it computes a
+    // PR's mergeability), keeps what the last good lookup said rather than losing its badge until the next poll.
+    const before = new Map(this.current.items.map((item) => [item.url, item]));
+    return items.map((item) => {
       // A draft is a draft whatever else GitHub reports; the search result already says so.
-      return items.map((item) => ({ ...item, ...(item.isDraft ? {} : statuses.get(item.url)) }));
-    } catch (error) {
-      console.warn('could not read merge states', error);
-      return items;
-    }
+      if (item.isDraft) return item;
+      const fresh = statuses.get(item.url);
+      if (fresh && fresh.merge !== 'unknown') return { ...item, ...fresh };
+      const last = before.get(item.url);
+      return last && last.merge !== 'unknown' && last.merge !== 'draft'
+        ? { ...item, merge: last.merge, mergeReason: last.mergeReason }
+        : fresh
+          ? { ...item, ...fresh }
+          : item;
+    });
   }
 
   start(intervalMs: number): void {
