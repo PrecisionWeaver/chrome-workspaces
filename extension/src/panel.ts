@@ -16,7 +16,7 @@ import { loadPrefs, onPrefsChange, type Prefs } from './prefs';
 import { createPalette, type PaletteItem } from './palette';
 import { createSettingsView } from './settings-view';
 import { makeSectionsResizable } from './sections';
-import { openInWorkspace } from './tabs';
+import { noteReviewTab, openInWorkspace } from './tabs';
 import { createLauncher } from './launcher';
 import { loadSelection, onSelectionChange, select, shownIn, type Selection } from './selection';
 import { showOnly, switchTo } from './windows';
@@ -117,8 +117,11 @@ const here = () => ({ windowId: myWindowId, workspace: current() });
 function startReview(review: ReviewRequest): void {
   creator.show(review);
   // The PR is what you came to look at, so it opens beside the workspace's other tabs, once.
+  // A tab opened here moves to the PR's workspace when one is made from this view.
   const { windowId, workspace } = here();
-  void openInWorkspace(workspace, windowId, review.url);
+  void openInWorkspace(workspace, windowId, review.url).then((tabId) => {
+    if (tabId !== undefined) void noteReviewTab(review.url, tabId);
+  });
 }
 
 const launcher = createLauncher({
