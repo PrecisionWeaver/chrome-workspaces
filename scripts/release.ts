@@ -41,6 +41,8 @@ rewrite('extension/manifest.json', version);
 // JSON.stringify's layout is not Prettier's, and CI checks formatting.
 step('npx', ['prettier', '--write', 'package.json', 'extension/manifest.json']);
 step('git', ['commit', '-am', `release: v${version}`]);
+// The build above still carries the old version; rebuild so the unpacked extension in extension/dist matches.
+step('npm', ['run', 'build:extension']);
 
 console.log(
   `\nv${current} -> v${version} on ${branch}. Next:\n  git checkout main && git merge --ff-only ${branch} && git push\nCI then tags v${version} and publishes the release.`,
