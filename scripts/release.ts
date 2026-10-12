@@ -38,6 +38,8 @@ const branch = `release/v${version}`;
 step('git', ['checkout', '-b', branch]);
 rewrite('package.json', version);
 rewrite('extension/manifest.json', version);
+// JSON.stringify's layout is not Prettier's, and CI checks formatting.
+step('npx', ['prettier', '--write', 'package.json', 'extension/manifest.json']);
 step('git', ['commit', '-am', `release: v${version}`]);
 
 console.log(
