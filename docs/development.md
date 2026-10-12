@@ -3,8 +3,9 @@
 ## Commands
 
 ```bash
-npm test                  # vitest, ~300 tests, real git repos and real pty sessions
+npm test                  # vitest, ~320 tests, real git repos and real pty sessions
 npm run typecheck         # tsc --noEmit, covers shared, helper, extension, scripts
+npm run doctor            # checks the local install end to end
 npm run build:extension   # esbuild into extension/dist; reload the extension at chrome://extensions
 npm run helper            # run in the foreground (stop the agent first)
 npm run agent:restart     # restart the launchd helper; ends every open terminal
@@ -14,7 +15,7 @@ Run `typecheck`, `test` and `build:extension` before committing. Extension-only 
 
 ## Workflow
 
-- Work on a feature branch (`feat/...`, `fix/...`, `chore/...`), then fast-forward merge into `main`. Do not commit on `main`.
+- Work on a feature branch (`feat/...`, `fix/...`, `chore/...`), open a pull request, and merge it on GitHub once CI passes. Do not commit on `main`. Release branches are the exception: [releasing.md](releasing.md) fast-forwards them.
 - Commit when asked; push and merge when asked. Delete merged branches once the user agrees.
 - `.github/workflows/ci.yml` runs typecheck, tests and the build on every pull request and every branch push except `main`; `release.yml` runs the same checks on `main`.
 - To release, see [releasing.md](releasing.md).

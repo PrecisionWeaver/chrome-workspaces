@@ -17,25 +17,23 @@ All of it is in [docs/features.md](docs/features.md).
 
 ## Quick start
 
-Requires macOS, Google Chrome, Node 22+, and `gh` signed in for review requests.
+Requires macOS, Google Chrome, Node 22+ and Claude Code. `gh` (for review requests) and Claude Mission Control (for status dots, notifications and costs) are optional.
 
 ```bash
 npm install
-npm run gen-key                                    # once: pins the extension ID
-npm run setup -- --default-cwd ~/path/to/project   # default: ~
-npm run build:extension
-npm run agent:start                                # runs the helper now and at login
+npm run install-app -- --default-cwd ~/code --repo-root ~/code
 ```
 
-Then in Chrome, load `extension/dist` as an unpacked extension at `chrome://extensions` and click the toolbar icon. [docs/setup.md](docs/setup.md) has the Chrome steps, troubleshooting, helper commands, and `devspace` and Mission Control.
+That sets up, builds and starts the helper, then lists the Chrome steps: load `extension/dist` as an unpacked extension and click the toolbar icon. `npm run doctor` checks an install; `npm run uninstall` removes one. [docs/setup.md](docs/setup.md) has the details, and the HTTP API for scripting workspaces.
 
 ## Documentation
 
 | Doc | Contents |
 |---|---|
-| [docs/setup.md](docs/setup.md) | Install, load the extension, run the helper, `devspace` |
+| [docs/setup.md](docs/setup.md) | Install, troubleshoot, run the helper, script workspaces, uninstall |
 | [docs/features.md](docs/features.md) | Everything the panel does, and its limitations |
 | [docs/configuration.md](docs/configuration.md) | `config.json` fields |
+| [docs/privacy.md](docs/privacy.md) | What leaves your machine, and what is kept |
 | [docs/architecture.md](docs/architecture.md) | How the pieces fit, layout, security model |
 | [docs/development.md](docs/development.md) | Commands, workflow, conventions |
 | [docs/releasing.md](docs/releasing.md) | Cutting a release |

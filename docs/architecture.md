@@ -5,7 +5,7 @@ A Chrome side-panel extension plus a local Node helper (macOS). Each workspace i
 ```
 side panel (xterm.js) ──ws://127.0.0.1:4178──▶ helper ──▶ PTY: login shell → claude
 service worker / panel ──/control (typed JSON)─▶ helper ──▶ ~/.chrome-workspaces/workspaces.json
-devspace, Mission Control ──HTTP + bearer token─▶ helper
+local scripts, Mission Control ──HTTP + bearer token─▶ helper
 ```
 
 ## Layout
@@ -16,7 +16,7 @@ devspace, Mission Control ──HTTP + bearer token─▶ helper
 | `helper/src/` | `main.ts` wires everything. `control.ts` is the `ControlHub` (state, create/remove/restore, order, git, PR requests, timeline, admin). `server.ts`/`api.ts`/`auth.ts` are the HTTP and WebSocket surface. `session.ts`/`launch.ts` spawn PTYs. `git.ts` is the git service. `admin.ts` builds the Settings snapshot and runs admin actions. `tokens.ts`, `timeline.ts`, `mc-status.ts` read Claude's files. `reviews.ts`, `pr-details.ts` use `gh`. |
 | `extension/src/` | `panel.ts` orchestrates the side panel (list, selection, palette, appearance, message dispatch). Views: `create-view.ts`, `git-view.ts`, `settings-view.ts`, `pr-view.ts`, `launcher.ts` (review list). `background.ts` is the service worker (attention badge, notifications, tab and group tracking, order sync, context menus). `helper-client.ts` is the connection. |
 | `extension/panel.html`, `panel.css` | One page. CSS variables for every colour; the light theme is `:root[data-theme='light']`; icons come from an SVG sprite in `panel.html`. |
-| `scripts/` | `setup.ts` (data dir, native host manifest, LaunchAgent), `gen-key.ts` (pins the extension ID), `build-extension.ts`, `release.ts`. |
+| `scripts/` | `install.ts` (setup, build and start in one), `setup.ts` (data dir, native host manifest, LaunchAgent), `uninstall.ts`, `doctor.ts`, `install-paths.ts` (what setup writes, shared by all three), `gen-key.ts` (pins the extension ID; the key is committed, so only a fork needs it), `build-extension.ts`, `release.ts`. |
 
 ## Things that are not obvious
 
@@ -37,4 +37,4 @@ Everything lives in `~/.chrome-workspaces/`: `config.json`, `token` (mode 0600, 
 
 ## Security model
 
-The helper binds to `127.0.0.1`. WebSockets require the extension's `Origin` and the token; the HTTP API requires the token as a bearer header and rejects other origins. Markdown from PRs is parsed into DOM nodes, never injected as HTML.
+The helper binds to `127.0.0.1`. WebSockets require the extension's `Origin` and the token; the HTTP API requires the token as a bearer header and rejects other origins. Markdown from PRs is parsed into DOM nodes, never injected as HTML. What reaches the network is listed in [privacy.md](privacy.md).

@@ -2,10 +2,9 @@ import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, statSync,
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { NATIVE_HOST_NAME } from '../shared/protocol';
-import { DATA_DIR } from '../helper/src/config';
+import { AGENT_LABEL, DATA_DIR } from '../helper/src/config';
 import { extensionIdFromManifest } from './extension-id';
-
-const AGENT_LABEL = 'com.chrome-workspaces.helper';
+import { agentFile, hostManifest, hostWrapper as wrapper } from './install-paths';
 
 const repo = resolve(import.meta.dirname, '..');
 const extensionId = extensionIdFromManifest(join(repo, 'extension', 'manifest.json'));
@@ -17,24 +16,26 @@ if (requestedCwd !== undefined && !(existsSync(requestedCwd) && statSync(request
   throw new Error(`--default-cwd is not a directory: ${requestedCwd}`);
 }
 
+// `--repo-root <dir>`, repeatable, sets the folders the Repo picker lists; otherwise an existing value is kept.
+const repoRoots = process.argv.flatMap((arg, i) => (arg === '--repo-root' ? [resolve(process.argv[i + 1] ?? '')] : []));
+const missingRoot = repoRoots.find((root) => !(existsSync(root) && statSync(root).isDirectory()));
+if (missingRoot) throw new Error(`--repo-root is not a directory: ${missingRoot}`);
+
 mkdirSync(DATA_DIR, { recursive: true, mode: 0o700 });
 const configFile = join(DATA_DIR, 'config.json');
 const existing = existsSync(configFile) ? (JSON.parse(readFileSync(configFile, 'utf8')) as Record<string, unknown> & { defaultCwd?: string }) : {};
 const defaultCwd = requestedCwd ?? existing.defaultCwd ?? homedir();
-writeFileSync(configFile, `${JSON.stringify({ ...existing, extensionId, defaultCwd }, null, 2)}\n`);
+writeFileSync(configFile, `${JSON.stringify({ ...existing, extensionId, defaultCwd, ...(repoRoots.length ? { repoRoots } : {}) }, null, 2)}\n`);
 
 // Chrome launches the host with an unknown cwd and a minimal PATH, so pin both.
 // A starter prompts note, only if there is none, so From prompt has something to pick on a fresh install.
 const promptsFile = join(DATA_DIR, 'prompts.md');
 if (!existsSync(promptsFile) && !('promptsFile' in existing)) copyFileSync(join(repo, 'prompts.example.md'), promptsFile);
 
-const wrapper = join(DATA_DIR, 'native-host.sh');
 writeFileSync(wrapper, `#!/bin/sh\ncd "${repo}" && exec "${process.execPath}" --import tsx helper/src/native-host.ts\n`);
 chmodSync(wrapper, 0o755);
 
-const hostsDir = join(homedir(), 'Library', 'Application Support', 'Google', 'Chrome', 'NativeMessagingHosts');
-mkdirSync(hostsDir, { recursive: true });
-const hostManifest = join(hostsDir, `${NATIVE_HOST_NAME}.json`);
+mkdirSync(dirname(hostManifest), { recursive: true });
 writeFileSync(
   hostManifest,
   `${JSON.stringify(
@@ -52,7 +53,6 @@ writeFileSync(
 
 // launchd starts agents with almost no environment; shells need SHELL, and claude needs a UTF-8 locale.
 const xml = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-const agentFile = join(homedir(), 'Library', 'LaunchAgents', `${AGENT_LABEL}.plist`);
 const programArguments = [process.execPath, '--import', 'tsx', 'helper/src/main.ts'];
 mkdirSync(dirname(agentFile), { recursive: true });
 writeFileSync(
@@ -83,6 +83,7 @@ ${programArguments.map((arg) => `    <string>${xml(arg)}</string>`).join('\n')}
 
 console.log(`extension id: ${extensionId}`);
 console.log(`default workspace directory: ${defaultCwd}`);
+if (repoRoots.length) console.log(`repo folders: ${repoRoots.join(', ')}`);
 console.log(`wrote ${agentFile} (start it with npm run agent:start)`);
 console.log(`wrote ${configFile}`);
 console.log(`wrote ${wrapper}`);

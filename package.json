@@ -3,13 +3,19 @@
   "version": "0.3.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "postinstall": "chmod +x node_modules/node-pty/prebuilds/darwin-*/spawn-helper",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "helper": "tsx helper/src/main.ts",
     "gen-key": "tsx scripts/gen-key.ts",
+    "install-app": "tsx scripts/install.ts",
     "setup": "tsx scripts/setup.ts",
+    "doctor": "tsx scripts/doctor.ts",
+    "uninstall": "tsx scripts/uninstall.ts",
     "build:extension": "tsx scripts/build-extension.ts",
     "release": "tsx scripts/release.ts",
     "agent:start": "launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.chrome-workspaces.helper.plist",
