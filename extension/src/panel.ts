@@ -18,7 +18,7 @@ import { attachFileDrop } from './file-drop';
 import { createGitView } from './git-view';
 import { needsInputCount } from '../../shared/attention';
 import { nextIndex, resolveTheme } from '../../shared/keynav';
-import { splitList } from '../../shared/list-filter';
+import { filterList } from '../../shared/list-filter';
 import { ticketUrl } from '../../shared/jira';
 import { closeMenu, menuItem, openMenu } from './menu';
 import { loadPrefs, onPrefsChange, type Prefs } from './prefs';
@@ -313,12 +313,7 @@ let editing = false;
 let dragged: Workspace | null = null;
 
 const listSearch = $<HTMLInputElement>('list-search');
-let archivedOpen = false;
 let closedOpen = false;
-void chrome.storage.local.get('archivedOpen').then(({ archivedOpen: saved }) => {
-  archivedOpen = saved === true;
-  renderList();
-});
 listSearch.addEventListener('input', renderList);
 listSearch.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape') return;
@@ -336,31 +331,18 @@ function renderList(): void {
   // A filter box earns its room once the list is long enough to need one.
   listSearch.hidden = workspaces.length < 5 && listSearch.value === '';
   const here = current();
-  const { active, archived } = splitList(workspaces, statuses, listSearch.value);
-  const rows = active.map(({ ws, number }) => workspaceRow(ws, number, here));
-  if (archived.length) {
-    const toggle = document.createElement('li');
-    toggle.className = 'archived-toggle';
-    toggle.textContent = `${archivedOpen ? '▾' : '▸'} Archived (${archived.length})`;
-    toggle.addEventListener('click', () => {
-      archivedOpen = !archivedOpen;
-      void chrome.storage.local.set({ archivedOpen });
-      renderList();
-    });
-    rows.push(toggle);
-    // A search that matches only archived workspaces shows them, so they can be found.
-    if (archivedOpen || listSearch.value.trim()) rows.push(...archived.map((ws) => workspaceRow(ws, null, here)));
-  }
-  // Removed workspaces, kept so one can be brought back with its conversation.
+  const rows = filterList(workspaces, statuses, listSearch.value).map(({ ws, number }) => workspaceRow(ws, number, here));
+  // Archived workspaces, kept so one can be brought back with its conversation.
   const closed = history.filter((entry) => !listSearch.value.trim() || entry.name.toLowerCase().includes(listSearch.value.trim().toLowerCase()));
   if (closed.length) {
     const toggle = document.createElement('li');
     toggle.className = 'archived-toggle';
-    toggle.textContent = `${closedOpen ? '▾' : '▸'} Recently closed (${closed.length})`;
+    toggle.textContent = `${closedOpen ? '▾' : '▸'} Archived (${closed.length})`;
     toggle.addEventListener('click', () => {
       closedOpen = !closedOpen;
       renderList();
     });
+    if (closedOpen || listSearch.value.trim()) toggle.append(clearArchivedButton());
     rows.push(toggle);
     if (closedOpen || listSearch.value.trim()) rows.push(...closed.map(closedRow));
   }
@@ -412,13 +394,31 @@ function restoreWorkspace(entry: HistoryEntry): void {
   send({ type: 'restore', historyId: entry.id, windowId: workspace && windowId !== undefined ? windowId : null });
 }
 
+/** Forgets every archived workspace. Two clicks, like removing one: it can't be undone. */
+function clearArchivedButton(): HTMLButtonElement {
+  const clear = document.createElement('button');
+  clear.className = 'archived-clear';
+  clear.textContent = 'Clear all';
+  clear.addEventListener('click', (event) => {
+    event.stopPropagation();
+    if (!clear.classList.contains('confirm')) {
+      clear.classList.add('confirm');
+      clear.textContent = 'Forget all?';
+      setTimeout(renderList, 3000);
+      return;
+    }
+    send({ type: 'forgetAll' });
+  });
+  return clear;
+}
+
 function closedRow(entry: HistoryEntry): HTMLLIElement {
   const item = document.createElement('li');
   item.className = 'ws archived closed';
   item.dataset.id = entry.id;
   item.setAttribute('role', 'option');
-  item.setAttribute('aria-label', `${entry.name}, closed. Press Enter to restore.`);
-  item.title = `${entry.name}\n${entry.cwd}\nClosed ${new Date(entry.closedAt).toLocaleString()}${entry.resumeId ? '\nResumes its conversation' : ''}\nClick to restore`;
+  item.setAttribute('aria-label', `${entry.name}, archived. Press Enter to restore.`);
+  item.title = `${entry.name}\n${entry.cwd}\nArchived ${new Date(entry.closedAt).toLocaleString()}${entry.resumeId ? '\nResumes its conversation' : ''}\nClick to restore`;
   const badge = document.createElement('span');
   badge.className = 'badge';
   badge.textContent = '↺';
@@ -440,14 +440,14 @@ function closedRow(entry: HistoryEntry): HTMLLIElement {
 
 function workspaceRow(ws: Workspace, number: number | null, here: Workspace | undefined): HTMLLIElement {
   const item = document.createElement('li');
-  item.className = `ws${ws.id === here?.id ? ' current' : ''}${ws.archived ? ' archived' : ''}`;
+  item.className = `ws${ws.id === here?.id ? ' current' : ''}`;
   item.dataset.id = ws.id;
   item.setAttribute('role', 'option');
   item.setAttribute('aria-selected', String(ws.id === here?.id));
   const live = statuses[ws.id];
   item.setAttribute(
     'aria-label',
-    `${ws.name}${live === 'needs_input' ? ', needs input' : live === 'working' ? ', working' : live === 'idle' ? ', idle' : ''}${ws.pinned ? ', pinned' : ''}${ws.archived ? ', archived' : ''}`,
+    `${ws.name}${live === 'needs_input' ? ', needs input' : live === 'working' ? ', working' : live === 'idle' ? ', idle' : ''}${ws.pinned ? ', pinned' : ''}`,
   );
   item.title = `${ws.name}\n${ws.cwd}${ws.groupId === null ? '' : '\nTab group'}\nRight-click for more`;
 
@@ -471,14 +471,14 @@ function workspaceRow(ws: Workspace, number: number | null, here: Workspace | un
 
   const remove = document.createElement('button');
   remove.className = 'remove';
-  remove.title = 'Remove workspace';
+  remove.title = 'Archive workspace';
   remove.textContent = '×';
   remove.addEventListener('click', (event) => {
     event.stopPropagation();
     // Two clicks: the first arms it, so a stray click can't end a running session.
     if (!remove.classList.contains('confirm')) {
       remove.classList.add('confirm');
-      remove.textContent = 'remove?';
+      remove.textContent = 'archive?';
       setTimeout(renderList, 3000);
       return;
     }
@@ -546,7 +546,8 @@ function showContextMenu(x: number, y: number, ws: Workspace, nameEl: HTMLElemen
     y,
     [
       menuItem(ws.pinned ? 'Unpin' : 'Pin to top', () => send({ type: 'mark', id: ws.id, pinned: !ws.pinned })),
-      menuItem(ws.archived ? 'Unarchive' : 'Archive', () => send({ type: 'mark', id: ws.id, archived: !ws.archived })),
+      menuItem('Archive', () => send({ type: 'remove', id: ws.id })),
+      menuItem('Archive & close tabs', () => send({ type: 'remove', id: ws.id, closeTabs: true })),
       menuItem('Rename', () => startRename(ws, nameEl)),
       ...(ticket ? [menuItem(`Open ${ws.ticket}`, () => void chrome.tabs.create({ url: ticket }))] : []),
       swatches,
@@ -824,7 +825,7 @@ function paletteItems(): PaletteItem[] {
   for (const ws of workspaces) {
     const status = statuses[ws.id];
     items.push({
-      kind: ws.archived ? 'Workspace · archived' : 'Workspace',
+      kind: 'Workspace',
       label: ws.name,
       hint: [
         ws.id === shown?.id ? 'current' : '',

@@ -13,7 +13,6 @@ function ws(id: string, lastTabUrls: string[], windowId: number | null = null): 
     groupId: null,
     resume: null,
     pinned: false,
-    archived: false,
     color: null,
     model: null,
     lastTabUrls,

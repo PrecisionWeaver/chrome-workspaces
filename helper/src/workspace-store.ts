@@ -11,6 +11,7 @@ export interface NewWorkspace {
   pr?: string | null;
   prompt?: string | null;
   model?: string | null;
+  color?: WorkspaceColor | null;
   resume?: string | null;
   /** Tabs to open with the workspace; they become its remembered tabs. */
   tabs?: string[];
@@ -19,9 +20,22 @@ export interface NewWorkspace {
 export class WorkspaceStore {
   private workspaces: Workspace[];
   private readonly listeners = new Set<() => void>();
+  /** Workspaces an older version had archived; they now belong in history, which `moveArchived` hands them to. */
+  private legacyArchived: Workspace[] = [];
 
   constructor(private readonly file: string) {
     this.workspaces = this.load();
+    this.legacyArchived = this.workspaces.filter((ws) => (ws as { archived?: boolean }).archived === true);
+    this.workspaces = this.workspaces.filter((ws) => !this.legacyArchived.includes(ws));
+    for (const ws of this.workspaces) delete (ws as { archived?: boolean }).archived;
+  }
+
+  /** Passes each legacy archived workspace to `keep`, and only then drops them from the file, so a crash in between loses none. */
+  moveArchived(keep: (workspace: Workspace) => void): void {
+    if (this.legacyArchived.length === 0) return;
+    for (const ws of this.legacyArchived) keep(ws);
+    this.legacyArchived = [];
+    this.save();
   }
 
   list(): Workspace[] {
@@ -55,8 +69,7 @@ export class WorkspaceStore {
       groupId: null,
       resume: input.resume ?? null,
       pinned: false,
-      archived: false,
-      color: null,
+      color: input.color ?? null,
       model: input.model ?? null,
       lastTabUrls: [...(input.tabs ?? [])],
       pr: input.pr ?? null,
@@ -127,12 +140,11 @@ export class WorkspaceStore {
   }
 
   /**
-   * Pins, archives or colors a workspace. Pinning moves it to the end of the pinned block at the top
+   * Pins or colors a workspace. Pinning moves it to the end of the pinned block at the top
    * of the list, and unpinning to just below it, so the list stays the one order everything follows.
    */
-  mark(id: string, patch: { pinned?: boolean; archived?: boolean; color?: WorkspaceColor | null }): void {
+  mark(id: string, patch: { pinned?: boolean; color?: WorkspaceColor | null }): void {
     const ws = this.require(id);
-    if (patch.archived !== undefined) ws.archived = patch.archived;
     if (patch.color !== undefined) ws.color = patch.color;
     if (patch.pinned !== undefined && patch.pinned !== ws.pinned) {
       ws.pinned = patch.pinned;
@@ -179,7 +191,6 @@ export class WorkspaceStore {
         groupId: ws.groupId ?? null,
         resume: ws.resume ?? null,
         pinned: ws.pinned ?? false,
-        archived: ws.archived ?? false,
         color: ws.color ?? null,
         model: ws.model ?? null,
       }));

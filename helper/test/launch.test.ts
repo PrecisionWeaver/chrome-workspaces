@@ -12,7 +12,6 @@ const workspace: Workspace = {
   groupId: null,
   resume: null,
   pinned: false,
-  archived: false,
   color: null,
   model: null,
   lastTabUrls: [],

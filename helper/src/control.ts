@@ -140,6 +140,7 @@ export class ControlHub {
           name: message.name.trim(),
           prompt: message.prompt?.trim() || null,
           model: message.model ?? null,
+          color: message.color ?? null,
           tabs: message.urls ?? [],
         });
         if (message.windowId === null) this.send({ type: 'open', id: workspace.id });
@@ -179,6 +180,11 @@ export class ControlHub {
         if (removing) this.options.history.record(removing, this.options.resumeId(message.id));
         this.options.sessions.remove(message.id);
         store.remove(message.id);
+        if (removing?.windowId != null && message.closeTabs) {
+          // A window shared with other workspaces is theirs too: only a group can be closed out of it.
+          const shared = store.list().some((ws) => ws.windowId === removing.windowId);
+          if (removing.groupId !== null || !shared) this.send({ type: 'closeTabs', windowId: removing.windowId, groupId: removing.groupId });
+        }
         break;
       }
       case 'restore': {
@@ -197,12 +203,16 @@ export class ControlHub {
           resume: entry.resumeId,
         });
         this.options.history.remove(entry.id);
+        if (entry.pinned || entry.color) store.mark(workspace.id, { pinned: entry.pinned, color: entry.color });
         if (message.windowId === null) this.send({ type: 'open', id: workspace.id });
         else store.pairWindow(workspace.id, message.windowId);
         break;
       }
       case 'forget':
         this.options.history.remove(message.historyId);
+        break;
+      case 'forgetAll':
+        this.options.history.clear();
         break;
       case 'listPrompts':
         this.sendTo(ws, this.prompts());
@@ -459,18 +469,19 @@ function isControlToHelper(value: unknown): value is ControlToHelper {
         isWindowId(m.windowId) && (m.groupId === undefined || isWindowId(m.groupId)) && Array.isArray(m.urls) && m.urls.every((u) => typeof u === 'string')
       );
     case 'remove':
-      return typeof m.id === 'string';
+      return typeof m.id === 'string' && (m.closeTabs === undefined || typeof m.closeTabs === 'boolean');
     case 'restore':
       return typeof m.historyId === 'string' && (m.windowId === null || isWindowId(m.windowId));
     case 'forget':
       return typeof m.historyId === 'string';
+    case 'forgetAll':
+      return true;
     case 'rename':
       return typeof m.id === 'string' && isWorkspaceName(m.name);
     case 'mark':
       return (
         typeof m.id === 'string' &&
         (m.pinned === undefined || typeof m.pinned === 'boolean') &&
-        (m.archived === undefined || typeof m.archived === 'boolean') &&
         (m.color === undefined || m.color === null || (WORKSPACE_COLORS as readonly string[]).includes(m.color as string))
       );
     case 'sendText':
@@ -487,6 +498,7 @@ function isControlToHelper(value: unknown): value is ControlToHelper {
         (m.prompt === undefined || (typeof m.prompt === 'string' && m.prompt.length <= MAX_PROMPT_LENGTH)) &&
         (m.cwd === undefined || (typeof m.cwd === 'string' && m.cwd.length <= 1024)) &&
         (m.model === undefined || (typeof m.model === 'string' && MODEL_PATTERN.test(m.model))) &&
+        (m.color === undefined || (WORKSPACE_COLORS as readonly string[]).includes(m.color as string)) &&
         (m.group === undefined || typeof m.group === 'boolean') &&
         (m.urls === undefined || (Array.isArray(m.urls) && m.urls.length <= MAX_TAB_URLS && m.urls.every(isWebUrl)))
       );

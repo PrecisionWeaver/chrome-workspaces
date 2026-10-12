@@ -33,6 +33,8 @@ export class HistoryStore {
       pr: workspace.pr,
       model: workspace.model,
       tabs: [...workspace.lastTabUrls],
+      pinned: workspace.pinned,
+      color: workspace.color,
       resumeId,
       closedAt: new Date().toISOString(),
     };
@@ -47,6 +49,12 @@ export class HistoryStore {
     this.save();
   }
 
+  clear(): void {
+    if (this.entries.length === 0) return;
+    this.entries = [];
+    this.save();
+  }
+
   onChange(listener: () => void): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
@@ -56,7 +64,8 @@ export class HistoryStore {
     if (!existsSync(this.file)) return [];
     try {
       const { entries } = JSON.parse(readFileSync(this.file, 'utf8')) as { entries?: HistoryEntry[] };
-      return Array.isArray(entries) ? entries.slice(0, MAX_HISTORY) : [];
+      // Entries written before pin and color were kept load with them unset.
+      return Array.isArray(entries) ? entries.slice(0, MAX_HISTORY).map((e) => ({ ...e, pinned: e.pinned ?? false, color: e.color ?? null })) : [];
     } catch {
       // History is a convenience: a damaged file starts it again rather than stopping the helper.
       return [];

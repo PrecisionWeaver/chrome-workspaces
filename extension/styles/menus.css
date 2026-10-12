@@ -41,6 +41,28 @@
   color: var(--muted);
 }
 
+.archived-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.archived-clear {
+  padding: 0 6px;
+  border: 0;
+  background: none;
+  color: var(--faint);
+  font: inherit;
+  text-transform: none;
+  letter-spacing: 0;
+  cursor: pointer;
+}
+
+.archived-clear:hover,
+.archived-clear.confirm {
+  color: var(--muted);
+}
+
 .ws.archived {
   opacity: 0.55;
 }
@@ -94,6 +116,12 @@
   padding: 6px 8px 4px;
   border-top: 1px solid var(--border);
   margin-top: 4px;
+}
+
+.create-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
 }
 
 .swatch {
