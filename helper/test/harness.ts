@@ -89,7 +89,7 @@ export async function startHarness(): Promise<Harness> {
     return fakes.prDetailsJson;
   };
   const reviews = {
-    state: () => ({ items: fakes.reviews, error: null, fetchedAt: null }),
+    state: () => ({ items: fakes.reviews, error: null, fetchedAt: null, refreshing: false }),
     refresh: async () => {
       fakes.reviewRefreshes++;
     },

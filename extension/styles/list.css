@@ -39,6 +39,13 @@
   color: var(--text);
 }
 
+/* A refresh in progress: dimmed and inert until it finishes. */
+.icon-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+  pointer-events: none;
+}
+
 /* With its body hidden a collapsed header stands alone, so it gets the same room above and below. */
 .section.collapsed .section-header {
   padding-bottom: 10px;
