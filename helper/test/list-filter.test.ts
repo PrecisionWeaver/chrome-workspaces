@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Workspace } from '../../shared/protocol';
-import { splitList, workspaceMatches } from '../../shared/list-filter';
+import { filterList, workspaceMatches } from '../../shared/list-filter';
 
 const ws = (id: string, name: string, extra: Partial<Workspace> = {}): Workspace => ({
   id,
@@ -12,7 +12,6 @@ const ws = (id: string, name: string, extra: Partial<Workspace> = {}): Workspace
   groupId: null,
   resume: null,
   pinned: false,
-  archived: false,
   color: null,
   model: null,
   lastTabUrls: [],
@@ -33,22 +32,18 @@ describe('workspaceMatches', () => {
   });
 });
 
-describe('splitList', () => {
-  const list = [ws('a', 'Alpha'), ws('b', 'Beta', { archived: true }), ws('c', 'Gamma'), ws('d', 'Delta', { archived: true })];
+describe('filterList', () => {
+  const list = [ws('a', 'Alpha'), ws('b', 'Beta'), ws('c', 'Gamma')];
 
-  it('keeps archived workspaces apart and numbers the rest in list order', () => {
-    const { active, archived } = splitList(list, {}, '');
-    expect(active.map((x) => [x.ws.name, x.number])).toEqual([
+  it('numbers the workspaces in list order', () => {
+    expect(filterList(list, {}, '').map((x) => [x.ws.name, x.number])).toEqual([
       ['Alpha', 1],
-      ['Gamma', 2],
+      ['Beta', 2],
+      ['Gamma', 3],
     ]);
-    expect(archived.map((x) => x.name)).toEqual(['Beta', 'Delta']);
   });
 
-  it("keeps a workspace's number while a filter hides the ones before it", () => {
-    const { active, archived } = splitList(list, {}, 'gamma');
-    expect(active.map((x) => [x.ws.name, x.number])).toEqual([['Gamma', 2]]);
-    expect(archived).toEqual([]);
-    expect(splitList(list, {}, 'delta').archived.map((x) => x.name)).toEqual(['Delta']);
+  it("keeps a workspace's number while the filter hides the ones before it", () => {
+    expect(filterList(list, {}, 'gamma').map((x) => [x.ws.name, x.number])).toEqual([['Gamma', 3]]);
   });
 });

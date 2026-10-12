@@ -326,11 +326,21 @@ describe('control channel', () => {
     ws.send(JSON.stringify({ type: 'mark', id: b.id, pinned: 'yes' }));
     ws.send(JSON.stringify({ type: 'mark', id: b.id, pinned: true, color: 'green' }));
     ws.send(JSON.stringify({ type: 'mark', id: a.id, archived: true }));
-    await waitFor(() => h.store.get(a.id)?.archived === true);
+    await waitFor(() => h.store.get(b.id)?.pinned === true);
     expect(h.store.list().map((w) => [w.name, w.pinned, w.color])).toEqual([
       ['b', true, 'green'],
       ['a', false, null],
     ]);
+    ws.close();
+  });
+
+  it('creates a workspace in the color asked for, and ignores one that is not ours', async () => {
+    const { ws } = connectControl(h);
+    await opened(ws);
+    ws.send(JSON.stringify({ type: 'create', name: 'tinted', windowId: null, color: 'pink' }));
+    ws.send(JSON.stringify({ type: 'create', name: 'bad', windowId: null, color: 'hotpink' }));
+    await waitFor(() => h.store.list().length >= 1);
+    expect(h.store.list().map((w) => [w.name, w.color])).toEqual([['tinted', 'pink']]);
     ws.close();
   });
 

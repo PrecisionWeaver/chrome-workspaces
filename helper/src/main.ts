@@ -100,6 +100,8 @@ const admin = createAdmin({
 });
 
 const history = new HistoryStore(join(DATA_DIR, 'history.json'));
+// Workspaces an older version had archived are history now.
+store.moveArchived((ws) => history.record(ws, ws.resume));
 const branchPr = async (cwd: string) =>
   (
     await execFileAsync(shell, ['-l', '-c', GH_BRANCH_PR], { cwd, timeout: 30_000, maxBuffer: 4 * 1024 * 1024 }).catch(

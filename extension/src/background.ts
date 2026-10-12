@@ -76,6 +76,9 @@ function handle(message: ControlToClient): void {
       if (workspace) void switchTo(workspace, send, workspaces);
       break;
     }
+    case 'closeTabs':
+      void closeTabs(message.windowId, message.groupId);
+      break;
     case 'sent': {
       const name = find(message.id)?.name ?? 'workspace';
       chrome.notifications.create(`sent-${Date.now()}`, {
@@ -89,6 +92,21 @@ function handle(message: ControlToClient): void {
     case 'browser':
       browserCall({ workspaceId: message.id, at: message.at });
       break;
+  }
+}
+
+/** A group's tabs close, and Chrome closes the window with the last of them; without a group the whole window goes. */
+async function closeTabs(windowId: number, groupId: number | null): Promise<void> {
+  try {
+    if (groupId === null) {
+      await chrome.windows.remove(windowId);
+      return;
+    }
+    const tabs = await chrome.tabs.query({ groupId });
+    const ids = tabs.flatMap((tab) => (tab.id === undefined ? [] : [tab.id]));
+    if (ids.length) await chrome.tabs.remove(ids);
+  } catch {
+    // Already closed by hand.
   }
 }
 
@@ -144,8 +162,7 @@ chrome.commands.onCommand.addListener((command) => {
 });
 
 function cycle(step: 1 | -1): void {
-  // Archived workspaces are tucked away, so the shortcuts skip them.
-  const list = workspaces.filter((ws) => !ws.archived);
+  const list = workspaces;
   if (list.length === 0) return;
   const shown = shownIn(focusedWindowId, workspaces, selection);
   const current = list.findIndex((ws) => ws.id === shown?.id);
@@ -197,7 +214,7 @@ let sendMenuBuild: Promise<void> = Promise.resolve();
 
 /** Rebuilds the right-click menu when the workspaces it lists change. */
 function rebuildSendMenu(): Promise<void> {
-  const listed = workspaces.filter((ws) => !ws.archived).slice(0, MAX_MENU_WORKSPACES);
+  const listed = workspaces.slice(0, MAX_MENU_WORKSPACES);
   const key = listed.map((ws) => `${ws.id}:${ws.name}`).join('|');
   if (key === sendMenuKey) return sendMenuBuild;
   sendMenuKey = key;

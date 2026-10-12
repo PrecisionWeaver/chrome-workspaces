@@ -1,8 +1,8 @@
 import { fillPrompt } from '../../shared/prompts';
-import { MAX_TAB_URLS, MODEL_ALIASES } from '../../shared/protocol';
+import { MAX_TAB_URLS, MODEL_ALIASES, WORKSPACE_COLORS } from '../../shared/protocol';
 import { parseTabUrls } from '../../shared/tab-urls';
 import { parseTemplates, removeTemplate, upsertTemplate, type Template } from '../../shared/templates';
-import type { ControlToClient, ControlToHelper, PrDetails, Prompt, Repo, ReviewRequest, Workspace } from '../../shared/protocol';
+import type { ControlToClient, ControlToHelper, PrDetails, Prompt, Repo, ReviewRequest, Workspace, WorkspaceColor } from '../../shared/protocol';
 import { el, icon, promptCard } from './dom';
 import { ref, renderDetails, renderThreads, repoName } from './pr-view';
 import { findTab, noteReviewTab, openInWorkspace } from './tabs';
@@ -53,6 +53,7 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
   const nameInput = $<HTMLInputElement>('create-name');
   const repoSelect = $<HTMLSelectElement>('create-repo');
   const modelSelect = $<HTMLSelectElement>('create-model');
+  const colorRow = $<HTMLDivElement>('create-color');
   const tabsInput = $<HTMLTextAreaElement>('create-tabs');
   const promptSection = $<HTMLDivElement>('create-prompt');
   const messageSection = $<HTMLDivElement>('create-message');
@@ -88,6 +89,25 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
   const defaultModel = el('option', 'Default');
   defaultModel.value = '';
   modelSelect.replaceChildren(defaultModel, ...MODEL_ALIASES.map((alias) => Object.assign(el('option', alias), { value: alias })));
+
+  // Not remembered between workspaces: a color says which one this is.
+  let color: WorkspaceColor | null = null;
+  const swatches = new Map<WorkspaceColor | null, HTMLButtonElement>();
+  for (const option of [null, ...WORKSPACE_COLORS]) {
+    const swatch = el('button', option ? '' : '×');
+    swatch.type = 'button';
+    swatch.className = 'swatch';
+    swatch.title = option ?? 'No color';
+    if (option) swatch.dataset.group = option;
+    swatch.addEventListener('click', () => pickColor(option));
+    swatches.set(option, swatch);
+    colorRow.append(swatch);
+  }
+  function pickColor(next: WorkspaceColor | null): void {
+    color = next;
+    for (const [option, swatch] of swatches) swatch.classList.toggle('selected', option === color);
+  }
+  pickColor(null);
 
   const start = segmented($<HTMLDivElement>('create-start'), syncStart);
   const target = segmented(windowButtons, () => {});
@@ -186,6 +206,7 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
   function show(request: ReviewRequest | null = null): void {
     isOpen = true;
     review = request;
+    pickColor(null);
     // A review starts from its PR, so templates are for workspaces made from scratch.
     templateBox.hidden = request !== null;
     templateNameRow.hidden = true;
@@ -368,6 +389,7 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
       ...(useHere && workspace ? { group: true } : {}),
       ...(urls.length ? { urls } : {}),
       ...(modelSelect.value ? { model: modelSelect.value } : {}),
+      ...(color ? { color } : {}),
       ...(repoSelect.value ? { cwd: repoSelect.value } : {}),
       ...(prompt ? { prompt } : {}),
       ...(review ? { pr: review.url } : {}),

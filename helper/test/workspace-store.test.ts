@@ -143,14 +143,14 @@ describe('WorkspaceStore', () => {
     expect(b.name).toBe('b');
   });
 
-  it('archives and colors a workspace, remembers both, and loads older files without them', () => {
+  it('colors a workspace, remembers it, and loads older files without a color', () => {
     const file = tempFile();
     const store = new WorkspaceStore(file);
     const a = store.create({ name: 'a', cwd: '/tmp' });
-    store.mark(a.id, { archived: true, color: 'purple' });
-    expect(new WorkspaceStore(file).get(a.id)).toMatchObject({ archived: true, color: 'purple', pinned: false });
-    store.mark(a.id, { archived: false, color: null });
-    expect(store.get(a.id)).toMatchObject({ archived: false, color: null });
+    store.mark(a.id, { color: 'purple' });
+    expect(new WorkspaceStore(file).get(a.id)).toMatchObject({ color: 'purple', pinned: false });
+    store.mark(a.id, { color: null });
+    expect(store.get(a.id)).toMatchObject({ color: null });
 
     const legacy = tempFile();
     writeFileSync(
@@ -161,7 +161,30 @@ describe('WorkspaceStore', () => {
         ],
       }),
     );
-    expect(new WorkspaceStore(legacy).list()[0]).toMatchObject({ pinned: false, archived: false, color: null });
+    expect(new WorkspaceStore(legacy).list()[0]).toMatchObject({ pinned: false, color: null });
+  });
+
+  it('hands workspaces an older version archived over to be kept, and drops them from the list', () => {
+    const file = tempFile();
+    const base = { ticket: null, cwd: '/tmp', url: null, windowId: null, lastTabUrls: [], createdAt: '2026-01-01T00:00:00Z' };
+    writeFileSync(
+      file,
+      JSON.stringify({
+        workspaces: [
+          { ...base, id: 'ws-00000001', name: 'live' },
+          { ...base, id: 'ws-00000002', name: 'shelved', archived: true },
+        ],
+      }),
+    );
+    const store = new WorkspaceStore(file);
+    expect(store.list().map((w) => w.name)).toEqual(['live']);
+    const kept: string[] = [];
+    store.moveArchived((w) => kept.push(w.name));
+    expect(kept).toEqual(['shelved']);
+    expect(new WorkspaceStore(file).list().map((w) => w.name)).toEqual(['live']);
+    // Once handed over, nothing is left to hand over.
+    store.moveArchived((w) => kept.push(w.name));
+    expect(kept).toEqual(['shelved']);
   });
 
   it('finds workspaces by ticket case-insensitively', () => {

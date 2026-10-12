@@ -12,7 +12,6 @@ const ws = (id: string, windowId: number | null, groupId: number | null = null):
   groupId,
   resume: null,
   pinned: false,
-  archived: false,
   color: null,
   model: null,
   lastTabUrls: [],

@@ -54,6 +54,8 @@ export interface HistoryEntry {
   pr: string | null;
   model: string | null;
   tabs: string[];
+  pinned: boolean;
+  color: WorkspaceColor | null;
   /** Its claude session, resumed when restored. */
   resumeId: string | null;
   closedAt: string;
@@ -193,8 +195,6 @@ export interface Workspace {
   groupId: number | null;
   /** Kept at the top of the list. */
   pinned: boolean;
-  /** Tucked away under Archived, and skipped by the switch shortcuts. */
-  archived: boolean;
   color: WorkspaceColor | null;
   /** A claude session to resume the first time this workspace's terminal starts. */
   resume: string | null;
@@ -407,6 +407,8 @@ export type ControlToClient =
   /** Make the workspace's tab group in the window it was paired with. */
   | { type: 'group'; id: string }
   | { type: 'focus'; id: string }
+  /** Closes the tab group, or the whole window when `groupId` is null, of a workspace that was just archived. */
+  | { type: 'closeTabs'; windowId: number; groupId: number | null }
   /** The workspace's claude used Claude in Chrome at `at` (epoch ms). */
   | { type: 'browser'; id: string; at: number }
   /** Reply to `listPrompts`, sent only to the client that asked. */
@@ -450,11 +452,23 @@ export type ControlToHelper =
   | { type: 'unpairGroup'; groupId: number }
   | { type: 'tabs'; windowId: number; urls: string[]; groupId?: number }
   /** With `pr`, focuses the PR's existing workspace instead of creating another. */
-  | { type: 'create'; name: string; windowId: number | null; pr?: string; prompt?: string; cwd?: string; model?: string; group?: boolean; urls?: string[] }
-  | { type: 'remove'; id: string }
+  | {
+      type: 'create';
+      name: string;
+      windowId: number | null;
+      pr?: string;
+      prompt?: string;
+      cwd?: string;
+      model?: string;
+      color?: WorkspaceColor;
+      group?: boolean;
+      urls?: string[];
+    }
+  /** Archives a workspace; with `closeTabs` its tab group (or window, when it has no group) closes too. */
+  | { type: 'remove'; id: string; closeTabs?: boolean }
   | { type: 'rename'; id: string; name: string }
-  /** Pins, archives or colors a workspace; a missing field is left as it is. */
-  | { type: 'mark'; id: string; pinned?: boolean; archived?: boolean; color?: WorkspaceColor | null }
+  /** Pins or colors a workspace; a missing field is left as it is. */
+  | { type: 'mark'; id: string; pinned?: boolean; color?: WorkspaceColor | null }
   /** `index` is the workspace's position in the list once moved. */
   | { type: 'move'; id: string; index: number }
   /** Sets the whole list order at once; ignored unless `ids` is exactly the current workspaces. */
@@ -463,6 +477,8 @@ export type ControlToHelper =
   | { type: 'restore'; historyId: string; windowId: number | null }
   /** Forgets a removed workspace. */
   | { type: 'forget'; historyId: string }
+  /** Forgets every archived workspace. */
+  | { type: 'forgetAll' }
   /** Pastes text into the workspace's terminal without submitting it; answered with `sent`. */
   | { type: 'sendText'; id: string; text: string }
   | { type: 'listPrompts' }

@@ -109,7 +109,11 @@ export async function createGroup(workspace: Workspace, send: (message: ControlT
   }
   if (tabIds.length === 0) return;
   const groupId = await chrome.tabs.group({ tabIds: tabIds as [number, ...number[]] });
-  await chrome.tabGroups.update(groupId, { title: workspace.name, collapsed: false });
+  await chrome.tabGroups.update(groupId, {
+    title: workspace.name,
+    collapsed: false,
+    ...(workspace.color ? { color: workspace.color as chrome.tabGroups.Color } : {}),
+  });
   send({ type: 'pair', id: workspace.id, windowId: workspace.windowId, groupId });
   await showOnly(workspace.windowId, groupId);
 }

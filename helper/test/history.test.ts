@@ -102,4 +102,58 @@ describe('remove and restore through the control channel', () => {
     expect(h.store.list()[0]).toMatchObject({ name: 'moved', cwd: h.defaultCwd, windowId: 5 });
     ws.close();
   });
+
+  it('keeps pin and color through an archive and restore', async () => {
+    const pinned = h.store.create({ name: 'pinned', cwd: h.defaultCwd });
+    h.store.mark(pinned.id, { pinned: true, color: 'green' });
+    const { ws, messages } = connectControl(h);
+    await opened(ws);
+    ws.send(JSON.stringify({ type: 'remove', id: pinned.id }));
+    await waitFor(() => messages.some((m) => m.type === 'history' && m.entries.length === 1));
+    const entry = (messages.filter((m) => m.type === 'history').at(-1) as Extract<ControlToClient, { type: 'history' }>).entries[0];
+    expect(entry).toMatchObject({ pinned: true, color: 'green' });
+    ws.send(JSON.stringify({ type: 'restore', historyId: entry.id, windowId: null }));
+    await waitFor(() => h.store.list().length === 1);
+    expect(h.store.list()[0]).toMatchObject({ pinned: true, color: 'green' });
+    ws.close();
+  });
+
+  it('closes the group or window only when asked, and never a window other workspaces share', async () => {
+    const grouped = h.store.create({ name: 'grouped', cwd: h.defaultCwd });
+    const sibling = h.store.create({ name: 'sibling', cwd: h.defaultCwd });
+    const solo = h.store.create({ name: 'solo', cwd: h.defaultCwd });
+    const keep = h.store.create({ name: 'keep', cwd: h.defaultCwd });
+    h.store.pairWindow(grouped.id, 1, 11);
+    h.store.pairWindow(sibling.id, 1, 12);
+    h.store.pairWindow(solo.id, 2);
+    h.store.pairWindow(keep.id, 3);
+    const { ws, messages } = connectControl(h);
+    await opened(ws);
+    const closes = () => messages.filter((m) => m.type === 'closeTabs');
+
+    ws.send(JSON.stringify({ type: 'remove', id: keep.id }));
+    await waitFor(() => !h.store.get(keep.id));
+    ws.send(JSON.stringify({ type: 'remove', id: grouped.id, closeTabs: true }));
+    await waitFor(() => closes().length === 1);
+    expect(closes()[0]).toEqual({ type: 'closeTabs', windowId: 1, groupId: 11 });
+    ws.send(JSON.stringify({ type: 'remove', id: solo.id, closeTabs: true }));
+    await waitFor(() => closes().length === 2);
+    expect(closes()[1]).toEqual({ type: 'closeTabs', windowId: 2, groupId: null });
+    // The window a group shares is not closed from under its neighbours.
+    expect(closes()).toHaveLength(2);
+    ws.close();
+  });
+
+  it('forgets every archived workspace at once', async () => {
+    const a = h.store.create({ name: 'a', cwd: h.defaultCwd });
+    const b = h.store.create({ name: 'b', cwd: h.defaultCwd });
+    const { ws, messages } = connectControl(h);
+    await opened(ws);
+    ws.send(JSON.stringify({ type: 'remove', id: a.id }));
+    ws.send(JSON.stringify({ type: 'remove', id: b.id }));
+    await waitFor(() => messages.some((m) => m.type === 'history' && m.entries.length === 2));
+    ws.send(JSON.stringify({ type: 'forgetAll' }));
+    await waitFor(() => (messages.filter((m) => m.type === 'history').at(-1) as Extract<ControlToClient, { type: 'history' }>).entries.length === 0);
+    ws.close();
+  });
 });
