@@ -5,7 +5,7 @@ import { parseTemplates, removeTemplate, upsertTemplate, type Template } from '.
 import type { ControlToClient, ControlToHelper, PrDetails, Prompt, Repo, ReviewRequest, Workspace } from '../../shared/protocol';
 import { el, icon, promptCard } from './dom';
 import { ref, renderDetails, renderThreads, repoName } from './pr-view';
-import { findTab, openInWorkspace } from './tabs';
+import { findTab, noteReviewTab, openInWorkspace } from './tabs';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -322,7 +322,11 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
   });
 
   githubButton.addEventListener('click', () => {
-    if (review) void openInWorkspace(here().workspace, here().windowId, review.url);
+    if (!review) return;
+    const { url } = review;
+    void openInWorkspace(here().workspace, here().windowId, url).then((tabId) => {
+      if (tabId !== undefined) void noteReviewTab(url, tabId);
+    });
   });
 
   document.addEventListener('keydown', (event) => {

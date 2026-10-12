@@ -1,4 +1,6 @@
 import type { ControlToHelper, Workspace } from '../../shared/protocol';
+import { showsPage } from '../../shared/tab-urls';
+import { takeReviewTab } from './tabs';
 
 type Bounds = Pick<chrome.windows.Window, 'left' | 'top' | 'width' | 'height'>;
 type SharedSize = { maximized: true } | Bounds;
@@ -63,11 +65,13 @@ export async function switchTo(
 
 export async function openWindow(workspace: Workspace, send: (message: ControlToHelper) => boolean): Promise<number | undefined> {
   const size = await sizeOptions();
-  const created = await chrome.windows.create({
-    url: workspace.lastTabUrls.length ? workspace.lastTabUrls : (workspace.url ?? undefined),
-    focused: true,
-  });
+  const urls = workspace.lastTabUrls.length ? workspace.lastTabUrls : workspace.url ? [workspace.url] : [];
+  // The PR tab its review request opened leads the new window, in place of a second copy.
+  const taken = await takeReviewTab(workspace.pr);
+  const rest = taken ? urls.filter((url) => !showsPage(url, workspace.pr!)) : urls;
+  const created = await chrome.windows.create(taken ? { tabId: taken.id, focused: true } : { url: urls.length ? urls : undefined, focused: true });
   if (created?.id === undefined) return undefined;
+  if (taken) for (const url of rest) await chrome.tabs.create({ windowId: created.id, url, active: false });
   await updateWindow(created.id, size);
   send({ type: 'pair', id: workspace.id, windowId: created.id });
   return created.id;
@@ -89,8 +93,17 @@ async function focusGroup(groupId: number): Promise<void> {
 export async function createGroup(workspace: Workspace, send: (message: ControlToHelper) => boolean): Promise<void> {
   if (workspace.windowId === null || !(await windowExists(workspace.windowId))) return;
   const urls: (string | undefined)[] = workspace.lastTabUrls.length ? workspace.lastTabUrls : [workspace.url ?? undefined];
+  // The PR tab its review request opened, often in the group next door, moves in rather than staying behind as a duplicate.
+  let taken = await takeReviewTab(workspace.pr);
   const tabIds: number[] = [];
   for (const [index, url] of urls.entries()) {
+    if (taken?.id !== undefined && url && showsPage(url, workspace.pr!)) {
+      await chrome.tabs.move(taken.id, { windowId: workspace.windowId, index: -1 });
+      if (index === 0) await chrome.tabs.update(taken.id, { active: true });
+      tabIds.push(taken.id);
+      taken = undefined;
+      continue;
+    }
     const tab = await chrome.tabs.create({ windowId: workspace.windowId, url, active: index === 0 });
     if (tab.id !== undefined) tabIds.push(tab.id);
   }
