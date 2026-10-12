@@ -30,6 +30,7 @@
         <polyline points="23 4 23 10 17 10" />
         <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
       </symbol>
+      <symbol id="i-activity" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></symbol>
       <symbol id="i-gear" viewBox="0 0 24 24">
         <circle cx="12" cy="12" r="3" />
         <path
@@ -43,6 +44,9 @@
           <svg class="icon"><use href="#i-chevron-left" /></svg>
         </button>
         <span id="list-title" class="section-title">Workspaces</span>
+        <button id="monitor-open" class="icon-btn" title="System monitor" aria-label="System monitor">
+          <svg class="icon"><use href="#i-activity" /></svg>
+        </button>
         <button id="settings-open" class="icon-btn" title="Settings" aria-label="Settings">
           <svg class="icon"><use href="#i-gear" /></svg>
         </button>
@@ -194,6 +198,15 @@
         <h2 id="settings-title">Settings</h2>
         <div id="settings-result" hidden></div>
         <div id="settings-body"></div>
+      </section>
+      <section id="monitor" hidden>
+        <div id="monitor-bar">
+          <button type="button" id="monitor-close" title="Back to the terminal (or quit btop with q)">
+            <svg class="icon"><use href="#i-arrow-left" /></svg>Back
+          </button>
+          <span id="monitor-title">System monitor</span>
+        </div>
+        <div id="monitor-terminal"></div>
       </section>
       <section id="diff" hidden>
         <div id="diff-bar">

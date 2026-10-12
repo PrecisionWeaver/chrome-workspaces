@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
-import { MAX_UPLOAD_BYTES, PROTOCOL, type ClientMessage, type ServerMessage } from '../../shared/protocol';
+import { MAX_UPLOAD_BYTES, MONITOR_SESSION, PROTOCOL, type ClientMessage, type ServerMessage } from '../../shared/protocol';
 import { isAuthorized, tokenFromProtocols, type AuthPolicy } from './auth';
 import type { ControlHub } from './control';
 import type { Session, SessionManager } from './session';
@@ -107,5 +107,9 @@ function handleConnection(ws: WebSocket, url: string, options: ServerOptions): v
       }
     }
   });
-  ws.on('close', detach);
+  ws.on('close', () => {
+    detach();
+    // Nobody is looking at the monitor, so stop it rather than leave it sampling in the background.
+    if (id === MONITOR_SESSION && session.attached === 0) options.sessions.remove(id);
+  });
 }

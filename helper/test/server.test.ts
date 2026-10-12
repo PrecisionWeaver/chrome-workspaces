@@ -109,4 +109,29 @@ describe('helper server', () => {
     expect(sessions.get('fresh')).toBeDefined();
     ws.close();
   });
+
+  it('ends the monitor when the last panel leaves, but keeps any other session running', async () => {
+    await start((id) => sessions.create({ id, command: '/bin/cat', args: [], cwd: tmpdir() }));
+    const open = async (id: string) => {
+      const ws = connect(`/attach?session=${id}`);
+      await new Promise((resolve) => ws.on('open', resolve));
+      return ws;
+    };
+    const first = await open('monitor');
+    const second = await open('monitor');
+    const workspace = await open('cat');
+    const monitor = sessions.get('monitor')!;
+
+    first.close();
+    await waitFor(() => monitor.attached === 1);
+    expect(sessions.get('monitor')).toBe(monitor);
+
+    second.close();
+    await waitFor(() => sessions.get('monitor') === undefined);
+    await waitFor(() => monitor.exited);
+
+    workspace.close();
+    await waitFor(() => sessions.get('cat')?.attached === 0);
+    expect(sessions.get('cat')).toBeDefined();
+  });
 });

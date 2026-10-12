@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Workspace } from '../../shared/protocol';
-import { launchSpec } from '../src/launch';
+import { launchSpec, monitorSpec } from '../src/launch';
 
 const workspace: Workspace = {
   id: 'ws-0123abcd',
@@ -81,5 +81,16 @@ describe('launchSpec', () => {
     const spec = launchSpec({ ...workspace, prompt: 'go' }, { shell: '/bin/zsh', resumeId: RESUME });
     expect(spec.args[3]).toBe(`${start(` --resume ${RESUME}`)}; exec /bin/zsh -l -i`);
     expect(spec.env).not.toHaveProperty('CW_PROMPT');
+  });
+});
+
+describe('monitorSpec', () => {
+  it('runs btop, or top without it, in a login shell that ends with the program', () => {
+    expect(monitorSpec('/bin/zsh', '/Users/me')).toEqual({
+      id: 'monitor',
+      command: '/bin/zsh',
+      args: ['-l', '-i', '-c', 'if command -v btop >/dev/null 2>&1; then exec btop; else exec top; fi'],
+      cwd: '/Users/me',
+    });
   });
 });

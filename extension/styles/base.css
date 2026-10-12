@@ -220,6 +220,7 @@ code {
 #create-bar button,
 #create-change,
 #diff-bar button,
+#monitor-bar button,
 #settings-bar button {
   display: inline-flex;
   align-items: center;
@@ -241,6 +242,7 @@ code {
 #create-bar button:hover,
 #create-change:hover,
 #diff-bar button:hover,
+#monitor-bar button:hover,
 #settings-bar button:hover {
   background: var(--raised);
   border-color: var(--border-strong);
@@ -248,12 +250,14 @@ code {
 
 #create-bar button:active,
 #diff-bar button:active,
+#monitor-bar button:active,
 #settings-bar button:active {
   background: var(--active);
 }
 
 #create-bar button .icon,
 #diff-bar button .icon,
+#monitor-bar button .icon,
 #settings-bar button .icon {
   flex: none;
   width: 14px;
@@ -263,6 +267,7 @@ code {
 /* The display above would otherwise win over the hidden attribute. */
 #create-bar button[hidden],
 #diff-bar button[hidden],
+#monitor-bar button[hidden],
 #settings-bar button[hidden] {
   display: none;
 }

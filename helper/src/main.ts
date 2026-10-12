@@ -1,13 +1,14 @@
 import { execFile, execFileSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
-import type { WorkspaceStatus } from '../../shared/protocol';
+import { MONITOR_SESSION, type WorkspaceStatus } from '../../shared/protocol';
 import { createAdmin, defaultIsManaged, defaultRunShell, defaultSpawnDetached } from './admin';
 import { createApi } from './api';
 import { DATA_DIR, HOST, LEGACY_SESSIONS_DIR, loadConfig, SESSIONS_DIR, PORT, SCROLLBACK_LIMIT } from './config';
 import { ControlHub } from './control';
-import { launchSpec } from './launch';
+import { launchSpec, monitorSpec } from './launch';
 import { importLegacySessions, readSessionStatus, lastTranscriptCwd, pruneSessions, watchSessionStatus, type WorkspaceSession } from './session-status';
 import { writeHooksFile } from './hooks-config';
 import { GH_BRANCH_PR, GH_PR_DETAILS, GH_PR_THREADS, PR_THREADS_QUERY } from './pr-details';
@@ -162,6 +163,7 @@ const server = await startServer({
   uploadDir: join(DATA_DIR, 'uploads'),
   api: createApi({ auth, store, control, sessions, defaultCwd: config.defaultCwd, statuses, reviews, repoDirs: config.repoDirs }),
   onUnknownSession: (id) => {
+    if (id === MONITOR_SESSION) return sessions.create(monitorSpec(shell, homedir()));
     const workspace = store.get(id);
     if (!workspace) return undefined;
     // A restored workspace has no session of its own yet, so it resumes the one it had.

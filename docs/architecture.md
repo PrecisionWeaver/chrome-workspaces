@@ -31,6 +31,7 @@ claude (per workspace) ──hooks──▶ hooks/session-state.ts ──▶ ~/.
 - **Cost figures are estimates** from assumed per-family rates in `shared/pricing.ts`, overridable under `pricing` in config. Unknown models show as unpriced rather than $0.
 - **Replayed scrollback is flagged, and its answers dropped.** Attaching replays saved output into a fresh xterm; terminal queries in it (device attributes, say) would be answered again and typed into the shell as stray `1;2c` text. The helper marks the replay (`replay: true` on `output`) and the panel drops whatever xterm emits while parsing it.
 - **The native-messaging host also starts the helper.** Settings cannot, because it talks to the helper and a stopped one is not listening. The host is launched by Chrome on demand, so a `start` request (`helper/src/start-helper.ts`) bootstraps the launchd plist, or kickstarts the agent if it is loaded but not running. The panel's offline notice sends it.
+- **The system monitor is a session that is not a workspace.** The id `monitor` (`MONITOR_SESSION` in `shared/protocol.ts`) is attached like any workspace, and the helper starts `btop` (or `top`) for it in `onUnknownSession`. `server.ts` ends it when the last panel detaches, and the panel's `monitor-view.ts` has its own xterm, so it never touches the workspace selection or list.
 - **Restarting the helper ends every terminal**, including a Claude session running inside one. The restart is a detached `sleep N; launchctl kickstart -k`, so the reply gets out first.
 
 ## Data and config

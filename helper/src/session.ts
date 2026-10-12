@@ -74,6 +74,11 @@ export class Session {
     };
   }
 
+  /** How many panels are watching this session. */
+  get attached(): number {
+    return this.dataListeners.size;
+  }
+
   write(data: string): void {
     if (!this.exited) this.pty.write(data);
   }

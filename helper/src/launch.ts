@@ -1,4 +1,4 @@
-import { MODEL_PATTERN, type Workspace } from '../../shared/protocol';
+import { MODEL_PATTERN, MONITOR_SESSION, type Workspace } from '../../shared/protocol';
 import type { SessionSpec } from './session';
 
 // The id is interpolated into a shell command, so only a bare session uuid is accepted.
@@ -14,6 +14,14 @@ export interface LaunchOptions {
   command?: string;
   /** A claude settings file that adds the status hooks, from `writeHooksFile`; null leaves claude without them. */
   hooksFile?: string | null;
+}
+
+/**
+ * The system monitor: btop when the login shell can find it, else top. The session ends when the program quits,
+ * and `server.ts` ends it when the panel stops looking, so nothing keeps sampling the machine unseen.
+ */
+export function monitorSpec(shell: string, cwd: string): SessionSpec {
+  return { id: MONITOR_SESSION, command: shell, args: ['-l', '-i', '-c', 'if command -v btop >/dev/null 2>&1; then exec btop; else exec top; fi'], cwd };
 }
 
 /**
