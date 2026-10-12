@@ -2,10 +2,11 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { lastTranscriptCwd, readMcStatus } from '../src/mc-status';
+import { importLegacySessions, lastTranscriptCwd, pruneSessions, readSessionStatus } from '../src/session-status';
+import { existsSync, readdirSync, utimesSync } from 'node:fs';
 
 function stateDir(files: Record<string, unknown>): string {
-  const dir = mkdtempSync(join(tmpdir(), 'cw-mc-'));
+  const dir = mkdtempSync(join(tmpdir(), 'cw-sessions-'));
   for (const [name, body] of Object.entries(files)) {
     writeFileSync(join(dir, name), typeof body === 'string' ? body : JSON.stringify(body));
   }
@@ -15,32 +16,32 @@ function stateDir(files: Record<string, unknown>): string {
 const ID_OLD = '11111111-1111-1111-1111-111111111111';
 const ID_NEW = '22222222-2222-2222-2222-222222222222';
 
-describe('readMcStatus', () => {
+describe('readSessionStatus', () => {
   it('uses the most recently started session per workspace', () => {
     const dir = stateDir({
       'a.json': { session_id: ID_OLD, cw_workspace_id: 'ws-1', status: 'idle', started_at: '2026-01-01T00:00:00Z' },
       'b.json': { session_id: ID_NEW, cw_workspace_id: 'ws-1', status: 'needs_input', started_at: '2026-01-02T00:00:00Z' },
     });
-    expect(readMcStatus(dir).get('ws-1')).toEqual({ status: 'needs_input', claudeSessionId: ID_NEW, browserAt: null, cwd: null, transcriptPath: null });
+    expect(readSessionStatus(dir).get('ws-1')).toEqual({ status: 'needs_input', claudeSessionId: ID_NEW, browserAt: null, cwd: null, transcriptPath: null });
   });
 
   it('reports no live status for ended sessions but keeps their id for resuming', () => {
     const dir = stateDir({ 'a.json': { session_id: ID_OLD, cw_workspace_id: 'ws-1', status: 'ended', started_at: '2026-01-01T00:00:00Z' } });
-    expect(readMcStatus(dir).get('ws-1')).toEqual({ status: null, claudeSessionId: ID_OLD, browserAt: null, cwd: null, transcriptPath: null });
+    expect(readSessionStatus(dir).get('ws-1')).toEqual({ status: null, claudeSessionId: ID_OLD, browserAt: null, cwd: null, transcriptPath: null });
   });
 
   it('reports when the session last used Claude in Chrome', () => {
     const dir = stateDir({
       'a.json': { session_id: ID_OLD, cw_workspace_id: 'ws-1', status: 'working', started_at: '2026-01-01T00:00:00Z', browser_at: '2026-01-01T00:05:00.000Z' },
     });
-    expect(readMcStatus(dir).get('ws-1')?.browserAt).toBe(Date.parse('2026-01-01T00:05:00.000Z'));
+    expect(readSessionStatus(dir).get('ws-1')?.browserAt).toBe(Date.parse('2026-01-01T00:05:00.000Z'));
   });
 
   it('reports the directory the session is working in', () => {
     const dir = stateDir({
       'a.json': { session_id: ID_OLD, cw_workspace_id: 'ws-1', status: 'working', started_at: '2026-01-01T00:00:00Z', cwd: '/repo/.worktrees/topic' },
     });
-    expect(readMcStatus(dir).get('ws-1')?.cwd).toBe('/repo/.worktrees/topic');
+    expect(readSessionStatus(dir).get('ws-1')?.cwd).toBe('/repo/.worktrees/topic');
   });
 
   it('skips sessions that are not in a workspace, and unreadable files', () => {
@@ -49,11 +50,11 @@ describe('readMcStatus', () => {
       'b.json': '{ broken',
       'notes.txt': 'ignored',
     });
-    expect(readMcStatus(dir).size).toBe(0);
+    expect(readSessionStatus(dir).size).toBe(0);
   });
 
-  it('returns nothing when Mission Control is not installed', () => {
-    expect(readMcStatus(join(tmpdir(), 'cw-mc-does-not-exist')).size).toBe(0);
+  it('returns nothing when there is no sessions folder', () => {
+    expect(readSessionStatus(join(tmpdir(), 'cw-sessions-does-not-exist')).size).toBe(0);
   });
 });
 
@@ -89,5 +90,52 @@ describe('lastTranscriptCwd', () => {
     // Nothing in the last 256 KB but filler without a directory, so the old one is out of reach.
     const bare = JSON.stringify({ pad: 'x'.repeat(2000) });
     expect(lastTranscriptCwd(transcript([JSON.stringify({ cwd: '/old' }), ...Array.from({ length: 300 }, () => bare)]))).toBeNull();
+  });
+});
+
+describe('pruneSessions', () => {
+  it('deletes state files untouched for a month, and keeps recent ones and other files', () => {
+    const dir = stateDir({ 'old.json': { session_id: ID_OLD }, 'new.json': { session_id: ID_NEW }, 'notes.txt': 'keep' });
+    const old = Date.now() / 1000 - 31 * 24 * 60 * 60;
+    for (const name of ['old.json', 'notes.txt']) utimesSync(join(dir, name), old, old);
+    pruneSessions(dir);
+    expect([existsSync(join(dir, 'old.json')), existsSync(join(dir, 'new.json')), existsSync(join(dir, 'notes.txt'))]).toEqual([false, true, true]);
+  });
+
+  it('does nothing for a folder that does not exist', () => {
+    expect(() => pruneSessions(join(tmpdir(), 'cw-sessions-does-not-exist'))).not.toThrow();
+  });
+});
+
+describe('importLegacySessions', () => {
+  it('brings over workspace sessions as ended, so they resume, and leaves the rest', () => {
+    const legacy = stateDir({
+      'a.json': {
+        session_id: ID_OLD,
+        cw_workspace_id: 'ws-1',
+        status: 'working',
+        started_at: '2026-01-01T00:00:00Z',
+        cwd: '/repo',
+        transcript_path: '/t.jsonl',
+        pid: 5,
+      },
+      'plain.json': { session_id: ID_NEW, status: 'idle' },
+      'unsafe.json': { session_id: '../x', cw_workspace_id: 'ws-2' },
+      'notes.txt': 'x',
+    });
+    const dir = stateDir({});
+    expect(importLegacySessions(legacy, dir)).toBe(1);
+    expect(readSessionStatus(dir).get('ws-1')).toEqual({ status: null, claudeSessionId: ID_OLD, browserAt: null, cwd: '/repo', transcriptPath: '/t.jsonl' });
+    expect(readdirSync(dir)).toEqual(['a.json']);
+  });
+
+  it('keeps a session the app already recorded, skips old ones, and copes with no legacy folder', () => {
+    const legacy = stateDir({ 'a.json': { session_id: ID_OLD, cw_workspace_id: 'ws-1' }, 'stale.json': { session_id: ID_NEW, cw_workspace_id: 'ws-2' } });
+    const old = Date.now() / 1000 - 31 * 24 * 60 * 60;
+    utimesSync(join(legacy, 'stale.json'), old, old);
+    const dir = stateDir({ 'a.json': { session_id: ID_OLD, cw_workspace_id: 'ws-1', status: 'working' } });
+    expect(importLegacySessions(legacy, dir)).toBe(0);
+    expect(readSessionStatus(dir).get('ws-1')?.status).toBe('working');
+    expect(importLegacySessions(join(tmpdir(), 'cw-sessions-does-not-exist'), dir)).toBe(0);
   });
 });

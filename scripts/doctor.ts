@@ -2,8 +2,9 @@ import { execFile } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
-import { AGENT_LABEL, DATA_DIR, HOST, loadConfig, MC_STATE_DIR, PORT, type HelperConfig } from '../helper/src/config';
+import { AGENT_LABEL, DATA_DIR, HOST, loadConfig, PORT, type HelperConfig } from '../helper/src/config';
 import { extensionIdFromManifest } from './extension-id';
+import { HOOK_SCRIPT, typeStrippingSupported } from '../helper/src/hooks-config';
 import { agentFile, hostManifest, hostWrapper } from './install-paths';
 
 // Checks an install from the command line, for when the panel cannot reach the helper to show its own checklist.
@@ -27,8 +28,11 @@ const version = (path: string) => (JSON.parse(readFileSync(path, 'utf8')) as { v
 
 const checks: [string, () => Promise<Result> | Result][] = [
   [
-    'Node 22 or newer',
-    () => (Number(process.versions.node.split('.')[0]) >= 22 ? pass(process.versions.node) : fail(process.versions.node, 'Install Node 22 or newer.')),
+    'Node 22.18 or newer',
+    () =>
+      typeStrippingSupported(process.versions.node)
+        ? pass(process.versions.node)
+        : fail(process.versions.node, 'Install Node 22.18 or newer; the status hooks need it.'),
   ],
   [
     'Config file',
@@ -109,11 +113,14 @@ const checks: [string, () => Promise<Result> | Result][] = [
         : fail('gh is missing or signed out, so review requests are empty.', 'Install gh, then run gh auth login.', true),
   ],
   [
-    'Claude Mission Control',
-    () =>
-      existsSync(MC_STATE_DIR)
-        ? pass(MC_STATE_DIR)
-        : fail('Not found, so there are no status dots, waiting counts, notifications, activity or costs.', 'Install Claude Mission Control.', true),
+    'Status hooks',
+    () => {
+      if (!typeStrippingSupported(process.versions.node)) return fail(`Node ${process.versions.node} cannot run the hook script.`, 'Use Node 22.18 or newer.');
+      if (!existsSync(HOOK_SCRIPT)) return fail(`${HOOK_SCRIPT} is missing.`, 'Restore it with git checkout.');
+      return existsSync(join(DATA_DIR, 'hooks.json'))
+        ? pass(join(DATA_DIR, 'hooks.json'))
+        : fail('The helper has not written hooks.json.', 'Run npm run agent:restart.');
+    },
   ],
 ];
 

@@ -8,7 +8,8 @@
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "noEmit": true
+    "noEmit": true,
+    "allowImportingTsExtensions": true
   },
-  "include": ["shared", "helper", "extension/src", "scripts", "vitest.config.ts"]
+  "include": ["shared", "helper", "hooks", "extension/src", "scripts", "vitest.config.ts"]
 }

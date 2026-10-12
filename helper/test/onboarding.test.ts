@@ -10,7 +10,7 @@ const ready: SetupInput = {
   repoRoots: [{ path: '~/code', exists: true }],
   switchShortcut: '⌃⇧→',
   workspaceCount: 2,
-  missionControl: true,
+  statusHooks: true,
   configProblems: [],
 };
 
@@ -19,7 +19,7 @@ describe('buildChecklist', () => {
     const items = buildChecklist(ready);
     expect(remaining(items)).toBe(0);
     expect(items.every((item) => item.fix === undefined)).toBe(true);
-    expect(items.map((item) => item.id)).toEqual(['agent', 'extension', 'config', 'mission-control', 'github', 'prompts', 'repos', 'shortcut', 'workspace']);
+    expect(items.map((item) => item.id)).toEqual(['agent', 'extension', 'config', 'status-hooks', 'github', 'prompts', 'repos', 'shortcut', 'workspace']);
   });
 
   it('says what is wrong and how to fix it, for each thing that is', () => {
@@ -58,12 +58,12 @@ describe('buildChecklist', () => {
     });
   });
 
-  it('lists ignored config entries, and says what is lost without Mission Control', () => {
+  it('lists ignored config entries, and says what is lost without the status hooks', () => {
     const by = Object.fromEntries(
-      buildChecklist({ ...ready, missionControl: false, configProblems: ['Unknown key "repoRoot" is ignored.'] }).map((item) => [item.id, item]),
+      buildChecklist({ ...ready, statusHooks: false, configProblems: ['Unknown key "repoRoot" is ignored.'] }).map((item) => [item.id, item]),
     );
     expect(by.config).toMatchObject({ ok: false, detail: 'Unknown key "repoRoot" is ignored.' });
     expect(by.config.fix).toContain('configuration.md');
-    expect(by['mission-control']).toMatchObject({ ok: false, detail: expect.stringContaining('status dots') });
+    expect(by['status-hooks']).toMatchObject({ ok: false, detail: expect.stringContaining('status dots') });
   });
 });

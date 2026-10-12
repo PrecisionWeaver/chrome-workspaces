@@ -13,8 +13,8 @@ export interface SetupInput {
   switchShortcut: string;
   /** Workspaces created so far. */
   workspaceCount: number;
-  /** Claude Mission Control is installed, so status dots and activity work. */
-  missionControl: boolean;
+  /** The hooks that report claude's status are set up, so status dots and activity work. */
+  statusHooks: boolean;
   /** Config entries the helper ignored. */
   configProblems: string[];
 }
@@ -58,15 +58,13 @@ export function buildChecklist(input: SetupInput): SetupItem[] {
       fix: input.configProblems.length === 0 ? undefined : 'Correct ~/.chrome-workspaces/config.json (see docs/configuration.md), then restart the helper.',
     },
     {
-      id: 'mission-control',
-      label: 'Claude Mission Control',
-      ok: input.missionControl,
-      detail: input.missionControl
-        ? 'Found, so workspaces show when claude is working or waiting.'
-        : 'Not found, so there are no status dots, waiting counts, notifications, activity or costs.',
-      fix: input.missionControl
-        ? undefined
-        : 'Install Claude Mission Control, which writes ~/.claude-mission-control/sessions. Everything else works without it.',
+      id: 'status-hooks',
+      label: 'Status hooks',
+      ok: input.statusHooks,
+      detail: input.statusHooks
+        ? 'Workspaces report when claude is working or waiting.'
+        : 'The hook script is missing or Node is older than 22.18, so there are no status dots, waiting counts, notifications, activity or costs.',
+      fix: input.statusHooks ? undefined : 'Use Node 22.18 or newer, then run npm run agent:restart. npm run doctor says which is wrong.',
     },
     {
       id: 'github',

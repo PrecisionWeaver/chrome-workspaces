@@ -21,8 +21,8 @@ export interface AdminOptions {
   sessions: SessionManager;
   store: WorkspaceStore;
   config: HelperConfig;
-  /** `mcStateDir` is where Claude Mission Control writes its session files, when it is installed. */
-  paths: { dataDir: string; uploadDir: string; logFile: string; configFile: string; workspacesFile: string; mcStateDir: string };
+  /** `hooksFile` is the claude settings file that adds the status hooks; null when they cannot run. */
+  paths: { dataDir: string; uploadDir: string; logFile: string; configFile: string; workspacesFile: string; hooksFile: string | null };
   port: number;
   /** Where this copy of the app is installed, for updating it; null when it is not a git checkout. */
   repoDir: string | null;
@@ -232,7 +232,7 @@ export function createAdmin(options: AdminOptions): AdminService {
         setup: {
           promptsFileExists: existsSync(config.promptsFile),
           repoRoots: config.repoRoots.map((path) => ({ path, exists: existsSync(path) })),
-          missionControl: existsSync(paths.mcStateDir),
+          statusHooks: paths.hooksFile !== null,
           configProblems: config.problems,
         },
       };

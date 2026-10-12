@@ -1,13 +1,15 @@
 import { execFile, execFileSync } from 'node:child_process';
+import { mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import type { WorkspaceStatus } from '../../shared/protocol';
 import { createAdmin, defaultIsManaged, defaultRunShell, defaultSpawnDetached } from './admin';
 import { createApi } from './api';
-import { DATA_DIR, HOST, loadConfig, MC_STATE_DIR, PORT, SCROLLBACK_LIMIT } from './config';
+import { DATA_DIR, HOST, LEGACY_SESSIONS_DIR, loadConfig, SESSIONS_DIR, PORT, SCROLLBACK_LIMIT } from './config';
 import { ControlHub } from './control';
 import { launchSpec } from './launch';
-import { readMcStatus, lastTranscriptCwd, watchMcStatus, type McWorkspaceStatus } from './mc-status';
+import { importLegacySessions, readSessionStatus, lastTranscriptCwd, pruneSessions, watchSessionStatus, type WorkspaceSession } from './session-status';
+import { writeHooksFile } from './hooks-config';
 import { GH_BRANCH_PR, GH_PR_DETAILS, GH_PR_THREADS, PR_THREADS_QUERY } from './pr-details';
 import { readPrompts } from './prompts';
 import { createGitService } from './git';
@@ -23,12 +25,18 @@ import { pruneUploads } from './uploads';
 const config = loadConfig();
 const shell = process.env.SHELL ?? '/bin/zsh';
 pruneUploads(join(DATA_DIR, 'uploads'));
+// The folder exists before the first hook runs, so its changes can be watched from the start.
+mkdirSync(SESSIONS_DIR, { recursive: true, mode: 0o700 });
+pruneSessions(SESSIONS_DIR);
+importLegacySessions(LEGACY_SESSIONS_DIR, SESSIONS_DIR);
+const hooksFile = writeHooksFile(DATA_DIR);
+if (!hooksFile) console.warn('status hooks are off: hooks/session-state.ts is missing or Node is older than 22.18');
 const store = new WorkspaceStore(join(DATA_DIR, 'workspaces.json'));
 const sessions = new SessionManager(SCROLLBACK_LIMIT);
 const auth = { token: loadOrCreateToken(DATA_DIR), allowedOrigins: [`chrome-extension://${config.extensionId}`] };
 
-let mcStatus: Map<string, McWorkspaceStatus> = readMcStatus(MC_STATE_DIR);
-const statuses = (): Record<string, WorkspaceStatus> => Object.fromEntries(store.list().map((ws) => [ws.id, mcStatus.get(ws.id)?.status ?? null]));
+let sessionState: Map<string, WorkspaceSession> = readSessionStatus(SESSIONS_DIR);
+const statuses = (): Record<string, WorkspaceStatus> => Object.fromEntries(store.list().map((ws) => [ws.id, sessionState.get(ws.id)?.status ?? null]));
 
 const REVIEW_POLL_MS = 5 * 60_000;
 const execFileAsync = promisify(execFile);
@@ -72,7 +80,7 @@ const admin = createAdmin({
     logFile: join(DATA_DIR, 'helper.log'),
     configFile: join(DATA_DIR, 'config.json'),
     workspacesFile: join(DATA_DIR, 'workspaces.json'),
-    mcStateDir: MC_STATE_DIR,
+    hooksFile,
   },
   port: PORT,
   repoDir: resolve(import.meta.dirname, '..', '..'),
@@ -83,8 +91,8 @@ const admin = createAdmin({
       return null;
     }
   })(),
-  status: (id) => ({ status: mcStatus.get(id)?.status ?? null, claudeSessionId: mcStatus.get(id)?.claudeSessionId ?? null }),
-  transcript: (id) => mcStatus.get(id)?.transcriptPath ?? null,
+  status: (id) => ({ status: sessionState.get(id)?.status ?? null, claudeSessionId: sessionState.get(id)?.claudeSessionId ?? null }),
+  transcript: (id) => sessionState.get(id)?.transcriptPath ?? null,
   runShell: defaultRunShell(shell),
   spawnDetached: defaultSpawnDetached,
   isManaged: defaultIsManaged,
@@ -128,19 +136,19 @@ const control = new ControlHub({
   git: createGitService(),
   admin,
   history,
-  resumeId: (id) => mcStatus.get(id)?.claudeSessionId ?? store.get(id)?.resume ?? null,
+  resumeId: (id) => sessionState.get(id)?.claudeSessionId ?? store.get(id)?.resume ?? null,
   workingDir: (id) => {
-    const session = mcStatus.get(id);
+    const session = sessionState.get(id);
     return (session?.transcriptPath && lastTranscriptCwd(session.transcriptPath)) || session?.cwd || null;
   },
 });
 reviews.onChange(() => control.broadcastState());
 reviews.start(REVIEW_POLL_MS);
-const stopWatching = watchMcStatus(MC_STATE_DIR, () => {
-  const previous = mcStatus;
-  mcStatus = readMcStatus(MC_STATE_DIR);
+const stopWatching = watchSessionStatus(SESSIONS_DIR, () => {
+  const previous = sessionState;
+  sessionState = readSessionStatus(SESSIONS_DIR);
   control.broadcastState();
-  for (const [id, { browserAt }] of mcStatus) {
+  for (const [id, { browserAt }] of sessionState) {
     if (browserAt !== null && browserAt !== previous.get(id)?.browserAt) control.send({ type: 'browser', id, at: browserAt });
   }
 });
@@ -157,8 +165,8 @@ const server = await startServer({
     const workspace = store.get(id);
     if (!workspace) return undefined;
     // A restored workspace has no session of its own yet, so it resumes the one it had.
-    const resumeId = mcStatus.get(id)?.claudeSessionId ?? workspace.resume ?? null;
-    const spec = launchSpec(workspace, { shell, resumeId, defaultModel: config.defaultModel, command: config.claudeCommand });
+    const resumeId = sessionState.get(id)?.claudeSessionId ?? workspace.resume ?? null;
+    const spec = launchSpec(workspace, { shell, resumeId, defaultModel: config.defaultModel, command: config.claudeCommand, hooksFile });
     const session = sessions.create(spec);
     if (spec.env?.CW_PROMPT !== undefined) store.clearPrompt(id);
     return session;

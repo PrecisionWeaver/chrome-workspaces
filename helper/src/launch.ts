@@ -12,13 +12,15 @@ export interface LaunchOptions {
   defaultModel?: string | null;
   /** `claudeCommand` from the config, already checked to be a bare command name. */
   command?: string;
+  /** A claude settings file that adds the status hooks, from `writeHooksFile`; null leaves claude without them. */
+  hooksFile?: string | null;
 }
 
 /**
  * Runs claude inside a login shell, leaving the shell behind when claude quits. A configured wrapper
  * command must pass claude's arguments through; claude itself is the fallback when the shell cannot find it.
  */
-export function launchSpec(workspace: Workspace, { shell, resumeId, defaultModel = null, command = 'claude' }: LaunchOptions): SessionSpec {
+export function launchSpec(workspace: Workspace, { shell, resumeId, defaultModel = null, command = 'claude', hooksFile = null }: LaunchOptions): SessionSpec {
   const env: Record<string, string> = { CW_WORKSPACE_ID: workspace.id };
   if (workspace.ticket) env.DEVSPACE_TICKET = workspace.ticket;
 
@@ -32,6 +34,11 @@ export function launchSpec(workspace: Workspace, { shell, resumeId, defaultModel
     env.CW_PROMPT = workspace.prompt;
     args += ' "$CW_PROMPT"';
     cleanup = 'unset CW_PROMPT; ';
+  }
+  // Through the environment, like the prompt, so the path is never parsed as shell syntax.
+  if (hooksFile) {
+    env.CW_HOOKS = hooksFile;
+    args += ' --settings "$CW_HOOKS"';
   }
   const claude = command === 'claude' ? `claude${args}` : `if command -v ${command} >/dev/null 2>&1; then ${command}${args}; else claude${args}; fi`;
 

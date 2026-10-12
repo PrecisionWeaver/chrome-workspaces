@@ -3,10 +3,9 @@
 ## Requirements
 
 - macOS and Google Chrome.
-- Node 22 or newer.
+- Node 22.18 or newer.
 - [Claude Code](https://docs.claude.com/en/docs/claude-code) (`claude`) on your login shell's `PATH`.
 - Optional: [`gh`](https://cli.github.com), signed in, for review requests, PR details and CI status.
-- Optional: Claude Mission Control, for status. Without it, workspaces work but show no status dots, waiting counts, notifications, activity or costs. The panel reads its session files from `~/.claude-mission-control/sessions`.
 
 ## Install
 
@@ -34,7 +33,7 @@ Settings then shows a **Getting started** checklist for anything still missing.
 npm run doctor
 ```
 
-It checks Node, the config, the extension ID and build, the native-messaging host, the LaunchAgent, whether the helper answers, `claude`, `gh` and Mission Control, and says how to fix each. It works when the panel can't reach the helper.
+It checks Node, the config, the extension ID and build, the native-messaging host, the LaunchAgent, whether the helper answers, `claude`, `gh` and the status hooks, and says how to fix each. It works when the panel can't reach the helper.
 
 If the panel reports *native messaging host not found*, rerun `npm run setup` and fully restart Chrome.
 

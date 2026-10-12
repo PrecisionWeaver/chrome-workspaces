@@ -458,7 +458,7 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       repoRoots: s.setup.repoRoots,
       switchShortcut,
       workspaceCount: s.sessions.length,
-      missionControl: s.setup.missionControl,
+      statusHooks: s.setup.statusHooks,
       configProblems: s.setup.configProblems,
     });
   }

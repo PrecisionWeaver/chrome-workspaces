@@ -1,5 +1,5 @@
 // Claude in Chrome's tools can't be told which window to use, so its tab group opens in whichever
-// window was last focused. The workspace that opened one is found by timing: Mission Control
+// window was last focused. The workspace that opened one is found by timing: the status hooks
 // records each Claude in Chrome tool call as it finishes, just after the call created the group.
 
 /** Claude in Chrome titles its groups "Claude", behind a status emoji. */

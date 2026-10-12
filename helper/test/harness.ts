@@ -122,7 +122,7 @@ export async function startHarness(): Promise<Harness> {
       logFile: join(dir, 'helper.log'),
       configFile: join(dir, 'config.json'),
       workspacesFile: join(dir, 'workspaces.json'),
-      mcStateDir: join(dir, 'mc-sessions'),
+      hooksFile: join(dir, 'hooks.json'),
     },
     port: 4178,
     // Read when used, so a test can point the admin service at a repository after it starts.

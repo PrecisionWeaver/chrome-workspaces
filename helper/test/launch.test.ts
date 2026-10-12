@@ -35,6 +35,13 @@ describe('launchSpec', () => {
     expect(spec.args[3]).toBe("if command -v wrap >/dev/null 2>&1; then wrap --model 'opus'; else claude --model 'opus'; fi; exec /bin/zsh -l -i");
   });
 
+  it('adds the status hooks through the environment, so the path is never parsed as shell syntax', () => {
+    const spec = launchSpec(workspace, { shell: '/bin/zsh', resumeId: RESUME, hooksFile: '/Users/me/.chrome-workspaces/hooks.json' });
+    expect(spec.args[3]).toBe(`${start(` --resume ${RESUME} --settings "$CW_HOOKS"`)}; exec /bin/zsh -l -i`);
+    expect(spec.env).toMatchObject({ CW_HOOKS: '/Users/me/.chrome-workspaces/hooks.json' });
+    expect(launchSpec(workspace, { shell: '/bin/zsh', resumeId: null, hooksFile: null }).env).not.toHaveProperty('CW_HOOKS');
+  });
+
   it('resumes a known Claude session by id', () => {
     expect(launchSpec(workspace, { shell: '/bin/zsh', resumeId: RESUME }).args[3]).toBe(`${start(` --resume ${RESUME}`)}; exec /bin/zsh -l -i`);
   });

@@ -137,8 +137,8 @@ export interface SystemSnapshot {
   setup: {
     promptsFileExists: boolean;
     repoRoots: { path: string; exists: boolean }[];
-    /** Claude Mission Control's session folder exists; status, attention, activity and cost all come from it. */
-    missionControl: boolean;
+    /** The status hooks are set up; status, attention, activity and cost all come from them. */
+    statusHooks: boolean;
     /** Config entries the helper ignored, and why. */
     configProblems: string[];
   };

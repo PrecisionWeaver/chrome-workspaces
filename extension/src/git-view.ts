@@ -21,7 +21,7 @@ export interface GitViewOptions {
   send(message: ControlToHelper): boolean;
   /** Called when the diff view opens or closes, so the panel can swap it with the terminal. */
   onToggle(): void;
-  /** What the workspace's claude is doing, from Mission Control. */
+  /** What the workspace's claude is doing, from its status hooks. */
   status(id: string): WorkspaceStatus;
 }
 

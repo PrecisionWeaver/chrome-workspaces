@@ -33,7 +33,7 @@ class HttpError extends Error {
   }
 }
 
-/** HTTP API for local tools (shell helpers, Mission Control). Every request needs the bearer token. */
+/** HTTP API for local tools (shell helpers and other local tools). Every request needs the bearer token. */
 export function createApi(options: ApiOptions): Handler {
   return (req, res) => {
     handle(req, options)
