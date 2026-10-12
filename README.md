@@ -37,3 +37,7 @@ That sets up, builds and starts the helper, then lists the Chrome steps: load `e
 | [docs/architecture.md](docs/architecture.md) | How the pieces fit, layout, security model |
 | [docs/development.md](docs/development.md) | Commands, workflow, conventions |
 | [docs/releasing.md](docs/releasing.md) | Cutting a release |
+
+## License
+
+[MIT](LICENSE)

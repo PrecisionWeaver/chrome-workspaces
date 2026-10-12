@@ -2,6 +2,7 @@
   "name": "chrome-workspaces",
   "version": "0.4.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "engines": {
     "node": ">=22"
