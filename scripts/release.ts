@@ -29,6 +29,7 @@ const current: string = JSON.parse(readFileSync('package.json', 'utf8')).version
 const version = nextVersion(current, bump);
 if (run('git', ['tag', '--list', `v${version}`])) throw new Error(`Tag v${version} already exists.`);
 
+step('npm', ['run', 'format:check']);
 step('npm', ['run', 'typecheck']);
 step('npm', ['test']);
 step('npm', ['run', 'build:extension']);
