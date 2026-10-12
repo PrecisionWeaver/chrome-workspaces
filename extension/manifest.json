@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Chrome Workspaces",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "A terminal per Chrome window, in the side panel.",
   "icons": {
     "16": "icons/icon-16.png",
@@ -9,8 +9,19 @@
     "48": "icons/icon-48.png",
     "128": "icons/icon-128.png"
   },
-  "permissions": ["sidePanel", "nativeMessaging", "storage", "tabs", "alarms", "tabGroups", "notifications", "contextMenus"],
-  "host_permissions": ["http://127.0.0.1/*"],
+  "permissions": [
+    "sidePanel",
+    "nativeMessaging",
+    "storage",
+    "tabs",
+    "alarms",
+    "tabGroups",
+    "notifications",
+    "contextMenus"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1/*"
+  ],
   "background": {
     "service_worker": "background.js",
     "type": "module"
