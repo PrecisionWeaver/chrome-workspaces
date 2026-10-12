@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Workspace } from '../../shared/protocol';
-import { launchSpec, monitorSpec } from '../src/launch';
+import { launchSpec, monitorSpec, shellSpec } from '../src/launch';
 
 const workspace: Workspace = {
   id: 'ws-0123abcd',
@@ -92,5 +92,13 @@ describe('monitorSpec', () => {
       args: ['-l', '-i', '-c', 'if command -v btop >/dev/null 2>&1; then exec btop; else exec top; fi'],
       cwd: '/Users/me',
     });
+  });
+});
+
+describe('shellSpec', () => {
+  it('is a plain login shell with no workspace in its environment, so a claude typed in it is not tracked', () => {
+    const spec = shellSpec('/bin/zsh', '/Users/me/code');
+    expect(spec).toEqual({ id: 'shell', command: '/bin/zsh', args: ['-l', '-i'], cwd: '/Users/me/code' });
+    expect(spec).not.toHaveProperty('env');
   });
 });

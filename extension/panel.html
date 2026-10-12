@@ -31,6 +31,10 @@
         <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
       </symbol>
       <symbol id="i-activity" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></symbol>
+      <symbol id="i-terminal" viewBox="0 0 24 24">
+        <polyline points="4 17 10 11 4 5" />
+        <line x1="12" y1="19" x2="20" y2="19" />
+      </symbol>
       <symbol id="i-gear" viewBox="0 0 24 24">
         <circle cx="12" cy="12" r="3" />
         <path
@@ -44,6 +48,9 @@
           <svg class="icon"><use href="#i-chevron-left" /></svg>
         </button>
         <span id="list-title" class="section-title">Workspaces</span>
+        <button id="shell-open" class="icon-btn" title="Terminal" aria-label="Terminal">
+          <svg class="icon"><use href="#i-terminal" /></svg>
+        </button>
         <button id="monitor-open" class="icon-btn" title="System monitor" aria-label="System monitor">
           <svg class="icon"><use href="#i-activity" /></svg>
         </button>
@@ -199,14 +206,14 @@
         <div id="settings-result" hidden></div>
         <div id="settings-body"></div>
       </section>
-      <section id="monitor" hidden>
-        <div id="monitor-bar">
-          <button type="button" id="monitor-close" title="Back to the terminal (or quit btop with q)">
+      <section id="tool" hidden>
+        <div id="tool-bar">
+          <button type="button" id="tool-close" title="Back to the workspace (quitting the program also goes back)">
             <svg class="icon"><use href="#i-arrow-left" /></svg>Back
           </button>
-          <span id="monitor-title">System monitor</span>
+          <span id="tool-title"></span>
         </div>
-        <div id="monitor-terminal"></div>
+        <div id="tool-terminal"></div>
       </section>
       <section id="diff" hidden>
         <div id="diff-bar">

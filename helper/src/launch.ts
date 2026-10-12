@@ -1,4 +1,4 @@
-import { MODEL_PATTERN, MONITOR_SESSION, type Workspace } from '../../shared/protocol';
+import { MODEL_PATTERN, MONITOR_SESSION, SHELL_SESSION, type Workspace } from '../../shared/protocol';
 import type { SessionSpec } from './session';
 
 // The id is interpolated into a shell command, so only a bare session uuid is accepted.
@@ -22,6 +22,14 @@ export interface LaunchOptions {
  */
 export function monitorSpec(shell: string, cwd: string): SessionSpec {
   return { id: MONITOR_SESSION, command: shell, args: ['-l', '-i', '-c', 'if command -v btop >/dev/null 2>&1; then exec btop; else exec top; fi'], cwd };
+}
+
+/**
+ * A plain login shell. It has no workspace id, so a `claude` typed into it is not tracked, and it stays running
+ * when the panel stops looking, so a dev server started in it keeps going; exiting the shell ends the session.
+ */
+export function shellSpec(shell: string, cwd: string): SessionSpec {
+  return { id: SHELL_SESSION, command: shell, args: ['-l', '-i'], cwd };
 }
 
 /**

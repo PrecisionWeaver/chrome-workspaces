@@ -23,7 +23,7 @@ import { ticketUrl } from '../../shared/jira';
 import { closeMenu, menuItem, openMenu } from './menu';
 import { loadPrefs, onPrefsChange, type Prefs } from './prefs';
 import { createPalette, type PaletteItem } from './palette';
-import { createMonitorView } from './monitor-view';
+import { createToolView } from './tool-view';
 import { createSettingsView } from './settings-view';
 import { makeSectionsResizable } from './sections';
 import { noteReviewTab, openInWorkspace } from './tabs';
@@ -66,7 +66,7 @@ function applyAppearance(prefs: Prefs | null = appearance): void {
   document.documentElement.dataset.theme = theme;
   document.documentElement.dataset.density = prefs.density;
   term.options.theme = theme === 'light' ? LIGHT_TERMINAL : DARK_TERMINAL;
-  monitor.setTheme(theme === 'light' ? LIGHT_TERMINAL : DARK_TERMINAL);
+  tools.setTheme(theme === 'light' ? LIGHT_TERMINAL : DARK_TERMINAL);
 }
 void loadPrefs().then(applyAppearance);
 onPrefsChange(applyAppearance);
@@ -154,7 +154,7 @@ const creator = createCreateView({
     if (creator.isOpen) {
       git.close();
       settings.close();
-      monitor.close();
+      tools.close();
     }
     render();
   },
@@ -168,7 +168,7 @@ const git = createGitView({
     if (git.isOpen) {
       creator.close();
       settings.close();
-      monitor.close();
+      tools.close();
     }
     render();
   },
@@ -179,14 +179,14 @@ const settings = createSettingsView({
     if (settings.isOpen) {
       creator.close();
       git.close();
-      monitor.close();
+      tools.close();
     }
     render();
   },
 });
-const monitor = createMonitorView({
+const tools = createToolView({
   onToggle() {
-    if (monitor.isOpen) {
+    if (tools.isOpen) {
       creator.close();
       git.close();
       settings.close();
@@ -194,7 +194,12 @@ const monitor = createMonitorView({
     render();
   },
 });
-$<HTMLButtonElement>('monitor-open').addEventListener('click', () => (monitor.isOpen ? monitor.close() : monitor.show()));
+for (const [id, tool] of [
+  ['monitor-open', 'monitor'],
+  ['shell-open', 'shell'],
+] as const) {
+  $<HTMLButtonElement>(id).addEventListener('click', () => (tools.current === tool ? tools.close() : tools.show(tool)));
+}
 $<HTMLButtonElement>('settings-open').addEventListener('click', () => (settings.isOpen ? settings.close() : settings.show()));
 
 // Which workspace this window shows when it holds several; chosen from the list, or by the tab being worked in.
@@ -287,12 +292,12 @@ function render(): void {
     creator.close();
     git.close();
     settings.close();
-    monitor.close();
+    tools.close();
   }
   shownId = workspace?.id;
   git.setWorkspace(workspace);
   git.renderStatus();
-  const overlay = creator.isOpen || git.isOpen || settings.isOpen || monitor.isOpen;
+  const overlay = creator.isOpen || git.isOpen || settings.isOpen || tools.isOpen;
   pickerEl.hidden = overlay || workspace !== undefined;
   terminalEl.hidden = overlay || workspace === undefined;
   if (workspace) attach(workspace);
@@ -804,7 +809,8 @@ send({ type: 'system' });
 function paletteItems(): PaletteItem[] {
   const items: PaletteItem[] = [
     { kind: 'Action', label: 'New workspace', hint: 'Start a workspace', run: () => creator.show() },
-    { kind: 'Action', label: 'System monitor', hint: 'btop, in the panel', run: () => monitor.show() },
+    { kind: 'Action', label: 'Terminal', hint: 'A plain shell, not tied to a workspace', run: () => tools.show('shell') },
+    { kind: 'Action', label: 'System monitor', hint: 'btop, in the panel', run: () => tools.show('monitor') },
     { kind: 'Action', label: 'Open settings', hint: 'Helper, sessions, housekeeping', run: () => settings.show() },
     { kind: 'Action', label: 'Refresh review requests', run: () => send({ type: 'refreshReviews' }) },
     { kind: 'Action', label: 'Refresh source control', run: () => git.refresh() },

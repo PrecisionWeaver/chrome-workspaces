@@ -21,6 +21,9 @@ export type WorkspaceColor = (typeof WORKSPACE_COLORS)[number];
 /** The id of the helper session that runs the system monitor. Workspace ids are `ws-` and eight hex digits, so none can collide. */
 export const MONITOR_SESSION = 'monitor';
 
+/** The id of the helper session that runs a plain login shell, for a command line that belongs to no workspace. */
+export const SHELL_SESSION = 'shell';
+
 export type ClientMessage =
   | { type: 'input'; data: string }
   | { type: 'resize'; cols: number; rows: number }

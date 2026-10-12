@@ -134,4 +134,28 @@ describe('helper server', () => {
     await waitFor(() => sessions.get('cat')?.attached === 0);
     expect(sessions.get('cat')).toBeDefined();
   });
+
+  it('keeps the shell running when the panel leaves, and reattaches to it with what it printed', async () => {
+    await start((id) => sessions.create({ id, command: '/bin/cat', args: [], cwd: tmpdir() }));
+    const first = connect('/attach?session=shell');
+    await new Promise((resolve) => first.on('open', resolve));
+    const shell = sessions.get('shell')!;
+    first.send(JSON.stringify({ type: 'input', data: 'still-here\r' }));
+    await waitFor(() => shell.attached === 1);
+    first.close();
+    await waitFor(() => shell.attached === 0);
+    expect(sessions.get('shell')).toBe(shell);
+    expect(shell.exited).toBe(false);
+
+    let replayed = '';
+    const second = connect('/attach?session=shell');
+    second.on('message', (raw) => {
+      const msg = JSON.parse(raw.toString()) as ServerMessage;
+      if (msg.type === 'output' && msg.replay) replayed += msg.data;
+    });
+    await new Promise((resolve) => second.on('open', resolve));
+    await waitFor(() => replayed.includes('still-here'));
+    expect(sessions.get('shell')).toBe(shell);
+    second.close();
+  });
 });
