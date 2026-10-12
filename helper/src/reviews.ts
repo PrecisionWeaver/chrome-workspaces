@@ -114,7 +114,7 @@ export function parseReviewRequests(jsons: readonly string[]): ReviewRequest[] {
 
 /** Keeps the review-request list fresh. A failed fetch keeps the last good list and records why. */
 export class ReviewsPoller {
-  private current: ReviewsState = { items: [], error: null, fetchedAt: null };
+  private current: Omit<ReviewsState, 'refreshing'> = { items: [], error: null, fetchedAt: null };
   private inFlight: Promise<void> | null = null;
   private timer: ReturnType<typeof setInterval> | undefined;
   private readonly listeners = new Set<() => void>();
@@ -128,11 +128,12 @@ export class ReviewsPoller {
   ) {}
 
   state(): ReviewsState {
-    return { ...this.current, items: [...this.current.items] };
+    return { ...this.current, items: [...this.current.items], refreshing: this.inFlight !== null };
   }
 
   refresh(): Promise<void> {
-    this.inFlight ??= this.fetchJson()
+    if (this.inFlight) return this.inFlight;
+    this.inFlight = this.fetchJson()
       .then(parseReviewRequests)
       .then((items) => this.withMergeStatus(items))
       .then(
@@ -147,6 +148,8 @@ export class ReviewsPoller {
         this.inFlight = null;
         for (const listener of this.listeners) listener();
       });
+    // Tell the panels now, so they can disable their refresh buttons until this finishes.
+    for (const listener of this.listeners) listener();
     return this.inFlight;
   }
 

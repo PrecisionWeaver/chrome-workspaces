@@ -75,7 +75,7 @@ systemDark.addEventListener('change', () => applyAppearance());
 let myWindowId: number | undefined;
 let workspaces: Workspace[] = [];
 let statuses: Record<string, WorkspaceStatus> = {};
-let reviews: ReviewsState = { items: [], error: null, fetchedAt: null };
+let reviews: ReviewsState = { items: [], error: null, fetchedAt: null, refreshing: false };
 let history: HistoryEntry[] = [];
 // The Jira site from the config, learned from the system snapshot; null hides every ticket link.
 let jiraBase: string | null = null;

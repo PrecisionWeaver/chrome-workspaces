@@ -321,6 +321,8 @@ export interface ReviewsState {
   /** Why the last fetch failed; `items` then still holds the last good list. */
   error: string | null;
   fetchedAt: string | null;
+  /** A fetch is running; the panel disables its refresh button until it finishes. */
+  refreshing: boolean;
 }
 
 export interface PrReview {

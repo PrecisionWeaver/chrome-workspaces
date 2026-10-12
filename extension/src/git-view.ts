@@ -44,6 +44,8 @@ export interface GitView {
 }
 
 const POLL_MS = 5000;
+// The longest the refresh button waits for a status answer before it frees itself.
+const REFRESH_TIMEOUT_MS = 30_000;
 // CI changes slowly and each check is a call to GitHub, so it is asked about less often than status.
 const CHECKS_MS = 60_000;
 // A discard button asks twice; it disarms after this long.
@@ -130,11 +132,15 @@ export function createGitView({ send, onToggle, status }: GitViewOptions): GitVi
   const messageInput = $<HTMLTextAreaElement>('git-message');
   const saveButton = $<HTMLButtonElement>('git-save-btn');
   const noticeEl = $<HTMLDivElement>('git-notice');
+  const refreshButton = $<HTMLButtonElement>('git-refresh');
 
   let workspaceId: string | null = null;
   let state: GitState | null = null;
   let error: string | null = null;
   let loaded = false;
+  // A status request is out; the refresh button waits for its answer.
+  let refreshing = false;
+  let refreshTimer: ReturnType<typeof setTimeout> | undefined;
   // Path → "XY" from the previous answer, to spot what changed since.
   let previous = new Map<string, string>();
   const fresh = new Set<string>();
@@ -155,8 +161,17 @@ export function createGitView({ send, onToggle, status }: GitViewOptions): GitVi
 
   const collapsed = () => section.classList.contains('collapsed');
 
+  function setRefreshing(on: boolean): void {
+    refreshing = on;
+    refreshButton.disabled = on;
+    clearTimeout(refreshTimer);
+    // If the answer never comes (the helper restarted mid-request), do not leave the button dead.
+    if (on) refreshTimer = setTimeout(() => setRefreshing(false), REFRESH_TIMEOUT_MS);
+  }
+
   function refresh(): void {
-    if (!workspaceId || collapsed()) return;
+    if (!workspaceId || collapsed() || refreshing) return;
+    setRefreshing(true);
     send({ type: 'git', id: workspaceId });
     if (Date.now() - checksAt > CHECKS_MS) {
       checksAt = Date.now();
@@ -460,7 +475,7 @@ export function createGitView({ send, onToggle, status }: GitViewOptions): GitVi
     void chrome.storage.local.set({ gitCollapsed: nowCollapsed });
     if (!nowCollapsed) refresh();
   });
-  $<HTMLButtonElement>('git-refresh').addEventListener('click', refresh);
+  refreshButton.addEventListener('click', refresh);
   void chrome.storage.local.get('gitCollapsed').then(({ gitCollapsed }) => {
     section.classList.toggle('collapsed', gitCollapsed === true);
     refresh();
@@ -492,12 +507,15 @@ export function createGitView({ send, onToggle, status }: GitViewOptions): GitVi
       loaded = false;
       previous = new Map();
       fresh.clear();
+      // The old workspace's answer will be ignored, so do not wait for it.
+      setRefreshing(false);
       closeQuietly();
       render();
       refresh();
     },
     setState(message) {
       if (message.id !== workspaceId) return;
+      setRefreshing(false);
       state = message.state;
       error = message.error;
       // A different branch has different checks, so ask again at once.

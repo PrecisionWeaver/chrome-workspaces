@@ -46,7 +46,7 @@ describe('control channel', () => {
       type: 'state',
       workspaces: [expect.objectContaining({ id: a.id })],
       statuses: { [a.id]: 'needs_input' },
-      reviews: { items: [], error: null, fetchedAt: null },
+      reviews: { items: [], error: null, fetchedAt: null, refreshing: false },
     });
     ws.close();
   });

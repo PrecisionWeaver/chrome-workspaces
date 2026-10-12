@@ -54,7 +54,7 @@ export function createLauncher({ send, create, closeCreate, selectedUrl, openWor
   const facetButtons = [...document.querySelectorAll<HTMLButtonElement>('#reviews-tools .facet')];
   const reviewsRefresh = $<HTMLButtonElement>('reviews-refresh');
 
-  let lastReviews: ReviewsState = { items: [], error: null, fetchedAt: null };
+  let lastReviews: ReviewsState = { items: [], error: null, fetchedAt: null, refreshing: false };
   let lastWorkspaces: readonly Workspace[] = [];
   // Deselected values are stored rather than selected ones, so new authors and repos show up.
   const hidden: Record<Facet, Set<string>> = { author: new Set(), repo: new Set(), status: new Set() };
@@ -153,6 +153,7 @@ export function createLauncher({ send, create, closeCreate, selectedUrl, openWor
     renderFacets(state.items);
     const count = items.length === state.items.length ? `${items.length}` : `${items.length} of ${state.items.length}`;
     reviewsTitle.textContent = `Review requests (${count})`;
+    reviewsRefresh.disabled = state.refreshing;
     reviewsRefresh.title = state.fetchedAt ? `Refresh review requests (updated ${relative(state.fetchedAt)})` : 'Refresh review requests';
     reviewsError.hidden = state.error === null;
     reviewsError.textContent = state.error?.split('\n')[0] ?? '';

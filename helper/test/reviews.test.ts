@@ -76,12 +76,13 @@ describe('ReviewsPoller', () => {
     const poller = new ReviewsPoller(async () => [GH]);
     let changes = 0;
     poller.onChange(() => changes++);
-    expect(poller.state()).toEqual({ items: [], error: null, fetchedAt: null });
+    expect(poller.state()).toEqual({ items: [], error: null, fetchedAt: null, refreshing: false });
     await poller.refresh();
     expect(poller.state().items.map((r) => r.number)).toEqual([2, 1]);
     expect(poller.state().error).toBeNull();
     expect(poller.state().fetchedAt).not.toBeNull();
-    expect(changes).toBe(1);
+    // Once when the fetch starts, once when it ends.
+    expect(changes).toBe(2);
   });
 
   it('keeps the last good list and reports the error when a fetch fails', async () => {
@@ -111,6 +112,17 @@ describe('ReviewsPoller', () => {
     });
     await Promise.all([poller.refresh(), poller.refresh()]);
     expect(calls).toBe(1);
+  });
+
+  it('reports refreshing from the moment a fetch starts until it ends, notifying at both', async () => {
+    const poller = new ReviewsPoller(async () => [GH]);
+    const seen: boolean[] = [];
+    poller.onChange(() => seen.push(poller.state().refreshing));
+    const done = poller.refresh();
+    expect(poller.state().refreshing).toBe(true);
+    await done;
+    expect(poller.state().refreshing).toBe(false);
+    expect(seen).toEqual([true, false]);
   });
 });
 
