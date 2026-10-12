@@ -62,7 +62,7 @@ const admin = createAdmin({
   sessions,
   store,
   config,
-  paths: { dataDir: DATA_DIR, uploadDir: join(DATA_DIR, 'uploads'), logFile: join(DATA_DIR, 'helper.log'), configFile: join(DATA_DIR, 'config.json'), workspacesFile: join(DATA_DIR, 'workspaces.json') },
+  paths: { dataDir: DATA_DIR, uploadDir: join(DATA_DIR, 'uploads'), logFile: join(DATA_DIR, 'helper.log'), configFile: join(DATA_DIR, 'config.json'), workspacesFile: join(DATA_DIR, 'workspaces.json'), mcStateDir: MC_STATE_DIR },
   port: PORT,
   repoDir: resolve(import.meta.dirname, '..', '..'),
   commit: (() => {
@@ -128,7 +128,7 @@ const server = await startServer({
     if (!workspace) return undefined;
     // A restored workspace has no session of its own yet, so it resumes the one it had.
     const resumeId = mcStatus.get(id)?.claudeSessionId ?? workspace.resume ?? null;
-    const spec = launchSpec(workspace, { shell, resumeId, defaultModel: config.defaultModel });
+    const spec = launchSpec(workspace, { shell, resumeId, defaultModel: config.defaultModel, command: config.claudeCommand });
     const session = sessions.create(spec);
     if (spec.env?.CW_PROMPT !== undefined) store.clearPrompt(id);
     return session;
@@ -136,6 +136,7 @@ const server = await startServer({
 });
 
 console.log(`chrome-workspaces helper on ${HOST}:${server.port} for extension ${config.extensionId}`);
+for (const problem of config.problems) console.warn(`config: ${problem}`);
 
 function shutdown(): void {
   stopWatching();

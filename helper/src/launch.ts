@@ -10,13 +10,15 @@ export interface LaunchOptions {
   resumeId: string | null;
   /** Used by workspaces that did not pick a model. */
   defaultModel?: string | null;
+  /** `claudeCommand` from the config, already checked to be a bare command name. */
+  command?: string;
 }
 
 /**
- * Runs claude inside a login shell, leaving the shell behind when claude quits. Prefers the
- * `hr` compression-proxy launcher when the login shell can find it; `hr` passes claude args through.
+ * Runs claude inside a login shell, leaving the shell behind when claude quits. A configured wrapper
+ * command must pass claude's arguments through; claude itself is the fallback when the shell cannot find it.
  */
-export function launchSpec(workspace: Workspace, { shell, resumeId, defaultModel = null }: LaunchOptions): SessionSpec {
+export function launchSpec(workspace: Workspace, { shell, resumeId, defaultModel = null, command = 'claude' }: LaunchOptions): SessionSpec {
   const env: Record<string, string> = { CW_WORKSPACE_ID: workspace.id };
   if (workspace.ticket) env.DEVSPACE_TICKET = workspace.ticket;
 
@@ -31,7 +33,7 @@ export function launchSpec(workspace: Workspace, { shell, resumeId, defaultModel
     args += ' "$CW_PROMPT"';
     cleanup = 'unset CW_PROMPT; ';
   }
-  const claude = `if command -v hr >/dev/null 2>&1; then hr${args}; else claude${args}; fi`;
+  const claude = command === 'claude' ? `claude${args}` : `if command -v ${command} >/dev/null 2>&1; then ${command}${args}; else claude${args}; fi`;
 
   return {
     id: workspace.id,

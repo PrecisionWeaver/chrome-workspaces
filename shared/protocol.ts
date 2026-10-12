@@ -116,6 +116,7 @@ export interface SystemSnapshot {
     defaultCwd: string;
     promptsFile: string;
     defaultModel: string | null;
+    claudeCommand: string;
     repoRoots: string[];
     repoDirs: Record<string, string>;
     watchRepos: string[];
@@ -129,7 +130,14 @@ export interface SystemSnapshot {
   warnings: GuardrailWarning[];
   reviews: { fetchedAt: string | null; count: number; error: string | null };
   /** Facts about the install that only the helper can see, for the setup checklist. */
-  setup: { promptsFileExists: boolean; repoRoots: { path: string; exists: boolean }[] };
+  setup: {
+    promptsFileExists: boolean;
+    repoRoots: { path: string; exists: boolean }[];
+    /** Claude Mission Control's session folder exists; status, attention, activity and cost all come from it. */
+    missionControl: boolean;
+    /** Config entries the helper ignored, and why. */
+    configProblems: string[];
+  };
 }
 
 /** Whether this copy of the app is behind its remote, and whether it is safe to fast-forward. */

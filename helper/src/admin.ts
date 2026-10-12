@@ -21,7 +21,8 @@ export interface AdminOptions {
   sessions: SessionManager;
   store: WorkspaceStore;
   config: HelperConfig;
-  paths: { dataDir: string; uploadDir: string; logFile: string; configFile: string; workspacesFile: string };
+  /** `mcStateDir` is where Claude Mission Control writes its session files, when it is installed. */
+  paths: { dataDir: string; uploadDir: string; logFile: string; configFile: string; workspacesFile: string; mcStateDir: string };
   port: number;
   /** Where this copy of the app is installed, for updating it; null when it is not a git checkout. */
   repoDir: string | null;
@@ -211,6 +212,7 @@ export function createAdmin(options: AdminOptions): AdminService {
           defaultCwd: config.defaultCwd,
           promptsFile: config.promptsFile,
           defaultModel: config.defaultModel,
+          claudeCommand: config.claudeCommand,
           repoRoots: config.repoRoots,
           repoDirs: config.repoDirs,
           watchRepos: config.watchRepos,
@@ -219,7 +221,12 @@ export function createAdmin(options: AdminOptions): AdminService {
           jiraBaseUrl: config.jiraBaseUrl,
         },
         reviews: { fetchedAt: reviews.fetchedAt, count: reviews.items.length, error: reviews.error },
-        setup: { promptsFileExists: existsSync(config.promptsFile), repoRoots: config.repoRoots.map((path) => ({ path, exists: existsSync(path) })) },
+        setup: {
+          promptsFileExists: existsSync(config.promptsFile),
+          repoRoots: config.repoRoots.map((path) => ({ path, exists: existsSync(path) })),
+          missionControl: existsSync(paths.mcStateDir),
+          configProblems: config.problems,
+        },
       };
     },
 

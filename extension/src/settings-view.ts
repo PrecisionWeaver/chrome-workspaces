@@ -334,6 +334,7 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       row('Default directory', mono(config.defaultCwd)),
       row('Prompts file', mono(config.promptsFile)),
       row('Default model', config.defaultModel ?? 'claude\'s own'),
+      row('Command', config.claudeCommand),
       row('Repo folders', mono(config.repoRoots.join('\n') || 'none')),
       row('Repo directories', mono(map(config.repoDirs))),
       row('Watched repos', mono(config.watchRepos.join('\n') || 'none')),
@@ -380,6 +381,8 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       repoRoots: s.setup.repoRoots,
       switchShortcut,
       workspaceCount: s.sessions.length,
+      missionControl: s.setup.missionControl,
+      configProblems: s.setup.configProblems,
     });
   }
 

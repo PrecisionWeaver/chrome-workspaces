@@ -21,13 +21,18 @@ const workspace: Workspace = {
   createdAt: '2026-01-01T00:00:00Z',
 };
 const RESUME = '169128c8-8b10-48e0-993f-a743c8fad9ef';
-const start = (args = '') => `if command -v hr >/dev/null 2>&1; then hr${args}; else claude${args}; fi`;
+const start = (args = '') => `claude${args}`;
 
 describe('launchSpec', () => {
-  it('starts hr, falling back to claude, in a login shell that remains after it quits', () => {
+  it('starts claude in a login shell that remains after it quits', () => {
     const spec = launchSpec(workspace, { shell: '/bin/zsh', resumeId: null });
     expect(spec).toMatchObject({ id: 'ws-0123abcd', command: '/bin/zsh', cwd: '/Users/me/project' });
     expect(spec.args).toEqual(['-l', '-i', '-c', `${start()}; exec /bin/zsh -l -i`]);
+  });
+
+  it('starts a configured wrapper with the same arguments, falling back to claude when the shell cannot find it', () => {
+    const spec = launchSpec({ ...workspace, model: 'opus' }, { shell: '/bin/zsh', resumeId: null, command: 'wrap' });
+    expect(spec.args[3]).toBe("if command -v wrap >/dev/null 2>&1; then wrap --model 'opus'; else claude --model 'opus'; fi; exec /bin/zsh -l -i");
   });
 
   it('resumes a known Claude session by id', () => {

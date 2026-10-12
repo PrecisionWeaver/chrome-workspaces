@@ -10,6 +10,8 @@ const ready: SetupInput = {
   repoRoots: [{ path: '~/code', exists: true }],
   switchShortcut: '⌃⇧→',
   workspaceCount: 2,
+  missionControl: true,
+  configProblems: [],
 };
 
 describe('buildChecklist', () => {
@@ -17,7 +19,7 @@ describe('buildChecklist', () => {
     const items = buildChecklist(ready);
     expect(remaining(items)).toBe(0);
     expect(items.every((item) => item.fix === undefined)).toBe(true);
-    expect(items.map((item) => item.id)).toEqual(['agent', 'extension', 'github', 'prompts', 'repos', 'shortcut', 'workspace']);
+    expect(items.map((item) => item.id)).toEqual(['agent', 'extension', 'config', 'mission-control', 'github', 'prompts', 'repos', 'shortcut', 'workspace']);
   });
 
   it('says what is wrong and how to fix it, for each thing that is', () => {
@@ -36,5 +38,12 @@ describe('buildChecklist', () => {
     const missing = buildChecklist({ ...ready, repoRoots: [{ path: '~/a', exists: true }, { path: '~/b', exists: false }, { path: '~/c', exists: false }] }).find((i) => i.id === 'repos')!;
     expect(missing).toMatchObject({ ok: false, detail: 'Not found: ~/b, ~/c.' });
     expect(buildChecklist({ ...ready, repoRoots: [] }).find((i) => i.id === 'repos')).toMatchObject({ ok: false, detail: expect.stringContaining('None are configured') });
+  });
+
+  it('lists ignored config entries, and says what is lost without Mission Control', () => {
+    const by = Object.fromEntries(buildChecklist({ ...ready, missionControl: false, configProblems: ['Unknown key "repoRoot" is ignored.'] }).map((item) => [item.id, item]));
+    expect(by.config).toMatchObject({ ok: false, detail: 'Unknown key "repoRoot" is ignored.' });
+    expect(by.config.fix).toContain('configuration.md');
+    expect(by['mission-control']).toMatchObject({ ok: false, detail: expect.stringContaining('status dots') });
   });
 });

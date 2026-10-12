@@ -13,6 +13,10 @@ export interface SetupInput {
   switchShortcut: string;
   /** Workspaces created so far. */
   workspaceCount: number;
+  /** Claude Mission Control is installed, so status dots and activity work. */
+  missionControl: boolean;
+  /** Config entries the helper ignored. */
+  configProblems: string[];
 }
 
 export interface SetupItem {
@@ -42,6 +46,20 @@ export function buildChecklist(input: SetupInput): SetupItem[] {
       ok: input.helperExtensionId === input.extensionId,
       detail: input.helperExtensionId === input.extensionId ? 'The extension IDs agree.' : `The helper expects ${input.helperExtensionId}, but this extension is ${input.extensionId}.`,
       fix: input.helperExtensionId === input.extensionId ? undefined : 'Run npm run setup, then reload the extension.',
+    },
+    {
+      id: 'config',
+      label: 'Config file',
+      ok: input.configProblems.length === 0,
+      detail: input.configProblems.length === 0 ? 'Every entry is understood.' : input.configProblems.join(' '),
+      fix: input.configProblems.length === 0 ? undefined : 'Correct ~/.chrome-workspaces/config.json (see docs/configuration.md), then restart the helper.',
+    },
+    {
+      id: 'mission-control',
+      label: 'Claude Mission Control',
+      ok: input.missionControl,
+      detail: input.missionControl ? 'Found, so workspaces show when claude is working or waiting.' : 'Not found, so there are no status dots, waiting counts, notifications, activity or costs.',
+      fix: input.missionControl ? undefined : 'Install Claude Mission Control, which writes ~/.claude-mission-control/sessions. Everything else works without it.',
     },
     {
       id: 'github',

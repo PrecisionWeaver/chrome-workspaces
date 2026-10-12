@@ -62,6 +62,7 @@ export async function startHarness(): Promise<Harness> {
   const store = new WorkspaceStore(join(dir, 'workspaces.json'));
   const sessions = new SessionManager(10_000);
   const fakes = {
+    configProblems: [] as string[],
     statuses: {} as Record<string, WorkspaceStatus>,
     reviews: [] as ReviewRequest[],
     reviewRefreshes: 0,
@@ -101,8 +102,8 @@ export async function startHarness(): Promise<Harness> {
   const admin = createAdmin({
     sessions,
     store,
-    config: { extensionId: 'abcdefghijklmnopabcdefghijklmnop', defaultCwd, promptsFile: '/p.md', defaultModel: null, limits: { memoryWarnMb: 4096, idleServerHours: 4 }, pricing: { opus: { input: 10, output: 50 } }, jiraBaseUrl: null, repoRoots: [], repoDirs: {}, watchRepos: [] },
-    paths: { dataDir: dir, uploadDir: join(dir, 'uploads'), logFile: join(dir, 'helper.log'), configFile: join(dir, 'config.json'), workspacesFile: join(dir, 'workspaces.json') },
+    config: { extensionId: 'abcdefghijklmnopabcdefghijklmnop', defaultCwd, promptsFile: '/p.md', defaultModel: null, limits: { memoryWarnMb: 4096, idleServerHours: 4 }, pricing: { opus: { input: 10, output: 50 } }, jiraBaseUrl: null, repoRoots: [], repoDirs: {}, watchRepos: [], claudeCommand: 'claude', problems: fakes.configProblems },
+    paths: { dataDir: dir, uploadDir: join(dir, 'uploads'), logFile: join(dir, 'helper.log'), configFile: join(dir, 'config.json'), workspacesFile: join(dir, 'workspaces.json'), mcStateDir: join(dir, 'mc-sessions') },
     port: 4178,
     // Read when used, so a test can point the admin service at a repository after it starts.
     get repoDir() {
