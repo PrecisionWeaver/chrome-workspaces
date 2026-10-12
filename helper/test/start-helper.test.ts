@@ -26,13 +26,19 @@ describe('startHelper', () => {
     const plist = plistFile();
     const { calls, launchctl } = recorder(false);
     await startHelper(launchctl, plist, 501);
-    expect(calls).toEqual([['print', LABEL], ['bootstrap', 'gui/501', plist]]);
+    expect(calls).toEqual([
+      ['print', LABEL],
+      ['bootstrap', 'gui/501', plist],
+    ]);
   });
 
   it('kickstarts an agent that is loaded but not running', async () => {
     const { calls, launchctl } = recorder(true);
     await startHelper(launchctl, plistFile(), 501);
-    expect(calls).toEqual([['print', LABEL], ['kickstart', LABEL]]);
+    expect(calls).toEqual([
+      ['print', LABEL],
+      ['kickstart', LABEL],
+    ]);
   });
 
   it('says to run setup when the agent was never installed', async () => {

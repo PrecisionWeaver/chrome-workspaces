@@ -42,7 +42,19 @@ export interface HelperConfig {
 
 const DEFAULT_PROMPTS_FILE = '~/.chrome-workspaces/prompts.md';
 
-const KNOWN_KEYS = new Set(['extensionId', 'defaultCwd', 'promptsFile', 'defaultModel', 'limits', 'jiraBaseUrl', 'pricing', 'repoRoots', 'repoDirs', 'watchRepos', 'claudeCommand']);
+const KNOWN_KEYS = new Set([
+  'extensionId',
+  'defaultCwd',
+  'promptsFile',
+  'defaultModel',
+  'limits',
+  'jiraBaseUrl',
+  'pricing',
+  'repoRoots',
+  'repoDirs',
+  'watchRepos',
+  'claudeCommand',
+]);
 // Repo names reach a `gh` command line, so only plain `owner/name` is accepted.
 const REPO_NAME = /^[\w.-]+\/[\w.-]+$/;
 // The command is interpolated into the launch line, so it must be a bare command name.

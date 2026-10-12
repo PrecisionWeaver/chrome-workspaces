@@ -29,7 +29,7 @@ describe('showsPage', () => {
     expect(showsPage(`${pr}?diff=split#discussion_r1`, pr)).toBe(true);
   });
 
-  it('counts a page beneath it, such as a PR\'s files tab, but not a sibling or a longer number', () => {
+  it("counts a page beneath it, such as a PR's files tab, but not a sibling or a longer number", () => {
     expect(showsPage(`${pr}/files`, pr)).toBe(true);
     expect(showsPage('https://github.com/acme/web-app/pull/123', pr)).toBe(false);
     expect(showsPage('https://github.com/acme/web-app/pull/1', pr)).toBe(false);

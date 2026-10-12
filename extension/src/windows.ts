@@ -124,7 +124,9 @@ export async function showOnly(windowId: number, groupId: number | null): Promis
     if (groupId === null) {
       const tabs = await chrome.tabs.query({ windowId });
       if (tabs.some((tab) => tab.active && tab.groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE)) {
-        const ungrouped = tabs.filter((tab) => tab.groupId === chrome.tabGroups.TAB_GROUP_ID_NONE).sort((a, b) => (b.lastAccessed ?? 0) - (a.lastAccessed ?? 0))[0];
+        const ungrouped = tabs
+          .filter((tab) => tab.groupId === chrome.tabGroups.TAB_GROUP_ID_NONE)
+          .sort((a, b) => (b.lastAccessed ?? 0) - (a.lastAccessed ?? 0))[0];
         if (ungrouped?.id === undefined) return;
         await chrome.tabs.update(ungrouped.id, { active: true });
       }

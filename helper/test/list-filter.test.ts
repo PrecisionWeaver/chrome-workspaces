@@ -3,7 +3,23 @@ import type { Workspace } from '../../shared/protocol';
 import { splitList, workspaceMatches } from '../../shared/list-filter';
 
 const ws = (id: string, name: string, extra: Partial<Workspace> = {}): Workspace => ({
-  id, name, ticket: null, cwd: '/code/web-app', url: null, windowId: null, groupId: null, resume: null, pinned: false, archived: false, color: null, model: null, lastTabUrls: [], pr: null, prompt: null, createdAt: '2026-01-01T00:00:00Z', ...extra,
+  id,
+  name,
+  ticket: null,
+  cwd: '/code/web-app',
+  url: null,
+  windowId: null,
+  groupId: null,
+  resume: null,
+  pinned: false,
+  archived: false,
+  color: null,
+  model: null,
+  lastTabUrls: [],
+  pr: null,
+  prompt: null,
+  createdAt: '2026-01-01T00:00:00Z',
+  ...extra,
 });
 
 describe('workspaceMatches', () => {
@@ -22,11 +38,14 @@ describe('splitList', () => {
 
   it('keeps archived workspaces apart and numbers the rest in list order', () => {
     const { active, archived } = splitList(list, {}, '');
-    expect(active.map((x) => [x.ws.name, x.number])).toEqual([['Alpha', 1], ['Gamma', 2]]);
+    expect(active.map((x) => [x.ws.name, x.number])).toEqual([
+      ['Alpha', 1],
+      ['Gamma', 2],
+    ]);
     expect(archived.map((x) => x.name)).toEqual(['Beta', 'Delta']);
   });
 
-  it('keeps a workspace\'s number while a filter hides the ones before it', () => {
+  it("keeps a workspace's number while a filter hides the ones before it", () => {
     const { active, archived } = splitList(list, {}, 'gamma');
     expect(active.map((x) => [x.ws.name, x.number])).toEqual([['Gamma', 2]]);
     expect(archived).toEqual([]);

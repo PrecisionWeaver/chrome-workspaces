@@ -46,9 +46,18 @@ describe('parseStatus', () => {
 
 describe('parseLog and parseNameStatus', () => {
   it('splits commits, their refs and parents', () => {
-    const out = 'a1\x1fa1b\x1fAnn\x1f2026-10-01T00:00:00Z\x1fHEAD -> main, origin/main, tag: v1\x1fp1 p2\x1fFix: a | b\x1e\nc2\x1fc2d\x1fBo\x1f2026-09-30T00:00:00Z\x1f\x1f\x1froot\x1e';
+    const out =
+      'a1\x1fa1b\x1fAnn\x1f2026-10-01T00:00:00Z\x1fHEAD -> main, origin/main, tag: v1\x1fp1 p2\x1fFix: a | b\x1e\nc2\x1fc2d\x1fBo\x1f2026-09-30T00:00:00Z\x1f\x1f\x1froot\x1e';
     expect(parseLog(out)).toEqual([
-      { sha: 'a1', short: 'a1b', author: 'Ann', date: '2026-10-01T00:00:00Z', refs: ['HEAD -> main', 'origin/main', 'tag: v1'], parents: ['p1', 'p2'], subject: 'Fix: a | b' },
+      {
+        sha: 'a1',
+        short: 'a1b',
+        author: 'Ann',
+        date: '2026-10-01T00:00:00Z',
+        refs: ['HEAD -> main', 'origin/main', 'tag: v1'],
+        parents: ['p1', 'p2'],
+        subject: 'Fix: a | b',
+      },
       { sha: 'c2', short: 'c2d', author: 'Bo', date: '2026-09-30T00:00:00Z', refs: [], parents: [], subject: 'root' },
     ]);
   });
@@ -78,7 +87,7 @@ describe('git service', () => {
     expect(state.files.map((f) => `${f.index}${f.worktree} ${f.path}`).sort()).toEqual([' M a.txt', '?? b.txt', '?? sub/c.txt']);
   });
 
-  it('lists a commit\'s files and diffs a file in it, in the working tree, and untracked', async () => {
+  it("lists a commit's files and diffs a file in it, in the working tree, and untracked", async () => {
     const dir = repo();
     const [latest] = (await service.state(dir)).commits;
     expect(await service.commitFiles(dir, latest.sha)).toEqual([{ status: 'M', path: 'a.txt' }]);
@@ -183,14 +192,23 @@ describe('git service writes', () => {
       await expect(service.stage(dir, [bad], true)).rejects.toThrow('path');
       await expect(service.discard(dir, [bad])).rejects.toThrow('path');
     }
-    await expect(service.stage(dir, Array.from({ length: 501 }, (_, i) => `f${i}`), true)).rejects.toThrow('too many');
+    await expect(
+      service.stage(
+        dir,
+        Array.from({ length: 501 }, (_, i) => `f${i}`),
+        true,
+      ),
+    ).rejects.toThrow('too many');
   });
 
   it('lists branches, switches to an existing one only, and refuses names that are not branches', async () => {
     const dir = repo();
     git(dir, 'branch', 'topic');
     const list = await service.branches(dir);
-    expect(list.map((b) => [b.name, b.current]).sort()).toEqual([['main', true], ['topic', false]]);
+    expect(list.map((b) => [b.name, b.current]).sort()).toEqual([
+      ['main', true],
+      ['topic', false],
+    ]);
     expect(await service.switchBranch(dir, 'topic')).toBe('Switched to topic.');
     expect((await service.state(dir)).branch).toBe('topic');
     await expect(service.switchBranch(dir, 'nonexistent')).rejects.toThrow('no branch');
@@ -198,7 +216,7 @@ describe('git service writes', () => {
     await expect(service.switchBranch(dir, 'bad name')).rejects.toThrow();
   });
 
-  it('compares a branch with its main line: files, commit count and each file\'s diff', async () => {
+  it("compares a branch with its main line: files, commit count and each file's diff", async () => {
     const dir = repo();
     git(dir, 'switch', '-q', '-c', 'feature');
     writeFileSync(join(dir, 'a.txt'), 'one\ntwo\nthree\n');

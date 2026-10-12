@@ -1,5 +1,14 @@
 import type { TimelineEvent } from '../../shared/timeline';
-import type { AdminAction, ControlToClient, ControlToHelper, SystemProcess, SystemSession, SystemSnapshot, TokenTotals, UpdateStatus } from '../../shared/protocol';
+import type {
+  AdminAction,
+  ControlToClient,
+  ControlToHelper,
+  SystemProcess,
+  SystemSession,
+  SystemSnapshot,
+  TokenTotals,
+  UpdateStatus,
+} from '../../shared/protocol';
 import { el } from './dom';
 import { DENSITIES, THEMES } from '../../shared/keynav';
 import { formatUsd } from '../../shared/pricing';
@@ -35,7 +44,13 @@ const POLL_MS = 3000;
 const ARM_MS = 4000;
 
 export const formatBytes = (bytes: number): string =>
-  bytes < 1024 ? `${bytes} B` : bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)} KB` : bytes < 1024 ** 3 ? `${(bytes / 1024 ** 2).toFixed(1)} MB` : `${(bytes / 1024 ** 3).toFixed(2)} GB`;
+  bytes < 1024
+    ? `${bytes} B`
+    : bytes < 1024 * 1024
+      ? `${(bytes / 1024).toFixed(1)} KB`
+      : bytes < 1024 ** 3
+        ? `${(bytes / 1024 ** 2).toFixed(1)} MB`
+        : `${(bytes / 1024 ** 3).toFixed(2)} GB`;
 
 export const formatKb = (kb: number): string => formatBytes(kb * 1024);
 
@@ -96,7 +111,13 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
   };
 
   /** A button that asks again before doing something destructive. */
-  function guarded(key: string, label: string, confirmLabel: string, run: () => void, options: { danger?: boolean; disabled?: string } = {}): HTMLButtonElement {
+  function guarded(
+    key: string,
+    label: string,
+    confirmLabel: string,
+    run: () => void,
+    options: { danger?: boolean; disabled?: string } = {},
+  ): HTMLButtonElement {
     const isArmed = armed.has(key);
     const button = el('button', isArmed ? confirmLabel : label, `settings-btn${options.danger ? ' danger' : ''}${isArmed ? ' armed' : ''}`);
     button.type = 'button';
@@ -173,8 +194,13 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       'Helper',
       facts,
       actions(
-        guarded('helper-restart', 'Restart helper', 'Ends every terminal. Restart?', () => request({ action: 'restartHelper' }), { disabled: helper.managed ? undefined : unmanaged }),
-        guarded('helper-stop', 'Stop helper', 'Stop until started again?', () => request({ action: 'stopHelper' }), { danger: true, disabled: helper.managed ? undefined : unmanaged }),
+        guarded('helper-restart', 'Restart helper', 'Ends every terminal. Restart?', () => request({ action: 'restartHelper' }), {
+          disabled: helper.managed ? undefined : unmanaged,
+        }),
+        guarded('helper-stop', 'Stop helper', 'Stop until started again?', () => request({ action: 'stopHelper' }), {
+          danger: true,
+          disabled: helper.managed ? undefined : unmanaged,
+        }),
         plain(logText === null ? 'Show log' : 'Hide log', () => {
           logText = logText === null ? '' : null;
           if (logText !== null) send({ type: 'systemLog' });
@@ -203,7 +229,9 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       const kill = el('span', '', 'proc-actions');
       kill.append(
         guarded(`stop-${proc.pid}`, 'Stop', 'Stop it and its children?', () => request({ action: 'killProcess', id: session.id, pid: proc.pid })),
-        guarded(`kill-${proc.pid}`, 'Force', 'Force kill (SIGKILL)?', () => request({ action: 'killProcess', id: session.id, pid: proc.pid, force: true }), { danger: true }),
+        guarded(`kill-${proc.pid}`, 'Force', 'Force kill (SIGKILL)?', () => request({ action: 'killProcess', id: session.id, pid: proc.pid, force: true }), {
+          danger: true,
+        }),
       );
       line.append(kill);
     }
@@ -231,7 +259,11 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
     }
     for (const event of [...found.events].reverse()) {
       const line = el('div', '', `activity-row ${event.kind}`);
-      line.append(el('span', clock(event.at), 'activity-time'), el('span', event.kind === 'tool' ? event.tool : KIND_LABEL[event.kind], 'activity-kind'), el('span', event.summary, 'activity-text'));
+      line.append(
+        el('span', clock(event.at), 'activity-time'),
+        el('span', event.kind === 'tool' ? event.tool : KIND_LABEL[event.kind], 'activity-kind'),
+        el('span', event.summary, 'activity-text'),
+      );
       line.title = event.summary;
       box.append(line);
     }
@@ -266,10 +298,22 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       summary.append(tokens);
     }
     summary.append(
-      el('span', running ? `${session.processes.length} process${session.processes.length === 1 ? '' : 'es'} · ${formatKb(memory)}${ports.length ? ` · ${ports.map((p) => `:${p}`).join(' ')}` : ''}` : 'not running', 'session-detail'),
+      el(
+        'span',
+        running
+          ? `${session.processes.length} process${session.processes.length === 1 ? '' : 'es'} · ${formatKb(memory)}${ports.length ? ` · ${ports.map((p) => `:${p}`).join(' ')}` : ''}`
+          : 'not running',
+        'session-detail',
+      ),
     );
     summary.title = session.cwd;
-    head.append(toggle, summary, guarded(`restart-${session.id}`, 'Restart', 'End its shell?', () => request({ action: 'restartSession', id: session.id }), { disabled: running ? undefined : 'No session is running; it starts when the workspace is opened.' }));
+    head.append(
+      toggle,
+      summary,
+      guarded(`restart-${session.id}`, 'Restart', 'End its shell?', () => request({ action: 'restartSession', id: session.id }), {
+        disabled: running ? undefined : 'No session is running; it starts when the workspace is opened.',
+      }),
+    );
     wrapper.append(head);
 
     if (open) {
@@ -279,14 +323,18 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
     }
     if (open) {
       const shown = activityOpen.has(session.id);
-      const toggle = plain(shown ? 'Hide activity' : 'Show activity', () => {
-        if (shown) activityOpen.delete(session.id);
-        else {
-          activityOpen.add(session.id);
-          send({ type: 'timeline', id: session.id });
-        }
-        render();
-      }, 'What this session\'s claude has recently done');
+      const toggle = plain(
+        shown ? 'Hide activity' : 'Show activity',
+        () => {
+          if (shown) activityOpen.delete(session.id);
+          else {
+            activityOpen.add(session.id);
+            send({ type: 'timeline', id: session.id });
+          }
+          render();
+        },
+        "What this session's claude has recently done",
+      );
       wrapper.append(actions(toggle));
       if (shown) wrapper.append(activityList(session));
     }
@@ -301,7 +349,15 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
     // Running workspaces first, since those are the ones using the machine.
     list.append(...[...s.sessions].sort((a, b) => Number(b.pid !== null) - Number(a.pid !== null)).map(sessionRow));
     if (s.sessions.length === 0) list.append(el('div', 'No workspaces yet.', 'settings-empty'));
-    return card(`Workspace sessions · ${running} running${counted.length ? ` · ${formatTokens(total)} tokens` : ''}`, el('p', 'Each runs a shell and claude, and shows the tokens that claude session has used (input, output and cache writes; hover for the breakdown). Expand one to see every process beneath it, and the ports they listen on. Stopping a process also stops its children.', 'settings-note'), list);
+    return card(
+      `Workspace sessions · ${running} running${counted.length ? ` · ${formatTokens(total)} tokens` : ''}`,
+      el(
+        'p',
+        'Each runs a shell and claude, and shows the tokens that claude session has used (input, output and cache writes; hover for the breakdown). Expand one to see every process beneath it, and the ports they listen on. Stopping a process also stops its children.',
+        'settings-note',
+      ),
+      list,
+    );
   }
 
   function housekeepingCard(s: SystemSnapshot): HTMLElement {
@@ -317,7 +373,11 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       actions(
         guarded('clear-uploads', 'Clear uploads', 'Delete all uploads?', () => request({ action: 'clearUploads' })),
         guarded('clear-log', 'Clear log', 'Empty the log?', () => request({ action: 'clearLog' })),
-        plain('Prune worktrees', () => request({ action: 'pruneWorktrees' }), 'Removes git records of worktrees whose folders are gone, in each workspace\'s repository'),
+        plain(
+          'Prune worktrees',
+          () => request({ action: 'pruneWorktrees' }),
+          "Removes git records of worktrees whose folders are gone, in each workspace's repository",
+        ),
         plain('Refresh reviews', () => send({ type: 'refreshReviews' })),
         plain('Export workspaces', () => send({ type: 'exportData' }), 'Downloads the workspace list as JSON'),
       ),
@@ -326,19 +386,31 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
 
   function configCard(s: SystemSnapshot): HTMLElement {
     const { config, helper } = s;
-    const map = (record: Record<string, string>) => (Object.keys(record).length ? Object.entries(record).map(([k, v]) => `${k} → ${v}`).join('\n') : 'none');
+    const map = (record: Record<string, string>) =>
+      Object.keys(record).length
+        ? Object.entries(record)
+            .map(([k, v]) => `${k} → ${v}`)
+            .join('\n')
+        : 'none';
     const mono = (text: string) => el('span', text, 'mono');
     return card(
       'Configuration',
       el('p', `Read from ${helper.configPath}. Edit it and restart the helper to change these.`, 'settings-note'),
       row('Default directory', mono(config.defaultCwd)),
       row('Prompts file', mono(config.promptsFile)),
-      row('Default model', config.defaultModel ?? 'claude\'s own'),
+      row('Default model', config.defaultModel ?? "claude's own"),
       row('Command', config.claudeCommand),
       row('Repo folders', mono(config.repoRoots.join('\n') || 'none')),
       row('Repo directories', mono(map(config.repoDirs))),
       row('Watched repos', mono(config.watchRepos.join('\n') || 'none')),
-      row('Prices', mono(Object.entries(config.pricing).map(([family, r]) => `${family}: $${r.input} in / $${r.output} out`).join('\n'))),
+      row(
+        'Prices',
+        mono(
+          Object.entries(config.pricing)
+            .map(([family, r]) => `${family}: $${r.input} in / $${r.output} out`)
+            .join('\n'),
+        ),
+      ),
       row('Warn above', `${config.limits.memoryWarnMb} MB per workspace · servers idle ${config.limits.idleServerHours} h`),
     );
   }
@@ -352,7 +424,12 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       actions(
         plain('Check GitHub CLI', () => request({ action: 'checkGh' }), 'Runs gh auth status'),
         plain('Copy debug info', () => {
-          const info = { extension: chrome.runtime.getManifest().version, helper: s.helper, storage: s.storage, sessions: s.sessions.map(({ id, pid, status, cwdMissing }) => ({ id, pid, status, cwdMissing })) };
+          const info = {
+            extension: chrome.runtime.getManifest().version,
+            helper: s.helper,
+            storage: s.storage,
+            sessions: s.sessions.map(({ id, pid, status, cwdMissing }) => ({ id, pid, status, cwdMissing })),
+          };
           void navigator.clipboard.writeText(JSON.stringify(info, null, 2));
           showResult({ ok: true, message: 'Debug info copied.' });
         }),
@@ -387,18 +464,25 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
   }
 
   function updatesCard(): HTMLElement {
-    const check = plain(updates?.checking ? 'Checking…' : 'Check for updates', () => {
-      updates = { status: updates?.status ?? null, error: null, checking: true, applied: false };
-      send({ type: 'checkUpdates' });
-      render();
-    }, 'Fetches from the remote; nothing is changed');
+    const check = plain(
+      updates?.checking ? 'Checking…' : 'Check for updates',
+      () => {
+        updates = { status: updates?.status ?? null, error: null, checking: true, applied: false };
+        send({ type: 'checkUpdates' });
+        render();
+      },
+      'Fetches from the remote; nothing is changed',
+    );
     check.disabled = updates?.checking === true;
 
     const children: Node[] = [];
     const { status, error } = updates ?? { status: null, error: null };
     if (updates?.applied) {
       const reload = plain('Reload extension', () => chrome.runtime.reload(), 'Finishes the update: the new panel code loads');
-      children.push(el('p', 'Updated. The helper is restarting, so every terminal ends; reload the extension to load the new panel.', 'settings-note'), actions(reload));
+      children.push(
+        el('p', 'Updated. The helper is restarting, so every terminal ends; reload the extension to load the new panel.', 'settings-note'),
+        actions(reload),
+      );
     } else if (error) {
       children.push(el('p', `Could not check: ${error}`, 'settings-note warn'), actions(check));
     } else if (status) {
@@ -413,14 +497,27 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
         children.push(list);
         if (!status.canUpdate && status.reason) children.push(el('p', status.reason, 'settings-note warn'));
       }
-      const apply = guarded('apply-update', 'Update now', 'Update, rebuild and restart?', () => {
-        updates = { status, error: null, checking: false, applied: true };
-        request({ action: 'applyUpdate' });
-        render();
-      }, { disabled: status.canUpdate ? undefined : (status.reason ?? 'Nothing to update.') });
+      const apply = guarded(
+        'apply-update',
+        'Update now',
+        'Update, rebuild and restart?',
+        () => {
+          updates = { status, error: null, checking: false, applied: true };
+          request({ action: 'applyUpdate' });
+          render();
+        },
+        { disabled: status.canUpdate ? undefined : (status.reason ?? 'Nothing to update.') },
+      );
       children.push(actions(check, ...(status.behind > 0 ? [apply] : [])));
     } else {
-      children.push(el('p', 'Checks this copy of the app against the newest release. It only ever fast-forwards, never over uncommitted changes, then installs dependencies if they changed, rebuilds the extension and restarts the helper.', 'settings-note'), actions(check));
+      children.push(
+        el(
+          'p',
+          'Checks this copy of the app against the newest release. It only ever fast-forwards, never over uncommitted changes, then installs dependencies if they changed, rebuilds the extension and restarts the helper.',
+          'settings-note',
+        ),
+        actions(check),
+      );
     }
     return card('Updates', ...children);
   }
@@ -438,15 +535,33 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       bar.append(fill);
       chart.append(bar);
     }
-    const rates = Object.entries(s.config.pricing).map(([family, r]) => `${family} $${r.input}/$${r.output}`).join(', ');
+    const rates = Object.entries(s.config.pricing)
+      .map(([family, r]) => `${family} $${r.input}/$${r.output}`)
+      .join(', ');
     return card(
       'Usage',
       chart,
       row('Today', `${formatTokens(daily[daily.length - 1].tokens)} tokens${todayUsd > 0 ? ` · ~${formatUsd(todayUsd)}` : ''}`),
       row('Last 14 days', `${formatTokens(daily.reduce((sum, d) => sum + d.tokens, 0))} tokens`),
-      row('Since sessions began', `~${formatUsd(costUsd)} estimated${s.usage.counting ? ' (still counting…)' : ''}`, 'Across every workspace transcript still on disk'),
-      ...(s.usage.unpriced.length ? [el('p', `No rate for ${s.usage.unpriced.join(', ')}, so ${s.usage.unpriced.length === 1 ? 'it is' : 'they are'} missing from the cost. Add ${s.usage.unpriced.length === 1 ? 'it' : 'them'} under "pricing" in the config.`, 'settings-note warn')] : []),
-      el('p', `Dollar figures are estimates. Rates (per million tokens, input/output): ${rates}. Cache writes cost 1.25× input and cache reads 0.1×. Set "pricing" in the config to correct them.`, 'settings-note'),
+      row(
+        'Since sessions began',
+        `~${formatUsd(costUsd)} estimated${s.usage.counting ? ' (still counting…)' : ''}`,
+        'Across every workspace transcript still on disk',
+      ),
+      ...(s.usage.unpriced.length
+        ? [
+            el(
+              'p',
+              `No rate for ${s.usage.unpriced.join(', ')}, so ${s.usage.unpriced.length === 1 ? 'it is' : 'they are'} missing from the cost. Add ${s.usage.unpriced.length === 1 ? 'it' : 'them'} under "pricing" in the config.`,
+              'settings-note warn',
+            ),
+          ]
+        : []),
+      el(
+        'p',
+        `Dollar figures are estimates. Rates (per million tokens, input/output): ${rates}. Cache writes cost 1.25× input and cache reads 0.1×. Set "pricing" in the config to correct them.`,
+        'settings-note',
+      ),
     );
   }
 
@@ -463,11 +578,15 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       line.append(text);
       return line;
     });
-    const dismiss = plain('Dismiss', () => {
-      prefs = { ...prefs, setupDismissed: true };
-      void savePrefs({ setupDismissed: true });
-      render();
-    }, 'Hide this checklist; the same checks stay in Diagnostics');
+    const dismiss = plain(
+      'Dismiss',
+      () => {
+        prefs = { ...prefs, setupDismissed: true };
+        void savePrefs({ setupDismissed: true });
+        render();
+      },
+      'Hide this checklist; the same checks stay in Diagnostics',
+    );
     return card(`Getting started · ${items.length - open} of ${items.length} done`, ...rows, actions(dismiss));
   }
 
@@ -483,7 +602,15 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       }
       return line;
     });
-    return card(`Needs attention · ${s.warnings.length}`, ...rows, el('p', `Limits: ${s.config.limits.memoryWarnMb} MB per workspace, servers idle over ${s.config.limits.idleServerHours} h. Change them under "limits" in the config.`, 'settings-note'));
+    return card(
+      `Needs attention · ${s.warnings.length}`,
+      ...rows,
+      el(
+        'p',
+        `Limits: ${s.config.limits.memoryWarnMb} MB per workspace, servers idle over ${s.config.limits.idleServerHours} h. Change them under "limits" in the config.`,
+        'settings-note',
+      ),
+    );
   }
 
   function choice<T extends string>(label: string, values: readonly T[], current: T, onChange: (value: T) => void): HTMLElement {
@@ -525,7 +652,17 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       body.replaceChildren(el('div', error ? `Could not read the system: ${error}` : 'Loading…', 'settings-empty'));
       return;
     }
-    const cards = [...[setupCard(snapshot), warningsCard(snapshot)].filter((card): card is HTMLElement => card !== null), preferencesCard(), helperCard(snapshot), updatesCard(), usageCard(snapshot), sessionsCard(snapshot), housekeepingCard(snapshot), configCard(snapshot), diagnosticsCard(snapshot)];
+    const cards = [
+      ...[setupCard(snapshot), warningsCard(snapshot)].filter((card): card is HTMLElement => card !== null),
+      preferencesCard(),
+      helperCard(snapshot),
+      updatesCard(),
+      usageCard(snapshot),
+      sessionsCard(snapshot),
+      housekeepingCard(snapshot),
+      configCard(snapshot),
+      diagnosticsCard(snapshot),
+    ];
     // Detaching a focused dropdown closes it, so its card stays put, a poll behind, until focus leaves.
     const active = document.activeElement;
     const held = active instanceof HTMLSelectElement && body.contains(active) ? active.closest<HTMLElement>('.settings-card') : null;

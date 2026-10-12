@@ -1,6 +1,18 @@
 import { isAbsolute } from 'node:path';
 import type { WebSocket } from 'ws';
-import { MAX_PROMPT_LENGTH, MAX_TAB_URLS, MODEL_PATTERN, WORKSPACE_COLORS, type ControlToClient, type ControlToHelper, type Prompt, type Repo, type ReviewsState, type Workspace, type WorkspaceStatus } from '../../shared/protocol';
+import {
+  MAX_PROMPT_LENGTH,
+  MAX_TAB_URLS,
+  MODEL_PATTERN,
+  WORKSPACE_COLORS,
+  type ControlToClient,
+  type ControlToHelper,
+  type Prompt,
+  type Repo,
+  type ReviewsState,
+  type Workspace,
+  type WorkspaceStatus,
+} from '../../shared/protocol';
 import { isDirectory } from './config';
 import type { AdminService } from './admin';
 import { asPaste } from './paste';
@@ -174,7 +186,16 @@ export class ControlHub {
         if (!entry) break;
         // The directory may be gone, e.g. a deleted worktree; the default directory is better than none.
         const cwd = isDirectory(entry.cwd) ? entry.cwd : this.options.defaultCwd;
-        const workspace = store.create({ name: entry.name, ticket: entry.ticket, cwd, url: entry.url, pr: entry.pr, model: entry.model, tabs: entry.tabs, resume: entry.resumeId });
+        const workspace = store.create({
+          name: entry.name,
+          ticket: entry.ticket,
+          cwd,
+          url: entry.url,
+          pr: entry.pr,
+          model: entry.model,
+          tabs: entry.tabs,
+          resume: entry.resumeId,
+        });
         this.options.history.remove(entry.id);
         if (message.windowId === null) this.send({ type: 'open', id: workspace.id });
         else store.pairWindow(workspace.id, message.windowId);
@@ -199,7 +220,8 @@ export class ControlHub {
             this.sendTo(ws, { type: 'adminResult', action: request.action, ok: result.ok, message: result.message });
             for (const id of result.reset ?? []) this.send({ type: 'sessionReset', id });
           },
-          (error: unknown) => this.sendTo(ws, { type: 'adminResult', action: request.action, ok: false, message: error instanceof Error ? error.message : String(error) }),
+          (error: unknown) =>
+            this.sendTo(ws, { type: 'adminResult', action: request.action, ok: false, message: error instanceof Error ? error.message : String(error) }),
         );
         break;
       }
@@ -208,7 +230,12 @@ export class ControlHub {
         break;
       case 'timeline': {
         const events = this.options.store.get(message.id) ? this.options.admin.timeline(message.id) : null;
-        this.sendTo(ws, { type: 'timeline', id: message.id, events: events ?? [], error: events === null ? 'This workspace has no claude session yet.' : null });
+        this.sendTo(ws, {
+          type: 'timeline',
+          id: message.id,
+          events: events ?? [],
+          error: events === null ? 'This workspace has no claude session yet.' : null,
+        });
         break;
       }
       case 'exportData':
@@ -298,28 +325,34 @@ export class ControlHub {
     switch (message.type) {
       case 'git':
         if (!dir) return this.sendTo(ws, { type: 'git', id, state: null, error: missing });
-        dir.then((cwd) => git.state(cwd)).then(
-          (state) => this.sendTo(ws, { type: 'git', id, state, error: null }),
-          (error: unknown) => this.sendTo(ws, { type: 'git', id, state: null, error: text(error) }),
-        );
+        dir
+          .then((cwd) => git.state(cwd))
+          .then(
+            (state) => this.sendTo(ws, { type: 'git', id, state, error: null }),
+            (error: unknown) => this.sendTo(ws, { type: 'git', id, state: null, error: text(error) }),
+          );
         break;
       case 'gitCommit': {
         const { sha } = message;
         if (!dir) return this.sendTo(ws, { type: 'gitCommit', id, sha, files: [], error: missing });
-        dir.then((cwd) => git.commitFiles(cwd, sha)).then(
-          (files) => this.sendTo(ws, { type: 'gitCommit', id, sha, files, error: null }),
-          (error: unknown) => this.sendTo(ws, { type: 'gitCommit', id, sha, files: [], error: text(error) }),
-        );
+        dir
+          .then((cwd) => git.commitFiles(cwd, sha))
+          .then(
+            (files) => this.sendTo(ws, { type: 'gitCommit', id, sha, files, error: null }),
+            (error: unknown) => this.sendTo(ws, { type: 'gitCommit', id, sha, files: [], error: text(error) }),
+          );
         break;
       }
       case 'gitDiff': {
         const { path } = message;
         const sha = message.sha ?? null;
         if (!dir) return this.sendTo(ws, { type: 'gitDiff', id, path, sha, diff: '', truncated: false, error: missing });
-        dir.then((cwd) => git.diff(cwd, path, sha, message.base === true)).then(
-          ({ diff, truncated }) => this.sendTo(ws, { type: 'gitDiff', id, path, sha, diff, truncated, error: null }),
-          (error: unknown) => this.sendTo(ws, { type: 'gitDiff', id, path, sha, diff: '', truncated: false, error: text(error) }),
-        );
+        dir
+          .then((cwd) => git.diff(cwd, path, sha, message.base === true))
+          .then(
+            ({ diff, truncated }) => this.sendTo(ws, { type: 'gitDiff', id, path, sha, diff, truncated, error: null }),
+            (error: unknown) => this.sendTo(ws, { type: 'gitDiff', id, path, sha, diff: '', truncated: false, error: text(error) }),
+          );
         break;
       }
       case 'gitChecks':
@@ -341,17 +374,21 @@ export class ControlHub {
         break;
       case 'gitBranches':
         if (!dir) return this.sendTo(ws, { type: 'gitBranches', id, branches: [], error: missing });
-        dir.then((cwd) => git.branches(cwd)).then(
-          (branches) => this.sendTo(ws, { type: 'gitBranches', id, branches, error: null }),
-          (error: unknown) => this.sendTo(ws, { type: 'gitBranches', id, branches: [], error: text(error) }),
-        );
+        dir
+          .then((cwd) => git.branches(cwd))
+          .then(
+            (branches) => this.sendTo(ws, { type: 'gitBranches', id, branches, error: null }),
+            (error: unknown) => this.sendTo(ws, { type: 'gitBranches', id, branches: [], error: text(error) }),
+          );
         break;
       case 'gitCompare':
         if (!dir) return this.sendTo(ws, { type: 'gitCompare', id, compare: null, error: missing });
-        dir.then((cwd) => git.compare(cwd)).then(
-          (compare) => this.sendTo(ws, { type: 'gitCompare', id, compare, error: null }),
-          (error: unknown) => this.sendTo(ws, { type: 'gitCompare', id, compare: null, error: text(error) }),
-        );
+        dir
+          .then((cwd) => git.compare(cwd))
+          .then(
+            (compare) => this.sendTo(ws, { type: 'gitCompare', id, compare, error: null }),
+            (error: unknown) => this.sendTo(ws, { type: 'gitCompare', id, compare: null, error: text(error) }),
+          );
         break;
       case 'gitStage':
         result(message.stage ? 'stage' : 'unstage', (cwd) => git.stage(cwd, message.paths, message.stage));
@@ -402,7 +439,8 @@ function isAdminAction(value: unknown): boolean {
   if (typeof r.action !== 'string') return false;
   if (PLAIN_ACTIONS.has(r.action)) return true;
   if (r.action === 'restartSession') return typeof r.id === 'string';
-  if (r.action === 'killProcess') return typeof r.id === 'string' && Number.isInteger(r.pid) && (r.pid as number) > 1 && (r.force === undefined || typeof r.force === 'boolean');
+  if (r.action === 'killProcess')
+    return typeof r.id === 'string' && Number.isInteger(r.pid) && (r.pid as number) > 1 && (r.force === undefined || typeof r.force === 'boolean');
   return false;
 }
 
@@ -418,10 +456,7 @@ function isControlToHelper(value: unknown): value is ControlToHelper {
       return isWindowId(m.groupId);
     case 'tabs':
       return (
-        isWindowId(m.windowId) &&
-        (m.groupId === undefined || isWindowId(m.groupId)) &&
-        Array.isArray(m.urls) &&
-        m.urls.every((u) => typeof u === 'string')
+        isWindowId(m.windowId) && (m.groupId === undefined || isWindowId(m.groupId)) && Array.isArray(m.urls) && m.urls.every((u) => typeof u === 'string')
       );
     case 'remove':
       return typeof m.id === 'string';

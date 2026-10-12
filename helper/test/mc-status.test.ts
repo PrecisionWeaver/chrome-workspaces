@@ -37,7 +37,9 @@ describe('readMcStatus', () => {
   });
 
   it('reports the directory the session is working in', () => {
-    const dir = stateDir({ 'a.json': { session_id: ID_OLD, cw_workspace_id: 'ws-1', status: 'working', started_at: '2026-01-01T00:00:00Z', cwd: '/repo/.worktrees/topic' } });
+    const dir = stateDir({
+      'a.json': { session_id: ID_OLD, cw_workspace_id: 'ws-1', status: 'working', started_at: '2026-01-01T00:00:00Z', cwd: '/repo/.worktrees/topic' },
+    });
     expect(readMcStatus(dir).get('ws-1')?.cwd).toBe('/repo/.worktrees/topic');
   });
 
@@ -74,7 +76,7 @@ describe('lastTranscriptCwd', () => {
   });
 
   it('skips a line cut off mid-write, and a file with no directory', () => {
-    expect(lastTranscriptCwd(transcript([JSON.stringify({ cwd: '/a' }), '{"cwd": "/b'] ))).toBe('/a');
+    expect(lastTranscriptCwd(transcript([JSON.stringify({ cwd: '/a' }), '{"cwd": "/b']))).toBe('/a');
     expect(lastTranscriptCwd(transcript([JSON.stringify({ type: 'user' })]))).toBeNull();
     expect(lastTranscriptCwd('/no/such/file.jsonl')).toBeNull();
   });

@@ -1,0 +1,4 @@
+extension/dist
+package-lock.json
+docs/images
+*.md

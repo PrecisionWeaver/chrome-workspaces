@@ -10,7 +10,8 @@ const STATUS_WORDS: Record<NonNullable<WorkspaceStatus>, string> = {
 export function workspaceMatches(ws: Workspace, status: WorkspaceStatus | undefined, query: string): boolean {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
   if (words.length === 0) return true;
-  const haystack = `${ws.name} ${ws.ticket ?? ''} ${ws.cwd} ${status ? STATUS_WORDS[status] : ''}${ws.pinned ? ' pinned' : ''}${ws.archived ? ' archived' : ''}`.toLowerCase();
+  const haystack =
+    `${ws.name} ${ws.ticket ?? ''} ${ws.cwd} ${status ? STATUS_WORDS[status] : ''}${ws.pinned ? ' pinned' : ''}${ws.archived ? ' archived' : ''}`.toLowerCase();
   return words.every((word) => haystack.includes(word));
 }
 

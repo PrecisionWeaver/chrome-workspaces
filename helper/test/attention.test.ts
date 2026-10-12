@@ -12,7 +12,10 @@ describe('needsInputCount', () => {
 describe('attentionEvents', () => {
   it('reports a workspace that started waiting, and one that finished working', () => {
     const events = attentionEvents({ a: 'working', b: 'working', c: 'idle' }, { a: 'needs_input', b: 'idle', c: 'idle' });
-    expect(events).toEqual([{ id: 'a', kind: 'needs_input' }, { id: 'b', kind: 'finished' }]);
+    expect(events).toEqual([
+      { id: 'a', kind: 'needs_input' },
+      { id: 'b', kind: 'finished' },
+    ]);
   });
 
   it('is silent for a workspace already waiting, a first sighting, and changes that need no attention', () => {

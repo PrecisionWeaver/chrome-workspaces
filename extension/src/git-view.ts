@@ -1,5 +1,16 @@
 import { layoutGraph } from '../../shared/git-graph';
-import type { BranchPr, ControlToClient, ControlToHelper, GitBranch, GitCommit, GitCommitFile, GitFile, GitState, Workspace, WorkspaceStatus } from '../../shared/protocol';
+import type {
+  BranchPr,
+  ControlToClient,
+  ControlToHelper,
+  GitBranch,
+  GitCommit,
+  GitCommitFile,
+  GitFile,
+  GitState,
+  Workspace,
+  WorkspaceStatus,
+} from '../../shared/protocol';
 import { el } from './dom';
 import { menuItem, openMenu } from './menu';
 import { relative } from './pr-view';
@@ -199,7 +210,14 @@ export function createGitView({ send, onToggle, status }: GitViewOptions): GitVi
       branchEl.append(compare);
       if (pr) {
         const { checks } = pr;
-        const summary = !checks || checks.passed + checks.failed + checks.pending === 0 ? ['no checks', ''] : checks.failed ? [`✗ ${checks.failed} failing`, 'bad'] : checks.pending ? [`● ${checks.pending} running`, 'wait'] : [`✓ ${checks.passed} passing`, 'good'];
+        const summary =
+          !checks || checks.passed + checks.failed + checks.pending === 0
+            ? ['no checks', '']
+            : checks.failed
+              ? [`✗ ${checks.failed} failing`, 'bad']
+              : checks.pending
+                ? [`● ${checks.pending} running`, 'wait']
+                : [`✓ ${checks.passed} passing`, 'good'];
         const chip = el('button', `#${pr.pr.number}${pr.pr.isDraft ? ' draft' : ''} · ${summary[0]}`, `git-chip-btn ci ${summary[1]}`);
         chip.type = 'button';
         chip.title = `${pr.pr.title}${checks?.failing.length ? `\nFailing: ${checks.failing.join(', ')}` : ''}\nOpen on GitHub`;
@@ -243,7 +261,12 @@ export function createGitView({ send, onToggle, status }: GitViewOptions): GitVi
       (f) => (f.index === '?' ? 'U' : f.worktree),
       [iconButton('+', 'Stage all', () => stage([], true))],
       (f) => [
-        iconButton('↶', f.index === '?' ? 'Delete this new file' : 'Discard changes', () => workspaceId && send({ type: 'gitDiscard', id: workspaceId, paths: [f.path] }), f.index === '?' ? 'Delete?' : 'Discard?'),
+        iconButton(
+          '↶',
+          f.index === '?' ? 'Delete this new file' : 'Discard changes',
+          () => workspaceId && send({ type: 'gitDiscard', id: workspaceId, paths: [f.path] }),
+          f.index === '?' ? 'Delete?' : 'Discard?',
+        ),
         iconButton('+', 'Stage', () => stage([f.path], true)),
       ],
     );
@@ -316,7 +339,8 @@ export function createGitView({ send, onToggle, status }: GitViewOptions): GitVi
         const color = (i: number) => LANE_COLORS[i % LANE_COLORS.length];
         const graph = svg('svg', { width: lanes * CELL + 4, height: ROW, class: 'git-graph' });
         const x = (column: number) => column * CELL + CELL / 2 + 2;
-        for (const s of segments) graph.append(svg('line', { x1: x(s.x1), y1: s.y1 * ROW, x2: x(s.x2), y2: s.y2 * ROW, stroke: color(s.color), 'stroke-width': 1.6 }));
+        for (const s of segments)
+          graph.append(svg('line', { x1: x(s.x1), y1: s.y1 * ROW, x2: x(s.x2), y2: s.y2 * ROW, stroke: color(s.color), 'stroke-width': 1.6 }));
         const dot = svg('circle', { cx: x(node), cy: ROW / 2, r: 4, stroke: color(nodeColor), 'stroke-width': 1.6 });
         // A merge is drawn hollow, in the list's own color so it reads on either theme.
         if (commit.parents.length > 1) dot.style.fill = 'var(--list-bg)';

@@ -69,7 +69,15 @@ export function eventsFromLine(line: string): TimelineEvent[] {
 
   if (parsed.type === 'user' && message.role === 'user') {
     // A plain string is something you typed; a list of blocks is usually tool results coming back.
-    const text = typeof message.content === 'string' ? message.content : Array.isArray(message.content) ? (message.content as Block[]).filter((b) => b.type === 'text').map((b) => str(b.text)).join(' ') : '';
+    const text =
+      typeof message.content === 'string'
+        ? message.content
+        : Array.isArray(message.content)
+          ? (message.content as Block[])
+              .filter((b) => b.type === 'text')
+              .map((b) => str(b.text))
+              .join(' ')
+          : '';
     // Slash-command and hook plumbing is wrapped in tags and is not you.
     if (text.trim() && !text.trimStart().startsWith('<')) events.push({ at, kind: 'you', tool: '', summary: oneLine(text) });
   } else if (parsed.type === 'assistant' && Array.isArray(message.content)) {

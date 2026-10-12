@@ -348,7 +348,9 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
     const typed = parseTabUrls(tabsInput.value);
     // The PR leads the tabs, so a new window, a tab group and an adopted window all open at it.
     const urls = review ? [...new Set([review.url, ...typed.urls])] : typed.urls;
-    tabsInput.setCustomValidity(typed.invalid.length ? `Not a web address: ${typed.invalid[0]}` : urls.length > MAX_TAB_URLS ? `At most ${MAX_TAB_URLS} tabs` : '');
+    tabsInput.setCustomValidity(
+      typed.invalid.length ? `Not a web address: ${typed.invalid[0]}` : urls.length > MAX_TAB_URLS ? `At most ${MAX_TAB_URLS} tabs` : '',
+    );
     if (!tabsInput.reportValidity()) return;
     const { windowId, workspace } = here();
     const useHere = target.value() === 'here' && windowId !== undefined;

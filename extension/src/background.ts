@@ -231,7 +231,10 @@ async function notificationsOn(): Promise<boolean> {
 
 /** Shows how many workspaces wait on the user, and notifies when one starts waiting or finishes. */
 async function announce(statuses: Record<string, WorkspaceStatus>): Promise<void> {
-  const waiting = needsInputCount(statuses, workspaces.map((ws) => ws.id));
+  const waiting = needsInputCount(
+    statuses,
+    workspaces.map((ws) => ws.id),
+  );
   await chrome.action.setBadgeText({ text: waiting ? String(waiting) : '' });
   await chrome.action.setBadgeBackgroundColor({ color: '#f26d6d' });
   const events = previousStatuses ? attentionEvents(previousStatuses, statuses) : [];

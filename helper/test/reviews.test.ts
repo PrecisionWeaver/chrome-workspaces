@@ -24,8 +24,30 @@ describe('ticketFromTitle', () => {
 describe('parseReviewRequests', () => {
   it('maps gh search output, most recently updated first', () => {
     expect(parseReviewRequests([GH])).toEqual([
-      { repo: 'acme/web-app', number: 2, title: 'Tidy up', url: 'https://github.com/acme/web-app/pull/2', author: 'drew', isDraft: true, updatedAt: '2026-10-02T00:00:00Z', ticket: null, merge: 'draft', mergeReason: null },
-      { repo: 'acme/web-app', number: 1, title: 'PROJ-10 - Fix it', url: 'https://github.com/acme/web-app/pull/1', author: 'drew', isDraft: false, updatedAt: '2026-10-01T00:00:00Z', ticket: 'PROJ-10', merge: 'unknown', mergeReason: null },
+      {
+        repo: 'acme/web-app',
+        number: 2,
+        title: 'Tidy up',
+        url: 'https://github.com/acme/web-app/pull/2',
+        author: 'drew',
+        isDraft: true,
+        updatedAt: '2026-10-02T00:00:00Z',
+        ticket: null,
+        merge: 'draft',
+        mergeReason: null,
+      },
+      {
+        repo: 'acme/web-app',
+        number: 1,
+        title: 'PROJ-10 - Fix it',
+        url: 'https://github.com/acme/web-app/pull/1',
+        author: 'drew',
+        isDraft: false,
+        updatedAt: '2026-10-01T00:00:00Z',
+        ticket: 'PROJ-10',
+        merge: 'unknown',
+        mergeReason: null,
+      },
     ]);
   });
 
@@ -96,7 +118,9 @@ describe('merge states', () => {
   });
 
   it('maps GitHub merge states to ready, review, draft, blocked with a reason, or unknown', () => {
-    const at = (mergeStateStatus: string, reviewDecision: string | null = null) => ({ pullRequest: { url: mergeStateStatus + reviewDecision, mergeStateStatus, reviewDecision } });
+    const at = (mergeStateStatus: string, reviewDecision: string | null = null) => ({
+      pullRequest: { url: mergeStateStatus + reviewDecision, mergeStateStatus, reviewDecision },
+    });
     const json = JSON.stringify({
       data: {
         clean: at('CLEAN', 'APPROVED'),
@@ -128,21 +152,33 @@ describe('merge states', () => {
   });
 
   it('puts merge states on the polled list, leaving a PR the response omits unknown', async () => {
-    const poller = new ReviewsPoller(async () => [GH], async () => JSON.stringify({ data: { a: merge(URL1, 'CLEAN') } }));
+    const poller = new ReviewsPoller(
+      async () => [GH],
+      async () => JSON.stringify({ data: { a: merge(URL1, 'CLEAN') } }),
+    );
     await poller.refresh();
-    expect(poller.state().items.map((r) => [r.number, r.merge])).toEqual([[2, 'draft'], [1, 'ready']]);
+    expect(poller.state().items.map((r) => [r.number, r.merge])).toEqual([
+      [2, 'draft'],
+      [1, 'ready'],
+    ]);
   });
 
   it('keeps a draft a draft whatever GitHub reports for it', async () => {
-    const poller = new ReviewsPoller(async () => [GH], async () => JSON.stringify({ data: { a: merge(URL2, 'CLEAN') } }));
+    const poller = new ReviewsPoller(
+      async () => [GH],
+      async () => JSON.stringify({ data: { a: merge(URL2, 'CLEAN') } }),
+    );
     await poller.refresh();
     expect(poller.state().items.find((r) => r.number === 2)?.merge).toBe('draft');
   });
 
   it('keeps the list, with unknown states, when the merge lookup fails', async () => {
-    const poller = new ReviewsPoller(async () => [GH], async () => {
-      throw new Error('graphql down');
-    });
+    const poller = new ReviewsPoller(
+      async () => [GH],
+      async () => {
+        throw new Error('graphql down');
+      },
+    );
     await poller.refresh();
     expect(poller.state().error).toBeNull();
     expect(poller.state().items.map((r) => r.merge)).toEqual(['draft', 'unknown']);
@@ -150,7 +186,7 @@ describe('merge states', () => {
 });
 
 describe('ghWatchedPrs', () => {
-  it('searches every watched repo and does not exclude the user\'s own PRs', () => {
+  it("searches every watched repo and does not exclude the user's own PRs", () => {
     const command = ghWatchedPrs(['acme/api', 'acme/web-app']);
     expect(command).toContain('--repo acme/api --repo acme/web-app');
     expect(command).not.toContain('-author');
@@ -159,7 +195,7 @@ describe('ghWatchedPrs', () => {
 });
 
 describe('ghOwnPrs', () => {
-  it('searches the user\'s own open PRs in each repo', () => {
+  it("searches the user's own open PRs in each repo", () => {
     expect(ghOwnPrs(['acme/api', 'acme/web-app'])).toContain('--repo acme/api --repo acme/web-app --state=open --author=@me');
   });
 });

@@ -33,9 +33,7 @@ export type ServerMessage =
 
 export type NativeHostRequest = { type: 'hello' } | { type: 'start' };
 
-export type NativeHostReply =
-  | { ok: true; token: string; port: number }
-  | { ok: false; error: string };
+export type NativeHostReply = { ok: true; token: string; port: number } | { ok: false; error: string };
 
 /** The reply to `start`: the helper was asked to start, which does not mean it is listening yet. */
 export type NativeStartReply = { ok: true } | { ok: false; error: string };
@@ -125,7 +123,13 @@ export interface SystemSnapshot {
     jiraBaseUrl: string | null;
   };
   /** Tokens and estimated cost across every workspace, by day (UTC), oldest first; see `shared/pricing.ts`. */
-  usage: { daily: { day: string; tokens: number; costUsd: number }[]; costUsd: number; todayUsd: number; counting: boolean; /** Models used that have no rate, so are missing from the cost. */ unpriced: string[] };
+  usage: {
+    daily: { day: string; tokens: number; costUsd: number }[];
+    costUsd: number;
+    todayUsd: number;
+    counting: boolean;
+    /** Models used that have no rate, so are missing from the cost. */ unpriced: string[];
+  };
   /** Workspaces using a lot of memory, and servers left running; see `findWarnings`. */
   warnings: GuardrailWarning[];
   reviews: { fetchedAt: string | null; count: number; error: string | null };

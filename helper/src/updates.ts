@@ -30,20 +30,36 @@ export async function checkUpdates(repo: string): Promise<UpdateStatus> {
   const upstream = await git(repo, ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}']).catch(() => null);
   const release = (await git(repo, ['tag', '--list', 'v*', '--sort=-v:refname'])).split('\n').find((tag) => RELEASE_TAG.test(tag)) ?? null;
   const dirty = (await git(repo, ['status', '--porcelain', '--untracked-files=no'])) !== '';
-  if (!upstream && !release) return { current, branch, upstream: null, release: null, behind: 0, ahead: 0, dirty, commits: [], canUpdate: false, reason: `${branch} does not track a remote branch.` };
+  if (!upstream && !release)
+    return {
+      current,
+      branch,
+      upstream: null,
+      release: null,
+      behind: 0,
+      ahead: 0,
+      dirty,
+      commits: [],
+      canUpdate: false,
+      reason: `${branch} does not track a remote branch.`,
+    };
 
   const target = release ?? '@{u}';
   const [ahead, behind] = (await git(repo, ['rev-list', '--left-right', '--count', `HEAD...${target}`])).split(/\s+/).map(Number);
   const commits = behind
-    ? (await git(repo, ['log', `HEAD..${target}`, `-n${COMMITS_SHOWN}`, '--format=%h%x09%s'])).split('\n').filter(Boolean).map((line) => {
-        const [short, ...subject] = line.split('\t');
-        return { short, subject: subject.join('\t') };
-      })
+    ? (await git(repo, ['log', `HEAD..${target}`, `-n${COMMITS_SHOWN}`, '--format=%h%x09%s']))
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => {
+          const [short, ...subject] = line.split('\t');
+          return { short, subject: subject.join('\t') };
+        })
     : [];
 
   let reason: string | null = null;
   if (behind === 0) reason = 'Already up to date.';
-  else if (ahead > 0) reason = `This copy has ${ahead} commit${ahead === 1 ? '' : 's'} that ${release ?? upstream} does not, so it cannot be fast-forwarded. Update it by hand.`;
+  else if (ahead > 0)
+    reason = `This copy has ${ahead} commit${ahead === 1 ? '' : 's'} that ${release ?? upstream} does not, so it cannot be fast-forwarded. Update it by hand.`;
   else if (dirty) reason = 'There are uncommitted changes to tracked files. Commit or stash them first.';
   return { current, branch, upstream, release, behind, ahead, dirty, commits, canUpdate: reason === null, reason };
 }
@@ -71,9 +87,15 @@ export async function applyUpdate(repo: string, run: (command: string) => Promis
 
   if (changed.some((file) => file === 'package.json' || file === 'package-lock.json')) {
     const install = await run('npm install --no-audit --no-fund 2>&1 | tail -5');
-    if (!install.ok) return { ok: false, message: `Updated to ${after.slice(0, 7)}, but npm install failed: ${install.output.split('\n').pop()}`, restart: false };
+    if (!install.ok)
+      return { ok: false, message: `Updated to ${after.slice(0, 7)}, but npm install failed: ${install.output.split('\n').pop()}`, restart: false };
   }
   const build = await run('npm run build:extension 2>&1 | tail -5');
-  if (!build.ok) return { ok: false, message: `Updated to ${after.slice(0, 7)}, but the extension build failed: ${build.output.split('\n').pop()}`, restart: false };
-  return { ok: true, message: `Updated ${status.current} → ${status.release ?? after.slice(0, 7)} (${status.behind} commit${status.behind === 1 ? '' : 's'}). The helper is restarting; reload the extension to finish.`, restart: true };
+  if (!build.ok)
+    return { ok: false, message: `Updated to ${after.slice(0, 7)}, but the extension build failed: ${build.output.split('\n').pop()}`, restart: false };
+  return {
+    ok: true,
+    message: `Updated ${status.current} → ${status.release ?? after.slice(0, 7)} (${status.behind} commit${status.behind === 1 ? '' : 's'}). The helper is restarting; reload the extension to finish.`,
+    restart: true,
+  };
 }

@@ -30,7 +30,9 @@ export function createPalette(items: () => PaletteItem[], onClose: () => void): 
   let isOpen = false;
 
   function render(): void {
-    shown = fuzzyRank(input.value, all, (item) => `${item.label} ${item.kind}`).slice(0, MAX_RESULTS).map((r) => r.item);
+    shown = fuzzyRank(input.value, all, (item) => `${item.label} ${item.kind}`)
+      .slice(0, MAX_RESULTS)
+      .map((r) => r.item);
     active = Math.min(active, Math.max(shown.length - 1, 0));
     list.replaceChildren(
       ...shown.map((item, index) => {

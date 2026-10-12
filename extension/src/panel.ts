@@ -1,7 +1,16 @@
 import { FitAddon } from '@xterm/addon-fit';
 import { Terminal } from '@xterm/xterm';
 import { similarity } from '../../shared/pairing';
-import { WORKSPACE_COLORS, type ClientMessage, type HistoryEntry, type ReviewRequest, type ReviewsState, type ServerMessage, type Workspace, type WorkspaceStatus } from '../../shared/protocol';
+import {
+  WORKSPACE_COLORS,
+  type ClientMessage,
+  type HistoryEntry,
+  type ReviewRequest,
+  type ReviewsState,
+  type ServerMessage,
+  type Workspace,
+  type WorkspaceStatus,
+} from '../../shared/protocol';
 import { el } from './dom';
 import { connectControl, getHelper, openSocket, startHelper } from './helper-client';
 import { createCreateView } from './create-view';
@@ -38,7 +47,13 @@ term.loadAddon(fit);
 term.open(terminalEl);
 
 const DARK_TERMINAL = { background: '#1e1e1e' };
-const LIGHT_TERMINAL = { background: '#ffffff', foreground: '#1f2328', cursor: '#1f2328', cursorAccent: '#ffffff', selectionBackground: 'rgba(31, 111, 235, 0.25)' };
+const LIGHT_TERMINAL = {
+  background: '#ffffff',
+  foreground: '#1f2328',
+  cursor: '#1f2328',
+  cursorAccent: '#ffffff',
+  selectionBackground: 'rgba(31, 111, 235, 0.25)',
+};
 const systemDark = window.matchMedia('(prefers-color-scheme: dark)');
 let appearance: Prefs | null = null;
 
@@ -290,7 +305,10 @@ listSearch.addEventListener('keydown', (event) => {
 });
 
 function renderList(): void {
-  const waiting = needsInputCount(statuses, workspaces.map((ws) => ws.id));
+  const waiting = needsInputCount(
+    statuses,
+    workspaces.map((ws) => ws.id),
+  );
   $<HTMLSpanElement>('list-title').textContent = waiting ? `Workspaces · ${waiting} waiting` : 'Workspaces';
   if (editing || dragged) return;
   // A filter box earns its room once the list is long enough to need one.
@@ -405,7 +423,10 @@ function workspaceRow(ws: Workspace, number: number | null, here: Workspace | un
   item.setAttribute('role', 'option');
   item.setAttribute('aria-selected', String(ws.id === here?.id));
   const live = statuses[ws.id];
-  item.setAttribute('aria-label', `${ws.name}${live === 'needs_input' ? ', needs input' : live === 'working' ? ', working' : live === 'idle' ? ', idle' : ''}${ws.pinned ? ', pinned' : ''}${ws.archived ? ', archived' : ''}`);
+  item.setAttribute(
+    'aria-label',
+    `${ws.name}${live === 'needs_input' ? ', needs input' : live === 'working' ? ', working' : live === 'idle' ? ', idle' : ''}${ws.pinned ? ', pinned' : ''}${ws.archived ? ', archived' : ''}`,
+  );
   item.title = `${ws.name}\n${ws.cwd}${ws.groupId === null ? '' : '\nTab group'}\nRight-click for more`;
 
   const badge = document.createElement('span');
@@ -682,44 +703,47 @@ function attach(workspace: Workspace): void {
   attachedId = workspace.id;
   connecting = true;
 
-  getHelper().then((helper) => {
-    connecting = false;
-    if (attachedId !== workspace.id) return;
-    const ws = openSocket(helper, `/attach?session=${workspace.id}`);
-    socket = ws;
+  getHelper().then(
+    (helper) => {
+      connecting = false;
+      if (attachedId !== workspace.id) return;
+      const ws = openSocket(helper, `/attach?session=${workspace.id}`);
+      socket = ws;
 
-    ws.onopen = () => {
-      fitTerminal();
-      term.focus();
-    };
-    ws.onmessage = (event) => {
-      const message = JSON.parse(event.data as string) as ServerMessage;
-      if (message.type === 'output') {
-        if (!message.replay) term.write(message.data);
-        else {
-          replaying = true;
-          term.write(message.data, () => (replaying = false));
+      ws.onopen = () => {
+        fitTerminal();
+        term.focus();
+      };
+      ws.onmessage = (event) => {
+        const message = JSON.parse(event.data as string) as ServerMessage;
+        if (message.type === 'output') {
+          if (!message.replay) term.write(message.data);
+          else {
+            replaying = true;
+            term.write(message.data, () => (replaying = false));
+          }
         }
-      }
-      // The saved path is pasted, so a program that takes pastes (claude) treats it as an attachment.
-      else if (message.type === 'uploaded') {
-        if (message.path) term.paste(`${message.path} `);
-        else showNotice(`Could not add ${message.name}: ${message.error ?? 'unknown error'}`);
-      }
-      // The shell is gone; close the panel. Reopening it starts a fresh session.
-      else if (myWindowId !== undefined) void chrome.sidePanel.close({ windowId: myWindowId });
-      else window.close();
-    };
-    ws.onclose = () => {
-      if (socket !== ws) return;
-      socket = null;
-      term.write('\r\n\x1b[33m[disconnected from helper — reconnects when it is back]\x1b[0m\r\n');
-    };
-  }, () => {
-    // The control connection's notice explains the outage; the next state retries the attach.
-    connecting = false;
-    attachedId = null;
-  });
+        // The saved path is pasted, so a program that takes pastes (claude) treats it as an attachment.
+        else if (message.type === 'uploaded') {
+          if (message.path) term.paste(`${message.path} `);
+          else showNotice(`Could not add ${message.name}: ${message.error ?? 'unknown error'}`);
+        }
+        // The shell is gone; close the panel. Reopening it starts a fresh session.
+        else if (myWindowId !== undefined) void chrome.sidePanel.close({ windowId: myWindowId });
+        else window.close();
+      };
+      ws.onclose = () => {
+        if (socket !== ws) return;
+        socket = null;
+        term.write('\r\n\x1b[33m[disconnected from helper — reconnects when it is back]\x1b[0m\r\n');
+      };
+    },
+    () => {
+      // The control connection's notice explains the outage; the next state retries the attach.
+      connecting = false;
+      attachedId = null;
+    },
+  );
 }
 
 // Replayed scrollback can hold terminal queries (device attributes, say); xterm answers them through onData,
@@ -766,7 +790,11 @@ function paletteItems(): PaletteItem[] {
     { kind: 'Action', label: 'Open settings', hint: 'Helper, sessions, housekeeping', run: () => settings.show() },
     { kind: 'Action', label: 'Refresh review requests', run: () => send({ type: 'refreshReviews' }) },
     { kind: 'Action', label: 'Refresh source control', run: () => git.refresh() },
-    { kind: 'Action', label: document.body.classList.contains('collapsed') ? 'Expand the list' : 'Collapse the list', run: () => $<HTMLButtonElement>('collapse').click() },
+    {
+      kind: 'Action',
+      label: document.body.classList.contains('collapsed') ? 'Expand the list' : 'Collapse the list',
+      run: () => $<HTMLButtonElement>('collapse').click(),
+    },
   ];
   const shown = current();
   for (const ws of workspaces) {
@@ -774,7 +802,13 @@ function paletteItems(): PaletteItem[] {
     items.push({
       kind: ws.archived ? 'Workspace · archived' : 'Workspace',
       label: ws.name,
-      hint: [ws.id === shown?.id ? 'current' : '', status === 'needs_input' ? 'needs input' : status === 'working' ? 'working' : '', ws.cwd.replace(/^\/Users\/[^/]+/, '~')].filter(Boolean).join(' · '),
+      hint: [
+        ws.id === shown?.id ? 'current' : '',
+        status === 'needs_input' ? 'needs input' : status === 'working' ? 'working' : '',
+        ws.cwd.replace(/^\/Users\/[^/]+/, '~'),
+      ]
+        .filter(Boolean)
+        .join(' · '),
       run: () => openWorkspace(ws),
     });
   }
@@ -783,7 +817,12 @@ function paletteItems(): PaletteItem[] {
     if (url) items.push({ kind: 'Ticket', label: `${ws.ticket} · ${ws.name}`, hint: 'Open in Jira', run: () => void chrome.tabs.create({ url }) });
   }
   for (const entry of history) {
-    items.push({ kind: 'Restore', label: entry.name, hint: `closed ${new Date(entry.closedAt).toLocaleDateString()}${entry.resumeId ? ' · resumes its conversation' : ''}`, run: () => restoreWorkspace(entry) });
+    items.push({
+      kind: 'Restore',
+      label: entry.name,
+      hint: `closed ${new Date(entry.closedAt).toLocaleDateString()}${entry.resumeId ? ' · resumes its conversation' : ''}`,
+      run: () => restoreWorkspace(entry),
+    });
   }
   for (const review of reviews.items) {
     const existing = workspaces.find((ws) => ws.pr === review.url);

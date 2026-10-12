@@ -4,8 +4,14 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { TranscriptTokens, usageFromLine } from '../src/tokens';
 
-const line = (id: string, usage: Record<string, number>, extra: Record<string, unknown> = {}, model = 'claude-opus-5-5') => JSON.stringify({ type: 'assistant', message: { id, usage, model }, ...extra });
-const use = (input: number, output: number, write = 0, read = 0) => ({ input_tokens: input, output_tokens: output, cache_creation_input_tokens: write, cache_read_input_tokens: read });
+const line = (id: string, usage: Record<string, number>, extra: Record<string, unknown> = {}, model = 'claude-opus-5-5') =>
+  JSON.stringify({ type: 'assistant', message: { id, usage, model }, ...extra });
+const use = (input: number, output: number, write = 0, read = 0) => ({
+  input_tokens: input,
+  output_tokens: output,
+  cache_creation_input_tokens: write,
+  cache_read_input_tokens: read,
+});
 const transcript = (lines: string[]) => {
   const file = join(mkdtempSync(join(tmpdir(), 'cw-tok-')), 't.jsonl');
   writeFileSync(file, lines.join('\n') + '\n');
@@ -14,7 +20,12 @@ const transcript = (lines: string[]) => {
 
 describe('usageFromLine', () => {
   it('reads the four figures and the message id, and ignores lines without usage', () => {
-    expect(usageFromLine(line('m1', use(2, 482, 64033, 26853), { timestamp: '2026-10-08T14:22:01.000Z' }))).toEqual({ id: 'm1', usage: { input: 2, output: 482, cacheWrite: 64033, cacheRead: 26853 }, model: 'claude-opus-5-5', day: '2026-10-08' });
+    expect(usageFromLine(line('m1', use(2, 482, 64033, 26853), { timestamp: '2026-10-08T14:22:01.000Z' }))).toEqual({
+      id: 'm1',
+      usage: { input: 2, output: 482, cacheWrite: 64033, cacheRead: 26853 },
+      model: 'claude-opus-5-5',
+      day: '2026-10-08',
+    });
     expect(usageFromLine(line('m2', use(1, 1), { timestamp: 'garbage' }))).toMatchObject({ day: '' });
     expect(usageFromLine(JSON.stringify({ type: 'user', message: { content: 'hi' } }))).toBeNull();
     expect(usageFromLine('{"usage": cut off')).toBeNull();
@@ -22,7 +33,12 @@ describe('usageFromLine', () => {
   });
 
   it('treats a missing or non-numeric figure as zero', () => {
-    expect(usageFromLine(line('m', { input_tokens: 5, output_tokens: 'x' as unknown as number }))?.usage).toEqual({ input: 5, output: 0, cacheWrite: 0, cacheRead: 0 });
+    expect(usageFromLine(line('m', { input_tokens: 5, output_tokens: 'x' as unknown as number }))?.usage).toEqual({
+      input: 5,
+      output: 0,
+      cacheWrite: 0,
+      cacheRead: 0,
+    });
   });
 });
 
@@ -36,7 +52,10 @@ describe('TranscriptTokens buckets', () => {
       line('c', use(4, 40), { timestamp: '2026-10-08T09:00:00Z' }, 'claude-sonnet-4'),
     ]);
     await tokens.refresh(file);
-    const buckets = tokens.peek(file)!.buckets.map((b) => [b.model, b.day, b.usage.input, b.usage.output]).sort();
+    const buckets = tokens
+      .peek(file)!
+      .buckets.map((b) => [b.model, b.day, b.usage.input, b.usage.output])
+      .sort();
     expect(buckets).toEqual([
       ['claude-opus-5-5', '2026-10-07', 1, 10],
       ['claude-opus-5-5', '2026-10-08', 2, 20],
@@ -48,7 +67,13 @@ describe('TranscriptTokens buckets', () => {
 describe('TranscriptTokens', () => {
   it('counts each message once, however many times claude wrote it', async () => {
     const tokens = new TranscriptTokens();
-    const file = transcript([line('a', use(2, 100, 1000, 500)), line('a', use(2, 100, 1000, 500)), line('a', use(2, 100, 1000, 500)), line('b', use(10, 20, 0, 800)), JSON.stringify({ type: 'user' })]);
+    const file = transcript([
+      line('a', use(2, 100, 1000, 500)),
+      line('a', use(2, 100, 1000, 500)),
+      line('a', use(2, 100, 1000, 500)),
+      line('b', use(10, 20, 0, 800)),
+      JSON.stringify({ type: 'user' }),
+    ]);
     await tokens.refresh(file);
     expect(tokens.peek(file)).toMatchObject({ totals: { input: 12, output: 120, cacheWrite: 1000, cacheRead: 1300 }, scanning: false });
   });

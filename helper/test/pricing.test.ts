@@ -37,7 +37,13 @@ describe('costOf', () => {
 
 describe('mergePricing', () => {
   it('overrides a family, adds one, and ignores anything malformed', () => {
-    const merged = mergePricing({ opus: { input: 5, output: 25 }, mystery: { input: 2, output: 8 }, sonnet: { input: 'x' }, haiku: null, bad: { input: -1, output: 1 } });
+    const merged = mergePricing({
+      opus: { input: 5, output: 25 },
+      mystery: { input: 2, output: 8 },
+      sonnet: { input: 'x' },
+      haiku: null,
+      bad: { input: -1, output: 1 },
+    });
     expect(merged.opus).toEqual({ input: 5, output: 25 });
     expect(merged.mystery).toEqual({ input: 2, output: 8 });
     expect(merged.sonnet).toEqual(DEFAULT_PRICING.sonnet);

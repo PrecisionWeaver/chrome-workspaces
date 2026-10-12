@@ -26,7 +26,11 @@ describe('parseInline', () => {
   });
 
   it('never makes a link from a javascript: or data: address', () => {
-    expect(parseInline('[x](javascript:alert) [y](data:text/html,hi)')).toEqual([{ t: 'text', v: 'x' }, { t: 'text', v: ' ' }, { t: 'text', v: 'y' }]);
+    expect(parseInline('[x](javascript:alert) [y](data:text/html,hi)')).toEqual([
+      { t: 'text', v: 'x' },
+      { t: 'text', v: ' ' },
+      { t: 'text', v: 'y' },
+    ]);
   });
 
   it('shows an image as a labelled link and honors escapes', () => {
@@ -68,7 +72,10 @@ describe('parseMarkdown', () => {
     expect(table).toMatchObject({ t: 'table' });
     if (table.t !== 'table') throw new Error('not a table');
     expect(table.head.map(inlineText)).toEqual(['A', 'B']);
-    expect(table.rows.map((r) => r.map(inlineText))).toEqual([['1', '2'], ['3', '4']]);
+    expect(table.rows.map((r) => r.map(inlineText))).toEqual([
+      ['1', '2'],
+      ['3', '4'],
+    ]);
     expect(quote).toMatchObject({ t: 'quote' });
   });
 

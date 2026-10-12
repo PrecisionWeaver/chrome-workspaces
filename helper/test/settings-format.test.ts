@@ -3,7 +3,16 @@ import { formatBytes, formatDuration, formatTokens, newTokens } from '../../exte
 
 describe('settings formatters', () => {
   it('abbreviates token counts', () => {
-    expect([0, 999, 1000, 1234, 99_500, 123_456, 4_560_000, 1_250_000_000].map(formatTokens)).toEqual(['0', '999', '1.0K', '1.2K', '99.5K', '123K', '4.6M', '1.3B']);
+    expect([0, 999, 1000, 1234, 99_500, 123_456, 4_560_000, 1_250_000_000].map(formatTokens)).toEqual([
+      '0',
+      '999',
+      '1.0K',
+      '1.2K',
+      '99.5K',
+      '123K',
+      '4.6M',
+      '1.3B',
+    ]);
   });
 
   it('counts input, output and cache writes as new tokens, and leaves out cache reads', () => {

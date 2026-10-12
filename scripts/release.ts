@@ -39,4 +39,6 @@ rewrite('package.json', version);
 rewrite('extension/manifest.json', version);
 step('git', ['commit', '-am', `release: v${version}`]);
 
-console.log(`\nv${current} -> v${version} on ${branch}. Next:\n  git checkout main && git merge --ff-only ${branch} && git push\nCI then tags v${version} and publishes the release.`);
+console.log(
+  `\nv${current} -> v${version} on ${branch}. Next:\n  git checkout main && git merge --ff-only ${branch} && git push\nCI then tags v${version} and publishes the release.`,
+);

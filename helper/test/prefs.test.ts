@@ -8,8 +8,18 @@ describe('normalizePrefs', () => {
   });
 
   it('keeps valid values and replaces invalid ones with their defaults, field by field', () => {
-    expect(normalizePrefs({ notify: true, theme: 'light', density: 'compact', setupDismissed: true })).toEqual({ notify: true, theme: 'light', density: 'compact', setupDismissed: true });
-    expect(normalizePrefs({ notify: 'yes', theme: 'neon', density: 'tiny' })).toEqual({ notify: false, theme: 'system', density: 'comfortable', setupDismissed: false });
+    expect(normalizePrefs({ notify: true, theme: 'light', density: 'compact', setupDismissed: true })).toEqual({
+      notify: true,
+      theme: 'light',
+      density: 'compact',
+      setupDismissed: true,
+    });
+    expect(normalizePrefs({ notify: 'yes', theme: 'neon', density: 'tiny' })).toEqual({
+      notify: false,
+      theme: 'system',
+      density: 'comfortable',
+      setupDismissed: false,
+    });
     expect(normalizePrefs({ theme: 'dark' })).toEqual({ notify: false, theme: 'dark', density: 'comfortable', setupDismissed: false });
   });
 });

@@ -217,7 +217,7 @@ describe('control channel', () => {
     ws.close();
   });
 
-  it('starts a PR workspace in the directory picked, else its repo\'s configured one', async () => {
+  it("starts a PR workspace in the directory picked, else its repo's configured one", async () => {
     const picked = mkdtempSync(join(tmpdir(), 'cw-pick-'));
     const repoDir = mkdtempSync(join(tmpdir(), 'cw-repo-'));
     h.repoDirs['acme/web-app'] = repoDir;
@@ -234,7 +234,7 @@ describe('control channel', () => {
     ws.close();
   });
 
-  it('answers git requests for a workspace\'s directory, to the asking client only', async () => {
+  it("answers git requests for a workspace's directory, to the asking client only", async () => {
     const dir = mkdtempSync(join(tmpdir(), 'cw-ctl-git-'));
     const git = (...args: string[]) => execFileSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.com', ...args], { cwd: dir });
     git('init', '-q', '-b', 'main');
@@ -270,7 +270,7 @@ describe('control channel', () => {
     other.ws.close();
   });
 
-  it('shows the worktree claude has moved into, but only one of the workspace\'s own repository', async () => {
+  it("shows the worktree claude has moved into, but only one of the workspace's own repository", async () => {
     const dir = mkdtempSync(join(tmpdir(), 'cw-wt-main-'));
     const git = (cwd: string, ...args: string[]) => execFileSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.com', ...args], { cwd });
     git(dir, 'init', '-q', '-b', 'main');
@@ -327,7 +327,10 @@ describe('control channel', () => {
     ws.send(JSON.stringify({ type: 'mark', id: b.id, pinned: true, color: 'green' }));
     ws.send(JSON.stringify({ type: 'mark', id: a.id, archived: true }));
     await waitFor(() => h.store.get(a.id)?.archived === true);
-    expect(h.store.list().map((w) => [w.name, w.pinned, w.color])).toEqual([['b', true, 'green'], ['a', false, null]]);
+    expect(h.store.list().map((w) => [w.name, w.pinned, w.color])).toEqual([
+      ['b', true, 'green'],
+      ['a', false, null],
+    ]);
     ws.close();
   });
 
@@ -337,7 +340,10 @@ describe('control channel', () => {
     // `cat` echoes what it is given, so the paste shows up in the session's output.
     const session = h.sessions.create({ id: running.id, command: '/bin/cat', args: [], cwd: h.defaultCwd });
     let output = '';
-    session.attach((data) => (output += data), () => {});
+    session.attach(
+      (data) => (output += data),
+      () => {},
+    );
 
     const { ws, messages } = connectControl(h);
     await opened(ws);
@@ -391,7 +397,9 @@ describe('control channel', () => {
     ws.send(JSON.stringify({ type: 'gitBranches', id: workspace.id }));
     ws.send(JSON.stringify({ type: 'gitCompare', id: workspace.id }));
     await waitFor(() => messages.some((m) => m.type === 'gitBranches') && messages.some((m) => m.type === 'gitCompare'));
-    expect(messages.find((m) => m.type === 'gitBranches')).toMatchObject({ branches: expect.arrayContaining([expect.objectContaining({ name: 'topic', current: true })]) });
+    expect(messages.find((m) => m.type === 'gitBranches')).toMatchObject({
+      branches: expect.arrayContaining([expect.objectContaining({ name: 'topic', current: true })]),
+    });
     expect(messages.find((m) => m.type === 'gitCompare')).toMatchObject({ compare: { base: 'main', ahead: 0 }, error: null });
 
     // Malformed writes never reach git: no reply of any kind.
@@ -406,7 +414,7 @@ describe('control channel', () => {
     ws.close();
   });
 
-  it('reports the checks on the branch\'s pull request, none when it has no PR, and an error when gh fails', async () => {
+  it("reports the checks on the branch's pull request, none when it has no PR, and an error when gh fails", async () => {
     const dir = mkdtempSync(join(tmpdir(), 'cw-ctl-ci-'));
     const workspace = h.store.create({ name: 'ci', cwd: dir });
     const { ws, messages } = connectControl(h);
@@ -417,21 +425,37 @@ describe('control channel', () => {
     await waitFor(() => checks().length === 1);
     expect(checks()[0]).toMatchObject({ pr: null, checks: null, error: null });
 
-    h.branchPrJson = JSON.stringify({ number: 5, title: 'T', url: 'https://github.com/acme/web-app/pull/5', isDraft: false, statusCheckRollup: [{ __typename: 'CheckRun', name: 'Pest', status: 'COMPLETED', conclusion: 'FAILURE' }, { __typename: 'CheckRun', name: 'Lint', status: 'COMPLETED', conclusion: 'SUCCESS' }] });
+    h.branchPrJson = JSON.stringify({
+      number: 5,
+      title: 'T',
+      url: 'https://github.com/acme/web-app/pull/5',
+      isDraft: false,
+      statusCheckRollup: [
+        { __typename: 'CheckRun', name: 'Pest', status: 'COMPLETED', conclusion: 'FAILURE' },
+        { __typename: 'CheckRun', name: 'Lint', status: 'COMPLETED', conclusion: 'SUCCESS' },
+      ],
+    });
     ws.send(JSON.stringify({ type: 'gitChecks', id: workspace.id }));
     await waitFor(() => checks().length === 2);
     expect(checks()[1]).toMatchObject({ pr: { number: 5 }, checks: { passed: 1, failed: 1, failing: ['Pest'] }, error: null });
     ws.close();
   });
 
-  it('sends a workspace\'s recent activity from its transcript, and says so when there is none', async () => {
+  it("sends a workspace's recent activity from its transcript, and says so when there is none", async () => {
     const withTranscript = h.store.create({ name: 'busy', cwd: h.defaultCwd });
     const without = h.store.create({ name: 'new', cwd: h.defaultCwd });
     const file = join(mkdtempSync(join(tmpdir(), 'cw-ctl-tl-')), 't.jsonl');
-    writeFileSync(file, [
-      JSON.stringify({ type: 'user', timestamp: '2026-10-08T10:00:00Z', message: { role: 'user', content: 'fix the bug' } }),
-      JSON.stringify({ type: 'assistant', timestamp: '2026-10-08T10:00:03Z', message: { role: 'assistant', content: [{ type: 'tool_use', name: 'Edit', input: { file_path: '/repo/a.ts' } }] } }),
-    ].join('\n') + '\n');
+    writeFileSync(
+      file,
+      [
+        JSON.stringify({ type: 'user', timestamp: '2026-10-08T10:00:00Z', message: { role: 'user', content: 'fix the bug' } }),
+        JSON.stringify({
+          type: 'assistant',
+          timestamp: '2026-10-08T10:00:03Z',
+          message: { role: 'assistant', content: [{ type: 'tool_use', name: 'Edit', input: { file_path: '/repo/a.ts' } }] },
+        }),
+      ].join('\n') + '\n',
+    );
     h.transcripts[withTranscript.id] = file;
 
     const { ws, messages } = connectControl(h);
@@ -441,7 +465,13 @@ describe('control channel', () => {
     ws.send(JSON.stringify({ type: 'timeline', id: 'ws-00000000' }));
     await waitFor(() => messages.filter((m) => m.type === 'timeline').length === 3);
     const replies = messages.filter((m): m is Extract<ControlToClient, { type: 'timeline' }> => m.type === 'timeline');
-    expect(replies.find((m) => m.id === withTranscript.id)).toMatchObject({ error: null, events: [{ kind: 'you', summary: 'fix the bug' }, { kind: 'tool', tool: 'Edit', file: '/repo/a.ts' }] });
+    expect(replies.find((m) => m.id === withTranscript.id)).toMatchObject({
+      error: null,
+      events: [
+        { kind: 'you', summary: 'fix the bug' },
+        { kind: 'tool', tool: 'Edit', file: '/repo/a.ts' },
+      ],
+    });
     expect(replies.find((m) => m.id === without.id)).toMatchObject({ events: [], error: expect.stringContaining('no claude session') });
     expect(replies.find((m) => m.id === 'ws-00000000')).toMatchObject({ events: [], error: expect.any(String) });
     ws.close();
@@ -456,7 +486,28 @@ describe('control channel', () => {
     await waitFor(() => replies().length === 1);
     expect(replies()[0]).toMatchObject({ threads: [], error: 'gh failed' });
 
-    h.prThreadsJson = JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { totalCount: 1, nodes: [{ isResolved: false, isOutdated: false, path: 'a.ts', line: 4, comments: { nodes: [{ author: { login: 'drew' }, body: 'Rename this', createdAt: '2026-10-08T10:00:00Z', url: 'https://github.com/x/y/pull/1#r1' }] } }] } } } } });
+    h.prThreadsJson = JSON.stringify({
+      data: {
+        repository: {
+          pullRequest: {
+            reviewThreads: {
+              totalCount: 1,
+              nodes: [
+                {
+                  isResolved: false,
+                  isOutdated: false,
+                  path: 'a.ts',
+                  line: 4,
+                  comments: {
+                    nodes: [{ author: { login: 'drew' }, body: 'Rename this', createdAt: '2026-10-08T10:00:00Z', url: 'https://github.com/x/y/pull/1#r1' }],
+                  },
+                },
+              ],
+            },
+          },
+        },
+      },
+    });
     ws.send(JSON.stringify({ type: 'prThreads', url: PR }));
     await waitFor(() => replies().length === 2);
     expect(replies()[1]).toMatchObject({ error: null, total: 1, threads: [{ path: 'a.ts', line: 4, comments: [{ author: 'drew', body: 'Rename this' }] }] });
@@ -508,7 +559,11 @@ describe('control channel', () => {
     await Promise.all([opened(asker.ws), opened(other.ws)]);
     asker.ws.send(JSON.stringify({ type: 'listPrompts' }));
     await waitFor(() => asker.messages.some((m) => m.type === 'prompts'));
-    expect(asker.messages.find((m) => m.type === 'prompts')).toEqual({ type: 'prompts', prompts: [{ section: 'Reviews', text: '/code-review PR-URL' }], error: null });
+    expect(asker.messages.find((m) => m.type === 'prompts')).toEqual({
+      type: 'prompts',
+      prompts: [{ section: 'Reviews', text: '/code-review PR-URL' }],
+      error: null,
+    });
 
     h.promptsError = 'cannot read /x.md: ENOENT';
     asker.ws.send(JSON.stringify({ type: 'listPrompts' }));
@@ -528,7 +583,25 @@ describe('control channel', () => {
   });
 
   it('answers prDetails to the asking client, reporting fetch errors and ignoring non-PR urls', async () => {
-    h.prDetailsJson = JSON.stringify({ number: 482, title: 't', url: PR, author: { login: 'drew' }, headRefName: 'h', baseRefName: 'b', isDraft: false, additions: 1, deletions: 2, changedFiles: 3, reviewDecision: 'APPROVED', mergeable: 'MERGEABLE', createdAt: 'c', updatedAt: 'u', latestReviews: [], reviewRequests: [], statusCheckRollup: [] });
+    h.prDetailsJson = JSON.stringify({
+      number: 482,
+      title: 't',
+      url: PR,
+      author: { login: 'drew' },
+      headRefName: 'h',
+      baseRefName: 'b',
+      isDraft: false,
+      additions: 1,
+      deletions: 2,
+      changedFiles: 3,
+      reviewDecision: 'APPROVED',
+      mergeable: 'MERGEABLE',
+      createdAt: 'c',
+      updatedAt: 'u',
+      latestReviews: [],
+      reviewRequests: [],
+      statusCheckRollup: [],
+    });
     const { ws, messages } = connectControl(h);
     await opened(ws);
     ws.send(JSON.stringify({ type: 'prDetails', url: 'https://evil.example/o/r/pull/1' }));

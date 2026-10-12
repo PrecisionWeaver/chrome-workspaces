@@ -41,7 +41,9 @@ function standing(mergeStateStatus: string, reviewDecision: string | null): Stan
 
 /** Reads the response of `mergeStatusQuery`; PRs missing from it, e.g. in a repo the token cannot see, stay unknown. */
 export function parseMergeStatuses(json: string): Map<string, Standing> {
-  const parsed = JSON.parse(json) as { data?: Record<string, { pullRequest?: { url: string; mergeStateStatus: string; reviewDecision: string | null } | null } | null> | null };
+  const parsed = JSON.parse(json) as {
+    data?: Record<string, { pullRequest?: { url: string; mergeStateStatus: string; reviewDecision: string | null } | null } | null> | null;
+  };
   const result = new Map<string, Standing>();
   for (const lookup of Object.values(parsed.data ?? {})) {
     const pr = lookup?.pullRequest;

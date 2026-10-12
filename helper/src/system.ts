@@ -77,7 +77,15 @@ export async function readListening(): Promise<Map<number, number[]>> {
 }
 
 export function toSystemProcess(proc: Proc, listening: ReadonlyMap<number, number[]>): SystemProcess {
-  return { pid: proc.pid, ppid: proc.ppid, command: proc.command, cpu: proc.cpu, rssKb: proc.rssKb, elapsed: proc.elapsed, ports: (listening.get(proc.pid) ?? []).sort((a, b) => a - b) };
+  return {
+    pid: proc.pid,
+    ppid: proc.ppid,
+    command: proc.command,
+    cpu: proc.cpu,
+    rssKb: proc.rssKb,
+    elapsed: proc.elapsed,
+    ports: (listening.get(proc.pid) ?? []).sort((a, b) => a - b),
+  };
 }
 
 /** Bytes under a path, or the file's own size; 0 if it does not exist. */

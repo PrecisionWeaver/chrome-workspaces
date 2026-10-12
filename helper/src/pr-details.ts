@@ -37,7 +37,6 @@ interface GhPrView {
   commits: { oid: string; messageHeadline: string; committedDate: string; authors: { login?: string; name?: string }[] }[] | null;
 }
 
-
 const PASSED = new Set(['SUCCESS', 'NEUTRAL', 'SKIPPED']);
 const PENDING_STATES = new Set(['PENDING', 'EXPECTED']);
 
@@ -114,14 +113,18 @@ export function parsePrDetails(json: string): PrDetails {
     commits: [...(pr.commits ?? [])]
       .reverse()
       .slice(0, PR_COMMITS_SHOWN)
-      .map((c) => ({ sha: c.oid.slice(0, 7), headline: c.messageHeadline, author: c.authors[0]?.login ?? c.authors[0]?.name ?? 'unknown', date: c.committedDate })),
+      .map((c) => ({
+        sha: c.oid.slice(0, 7),
+        headline: c.messageHeadline,
+        author: c.authors[0]?.login ?? c.authors[0]?.name ?? 'unknown',
+        date: c.committedDate,
+      })),
     commitCount: (pr.commits ?? []).length,
   };
 }
 
 /** Runs with the PR's owner, repo and number in the environment, so none of it becomes shell syntax. */
-export const GH_PR_THREADS =
-  'gh api graphql -f query="$CW_QUERY" -f owner="$CW_OWNER" -f repo="$CW_REPO" -F number="$CW_NUMBER"';
+export const GH_PR_THREADS = 'gh api graphql -f query="$CW_QUERY" -f owner="$CW_OWNER" -f repo="$CW_REPO" -F number="$CW_NUMBER"';
 
 export const PR_THREADS_QUERY =
   'query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$number){reviewThreads(first:60){totalCount nodes{isResolved isOutdated path line originalLine comments(first:4){nodes{author{login} body createdAt url}}}}}}}';
@@ -145,7 +148,10 @@ interface GhThread {
 
 /** Reads the GraphQL answer: the review threads, unresolved first, each with its first few comments. */
 export function parsePrThreads(json: string): { threads: PrThread[]; total: number } {
-  const parsed = JSON.parse(json) as { data?: { repository?: { pullRequest?: { reviewThreads?: { totalCount?: number; nodes?: GhThread[] } } | null } | null }; errors?: { message?: string }[] };
+  const parsed = JSON.parse(json) as {
+    data?: { repository?: { pullRequest?: { reviewThreads?: { totalCount?: number; nodes?: GhThread[] } } | null } | null };
+    errors?: { message?: string }[];
+  };
   const threads = parsed.data?.repository?.pullRequest?.reviewThreads;
   if (!threads) throw new Error(parsed.errors?.[0]?.message ?? `unexpected gh output: ${json.slice(0, 200)}`);
   const nodes: PrThread[] = (threads.nodes ?? []).map((t) => ({

@@ -50,7 +50,6 @@ export function matchWindows(workspaces: readonly Workspace[], windows: readonly
   return result;
 }
 
-
 export interface OpenGroup {
   id: number;
   windowId: number;

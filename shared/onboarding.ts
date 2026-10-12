@@ -44,7 +44,10 @@ export function buildChecklist(input: SetupInput): SetupItem[] {
       id: 'extension',
       label: 'Extension matches the helper',
       ok: input.helperExtensionId === input.extensionId,
-      detail: input.helperExtensionId === input.extensionId ? 'The extension IDs agree.' : `The helper expects ${input.helperExtensionId}, but this extension is ${input.extensionId}.`,
+      detail:
+        input.helperExtensionId === input.extensionId
+          ? 'The extension IDs agree.'
+          : `The helper expects ${input.helperExtensionId}, but this extension is ${input.extensionId}.`,
       fix: input.helperExtensionId === input.extensionId ? undefined : 'Run npm run setup, then reload the extension.',
     },
     {
@@ -58,8 +61,12 @@ export function buildChecklist(input: SetupInput): SetupItem[] {
       id: 'mission-control',
       label: 'Claude Mission Control',
       ok: input.missionControl,
-      detail: input.missionControl ? 'Found, so workspaces show when claude is working or waiting.' : 'Not found, so there are no status dots, waiting counts, notifications, activity or costs.',
-      fix: input.missionControl ? undefined : 'Install Claude Mission Control, which writes ~/.claude-mission-control/sessions. Everything else works without it.',
+      detail: input.missionControl
+        ? 'Found, so workspaces show when claude is working or waiting.'
+        : 'Not found, so there are no status dots, waiting counts, notifications, activity or costs.',
+      fix: input.missionControl
+        ? undefined
+        : 'Install Claude Mission Control, which writes ~/.claude-mission-control/sessions. Everything else works without it.',
     },
     {
       id: 'github',
@@ -79,7 +86,12 @@ export function buildChecklist(input: SetupInput): SetupItem[] {
       id: 'repos',
       label: 'Repo folders',
       ok: input.repoRoots.length > 0 && missingRoots.length === 0,
-      detail: input.repoRoots.length === 0 ? 'None are configured, so the Repo picker is empty.' : missingRoots.length ? `Not found: ${missingRoots.join(', ')}.` : 'All found.',
+      detail:
+        input.repoRoots.length === 0
+          ? 'None are configured, so the Repo picker is empty.'
+          : missingRoots.length
+            ? `Not found: ${missingRoots.join(', ')}.`
+            : 'All found.',
       fix: input.repoRoots.length === 0 || missingRoots.length ? 'Set repoRoots in the config to the folders your repos live in.' : undefined,
     },
     {

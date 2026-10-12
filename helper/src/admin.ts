@@ -87,7 +87,12 @@ export async function defaultIsManaged(): Promise<boolean> {
 const TREND_DAYS = 14;
 
 /** The last two weeks, oldest first, with a day that had no usage shown as zero so the trend has no gaps. */
-export function usageTrend(dayTotals: ReadonlyMap<string, { tokens: number; costUsd: number }>, counting: boolean, unpriced: string[] = [], now = new Date()): SystemSnapshot['usage'] {
+export function usageTrend(
+  dayTotals: ReadonlyMap<string, { tokens: number; costUsd: number }>,
+  counting: boolean,
+  unpriced: string[] = [],
+  now = new Date(),
+): SystemSnapshot['usage'] {
   const daily: SystemSnapshot['usage']['daily'] = [];
   for (let back = TREND_DAYS - 1; back >= 0; back--) {
     const day = new Date(now.getTime() - back * 86_400_000).toISOString().slice(0, 10);
@@ -144,7 +149,10 @@ export function createAdmin(options: AdminOptions): AdminService {
         // Leave a repository that will not prune.
       }
     }
-    return { ok: true, message: `Checked ${roots.size} repositor${roots.size === 1 ? 'y' : 'ies'}; removed ${pruned} stale worktree record${pruned === 1 ? '' : 's'}.` };
+    return {
+      ok: true,
+      message: `Checked ${roots.size} repositor${roots.size === 1 ? 'y' : 'ies'}; removed ${pruned} stale worktree record${pruned === 1 ? '' : 's'}.`,
+    };
   }
 
   return {
@@ -243,7 +251,8 @@ export function createAdmin(options: AdminOptions): AdminService {
         case 'killProcess':
           return killProcess(request.id, request.pid, request.force === true);
         case 'restartHelper':
-          if (!(await options.isManaged())) return { ok: false, message: 'The helper was not started by launchd, so it cannot restart itself. Run npm run agent:start first.' };
+          if (!(await options.isManaged()))
+            return { ok: false, message: 'The helper was not started by launchd, so it cannot restart itself. Run npm run agent:start first.' };
           options.spawnDetached(launchctl('kickstart -k'));
           return { ok: true, message: 'Restarting. Every open terminal ends, and the panel reconnects in a few seconds.' };
         case 'stopHelper':

@@ -7,12 +7,33 @@ const parse = (config: Record<string, unknown>) => parseConfig(JSON.stringify({ 
 
 describe('parseConfig', () => {
   it('fills in defaults, with no repo folders assumed and claude as the command', () => {
-    expect(parse({})).toMatchObject({ defaultCwd: homedir(), repoRoots: [], repoDirs: {}, watchRepos: [], claudeCommand: 'claude', defaultModel: null, problems: [] });
+    expect(parse({})).toMatchObject({
+      defaultCwd: homedir(),
+      repoRoots: [],
+      repoDirs: {},
+      watchRepos: [],
+      claudeCommand: 'claude',
+      defaultModel: null,
+      problems: [],
+    });
   });
 
   it('expands ~ in folders and keeps valid entries', () => {
-    const config = parse({ repoRoots: ['~/code'], repoDirs: { 'acme/app': '~/code/app' }, watchRepos: ['acme/api'], claudeCommand: 'wrap', defaultModel: 'opus' });
-    expect(config).toMatchObject({ repoRoots: [join(homedir(), 'code')], repoDirs: { 'acme/app': join(homedir(), 'code/app') }, watchRepos: ['acme/api'], claudeCommand: 'wrap', defaultModel: 'opus', problems: [] });
+    const config = parse({
+      repoRoots: ['~/code'],
+      repoDirs: { 'acme/app': '~/code/app' },
+      watchRepos: ['acme/api'],
+      claudeCommand: 'wrap',
+      defaultModel: 'opus',
+    });
+    expect(config).toMatchObject({
+      repoRoots: [join(homedir(), 'code')],
+      repoDirs: { 'acme/app': join(homedir(), 'code/app') },
+      watchRepos: ['acme/api'],
+      claudeCommand: 'wrap',
+      defaultModel: 'opus',
+      problems: [],
+    });
   });
 
   it('drops repo names that are not plain owner/name, since they reach a gh command line', () => {
@@ -23,7 +44,13 @@ describe('parseConfig', () => {
   });
 
   it('names unknown keys, bad values and a command that is not a bare name, and falls back for each', () => {
-    const config = parse({ repoRoot: ['~/code'], defaultModel: 'opus; rm', claudeCommand: 'wrap --flag', jiraBaseUrl: 'http://acme.atlassian.net', repoRoots: '~/code' });
+    const config = parse({
+      repoRoot: ['~/code'],
+      defaultModel: 'opus; rm',
+      claudeCommand: 'wrap --flag',
+      jiraBaseUrl: 'http://acme.atlassian.net',
+      repoRoots: '~/code',
+    });
     expect(config).toMatchObject({ defaultModel: null, claudeCommand: 'claude', jiraBaseUrl: null, repoRoots: [] });
     expect(config.problems).toEqual([
       'Unknown key "repoRoot" is ignored.',

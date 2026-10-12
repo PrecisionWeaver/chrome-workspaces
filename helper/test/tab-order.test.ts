@@ -3,11 +3,26 @@ import type { Workspace } from '../../shared/protocol';
 import { listFollowingTabs, listGroupOrder, nextGroupMove } from '../../shared/tab-order';
 
 const ws = (id: string, windowId: number | null, groupId: number | null = null): Workspace => ({
-  id, name: id, ticket: null, cwd: '/tmp', url: null, windowId, groupId, resume: null, pinned: false, archived: false, color: null, model: null, lastTabUrls: [], pr: null, prompt: null, createdAt: '2026-01-01T00:00:00Z',
+  id,
+  name: id,
+  ticket: null,
+  cwd: '/tmp',
+  url: null,
+  windowId,
+  groupId,
+  resume: null,
+  pinned: false,
+  archived: false,
+  color: null,
+  model: null,
+  lastTabUrls: [],
+  pr: null,
+  prompt: null,
+  createdAt: '2026-01-01T00:00:00Z',
 });
 
 describe('listGroupOrder', () => {
-  it('lists a window\'s groups in panel order, leaving out workspaces without one or in another window', () => {
+  it("lists a window's groups in panel order, leaving out workspaces without one or in another window", () => {
     const list = [ws('a', 1, 10), ws('x', 1), ws('b', 2, 20), ws('c', 1, 30)];
     expect(listGroupOrder(list, 1)).toEqual([10, 30]);
     expect(listGroupOrder(list, 2)).toEqual([20]);
@@ -15,7 +30,7 @@ describe('listGroupOrder', () => {
 });
 
 describe('listFollowingTabs', () => {
-  it('reorders only the slots the window\'s workspaces occupy, keeping everything else in place', () => {
+  it("reorders only the slots the window's workspaces occupy, keeping everything else in place", () => {
     const list = [ws('a', 1, 10), ws('other', 2, 99), ws('b', 1, 20), ws('plain', 1), ws('c', 1, 30)];
     // The user dragged group 30 to the front of the tab strip.
     expect(listFollowingTabs(list, 1, [30, 10, 20])).toEqual(['c', 'other', 'a', 'plain', 'b']);
@@ -39,7 +54,7 @@ describe('nextGroupMove', () => {
     expect(nextGroupMove([10, 20, 30], [30, 10, 20])).toEqual({ groupId: 30, before: 10 });
   });
 
-  it('only considers the workspaces\' groups, so other groups in the strip are left alone', () => {
+  it("only considers the workspaces' groups, so other groups in the strip are left alone", () => {
     expect(nextGroupMove([555, 20, 777, 10], [10, 20])).toEqual({ groupId: 10, before: 20 });
   });
 

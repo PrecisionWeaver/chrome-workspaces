@@ -7,7 +7,9 @@ const RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** A name that is safe in a path and in a shell line: the base name only, plain characters, bounded length. */
 export function safeName(name: string): string {
-  const cleaned = basename(name.replace(/\\/g, '/')).replace(/[^\w.-]+/g, '_').replace(/^\.+/, '');
+  const cleaned = basename(name.replace(/\\/g, '/'))
+    .replace(/[^\w.-]+/g, '_')
+    .replace(/^\.+/, '');
   const trimmed = cleaned.length > 80 ? `${cleaned.slice(0, 60)}${cleaned.slice(-20)}` : cleaned;
   return trimmed || 'file';
 }

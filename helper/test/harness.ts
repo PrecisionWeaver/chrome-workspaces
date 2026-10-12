@@ -102,8 +102,28 @@ export async function startHarness(): Promise<Harness> {
   const admin = createAdmin({
     sessions,
     store,
-    config: { extensionId: 'abcdefghijklmnopabcdefghijklmnop', defaultCwd, promptsFile: '/p.md', defaultModel: null, limits: { memoryWarnMb: 4096, idleServerHours: 4 }, pricing: { opus: { input: 10, output: 50 } }, jiraBaseUrl: null, repoRoots: [], repoDirs: {}, watchRepos: [], claudeCommand: 'claude', problems: fakes.configProblems },
-    paths: { dataDir: dir, uploadDir: join(dir, 'uploads'), logFile: join(dir, 'helper.log'), configFile: join(dir, 'config.json'), workspacesFile: join(dir, 'workspaces.json'), mcStateDir: join(dir, 'mc-sessions') },
+    config: {
+      extensionId: 'abcdefghijklmnopabcdefghijklmnop',
+      defaultCwd,
+      promptsFile: '/p.md',
+      defaultModel: null,
+      limits: { memoryWarnMb: 4096, idleServerHours: 4 },
+      pricing: { opus: { input: 10, output: 50 } },
+      jiraBaseUrl: null,
+      repoRoots: [],
+      repoDirs: {},
+      watchRepos: [],
+      claudeCommand: 'claude',
+      problems: fakes.configProblems,
+    },
+    paths: {
+      dataDir: dir,
+      uploadDir: join(dir, 'uploads'),
+      logFile: join(dir, 'helper.log'),
+      configFile: join(dir, 'config.json'),
+      workspacesFile: join(dir, 'workspaces.json'),
+      mcStateDir: join(dir, 'mc-sessions'),
+    },
     port: 4178,
     // Read when used, so a test can point the admin service at a repository after it starts.
     get repoDir() {
@@ -116,14 +136,31 @@ export async function startHarness(): Promise<Harness> {
     spawnDetached: (command) => fakes.spawned.push(command),
     isManaged: async () => fakes.managed,
   });
-  const control = new ControlHub({ store, sessions, defaultCwd, statuses, reviews, prompts, prDetails, prThreads: async (parts) => {
+  const control = new ControlHub({
+    store,
+    sessions,
+    defaultCwd,
+    statuses,
+    reviews,
+    prompts,
+    prDetails,
+    prThreads: async (parts) => {
       fakes.prThreadRequests.push(`${parts.owner}/${parts.repo}#${parts.number}`);
       if (fakes.prThreadsJson === null) throw new Error('gh failed');
       return fakes.prThreadsJson;
-    }, branchPr: async () => {
+    },
+    branchPr: async () => {
       if (fakes.branchPrJson === null) throw new Error('no pull requests found for branch "x"');
       return fakes.branchPrJson;
-    }, repoDirs: fakes.repoDirs, repos: () => fakes.repos, git: createGitService(), admin, history: new HistoryStore(join(dir, 'history.json')), resumeId: (id) => fakes.resumeIds[id] ?? null, workingDir: (id) => fakes.workingDirs[id] ?? null });
+    },
+    repoDirs: fakes.repoDirs,
+    repos: () => fakes.repos,
+    git: createGitService(),
+    admin,
+    history: new HistoryStore(join(dir, 'history.json')),
+    resumeId: (id) => fakes.resumeIds[id] ?? null,
+    workingDir: (id) => fakes.workingDirs[id] ?? null,
+  });
   const auth = { token: TOKEN, allowedOrigins: [ORIGIN] };
   const server = await startServer({
     host: '127.0.0.1',

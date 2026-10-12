@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { describeTool, eventsFromLine } from '../../shared/timeline';
 
-const assistant = (content: unknown[], extra: Record<string, unknown> = {}) => JSON.stringify({ type: 'assistant', timestamp: '2026-10-08T10:00:00Z', message: { role: 'assistant', content }, ...extra });
-const user = (content: unknown, extra: Record<string, unknown> = {}) => JSON.stringify({ type: 'user', timestamp: '2026-10-08T10:00:05Z', message: { role: 'user', content }, ...extra });
+const assistant = (content: unknown[], extra: Record<string, unknown> = {}) =>
+  JSON.stringify({ type: 'assistant', timestamp: '2026-10-08T10:00:00Z', message: { role: 'assistant', content }, ...extra });
+const user = (content: unknown, extra: Record<string, unknown> = {}) =>
+  JSON.stringify({ type: 'user', timestamp: '2026-10-08T10:00:05Z', message: { role: 'user', content }, ...extra });
 
 describe('describeTool', () => {
   it('names the file for file tools, the description for a command, and the target for a search', () => {
@@ -22,7 +24,13 @@ describe('describeTool', () => {
 
 describe('eventsFromLine', () => {
   it('turns an assistant message into what it said and each tool it called, with the time', () => {
-    const events = eventsFromLine(assistant([{ type: 'text', text: 'Looking at it.' }, { type: 'tool_use', name: 'Read', input: { file_path: '/repo/a.ts' } }, { type: 'tool_use', name: 'Bash', input: { command: 'ls', description: 'List files' } }]));
+    const events = eventsFromLine(
+      assistant([
+        { type: 'text', text: 'Looking at it.' },
+        { type: 'tool_use', name: 'Read', input: { file_path: '/repo/a.ts' } },
+        { type: 'tool_use', name: 'Bash', input: { command: 'ls', description: 'List files' } },
+      ]),
+    );
     expect(events).toEqual([
       { at: '2026-10-08T10:00:00Z', kind: 'said', tool: '', summary: 'Looking at it.' },
       { at: '2026-10-08T10:00:00Z', kind: 'tool', tool: 'Read', summary: '/repo/a.ts', file: '/repo/a.ts' },
@@ -42,6 +50,9 @@ describe('eventsFromLine', () => {
     expect(eventsFromLine(JSON.stringify({ type: 'attachment' }))).toEqual([]);
     expect(eventsFromLine('{"message": {"role": "user", "content": "cut')).toEqual([]);
     expect(eventsFromLine(assistant([{ type: 'thinking', thinking: 'hm' }]))).toEqual([]);
-    expect(eventsFromLine(JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'no time' }] } }))[0]).toMatchObject({ at: '', summary: 'no time' });
+    expect(eventsFromLine(JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'no time' }] } }))[0]).toMatchObject({
+      at: '',
+      summary: 'no time',
+    });
   });
 });

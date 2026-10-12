@@ -56,7 +56,14 @@ describe('remove and restore through the control channel', () => {
   });
 
   it('records a removed workspace with its conversation, and restoring brings it back resuming it', async () => {
-    const ws0 = h.store.create({ name: 'closing', cwd: h.defaultCwd, ticket: 'PROJ-7', url: 'https://jira.example/PROJ-7', model: 'sonnet', tabs: ['https://a.example'] });
+    const ws0 = h.store.create({
+      name: 'closing',
+      cwd: h.defaultCwd,
+      ticket: 'PROJ-7',
+      url: 'https://jira.example/PROJ-7',
+      model: 'sonnet',
+      tabs: ['https://a.example'],
+    });
     h.resumeIds[ws0.id] = RESUME;
     const { ws, messages } = connectControl(h);
     await opened(ws);

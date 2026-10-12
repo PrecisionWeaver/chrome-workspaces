@@ -73,7 +73,12 @@ export function usageFromLine(line: string): { id: string; usage: TokenTotals; m
   const n = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : 0);
   return {
     id,
-    usage: { input: n(usage.input_tokens), output: n(usage.output_tokens), cacheWrite: n(usage.cache_creation_input_tokens), cacheRead: n(usage.cache_read_input_tokens) },
+    usage: {
+      input: n(usage.input_tokens),
+      output: n(usage.output_tokens),
+      cacheWrite: n(usage.cache_creation_input_tokens),
+      cacheRead: n(usage.cache_read_input_tokens),
+    },
     model: typeof model === 'string' ? model : '',
     // The timestamp is ISO 8601 in UTC, so its first ten characters are the day.
     day: typeof parsed.timestamp === 'string' && /^\d{4}-\d{2}-\d{2}/.test(parsed.timestamp) ? parsed.timestamp.slice(0, 10) : '',

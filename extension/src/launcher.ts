@@ -149,15 +149,11 @@ export function createLauncher({ send, create, closeCreate, selectedUrl, openWor
     lastReviews = state;
     lastWorkspaces = workspaces;
     const query = reviewsSearch.value.trim().toLowerCase();
-    const items = state.items.filter(
-      (item) => FACETS.every((facet) => !hidden[facet].has(facetValue(item, facet))) && (!query || matches(item, query)),
-    );
+    const items = state.items.filter((item) => FACETS.every((facet) => !hidden[facet].has(facetValue(item, facet))) && (!query || matches(item, query)));
     renderFacets(state.items);
     const count = items.length === state.items.length ? `${items.length}` : `${items.length} of ${state.items.length}`;
     reviewsTitle.textContent = `Review requests (${count})`;
-    reviewsRefresh.title = state.fetchedAt
-      ? `Refresh review requests (updated ${relative(state.fetchedAt)})`
-      : 'Refresh review requests';
+    reviewsRefresh.title = state.fetchedAt ? `Refresh review requests (updated ${relative(state.fetchedAt)})` : 'Refresh review requests';
     reviewsError.hidden = state.error === null;
     reviewsError.textContent = state.error?.split('\n')[0] ?? '';
     reviewsError.title = state.error ?? '';

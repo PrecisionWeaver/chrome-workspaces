@@ -9,7 +9,18 @@ describe('normalizeJiraBase', () => {
   });
 
   it('refuses anything that is not a plain https origin', () => {
-    for (const bad of ['http://acme.atlassian.net', 'javascript:alert(1)', 'https://user:pw@acme.atlassian.net', 'https://acme.atlassian.net?x=1', 'https://acme.atlassian.net#frag', 'acme.atlassian.net', '', 5, null, undefined]) {
+    for (const bad of [
+      'http://acme.atlassian.net',
+      'javascript:alert(1)',
+      'https://user:pw@acme.atlassian.net',
+      'https://acme.atlassian.net?x=1',
+      'https://acme.atlassian.net#frag',
+      'acme.atlassian.net',
+      '',
+      5,
+      null,
+      undefined,
+    ]) {
       expect(normalizeJiraBase(bad)).toBeNull();
     }
   });

@@ -2,8 +2,27 @@ import { describe, expect, it } from 'vitest';
 import type { SystemProcess, SystemSession } from '../../shared/protocol';
 import { findWarnings, parseElapsed } from '../../shared/guardrails';
 
-const proc = (pid: number, extra: Partial<SystemProcess> = {}): SystemProcess => ({ pid, ppid: 1, command: `p${pid}`, cpu: 0, rssKb: 1000, elapsed: '00:10', ports: [], ...extra });
-const session = (name: string, processes: SystemProcess[]): SystemSession => ({ id: `ws-${name}`, name, pid: 1, status: null, cwd: '/tmp', cwdMissing: false, claudeSessionId: null, tokens: null, processes });
+const proc = (pid: number, extra: Partial<SystemProcess> = {}): SystemProcess => ({
+  pid,
+  ppid: 1,
+  command: `p${pid}`,
+  cpu: 0,
+  rssKb: 1000,
+  elapsed: '00:10',
+  ports: [],
+  ...extra,
+});
+const session = (name: string, processes: SystemProcess[]): SystemSession => ({
+  id: `ws-${name}`,
+  name,
+  pid: 1,
+  status: null,
+  cwd: '/tmp',
+  cwdMissing: false,
+  claudeSessionId: null,
+  tokens: null,
+  processes,
+});
 const limits = { memoryWarnMb: 100, idleServerHours: 2 };
 
 describe('parseElapsed', () => {

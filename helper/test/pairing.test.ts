@@ -3,7 +3,24 @@ import { matchGroups, matchWindows } from '../../shared/pairing';
 import type { Workspace } from '../../shared/protocol';
 
 function ws(id: string, lastTabUrls: string[], windowId: number | null = null): Workspace {
-  return { id, name: id, ticket: null, cwd: '/tmp', url: null, windowId, groupId: null, resume: null, pinned: false, archived: false, color: null, model: null, lastTabUrls, pr: null, prompt: null, createdAt: '2026-01-01T00:00:00Z' };
+  return {
+    id,
+    name: id,
+    ticket: null,
+    cwd: '/tmp',
+    url: null,
+    windowId,
+    groupId: null,
+    resume: null,
+    pinned: false,
+    archived: false,
+    color: null,
+    model: null,
+    lastTabUrls,
+    pr: null,
+    prompt: null,
+    createdAt: '2026-01-01T00:00:00Z',
+  };
 }
 
 describe('matchWindows', () => {
@@ -32,7 +49,15 @@ describe('matchWindows', () => {
   });
 
   it('leaves alone workspaces whose window is still open', () => {
-    expect(matchWindows([ws('a', ['u1'], 7)], [{ id: 7, urls: ['u1'] }, { id: 8, urls: ['u1'] }])).toEqual([]);
+    expect(
+      matchWindows(
+        [ws('a', ['u1'], 7)],
+        [
+          { id: 7, urls: ['u1'] },
+          { id: 8, urls: ['u1'] },
+        ],
+      ),
+    ).toEqual([]);
   });
 
   it('re-pairs a workspace whose remembered window no longer exists', () => {

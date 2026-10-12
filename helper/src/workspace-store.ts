@@ -172,7 +172,17 @@ export class WorkspaceStore {
     try {
       const { workspaces } = JSON.parse(readFileSync(this.file, 'utf8')) as { workspaces: Workspace[] };
       // Files written before a field existed load with it unset.
-      return workspaces.map((ws) => ({ ...ws, pr: ws.pr ?? null, prompt: ws.prompt ?? null, groupId: ws.groupId ?? null, resume: ws.resume ?? null, pinned: ws.pinned ?? false, archived: ws.archived ?? false, color: ws.color ?? null, model: ws.model ?? null }));
+      return workspaces.map((ws) => ({
+        ...ws,
+        pr: ws.pr ?? null,
+        prompt: ws.prompt ?? null,
+        groupId: ws.groupId ?? null,
+        resume: ws.resume ?? null,
+        pinned: ws.pinned ?? false,
+        archived: ws.archived ?? false,
+        color: ws.color ?? null,
+        model: ws.model ?? null,
+      }));
     } catch (error) {
       throw new Error(`cannot read ${this.file}: ${error instanceof Error ? error.message : String(error)}`);
     }

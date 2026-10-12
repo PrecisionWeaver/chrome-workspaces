@@ -36,5 +36,8 @@ export function fuzzyRank<T>(query: string, items: readonly T[], text: (item: T)
     if (score !== null) ranked.push({ item, score });
   }
   // Stable for equal scores, so the given order breaks ties.
-  return ranked.map((r, index) => ({ r, index })).sort((a, b) => b.r.score - a.r.score || a.index - b.index).map(({ r }) => r);
+  return ranked
+    .map((r, index) => ({ r, index }))
+    .sort((a, b) => b.r.score - a.r.score || a.index - b.index)
+    .map(({ r }) => r);
 }

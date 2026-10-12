@@ -33,6 +33,7 @@ jobs:
       - name: Check
         if: steps.version.outputs.exists != 'true'
         run: |
+          npm run format:check
           npm run typecheck
           npm test
           npm run build:extension

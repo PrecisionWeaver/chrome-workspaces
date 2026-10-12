@@ -69,11 +69,15 @@ describe('system snapshot', () => {
 });
 
 describe('session tokens', () => {
-  it('counts a workspace\'s transcript behind the snapshot, each message once, and has none for a workspace without one', async () => {
+  it("counts a workspace's transcript behind the snapshot, each message once, and has none for a workspace without one", async () => {
     const workspace = h.store.create({ name: 'counted', cwd: h.defaultCwd });
     const bare = h.store.create({ name: 'no transcript', cwd: h.defaultCwd });
     const file = join(mkdtempSync(join(tmpdir(), 'cw-adm-tok-')), 't.jsonl');
-    const message = (id: string, out: number) => JSON.stringify({ type: 'assistant', message: { id, usage: { input_tokens: 3, output_tokens: out, cache_creation_input_tokens: 100, cache_read_input_tokens: 1000 } } });
+    const message = (id: string, out: number) =>
+      JSON.stringify({
+        type: 'assistant',
+        message: { id, usage: { input_tokens: 3, output_tokens: out, cache_creation_input_tokens: 100, cache_read_input_tokens: 1000 } },
+      });
     writeFileSync(file, [message('a', 50), message('a', 50), message('b', 25)].join('\n') + '\n');
     h.transcripts[workspace.id] = file;
 
@@ -114,7 +118,16 @@ describe('usage and cost', () => {
     const workspace = h.store.create({ name: 'priced', cwd: h.defaultCwd });
     const file = join(mkdtempSync(join(tmpdir(), 'cw-adm-cost-')), 't.jsonl');
     const today = new Date().toISOString().slice(0, 10);
-    const msg = (id: string, out: number) => JSON.stringify({ type: 'assistant', timestamp: `${today}T10:00:00.000Z`, message: { id, model: 'claude-opus-5-5', usage: { input_tokens: 1_000_000, output_tokens: out, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } } });
+    const msg = (id: string, out: number) =>
+      JSON.stringify({
+        type: 'assistant',
+        timestamp: `${today}T10:00:00.000Z`,
+        message: {
+          id,
+          model: 'claude-opus-5-5',
+          usage: { input_tokens: 1_000_000, output_tokens: out, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
+        },
+      });
     writeFileSync(file, [msg('a', 1_000_000), msg('a', 1_000_000)].join('\n') + '\n');
     h.transcripts[workspace.id] = file;
 
@@ -137,9 +150,18 @@ describe('usage and cost', () => {
     throw new Error('the transcript was never counted');
   });
 
-  it('builds a 14-day series ending today, and sums every day\'s cost', () => {
+  it("builds a 14-day series ending today, and sums every day's cost", () => {
     const now = new Date('2026-10-09T12:00:00Z');
-    const trend = usageTrend(new Map([['2026-10-09', { tokens: 5, costUsd: 2 }], ['2026-10-01', { tokens: 3, costUsd: 1.5 }], ['2025-01-01', { tokens: 9, costUsd: 4 }]]), true, ['mystery-1'], now);
+    const trend = usageTrend(
+      new Map([
+        ['2026-10-09', { tokens: 5, costUsd: 2 }],
+        ['2026-10-01', { tokens: 3, costUsd: 1.5 }],
+        ['2025-01-01', { tokens: 9, costUsd: 4 }],
+      ]),
+      true,
+      ['mystery-1'],
+      now,
+    );
     expect(trend.daily[0].day).toBe('2026-09-26');
     expect(trend.daily.at(-1)).toEqual({ day: '2026-10-09', tokens: 5, costUsd: 2 });
     expect(trend.daily.find((d) => d.day === '2026-10-01')).toMatchObject({ tokens: 3 });
@@ -149,7 +171,8 @@ describe('usage and cost', () => {
 });
 
 describe('updates', () => {
-  const git = (cwd: string, ...args: string[]) => execFileSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.com', '-c', 'commit.gpgsign=false', ...args], { cwd, encoding: 'utf8' }).trim();
+  const git = (cwd: string, ...args: string[]) =>
+    execFileSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.com', '-c', 'commit.gpgsign=false', ...args], { cwd, encoding: 'utf8' }).trim();
 
   function installedWithNewCommit() {
     const root = mkdtempSync(join(tmpdir(), 'cw-adm-upd-'));
@@ -296,7 +319,7 @@ describe('housekeeping', () => {
     expect(readFileSync(join(h.dataDir, 'helper.log'), 'utf8')).toBe('');
   });
 
-  it('prunes a stale worktree record of a workspace\'s repository', async () => {
+  it("prunes a stale worktree record of a workspace's repository", async () => {
     const dir = mkdtempSync(join(tmpdir(), 'cw-prune-'));
     const git = (cwd: string, ...args: string[]) => execFileSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.com', ...args], { cwd });
     git(dir, 'init', '-q', '-b', 'main');

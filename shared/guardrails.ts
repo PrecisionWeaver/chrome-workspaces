@@ -39,7 +39,12 @@ export function findWarnings(sessions: readonly SystemSession[], limits: Limits 
   for (const session of sessions) {
     const rssKb = session.processes.reduce((sum, p) => sum + p.rssKb, 0);
     if (rssKb > limits.memoryWarnMb * 1024) {
-      warnings.push({ id: session.id, name: session.name, kind: 'memory', message: `${session.name} is using ${mb(rssKb)} across ${session.processes.length} processes` });
+      warnings.push({
+        id: session.id,
+        name: session.name,
+        kind: 'memory',
+        message: `${session.name} is using ${mb(rssKb)} across ${session.processes.length} processes`,
+      });
     }
     // The shell itself is never a server, and is first in the list.
     for (const proc of session.processes.slice(1)) {

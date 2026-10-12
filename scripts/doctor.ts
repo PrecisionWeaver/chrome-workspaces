@@ -15,14 +15,21 @@ type Result = { ok: true; detail: string } | { ok: false; detail: string; fix: s
 const pass = (detail: string): Result => ({ ok: true, detail });
 const fail = (detail: string, fix: string, optional = false): Result => ({ ok: false, detail, fix, optional });
 
-const succeeds = (command: string, args: string[]) => execFileAsync(command, args, { timeout: 15_000 }).then(() => true, () => false);
+const succeeds = (command: string, args: string[]) =>
+  execFileAsync(command, args, { timeout: 15_000 }).then(
+    () => true,
+    () => false,
+  );
 
 let config: HelperConfig | null = null;
 const extensionId = extensionIdFromManifest(join(repo, 'extension', 'manifest.json'));
 const version = (path: string) => (JSON.parse(readFileSync(path, 'utf8')) as { version?: string }).version;
 
 const checks: [string, () => Promise<Result> | Result][] = [
-  ['Node 22 or newer', () => (Number(process.versions.node.split('.')[0]) >= 22 ? pass(process.versions.node) : fail(process.versions.node, 'Install Node 22 or newer.'))],
+  [
+    'Node 22 or newer',
+    () => (Number(process.versions.node.split('.')[0]) >= 22 ? pass(process.versions.node) : fail(process.versions.node, 'Install Node 22 or newer.')),
+  ],
   [
     'Config file',
     () => {
@@ -34,19 +41,41 @@ const checks: [string, () => Promise<Result> | Result][] = [
       return config.problems.length ? fail(config.problems.join(' '), 'See docs/configuration.md.') : pass(join(DATA_DIR, 'config.json'));
     },
   ],
-  ['Extension ID', () => (!config ? fail('No config to compare with.', 'Fix the config first.') : config.extensionId === extensionId ? pass(extensionId) : fail(`The config expects ${config.extensionId}, the manifest gives ${extensionId}.`, 'Run npm run setup.'))],
+  [
+    'Extension ID',
+    () =>
+      !config
+        ? fail('No config to compare with.', 'Fix the config first.')
+        : config.extensionId === extensionId
+          ? pass(extensionId)
+          : fail(`The config expects ${config.extensionId}, the manifest gives ${extensionId}.`, 'Run npm run setup.'),
+  ],
   [
     'Extension built',
     () => {
       const built = join(repo, 'extension', 'dist', 'manifest.json');
       if (!existsSync(built)) return fail('extension/dist is missing.', 'Run npm run build:extension.');
       const want = version(join(repo, 'package.json'));
-      return version(built) === want ? pass(`v${want}`) : fail(`dist is v${version(built)}, the source is v${want}.`, 'Run npm run build:extension, then reload the extension.');
+      return version(built) === want
+        ? pass(`v${want}`)
+        : fail(`dist is v${version(built)}, the source is v${want}.`, 'Run npm run build:extension, then reload the extension.');
     },
   ],
-  ['Native messaging host', () => (existsSync(hostManifest) && existsSync(hostWrapper) && readFileSync(hostManifest, 'utf8').includes(extensionId) ? pass(hostManifest) : fail('Not installed, or for another extension ID.', 'Run npm run setup, then quit and reopen Chrome.'))],
+  [
+    'Native messaging host',
+    () =>
+      existsSync(hostManifest) && existsSync(hostWrapper) && readFileSync(hostManifest, 'utf8').includes(extensionId)
+        ? pass(hostManifest)
+        : fail('Not installed, or for another extension ID.', 'Run npm run setup, then quit and reopen Chrome.'),
+  ],
   ['LaunchAgent installed', () => (existsSync(agentFile) ? pass(agentFile) : fail('No plist.', 'Run npm run setup.'))],
-  ['Helper loaded in launchd', async () => ((await succeeds('launchctl', ['print', `gui/${process.getuid?.() ?? 0}/${AGENT_LABEL}`])) ? pass(AGENT_LABEL) : fail('Not loaded.', 'Run npm run agent:start.'))],
+  [
+    'Helper loaded in launchd',
+    async () =>
+      (await succeeds('launchctl', ['print', `gui/${process.getuid?.() ?? 0}/${AGENT_LABEL}`]))
+        ? pass(AGENT_LABEL)
+        : fail('Not loaded.', 'Run npm run agent:start.'),
+  ],
   [
     'Helper answering',
     async () => {
@@ -55,7 +84,10 @@ const checks: [string, () => Promise<Result> | Result][] = [
         const response = await fetch(`http://${HOST}:${PORT}/workspaces`, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(3000) });
         return response.ok ? pass(`${HOST}:${PORT}`) : fail(`It replied ${response.status}.`, `Check ${join(DATA_DIR, 'helper.log')}.`);
       } catch (error) {
-        return fail(`Nothing at ${HOST}:${PORT} (${error instanceof Error ? error.message : String(error)}).`, `Run npm run agent:restart, then check ${join(DATA_DIR, 'helper.log')}.`);
+        return fail(
+          `Nothing at ${HOST}:${PORT} (${error instanceof Error ? error.message : String(error)}).`,
+          `Run npm run agent:restart, then check ${join(DATA_DIR, 'helper.log')}.`,
+        );
       }
     },
   ],
@@ -69,8 +101,20 @@ const checks: [string, () => Promise<Result> | Result][] = [
       return fail('Not found.', 'Install Claude Code, and make sure your login shell puts it on PATH.');
     },
   ],
-  ['GitHub CLI signed in', async () => ((await succeeds(shell, ['-l', '-c', 'gh auth status'])) ? pass('gh auth status is fine.') : fail('gh is missing or signed out, so review requests are empty.', 'Install gh, then run gh auth login.', true))],
-  ['Claude Mission Control', () => (existsSync(MC_STATE_DIR) ? pass(MC_STATE_DIR) : fail('Not found, so there are no status dots, waiting counts, notifications, activity or costs.', 'Install Claude Mission Control.', true))],
+  [
+    'GitHub CLI signed in',
+    async () =>
+      (await succeeds(shell, ['-l', '-c', 'gh auth status']))
+        ? pass('gh auth status is fine.')
+        : fail('gh is missing or signed out, so review requests are empty.', 'Install gh, then run gh auth login.', true),
+  ],
+  [
+    'Claude Mission Control',
+    () =>
+      existsSync(MC_STATE_DIR)
+        ? pass(MC_STATE_DIR)
+        : fail('Not found, so there are no status dots, waiting counts, notifications, activity or costs.', 'Install Claude Mission Control.', true),
+  ],
 ];
 
 let failed = 0;

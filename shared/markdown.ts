@@ -3,11 +3,7 @@
 // Covers what PR templates use: headings, lists with tasks, tables, quotes, code, and inline styles.
 
 export type Inline =
-  | { t: 'text'; v: string }
-  | { t: 'code'; v: string }
-  | { t: 'br' }
-  | { t: 'strong' | 'em' | 'del'; c: Inline[] }
-  | { t: 'link'; href: string; c: Inline[] };
+  { t: 'text'; v: string } | { t: 'code'; v: string } | { t: 'br' } | { t: 'strong' | 'em' | 'del'; c: Inline[] } | { t: 'link'; href: string; c: Inline[] };
 
 export type Block =
   | { t: 'heading'; level: number; c: Inline[] }
@@ -26,7 +22,10 @@ function stripHtml(source: string): string {
     .replace(/\r\n?/g, '\n')
     .replace(/<!--[\s\S]*?-->/g, '')
     .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/?(?:details|summary|p|div|span|img|a|b|i|em|strong|code|pre|ul|ol|li|h[1-6]|table|thead|tbody|tr|td|th|hr|sub|sup|kbd|picture|source)\b[^>]*>/gi, '');
+    .replace(
+      /<\/?(?:details|summary|p|div|span|img|a|b|i|em|strong|code|pre|ul|ol|li|h[1-6]|table|thead|tbody|tr|td|th|hr|sub|sup|kbd|picture|source)\b[^>]*>/gi,
+      '',
+    );
 }
 
 const isWord = (ch: string | undefined) => ch !== undefined && /[\p{L}\p{N}]/u.test(ch);
@@ -61,7 +60,7 @@ export function parseInline(text: string): Inline[] {
       const c = m[0].startsWith('!') ? [{ t: 'text', v: `🖼 ${m[1] || 'image'}` } as Inline] : parseInline(label);
       out.push(SAFE_HREF.test(m[2]) ? { t: 'link', href: m[2], c } : { t: 'text', v: label });
       i += m[0].length;
-    } else if ((m = rest.match(/^<(https?:\/\/[^>\s]+)>/)) || (m = rest.match(/^https?:\/\/[^\s<>)\]]*[^\s<>)\].,;:!?'"]/)) && !isWord(text[i - 1])) {
+    } else if ((m = rest.match(/^<(https?:\/\/[^>\s]+)>/)) || ((m = rest.match(/^https?:\/\/[^\s<>)\]]*[^\s<>)\].,;:!?'"]/)) && !isWord(text[i - 1]))) {
       flush();
       const href = m[1] ?? m[0];
       out.push({ t: 'link', href, c: [{ t: 'text', v: href }] });
@@ -100,7 +99,14 @@ const splitRow = (line: string): string[] =>
     .map((cell) => cell.trim().replace(/\\\|/g, '|'));
 
 function startsBlock(line: string, next: string | undefined): boolean {
-  return FENCE.test(line) || HEADING.test(line) || HR.test(line) || ITEM.test(line) || /^\s{0,3}>/.test(line) || (line.includes('|') && next !== undefined && TABLE_RULE.test(next) && next.includes('-'));
+  return (
+    FENCE.test(line) ||
+    HEADING.test(line) ||
+    HR.test(line) ||
+    ITEM.test(line) ||
+    /^\s{0,3}>/.test(line) ||
+    (line.includes('|') && next !== undefined && TABLE_RULE.test(next) && next.includes('-'))
+  );
 }
 
 function parseBlocks(lines: string[]): Block[] {

@@ -39,7 +39,7 @@ describe('subtree', () => {
 });
 
 describe('parseListening', () => {
-  it('collects each pid\'s ports from IPv4, IPv6 and wildcard addresses once', () => {
+  it("collects each pid's ports from IPv4, IPv6 and wildcard addresses once", () => {
     const out = 'p101\nf20\nn*:5173\nf21\nn[::1]:5173\np300\nn127.0.0.1:8000\nn[::]:8001\n';
     expect([...parseListening(out)]).toEqual([
       [101, [5173]],
@@ -55,7 +55,7 @@ describe('real processes and paths', () => {
     expect(subtree(procs, process.ppid).map((p) => p.pid)).toContain(process.pid);
   });
 
-  it('adds up a folder\'s bytes, and is 0 for a path that is not there', () => {
+  it("adds up a folder's bytes, and is 0 for a path that is not there", () => {
     const dir = mkdtempSync(join(tmpdir(), 'cw-size-'));
     mkdirSync(join(dir, 'sub'));
     writeFileSync(join(dir, 'a'), '12345');

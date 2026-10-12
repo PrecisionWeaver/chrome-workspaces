@@ -19,10 +19,7 @@ export const needsInputCount = (statuses: Readonly<Record<string, WorkspaceStatu
  * waiting for input, or that went from working to idle (finished). A workspace seen for the first time
  * is never an event, so opening Chrome with sessions already waiting does not notify.
  */
-export function attentionEvents(
-  previous: Readonly<Record<string, WorkspaceStatus>>,
-  next: Readonly<Record<string, WorkspaceStatus>>,
-): AttentionEvent[] {
+export function attentionEvents(previous: Readonly<Record<string, WorkspaceStatus>>, next: Readonly<Record<string, WorkspaceStatus>>): AttentionEvent[] {
   const events: AttentionEvent[] = [];
   for (const [id, status] of Object.entries(next)) {
     if (!(id in previous)) continue;

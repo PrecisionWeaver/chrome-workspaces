@@ -36,7 +36,11 @@ describe('WorkspaceStore', () => {
     store.pairWindow(a.id, 7);
     store.pairWindow(b.id, 7, 100);
     store.pairWindow(c.id, 7, 101);
-    expect(store.list().map((x) => [x.name, x.windowId, x.groupId])).toEqual([['a', 7, null], ['b', 7, 100], ['c', 7, 101]]);
+    expect(store.list().map((x) => [x.name, x.windowId, x.groupId])).toEqual([
+      ['a', 7, null],
+      ['b', 7, 100],
+      ['c', 7, 101],
+    ]);
 
     store.setTabs(7, ['own']);
     store.setTabs(7, ['g1'], 100);
@@ -57,7 +61,10 @@ describe('WorkspaceStore', () => {
     store.unpairGroup(100);
     expect(store.get(a.id)).toMatchObject({ windowId: 7, groupId: null, lastTabUrls: ['g1'] });
     store.unpairWindow(7);
-    expect(store.list().map((x) => [x.windowId, x.groupId])).toEqual([[null, null], [null, null]]);
+    expect(store.list().map((x) => [x.windowId, x.groupId])).toEqual([
+      [null, null],
+      [null, null],
+    ]);
     expect(store.get(a.id)?.lastTabUrls).toEqual(['g1']);
   });
 
@@ -104,14 +111,24 @@ describe('WorkspaceStore', () => {
 
     expect(store.reorder([c.id, a.id, b.id])).toBe(true);
     expect(changes).toBe(1);
-    for (const bad of [[a.id, b.id], [a.id, a.id, b.id], [a.id, b.id, 'ws-ffffffff'], [a.id, b.id, c.id, c.id]]) expect(store.reorder(bad)).toBe(false);
+    for (const bad of [
+      [a.id, b.id],
+      [a.id, a.id, b.id],
+      [a.id, b.id, 'ws-ffffffff'],
+      [a.id, b.id, c.id, c.id],
+    ])
+      expect(store.reorder(bad)).toBe(false);
     expect(store.list().map((w) => w.name)).toEqual(['c', 'a', 'b']);
   });
 
   it('pins to the end of the pinned block at the top, and unpins to just below it', () => {
     const store = new WorkspaceStore(tempFile());
     const [a, b, c, d] = ['a', 'b', 'c', 'd'].map((name) => store.create({ name, cwd: '/tmp' }));
-    const names = () => store.list().map((w) => w.name).join('');
+    const names = () =>
+      store
+        .list()
+        .map((w) => w.name)
+        .join('');
     store.mark(c.id, { pinned: true });
     expect(names()).toBe('cabd');
     store.mark(d.id, { pinned: true });
@@ -136,7 +153,14 @@ describe('WorkspaceStore', () => {
     expect(store.get(a.id)).toMatchObject({ archived: false, color: null });
 
     const legacy = tempFile();
-    writeFileSync(legacy, JSON.stringify({ workspaces: [{ id: 'ws-00000001', name: 'old', ticket: null, cwd: '/tmp', url: null, windowId: null, lastTabUrls: [], createdAt: '2026-01-01T00:00:00Z' }] }));
+    writeFileSync(
+      legacy,
+      JSON.stringify({
+        workspaces: [
+          { id: 'ws-00000001', name: 'old', ticket: null, cwd: '/tmp', url: null, windowId: null, lastTabUrls: [], createdAt: '2026-01-01T00:00:00Z' },
+        ],
+      }),
+    );
     expect(new WorkspaceStore(legacy).list()[0]).toMatchObject({ pinned: false, archived: false, color: null });
   });
 

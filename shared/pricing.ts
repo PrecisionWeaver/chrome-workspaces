@@ -40,7 +40,11 @@ export function costOf(usage: TokenTotals, model: string, pricing: Pricing): num
   const rate = rateFor(model, pricing);
   if (!rate) return 0;
   return (
-    (usage.input * rate.input + usage.cacheWrite * rate.input * CACHE_WRITE_MULTIPLIER + usage.cacheRead * rate.input * CACHE_READ_MULTIPLIER + usage.output * rate.output) / 1_000_000
+    (usage.input * rate.input +
+      usage.cacheWrite * rate.input * CACHE_WRITE_MULTIPLIER +
+      usage.cacheRead * rate.input * CACHE_READ_MULTIPLIER +
+      usage.output * rate.output) /
+    1_000_000
   );
 }
 
@@ -57,4 +61,5 @@ export function mergePricing(configured: unknown): Pricing {
   return merged;
 }
 
-export const formatUsd = (usd: number): string => (usd < 0.005 ? '$0' : usd < 10 ? `$${usd.toFixed(2)}` : usd < 1000 ? `$${usd.toFixed(0)}` : `$${(usd / 1000).toFixed(1)}K`);
+export const formatUsd = (usd: number): string =>
+  usd < 0.005 ? '$0' : usd < 10 ? `$${usd.toFixed(2)}` : usd < 1000 ? `$${usd.toFixed(0)}` : `$${(usd / 1000).toFixed(1)}K`;

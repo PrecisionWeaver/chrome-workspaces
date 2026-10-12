@@ -15,7 +15,10 @@ describe('Session', () => {
 
     let output = '';
     let exitCode: number | null = null;
-    session.attach((data) => (output += data), (code) => (exitCode = code));
+    session.attach(
+      (data) => (output += data),
+      (code) => (exitCode = code),
+    );
 
     expect(output).toContain('hello');
     expect(exitCode).toBe(0);
@@ -26,11 +29,17 @@ describe('Session', () => {
     const session = sessions.create({ id: 'cat', command: '/bin/cat', args: [], cwd: tmpdir() });
     session.write('first\r');
     let seen = '';
-    session.attach((data) => (seen += data), () => {});
+    session.attach(
+      (data) => (seen += data),
+      () => {},
+    );
     await waitFor(() => seen.includes('first'));
 
     const flags: Array<boolean | undefined> = [];
-    session.attach((_data, replay) => flags.push(replay), () => {});
+    session.attach(
+      (_data, replay) => flags.push(replay),
+      () => {},
+    );
     session.write('second\r');
     await waitFor(() => flags.length > 1);
 
@@ -43,7 +52,10 @@ describe('Session', () => {
     const session = sessions.create({ id: 'cat', command: '/bin/cat', args: [], cwd: tmpdir() });
 
     let output = '';
-    session.attach((data) => (output += data), () => {});
+    session.attach(
+      (data) => (output += data),
+      () => {},
+    );
     session.write('ping\r');
 
     await waitFor(() => output.includes('ping'));
@@ -54,7 +66,10 @@ describe('Session', () => {
     const session = sessions.create({ id: 'cat', command: '/bin/cat', args: [], cwd: tmpdir() });
 
     let output = '';
-    const detach = session.attach((data) => (output += data), () => {});
+    const detach = session.attach(
+      (data) => (output += data),
+      () => {},
+    );
     detach();
     session.write('after\r');
     await new Promise((resolve) => setTimeout(resolve, 200));
@@ -78,7 +93,10 @@ describe('Session', () => {
     delete process.env.CLAUDE_CODE_CHILD_SESSION;
 
     let output = '';
-    session.attach((data) => (output += data), () => {});
+    session.attach(
+      (data) => (output += data),
+      () => {},
+    );
     expect(output).toContain('[][][kept]');
   });
 

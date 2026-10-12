@@ -23,7 +23,15 @@ describe('buildChecklist', () => {
   });
 
   it('says what is wrong and how to fix it, for each thing that is', () => {
-    const items = buildChecklist({ ...ready, managed: false, helperExtensionId: 'old', reviewsWork: false, promptsFileExists: false, switchShortcut: '', workspaceCount: 0 });
+    const items = buildChecklist({
+      ...ready,
+      managed: false,
+      helperExtensionId: 'old',
+      reviewsWork: false,
+      promptsFileExists: false,
+      switchShortcut: '',
+      workspaceCount: 0,
+    });
     expect(remaining(items)).toBe(6);
     const by = Object.fromEntries(items.map((item) => [item.id, item]));
     expect(by.agent.fix).toContain('npm run agent:start');
@@ -35,13 +43,25 @@ describe('buildChecklist', () => {
   });
 
   it('names the repo folders that are missing, and treats no folders as a problem', () => {
-    const missing = buildChecklist({ ...ready, repoRoots: [{ path: '~/a', exists: true }, { path: '~/b', exists: false }, { path: '~/c', exists: false }] }).find((i) => i.id === 'repos')!;
+    const missing = buildChecklist({
+      ...ready,
+      repoRoots: [
+        { path: '~/a', exists: true },
+        { path: '~/b', exists: false },
+        { path: '~/c', exists: false },
+      ],
+    }).find((i) => i.id === 'repos')!;
     expect(missing).toMatchObject({ ok: false, detail: 'Not found: ~/b, ~/c.' });
-    expect(buildChecklist({ ...ready, repoRoots: [] }).find((i) => i.id === 'repos')).toMatchObject({ ok: false, detail: expect.stringContaining('None are configured') });
+    expect(buildChecklist({ ...ready, repoRoots: [] }).find((i) => i.id === 'repos')).toMatchObject({
+      ok: false,
+      detail: expect.stringContaining('None are configured'),
+    });
   });
 
   it('lists ignored config entries, and says what is lost without Mission Control', () => {
-    const by = Object.fromEntries(buildChecklist({ ...ready, missionControl: false, configProblems: ['Unknown key "repoRoot" is ignored.'] }).map((item) => [item.id, item]));
+    const by = Object.fromEntries(
+      buildChecklist({ ...ready, missionControl: false, configProblems: ['Unknown key "repoRoot" is ignored.'] }).map((item) => [item.id, item]),
+    );
     expect(by.config).toMatchObject({ ok: false, detail: 'Unknown key "repoRoot" is ignored.' });
     expect(by.config.fix).toContain('configuration.md');
     expect(by['mission-control']).toMatchObject({ ok: false, detail: expect.stringContaining('status dots') });

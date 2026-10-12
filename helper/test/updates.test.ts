@@ -5,7 +5,8 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { applyUpdate, checkUpdates } from '../src/updates';
 
-const git = (cwd: string, ...args: string[]) => execFileSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.com', '-c', 'commit.gpgsign=false', ...args], { cwd, encoding: 'utf8' }).trim();
+const git = (cwd: string, ...args: string[]) =>
+  execFileSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.com', '-c', 'commit.gpgsign=false', ...args], { cwd, encoding: 'utf8' }).trim();
 
 /** An origin, a clone that is the installed copy, and a second clone used to publish new commits. */
 function setup() {

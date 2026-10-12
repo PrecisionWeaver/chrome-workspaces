@@ -28,4 +28,5 @@ export const THEMES: readonly Theme[] = ['system', 'dark', 'light'];
 export const DENSITIES: readonly Density[] = ['comfortable', 'compact'];
 
 /** The theme to draw: `system` follows the operating system's setting. */
-export const resolveTheme = (theme: Theme, systemPrefersDark: boolean): 'dark' | 'light' => (theme === 'system' ? (systemPrefersDark ? 'dark' : 'light') : theme);
+export const resolveTheme = (theme: Theme, systemPrefersDark: boolean): 'dark' | 'light' =>
+  theme === 'system' ? (systemPrefersDark ? 'dark' : 'light') : theme;

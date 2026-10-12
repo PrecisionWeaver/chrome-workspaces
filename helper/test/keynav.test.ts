@@ -20,6 +20,11 @@ describe('nextIndex', () => {
 
 describe('resolveTheme', () => {
   it('follows the system for system, and is itself otherwise', () => {
-    expect([resolveTheme('system', true), resolveTheme('system', false), resolveTheme('dark', false), resolveTheme('light', true)]).toEqual(['dark', 'light', 'dark', 'light']);
+    expect([resolveTheme('system', true), resolveTheme('system', false), resolveTheme('dark', false), resolveTheme('light', true)]).toEqual([
+      'dark',
+      'light',
+      'dark',
+      'light',
+    ]);
   });
 });

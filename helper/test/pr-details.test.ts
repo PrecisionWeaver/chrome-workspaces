@@ -20,7 +20,10 @@ const GH = {
     { author: { login: 'JB-PEC' }, state: 'APPROVED', submittedAt: '2026-10-07T22:13:31Z', body: 'lgtm' },
     { author: { login: 'drew' }, state: 'CHANGES_REQUESTED', submittedAt: '2026-10-07T22:20:00Z', body: 'fix' },
   ],
-  reviewRequests: [{ __typename: 'User', login: 'PrecisionWeaver' }, { __typename: 'Team', name: 'Platform', slug: 'platform' }],
+  reviewRequests: [
+    { __typename: 'User', login: 'PrecisionWeaver' },
+    { __typename: 'Team', name: 'Platform', slug: 'platform' },
+  ],
   statusCheckRollup: [
     { __typename: 'CheckRun', name: 'ESLint', status: 'COMPLETED', conclusion: 'SUCCESS' },
     { __typename: 'CheckRun', name: 'Skipped', status: 'COMPLETED', conclusion: 'SKIPPED' },
@@ -82,7 +85,17 @@ describe('parsePrDetails', () => {
   });
 
   it('keeps the description as written, capped, and caps files and commits', () => {
-    const long = { ...GH, body: 'word '.repeat(2000), files: Array.from({ length: 30 }, (_, i) => ({ path: `f${i}`, additions: i, deletions: 0 })), commits: Array.from({ length: 12 }, (_, i) => ({ oid: `${i}`.padStart(7, '0'), messageHeadline: `c${i}`, committedDate: '2026-10-07T00:00:00Z', authors: [] })) };
+    const long = {
+      ...GH,
+      body: 'word '.repeat(2000),
+      files: Array.from({ length: 30 }, (_, i) => ({ path: `f${i}`, additions: i, deletions: 0 })),
+      commits: Array.from({ length: 12 }, (_, i) => ({
+        oid: `${i}`.padStart(7, '0'),
+        messageHeadline: `c${i}`,
+        committedDate: '2026-10-07T00:00:00Z',
+        authors: [],
+      })),
+    };
     const details = parsePrDetails(JSON.stringify(long));
     expect(details.body).toHaveLength(6000);
     expect(details.files).toHaveLength(10);
@@ -94,7 +107,18 @@ describe('parsePrDetails', () => {
   });
 
   it('treats missing optional fields as empty', () => {
-    const minimal = { ...GH, reviewDecision: '', latestReviews: null, reviewRequests: null, statusCheckRollup: null, body: null, labels: null, comments: null, files: null, commits: null };
+    const minimal = {
+      ...GH,
+      reviewDecision: '',
+      latestReviews: null,
+      reviewRequests: null,
+      statusCheckRollup: null,
+      body: null,
+      labels: null,
+      comments: null,
+      files: null,
+      commits: null,
+    };
     expect(parsePrDetails(JSON.stringify(minimal))).toMatchObject({
       body: '',
       labels: [],
@@ -115,8 +139,15 @@ describe('parsePrDetails', () => {
 });
 
 describe('branch checks', () => {
-  it('summarizes a branch\'s pull request and its checks', () => {
-    const json = JSON.stringify({ number: 12, title: 'Fix it', url: 'https://github.com/acme/web-app/pull/12', isDraft: true, reviewDecision: '', statusCheckRollup: GH.statusCheckRollup });
+  it("summarizes a branch's pull request and its checks", () => {
+    const json = JSON.stringify({
+      number: 12,
+      title: 'Fix it',
+      url: 'https://github.com/acme/web-app/pull/12',
+      isDraft: true,
+      reviewDecision: '',
+      statusCheckRollup: GH.statusCheckRollup,
+    });
     expect(parseBranchChecks(json)).toEqual({
       pr: { number: 12, title: 'Fix it', url: 'https://github.com/acme/web-app/pull/12', isDraft: true, reviewDecision: null },
       checks: { passed: 2, failed: 2, pending: 2, failing: ['Pest (3)', 'codecov'] },
@@ -131,19 +162,36 @@ describe('branch checks', () => {
 });
 
 describe('review threads', () => {
-  const answer = (nodes: unknown[], totalCount = nodes.length) => JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { totalCount, nodes } } } } });
-  const comment = (login: string | null, body: string) => ({ author: login ? { login } : null, body, createdAt: '2026-10-08T10:00:00Z', url: `https://github.com/acme/web-app/pull/1#discussion_r${body.length}` });
+  const answer = (nodes: unknown[], totalCount = nodes.length) =>
+    JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { totalCount, nodes } } } } });
+  const comment = (login: string | null, body: string) => ({
+    author: login ? { login } : null,
+    body,
+    createdAt: '2026-10-08T10:00:00Z',
+    url: `https://github.com/acme/web-app/pull/1#discussion_r${body.length}`,
+  });
 
   it('reads each thread with its comments, open threads first, and the line it is on', () => {
     const { threads, total } = parsePrThreads(
       answer([
         { isResolved: true, isOutdated: false, path: 'a.ts', line: 3, comments: { nodes: [comment('drew', 'done')] } },
-        { isResolved: false, isOutdated: true, path: 'b.ts', line: null, originalLine: 9, comments: { nodes: [comment('drew', 'Please rename'), comment(null, 'ok')] } },
+        {
+          isResolved: false,
+          isOutdated: true,
+          path: 'b.ts',
+          line: null,
+          originalLine: 9,
+          comments: { nodes: [comment('drew', 'Please rename'), comment(null, 'ok')] },
+        },
         { isResolved: false, isOutdated: false, path: 'c.ts', line: null, originalLine: null, comments: { nodes: [] } },
       ]),
     );
     expect(total).toBe(3);
-    expect(threads.map((t) => [t.path, t.resolved])).toEqual([['b.ts', false], ['c.ts', false], ['a.ts', true]]);
+    expect(threads.map((t) => [t.path, t.resolved])).toEqual([
+      ['b.ts', false],
+      ['c.ts', false],
+      ['a.ts', true],
+    ]);
     expect(threads[0]).toMatchObject({ line: 9, outdated: true });
     expect(threads[0].comments.map((c) => c.author)).toEqual(['drew', 'ghost']);
     expect(threads[1].line).toBeNull();
@@ -151,13 +199,21 @@ describe('review threads', () => {
 
   it('reports a total larger than what was returned, and fails clearly for an error or a PR that is not there', () => {
     expect(parsePrThreads(answer([], 120))).toEqual({ threads: [], total: 120 });
-    expect(() => parsePrThreads(JSON.stringify({ errors: [{ message: 'Could not resolve to a PullRequest' }], data: { repository: { pullRequest: null } } }))).toThrow('Could not resolve');
+    expect(() =>
+      parsePrThreads(JSON.stringify({ errors: [{ message: 'Could not resolve to a PullRequest' }], data: { repository: { pullRequest: null } } })),
+    ).toThrow('Could not resolve');
     expect(() => parsePrThreads('{}')).toThrow('unexpected');
   });
 
   it('splits a pull request URL into the parts that go to gh, and rejects anything else', () => {
     expect(parsePrUrl('https://github.com/acme/web-app/pull/482')).toEqual({ owner: 'acme', repo: 'web-app', number: '482' });
     expect(parsePrUrl('https://github.com/acme/web-app/pull/482/')).not.toBeNull();
-    for (const bad of ['https://evil.example/acme/web-app/pull/1', 'https://github.com/acme/web-app/pull/1; rm -rf ~', 'https://github.com/a b/c/pull/1', 'https://github.com/acme/web-app/issues/1']) expect(parsePrUrl(bad)).toBeNull();
+    for (const bad of [
+      'https://evil.example/acme/web-app/pull/1',
+      'https://github.com/acme/web-app/pull/1; rm -rf ~',
+      'https://github.com/a b/c/pull/1',
+      'https://github.com/acme/web-app/issues/1',
+    ])
+      expect(parsePrUrl(bad)).toBeNull();
   });
 });
