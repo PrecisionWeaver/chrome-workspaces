@@ -5,13 +5,14 @@
 ```bash
 npm test                  # vitest, ~320 tests, real git repos and real pty sessions
 npm run typecheck         # tsc --noEmit, covers shared, helper, extension, scripts
+npm run format            # Prettier; CI runs format:check
 npm run doctor            # checks the local install end to end
 npm run build:extension   # esbuild into extension/dist; reload the extension at chrome://extensions
 npm run helper            # run in the foreground (stop the agent first)
 npm run agent:restart     # restart the launchd helper; ends every open terminal
 ```
 
-Run `typecheck`, `test` and `build:extension` before committing. Extension-only changes need a reload in Chrome and no helper restart; helper changes need `agent:restart`.
+Run `format`, `typecheck`, `test` and `build:extension` before committing. Extension-only changes need a reload in Chrome and no helper restart; helper changes need `agent:restart`.
 
 ## Workflow
 

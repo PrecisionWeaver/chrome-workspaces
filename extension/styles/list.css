@@ -1,0 +1,594 @@
+/* Workspace list */
+
+#list {
+  width: var(--list-width, 200px);
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  background: var(--list-bg);
+  border-right: 1px solid var(--border);
+}
+
+/* The header of the workspace list and of each accordion section: a title between small icon buttons. */
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 8px 6px;
+}
+
+.section-title {
+  flex: 1;
+}
+
+/* A bare glyph button, as in every section header and the new-workspace button. */
+.icon-btn,
+#new {
+  background: none;
+  border: 0;
+  color: var(--muted);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.icon-btn:hover,
+#new:hover {
+  background: var(--raised);
+  color: var(--text);
+}
+
+/* With its body hidden a collapsed header stands alone, so it gets the same room above and below. */
+.section.collapsed .section-header {
+  padding-bottom: 10px;
+}
+
+/* One icon size for every glyph button, drawn from the sprite in panel.html. */
+.icon {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+#settings-bar button .icon {
+  display: block;
+}
+
+/* Every header button is the same box, so a glyph or an icon of any size lines up with its neighbours. */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0;
+}
+
+/* The chevron turns when its section collapses. */
+.section.collapsed .section-toggle {
+  transform: rotate(-90deg);
+}
+
+/* Sized and padded like a workspace row, so it lines up with the list above it. */
+#new {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 6px 8px;
+  padding: 6px 8px;
+  font-size: 12px;
+  line-height: normal;
+  text-align: left;
+}
+
+#new .plus {
+  width: 18px;
+  font-size: 16px;
+  line-height: 1;
+  text-align: center;
+}
+
+body.collapsed #new .label {
+  display: none;
+}
+
+#create .label .optional {
+  margin-left: 6px;
+  color: var(--faint);
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+#create-tabs {
+  resize: vertical;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+#workspaces {
+  list-style: none;
+  margin: 0;
+  padding: 0 6px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.ws {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  margin-bottom: 1px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.ws:hover {
+  background: var(--surface);
+}
+
+.ws.current {
+  background: var(--active);
+  color: var(--text);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.ws.dragging {
+  opacity: 0.4;
+}
+
+.ws.drop-before {
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+
+.ws.drop-after {
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+.ws .badge {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  display: grid;
+  place-items: center;
+  font: 600 10px var(--mono);
+  background: var(--raised);
+  color: var(--muted);
+  position: relative;
+}
+
+.ws.current .badge {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+/* A workspace with a tab group wears the group's color: tinted at rest, solid when current. */
+.ws .badge[data-group] {
+  background: color-mix(in srgb, var(--group) 22%, transparent);
+  color: var(--group);
+}
+
+:root[data-theme='light'] .ws:not(.current) .badge[data-group] {
+  background: color-mix(in srgb, var(--group) 16%, transparent);
+  color: color-mix(in srgb, var(--group) 70%, #000);
+}
+
+.ws.current .badge[data-group] {
+  background: var(--group);
+  color: var(--on-group);
+}
+
+.badge[data-group='grey'] {
+  --group: var(--g-grey);
+}
+.badge[data-group='blue'] {
+  --group: var(--g-blue);
+}
+.badge[data-group='red'] {
+  --group: var(--g-red);
+}
+.badge[data-group='yellow'] {
+  --group: var(--g-yellow);
+}
+.badge[data-group='green'] {
+  --group: var(--g-green);
+}
+.badge[data-group='pink'] {
+  --group: var(--g-pink);
+}
+.badge[data-group='purple'] {
+  --group: var(--g-purple);
+}
+.badge[data-group='cyan'] {
+  --group: var(--g-cyan);
+}
+.badge[data-group='orange'] {
+  --group: var(--g-orange);
+}
+
+.ws .badge[data-status='needs_input']::after,
+.ws .badge[data-status='working']::after {
+  content: '';
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 2px solid var(--list-bg);
+}
+
+.ws .badge[data-status='needs_input']::after {
+  background: var(--needs-input);
+}
+
+.ws .badge[data-status='working']::after {
+  background: var(--working);
+}
+
+.ws .name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ws .rename {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  padding: 1px 4px;
+  outline: none;
+}
+
+.ws .windowless {
+  color: var(--muted);
+}
+
+.ws .remove {
+  visibility: hidden;
+  background: none;
+  border: 0;
+  color: var(--muted);
+  padding: 0 2px;
+}
+
+.ws:hover .remove {
+  visibility: visible;
+}
+
+.ws .remove.confirm {
+  visibility: visible;
+  color: var(--needs-input);
+}
+
+#picker-new {
+  margin: 0 8px 6px;
+}
+
+#picker-name,
+#create-name,
+#create-filter,
+#create-text,
+#create-message-text,
+#create-tabs {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 8px;
+  outline: none;
+}
+
+#picker-name:focus,
+#create-name:focus,
+#create-filter:focus,
+#create-text:focus,
+#create-message-text:focus,
+#create-tabs:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* Review requests */
+
+#reviews {
+  /* Lets the tools row below react to the list's width, which the user drags. */
+  container-type: inline-size;
+  position: relative;
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 45%;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border);
+}
+
+#git.collapsed #git-body {
+  display: none;
+}
+
+#reviews.collapsed #reviews-tools,
+#reviews.collapsed #reviews-facet,
+#reviews.collapsed #reviews-list,
+#reviews.collapsed #reviews-error {
+  display: none;
+}
+
+#reviews-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 0 8px 6px;
+}
+
+#reviews-search,
+#reviews-tools .facet {
+  min-width: 0;
+  box-sizing: border-box;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 3px 6px;
+  font-size: 11.5px;
+  outline: none;
+}
+
+#reviews-search {
+  flex: 1 1 120px;
+}
+
+/* In a narrow list the search takes a line of its own, with the facet buttons below it. */
+@container (max-width: 320px) {
+  #reviews-search {
+    flex-basis: 100%;
+  }
+}
+
+#reviews-tools .facet {
+  flex: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+#reviews-tools .facet.active {
+  color: var(--accent);
+}
+
+#reviews-tools .facet.open {
+  border-color: var(--border-strong);
+  background: var(--raised);
+}
+
+#reviews-search:focus,
+#reviews-tools .facet:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+#reviews-facet {
+  flex: none;
+  max-height: 160px;
+  overflow-y: auto;
+  margin: 0 8px 6px;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+#reviews-facet[hidden] {
+  display: none;
+}
+
+#reviews-facet .facet-bulk {
+  display: flex;
+  gap: 4px;
+  padding: 2px 4px 4px;
+}
+
+#reviews-facet .facet-bulk button {
+  background: none;
+  border: 0;
+  padding: 0 2px;
+  color: var(--accent);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+#reviews-facet .facet-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 4px;
+  border-radius: 4px;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+#reviews-facet .facet-option:hover {
+  background: var(--raised);
+}
+
+#reviews-facet .facet-option input {
+  margin: 0;
+}
+
+#reviews-facet .facet-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#reviews-facet .facet-count {
+  color: var(--faint);
+}
+
+#reviews-error {
+  margin: 0 10px 6px;
+  color: var(--bad);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#reviews-list {
+  flex: 1;
+  min-height: 0;
+  list-style: none;
+  margin: 0;
+  padding: 0 6px 8px;
+  overflow-y: auto;
+}
+
+.review {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 7px 8px;
+  margin-bottom: 1px;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.review:hover {
+  background: var(--surface);
+}
+
+.review.selected {
+  background: var(--active);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.review .ref {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent);
+  font-size: 11px;
+}
+
+.review .merge {
+  padding: 0 5px;
+  border-radius: 8px;
+  font-size: 9.5px;
+  white-space: nowrap;
+}
+
+.review .merge.ready {
+  background: color-mix(in srgb, var(--good) 18%, transparent);
+  color: var(--good);
+}
+
+.review .merge.review {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.review .merge.draft {
+  border: 1px solid var(--border-strong);
+  color: var(--muted);
+}
+
+.review .merge.blocked {
+  background: color-mix(in srgb, var(--wait) 16%, transparent);
+  color: var(--wait);
+}
+
+.review .has-workspace {
+  width: 6px;
+  height: 6px;
+  margin-left: auto;
+  border-radius: 50%;
+  background: var(--working);
+}
+
+.review .title {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: var(--text);
+}
+
+.when .author {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.review .when {
+  color: var(--faint);
+  font-size: 11px;
+}
+
+/* Collapsed rail */
+
+body.collapsed #list {
+  width: 48px;
+}
+
+body.collapsed #list-title,
+body.collapsed .ws .name,
+body.collapsed .ws .remove,
+body.collapsed #settings-open,
+body.collapsed #git,
+body.collapsed #reviews,
+body.collapsed #list-resizer {
+  display: none;
+}
+
+body.collapsed .ws,
+body.collapsed #list-header {
+  justify-content: center;
+}
+
+/* The expand arrow and + match as two equal square buttons. */
+body.collapsed #collapse,
+body.collapsed #new {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  font-size: 16px;
+  line-height: 1;
+}
+
+body.collapsed #new {
+  margin: 2px 0 8px;
+}
+
+body.collapsed #collapse {
+  transform: rotate(180deg);
+}
+
+/* List resizing */
+
+#list-resizer {
+  flex: none;
+  width: 5px;
+  margin: 0 -3px 0 -2px;
+  cursor: col-resize;
+  z-index: 1;
+  transition: background 0.15s;
+}
+
+#list-resizer:hover,
+#list-resizer.dragging {
+  background: var(--accent);
+}

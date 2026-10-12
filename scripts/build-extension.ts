@@ -15,7 +15,10 @@ await build({
   outdir: OUT,
 });
 
-for (const file of ['manifest.json', 'panel.html', 'panel.css']) cpSync(`extension/${file}`, `${OUT}/${file}`);
+// panel.css @imports one file per view; bundling inlines them, in order, into one stylesheet.
+await build({ entryPoints: ['extension/panel.css'], bundle: true, outfile: `${OUT}/panel.css` });
+
+for (const file of ['manifest.json', 'panel.html']) cpSync(`extension/${file}`, `${OUT}/${file}`);
 cpSync('node_modules/@xterm/xterm/css/xterm.css', `${OUT}/xterm.css`);
 
 // PNGs are rendered here rather than committed; small sizes use the simplified artwork.

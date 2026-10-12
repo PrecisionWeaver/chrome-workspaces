@@ -1,0 +1,526 @@
+/* Settings view */
+
+#settings {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 14px 20px 20px;
+}
+
+#settings[hidden] {
+  display: none;
+}
+
+#settings-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+#settings-updated {
+  flex: 1;
+  color: var(--faint);
+  text-align: right;
+}
+
+#settings-title {
+  margin: 0 0 10px;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+#settings-result {
+  margin-bottom: 10px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+#settings-result.ok {
+  border-color: color-mix(in srgb, var(--good) 45%, transparent);
+  color: var(--good);
+}
+
+#settings-result.bad {
+  border-color: color-mix(in srgb, var(--bad) 45%, transparent);
+  color: var(--bad);
+}
+
+#settings-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 900px;
+}
+
+.settings-card {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.settings-card h3 {
+  margin: 0 0 8px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.settings-note {
+  margin: 0 0 10px;
+  color: var(--faint);
+  line-height: 1.5;
+}
+
+.settings-note.warn {
+  color: var(--wait);
+}
+
+.settings-empty {
+  color: var(--faint);
+}
+
+.kv-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 2px 20px;
+}
+
+.kv {
+  display: flex;
+  gap: 12px;
+  padding: 2px 0;
+}
+
+.kv .k {
+  flex: none;
+  width: 118px;
+  color: var(--muted);
+}
+
+.kv .v {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+.kv .ok,
+.settings-card .ok {
+  color: var(--good);
+}
+
+.kv .bad,
+.settings-card .bad {
+  color: var(--bad);
+}
+
+.mono {
+  font: 11.5px var(--mono);
+}
+
+.pref {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  cursor: pointer;
+}
+
+.pref input {
+  accent-color: var(--accent);
+}
+
+.pref:has(select) {
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+  gap: 12px;
+  padding: 4px 0;
+  cursor: default;
+}
+
+.pref:has(select) .pref-select {
+  flex: 0 0 auto;
+}
+
+.pref-hint {
+  flex-basis: 100%;
+  margin-left: 22px;
+  color: var(--faint);
+  line-height: 1.45;
+}
+
+.update-commits {
+  margin: 6px 0 4px;
+  padding: 6px 10px;
+  max-height: 160px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+
+.update-commit {
+  font: 11px/1.6 var(--mono);
+  white-space: pre;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.update-commit.more {
+  color: var(--faint);
+}
+
+.usage-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 56px;
+  margin-bottom: 8px;
+}
+
+.usage-bar {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  background: var(--bg);
+  border-radius: 3px;
+}
+
+.usage-fill {
+  display: block;
+  width: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+}
+
+.usage-bar:last-child .usage-fill {
+  background: var(--working);
+}
+
+.activity {
+  margin: 0 0 8px 26px;
+  padding: 6px 0;
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--muted);
+}
+
+.activity-files {
+  padding: 2px 10px 6px;
+  border-bottom: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+
+.activity-files .k {
+  color: var(--faint);
+}
+
+.activity-row {
+  display: flex;
+  gap: 8px;
+  padding: 2px 10px;
+}
+
+.activity-time {
+  flex: none;
+  width: 64px;
+  color: var(--faint);
+  font: 11px var(--mono);
+}
+
+.activity-kind {
+  flex: none;
+  width: 62px;
+  color: var(--accent);
+  font-size: 11px;
+}
+
+.activity-row.you .activity-kind {
+  color: var(--working);
+}
+
+.activity-row.said .activity-kind {
+  color: var(--muted);
+}
+
+.activity-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+.activity-row.said .activity-text {
+  color: var(--muted);
+}
+
+.setup-row {
+  display: flex;
+  gap: 8px;
+  padding: 3px 0;
+}
+
+.setup-mark {
+  flex: none;
+  width: 14px;
+  color: var(--wait);
+}
+
+.setup-row.done .setup-mark {
+  color: var(--good);
+}
+
+.setup-row.done {
+  color: var(--muted);
+}
+
+.setup-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.setup-detail {
+  color: var(--faint);
+  line-height: 1.45;
+}
+
+.warning-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+}
+
+.warning-mark {
+  flex: none;
+  color: var(--wait);
+}
+
+.warning-text {
+  flex: 1;
+  min-width: 0;
+}
+
+#settings-open.has-warning {
+  position: relative;
+  color: var(--wait);
+}
+
+#settings-open.has-warning::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 7px;
+  height: 7px;
+  border: 2px solid var(--list-bg);
+  border-radius: 50%;
+  background: var(--wait);
+}
+
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.settings-btn {
+  padding: 4px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.settings-btn:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  background: var(--raised);
+}
+
+.settings-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.settings-btn.danger {
+  color: var(--bad);
+}
+
+.settings-btn.armed {
+  background: var(--needs-input);
+  border-color: var(--needs-input);
+  color: var(--on-danger);
+  font-weight: 600;
+}
+
+.settings-log {
+  max-height: 220px;
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  font: 11px/1.5 var(--mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.session {
+  border-top: 1px solid var(--border);
+}
+
+.session:first-child {
+  border-top: 0;
+}
+
+.session-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+}
+
+.session-toggle {
+  flex: none;
+  width: 18px;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.session-summary {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+}
+
+.session-name {
+  font-weight: 600;
+}
+
+.session-tokens {
+  color: var(--accent);
+  font-size: 11px;
+  cursor: help;
+}
+
+.session-detail {
+  color: var(--faint);
+  font-size: 11px;
+}
+
+.chip {
+  padding: 0 6px;
+  border-radius: 8px;
+  background: var(--raised);
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.chip.working {
+  color: var(--working);
+}
+
+.chip.needs_input,
+.chip.bad {
+  color: var(--needs-input);
+}
+
+.procs {
+  margin: 0 0 8px 26px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+
+.proc {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 8px;
+  border-top: 1px solid var(--border);
+}
+
+.proc:first-child {
+  border-top: 0;
+}
+
+.proc.shell {
+  color: var(--muted);
+}
+
+.proc .pid {
+  flex: none;
+  width: 52px;
+  color: var(--faint);
+  font: 11px var(--mono);
+}
+
+.proc .cmd {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 11px var(--mono);
+}
+
+.proc-meta {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.proc-meta .num {
+  min-width: 48px;
+  color: var(--faint);
+  font: 11px var(--mono);
+  text-align: right;
+}
+
+.proc-meta .port {
+  padding: 0 6px;
+  background: var(--accent-soft);
+  border: 0;
+  border-radius: 8px;
+  color: var(--accent);
+  font: 11px var(--mono);
+  cursor: pointer;
+}
+
+.proc-actions {
+  flex: none;
+  display: flex;
+  gap: 4px;
+}
+
+.proc-actions .settings-btn {
+  padding: 1px 8px;
+  font-size: 11px;
+}
