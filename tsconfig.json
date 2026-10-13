@@ -11,5 +11,5 @@
     "noEmit": true,
     "allowImportingTsExtensions": true
   },
-  "include": ["shared", "helper", "hooks", "extension/src", "scripts", "vitest.config.ts"]
+  "include": ["shared", "helper", "hooks", "extension/src", "extension/test", "scripts", "vitest.config.ts"]
 }

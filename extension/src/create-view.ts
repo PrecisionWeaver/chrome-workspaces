@@ -85,6 +85,8 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
   const detailsCache = new Map<string, PrDetails>();
   // Picked in an earlier session; applied once the repo list arrives.
   let savedRepo = '';
+  // Whether the repo was picked by hand (or by a template) since the view opened; if not, the list arriving picks one.
+  let repoPicked = false;
 
   const defaultModel = el('option', 'Default');
   defaultModel.value = '';
@@ -142,6 +144,7 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
   function applyTemplate(template: Template): void {
     repoSelect.value = template.repo;
     if (repoSelect.value !== template.repo) repoSelect.value = '';
+    repoPicked = true;
     modelSelect.value = template.model;
     if (modelSelect.value !== template.model) modelSelect.value = '';
     tabsInput.value = template.tabs;
@@ -206,6 +209,7 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
   function show(request: ReviewRequest | null = null): void {
     isOpen = true;
     review = request;
+    repoPicked = false;
     pickColor(null);
     // A review starts from its PR, so templates are for workspaces made from scratch.
     templateBox.hidden = request !== null;
@@ -289,7 +293,8 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
     const picked = repoSelect.value;
     repoSelect.replaceChildren(standard, ...options);
     repoSelect.value = picked;
-    if (repoSelect.value !== picked) selectRepo();
+    // An empty select reads '' before and after, so only a pick made by hand is kept over the default.
+    if (!repoPicked || repoSelect.value !== picked) selectRepo();
   }
 
   function renderPrompts(): void {
@@ -329,6 +334,7 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
   }
 
   filter.addEventListener('input', renderPrompts);
+  repoSelect.addEventListener('change', () => (repoPicked = true));
 
   $<HTMLButtonElement>('create-change').addEventListener('click', () => {
     chosen.hidden = true;
