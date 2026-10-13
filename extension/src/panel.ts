@@ -130,13 +130,13 @@ const control = connectControl(
 const send = control.send.bind(control);
 const here = () => ({ windowId: myWindowId, workspace: current() });
 // Review requests start a workspace through the same new-workspace view as the + button.
-/** Opens the new-workspace view for a review request, and its PR beside the current workspace's tabs. */
+/** Opens the new-workspace view for a review request, and its PR in a normal tab outside the current workspace's group. */
 function startReview(review: ReviewRequest): void {
   creator.show(review);
-  // The PR is what you came to look at, so it opens beside the workspace's other tabs, once.
+  // The PR is what you came to look at, so it opens once, as a plain tab beside the current workspace's group rather than in it.
   // A tab opened here moves to the PR's workspace when one is made from this view.
   const { windowId, workspace } = here();
-  void openInWorkspace(workspace, windowId, review.url).then((tabId) => {
+  void openInWorkspace(workspace?.groupId == null ? workspace : undefined, windowId, review.url).then((tabId) => {
     if (tabId !== undefined) void noteReviewTab(review.url, tabId);
   });
 }
