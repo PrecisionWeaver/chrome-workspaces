@@ -189,7 +189,8 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       row('Panels connected', String(helper.clients)),
     );
     const unmanaged = 'Started by hand, so launchd cannot restart it. Run npm run agent:start to manage it.';
-    const log = el('pre', logText ?? 'Loading…', 'settings-log');
+    // Empty until the helper answers; an empty log reads "(empty)", so a blank here means it is still loading.
+    const log = el('pre', logText || 'Loading…', 'settings-log');
     return card(
       'Helper',
       facts,

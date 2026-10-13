@@ -3,7 +3,7 @@
 ## Commands
 
 ```bash
-npm test                  # vitest, ~320 tests, real git repos and real pty sessions
+npm test                  # vitest, ~900 tests: real git repos and pty sessions, and a fake chrome.* with happy-dom for the extension
 npm run typecheck         # tsc --noEmit, covers shared, helper, extension, scripts
 npm run format            # Prettier; CI runs format:check
 npm run doctor            # checks the local install end to end
@@ -26,6 +26,7 @@ Run `format`, `typecheck`, `test` and `build:extension` before committing. Exten
 - Add or change a message in `shared/protocol.ts` first; both sides then type-check against it. Validate incoming control messages in `control.ts` (`isControlToHelper`, `isAdminAction`).
 - Put pure logic in `shared/` or a small helper module with its own test, not inside `panel.ts` or `control.ts`.
 - Helper tests use real temp git repos and the `harness.ts` / `wait-for.ts` utilities; prefer those to mocks.
+- Extension tests (`extension/test/`) call `installChrome()` from `chrome-mock.ts`, an in-memory `chrome.tabs`, `tabGroups`, `windows`, `storage` and the events and smaller APIs the code uses. It keeps real state, so assert on the resulting tabs and groups, not on calls, and fire events with `fake.events.*.emit`. Tests of views start the file with `// @vitest-environment happy-dom`, load the shipped markup with `loadPanelHtml()` (so ids match `panel.html`), and call `isolateDocumentListeners()` because views never remove their `document` listeners. xterm and `helper-client` are replaced with `vi.mock`. Fixtures are in `fixtures.ts`. Extend the fake when code uses an API it lacks. It models Chrome's behaviour only as far as a test needed, so a pass is not a substitute for trying it in Chrome.
 - UI: reuse the shared styles (`.section-header`, `.icon-btn`, the `select` rule, the top-bar button rule). Colours come from CSS variables so the light theme works. Keep icon sizes and header buttons identical across sections.
 - Comments say why, not what. Match the surrounding style.
 
