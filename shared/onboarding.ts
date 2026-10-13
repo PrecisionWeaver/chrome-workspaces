@@ -4,8 +4,8 @@ export interface SetupInput {
   /** The extension ID the helper expects, and the one this extension has. */
   helperExtensionId: string;
   extensionId: string;
-  /** Review requests have been fetched without an error, which needs `gh` signed in. */
-  reviewsWork: boolean;
+  /** What the last review-request fetch did; it needs `gh` signed in and GitHub answering. */
+  reviews: { fetchedAt: string | null; error: string | null };
   promptsFileExists: boolean;
   /** Which configured repo folders exist. */
   repoRoots: { path: string; exists: boolean }[];
@@ -27,6 +27,27 @@ export interface SetupItem {
   detail: string;
   /** What to do about it. */
   fix?: string;
+}
+
+/** What `gh` and the shell say when it is missing or signed out, as opposed to GitHub being slow or down. */
+const SIGNED_OUT = /gh auth login|not logged in|command not found|HTTP 401|bad credentials/i;
+
+const firstLine = (error: string) => error.trim().split('\n').pop()!.trim();
+
+/** A failed fetch only means `gh` is signed out when it says so: the helper keeps polling through timeouts and 504s. */
+function github({ fetchedAt, error }: SetupInput['reviews']): SetupItem {
+  const base = { id: 'github', label: 'GitHub CLI signed in' };
+  if (!error) return { ...base, ok: true, detail: fetchedAt ? 'Review requests are loading.' : 'Fetching review requests.' };
+  if (SIGNED_OUT.test(error))
+    return { ...base, ok: false, detail: 'gh is missing or signed out.', fix: 'Run gh auth login in a terminal, then press ↻ in Review requests.' };
+  // Having loaded once proves gh works, so a later failure is GitHub or the network and the next poll retries.
+  if (fetchedAt) return { ...base, ok: true, detail: `The last refresh failed (${firstLine(error)}); it retries every 5 minutes.` };
+  return {
+    ...base,
+    ok: false,
+    detail: `Review requests could not be loaded: ${firstLine(error)}`,
+    fix: 'Press ↻ in Review requests to retry. If it keeps failing, run npm run doctor.',
+  };
 }
 
 /** What a fresh install needs, each with what to do when it is not so. */
@@ -66,13 +87,7 @@ export function buildChecklist(input: SetupInput): SetupItem[] {
         : 'The hook script is missing or Node is older than 22.18, so there are no status dots, waiting counts, notifications, activity or costs.',
       fix: input.statusHooks ? undefined : 'Use Node 22.18 or newer, then run npm run agent:restart. npm run doctor says which is wrong.',
     },
-    {
-      id: 'github',
-      label: 'GitHub CLI signed in',
-      ok: input.reviewsWork,
-      detail: input.reviewsWork ? 'Review requests are loading.' : 'Review requests could not be loaded.',
-      fix: input.reviewsWork ? undefined : 'Run gh auth login in a terminal, then press ↻ in Review requests.',
-    },
+    github(input.reviews),
     {
       id: 'prompts',
       label: 'Prompts file',

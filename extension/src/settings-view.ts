@@ -454,7 +454,7 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       managed: s.helper.managed,
       helperExtensionId: s.helper.extensionId,
       extensionId: chrome.runtime.id,
-      reviewsWork: s.reviews.fetchedAt !== null && s.reviews.error === null,
+      reviews: s.reviews,
       promptsFileExists: s.setup.promptsFileExists,
       repoRoots: s.setup.repoRoots,
       switchShortcut,
