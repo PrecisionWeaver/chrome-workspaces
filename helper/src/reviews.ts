@@ -16,7 +16,7 @@ export function ghReviewedPrs(repos: readonly string[]): string {
 const SAFE_NAME = /^[\w.-]+$/;
 
 /** GitHub's intermittent 5xx and cut-off replies, which a second try usually gets past. */
-const TRANSIENT = /HTTP 50[234]\b|unexpected end of JSON input|unexpected EOF|timed out|i\/o timeout|connection reset/i;
+const TRANSIENT = /HTTP 50[234]\b|unexpected end of JSON input|unexpected EOF|timed out|i\/o timeout|handshake timeout|connection reset/i;
 const RATE_LIMITED = /rate limit|HTTP 429|abuse detection/i;
 /** Tries per search before its failure is reported. */
 const SEARCH_ATTEMPTS = 3;
