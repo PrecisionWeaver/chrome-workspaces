@@ -1,4 +1,4 @@
-import type { ControlToHelper, MergeState, ReviewRequest, ReviewsState, Workspace } from '../../shared/protocol';
+import type { CiState, ControlToHelper, MergeState, ReviewRequest, ReviewsState, Workspace } from '../../shared/protocol';
 import { el } from './dom';
 import { ref, relative, byline } from './pr-view';
 
@@ -34,6 +34,8 @@ const MERGE_TITLES: Partial<Record<MergeState, string>> = {
   review: 'Not a draft, and waiting for a review',
   draft: 'Draft: not up for review yet',
 };
+
+const CI_TITLES: Record<CiState, string> = { passing: 'Checks passing', failing: 'Checks failing', pending: 'Checks running' };
 
 /** What a request is filtered on for a facet. */
 const facetValue = (item: ReviewRequest, facet: Facet): string => (facet === 'status' ? MERGE_LABELS[item.merge] : item[facet]);
@@ -173,6 +175,16 @@ export function createLauncher({ send, create, closeCreate, selectedUrl, openWor
           const merge = el('span', blocked ? (item.mergeReason ?? MERGE_LABELS.blocked) : MERGE_LABELS[item.merge], `merge ${item.merge}`);
           merge.title = MERGE_TITLES[item.merge] ?? `Cannot merge yet: ${item.mergeReason ?? 'blocked'}`;
           head.append(merge);
+        }
+        if (item.needsReReview) {
+          const again = el('span', 'New commits', 'rereview');
+          again.title = 'You reviewed this PR, and the author has pushed since';
+          head.append(again);
+        }
+        if (item.ci) {
+          const ci = el('span', '', `ci ${item.ci}`);
+          ci.title = CI_TITLES[item.ci];
+          head.append(ci);
         }
         if (existing) {
           const dot = document.createElement('span');

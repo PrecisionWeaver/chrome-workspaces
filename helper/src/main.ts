@@ -16,7 +16,7 @@ import { readPrompts } from './prompts';
 import { createGitService } from './git';
 import { HistoryStore } from './history';
 import { listRepos } from './repos';
-import { GH_REVIEW_REQUESTS, ghOwnPrs, ghWatchedPrs, ReviewsPoller } from './reviews';
+import { GH_REVIEW_REQUESTS, ghOwnPrs, ghReviewedPrs, ghWatchedPrs, ReviewsPoller } from './reviews';
 import { startServer } from './server';
 import { SessionManager } from './session';
 import { loadOrCreateToken } from './token';
@@ -67,7 +67,10 @@ const ghMergeStates = async (query: string) => {
     throw error;
   }
 };
-const reviews = new ReviewsPoller(() => Promise.all(reviewSearches.map(gh)), ghMergeStates);
+const reviews = new ReviewsPoller(() => Promise.all(reviewSearches.map(gh)), ghMergeStates, undefined, {
+  // PRs you reviewed no longer match a review request, so they are looked for in the repos you have configured.
+  fetchReviewed: async () => (ownRepos.length ? [await gh(ghReviewedPrs(ownRepos))] : []),
+});
 const prompts = () => readPrompts(config.promptsFile);
 const prDetails = async (url: string) =>
   (await execFileAsync(shell, ['-l', '-c', GH_PR_DETAILS], { env: { ...process.env, CW_PR_URL: url }, timeout: 30_000, maxBuffer: 4 * 1024 * 1024 })).stdout;

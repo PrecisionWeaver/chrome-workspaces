@@ -488,7 +488,8 @@ body.collapsed #new .label {
   font-size: 11px;
 }
 
-.review .merge {
+.review .merge,
+.review .rereview {
   padding: 0 5px;
   border-radius: 8px;
   font-size: 9.5px;
@@ -513,6 +514,34 @@ body.collapsed #new .label {
 .review .merge.blocked {
   background: color-mix(in srgb, var(--wait) 16%, transparent);
   color: var(--wait);
+}
+
+.review .rereview {
+  background: color-mix(in srgb, var(--wait) 16%, transparent);
+  color: var(--wait);
+}
+
+.review .ci {
+  width: 6px;
+  height: 6px;
+  margin-left: auto;
+  border-radius: 50%;
+}
+
+.review .ci.passing {
+  background: var(--good);
+}
+
+.review .ci.failing {
+  background: var(--bad);
+}
+
+.review .ci.pending {
+  background: var(--wait);
+}
+
+.review .ci + .has-workspace {
+  margin-left: 0;
 }
 
 .review .has-workspace {

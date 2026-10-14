@@ -300,6 +300,9 @@ export interface Repo {
  */
 export type MergeState = 'ready' | 'review' | 'draft' | 'blocked' | 'unknown';
 
+/** The head commit's checks as a whole; a PR with no checks has none. */
+export type CiState = 'passing' | 'failing' | 'pending';
+
 /** An open PR that requests the user's review. */
 export interface ReviewRequest {
   /** `owner/name`. */
@@ -314,6 +317,10 @@ export interface ReviewRequest {
   merge: MergeState;
   /** Why a `blocked` PR cannot merge, in a word or two; null otherwise. */
   mergeReason: string | null;
+  /** Your last review asked for changes or commented, and the author has pushed since. */
+  needsReReview: boolean;
+  /** Null when the PR has no checks, or the lookup that carries them failed. */
+  ci: CiState | null;
 }
 
 export interface ReviewsState {
