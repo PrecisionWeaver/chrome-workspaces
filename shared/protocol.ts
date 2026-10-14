@@ -72,6 +72,20 @@ export interface TokenTotals {
   cacheRead: number;
 }
 
+/** One day's use across every workspace. */
+export interface UsageDay {
+  /** UTC date, `2026-10-07`. */
+  day: string;
+  /** New work: input, output and cache writes. */
+  tokens: number;
+  costUsd: number;
+  output: number;
+  /** Input served from the prompt cache; it repeats earlier input, so it is not in `tokens`. */
+  cacheRead: number;
+  /** The real models that did the work, with what each cost; empty on a quiet day. */
+  models: { model: string; tokens: number; costUsd: number }[];
+}
+
 /** One process in a workspace's shell tree. */
 export interface SystemProcess {
   pid: number;
@@ -130,11 +144,11 @@ export interface SystemSnapshot {
     pricing: Record<string, { input: number; output: number }>;
     jiraBaseUrl: string | null;
   };
-  /** Tokens and estimated cost across every workspace, by day (UTC), oldest first; see `shared/pricing.ts`. */
+  /** Tokens and estimated cost across every workspace, by day (UTC), oldest first; see `shared/pricing.ts` and `shared/usage.ts`. */
   usage: {
-    daily: { day: string; tokens: number; costUsd: number }[];
+    daily: UsageDay[];
+    /** Estimated cost since the first transcript still on disk, not only the days in `daily`. */
     costUsd: number;
-    todayUsd: number;
     counting: boolean;
     /** Models used that have no rate, so are missing from the cost. */ unpriced: string[];
   };

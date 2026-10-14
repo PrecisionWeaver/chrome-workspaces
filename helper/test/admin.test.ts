@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { ControlToClient } from '../../shared/protocol';
 import { readProcesses, subtree } from '../src/system';
-import { usageTrend } from '../src/admin';
+import { emptyDay, usageTrend } from '../src/admin';
 import { connectControl, opened, startHarness, type Harness } from './harness';
 import { waitFor } from './wait-for';
 
@@ -139,10 +139,16 @@ describe('usage and cost', () => {
       if (mine.tokens && !mine.tokens.counting && mine.tokens.output > 0) {
         // The harness prices opus at $10 in and $50 out per million: $10 + $50 for one counted message.
         expect(mine.tokens.costUsd).toBeCloseTo(60);
-        expect(reply.snapshot.usage.daily).toHaveLength(14);
-        expect(reply.snapshot.usage.daily.at(-1)).toMatchObject({ day: today, tokens: 2_000_000 });
-        expect(reply.snapshot.usage.daily[0].tokens).toBe(0);
-        expect(reply.snapshot.usage).toMatchObject({ costUsd: expect.closeTo(60), todayUsd: expect.closeTo(60), unpriced: [] });
+        expect(reply.snapshot.usage.daily).toHaveLength(60);
+        expect(reply.snapshot.usage.daily.at(-1)).toMatchObject({
+          day: today,
+          tokens: 2_000_000,
+          output: 1_000_000,
+          cacheRead: 0,
+          models: [{ model: 'claude-opus-5-5', tokens: 2_000_000, costUsd: expect.closeTo(60) }],
+        });
+        expect(reply.snapshot.usage.daily[0]).toMatchObject({ tokens: 0, models: [] });
+        expect(reply.snapshot.usage).toMatchObject({ costUsd: expect.closeTo(60), unpriced: [] });
         return;
       }
       await new Promise((resolve) => setTimeout(resolve, 20));
@@ -150,23 +156,40 @@ describe('usage and cost', () => {
     throw new Error('the transcript was never counted');
   });
 
-  it("builds a 14-day series ending today, and sums every day's cost", () => {
+  it("builds a 60-day series ending today, and sums every day's cost", () => {
     const now = new Date('2026-10-09T12:00:00Z');
+    const day = (tokens: number, costUsd: number, models: [string, number, number][] = []) => ({
+      ...emptyDay(),
+      tokens,
+      costUsd,
+      output: tokens / 2,
+      cacheRead: 7,
+      models: new Map(models.map(([model, t, c]) => [model, { tokens: t, costUsd: c }])),
+    });
     const trend = usageTrend(
       new Map([
-        ['2026-10-09', { tokens: 5, costUsd: 2 }],
-        ['2026-10-01', { tokens: 3, costUsd: 1.5 }],
-        ['2025-01-01', { tokens: 9, costUsd: 4 }],
+        ['2026-10-09', day(5, 2, [['opus', 5, 2]])],
+        ['2026-10-01', day(3, 1.5)],
+        ['2025-01-01', day(9, 4)],
       ]),
       true,
       ['mystery-1'],
       now,
     );
-    expect(trend.daily[0].day).toBe('2026-09-26');
-    expect(trend.daily.at(-1)).toEqual({ day: '2026-10-09', tokens: 5, costUsd: 2 });
-    expect(trend.daily.find((d) => d.day === '2026-10-01')).toMatchObject({ tokens: 3 });
-    // The total includes older days too; only the chart shows two weeks.
-    expect(trend).toMatchObject({ costUsd: 7.5, todayUsd: 2, counting: true, unpriced: ['mystery-1'] });
+    expect(trend.daily).toHaveLength(60);
+    expect(trend.daily[0].day).toBe('2026-08-11');
+    expect(trend.daily.at(-1)).toEqual({
+      day: '2026-10-09',
+      tokens: 5,
+      costUsd: 2,
+      output: 2.5,
+      cacheRead: 7,
+      models: [{ model: 'opus', tokens: 5, costUsd: 2 }],
+    });
+    expect(trend.daily.find((d) => d.day === '2026-10-01')).toMatchObject({ tokens: 3, models: [] });
+    expect(trend.daily.find((d) => d.day === '2026-10-02')).toEqual({ day: '2026-10-02', tokens: 0, costUsd: 0, output: 0, cacheRead: 0, models: [] });
+    // The total includes older days too; the series only reaches back sixty.
+    expect(trend).toMatchObject({ costUsd: 7.5, counting: true, unpriced: ['mystery-1'] });
   });
 });
 

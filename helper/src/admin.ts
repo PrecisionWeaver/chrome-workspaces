@@ -4,7 +4,8 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { findWarnings } from '../../shared/guardrails';
 import { costOf, isRealModel, rateFor } from '../../shared/pricing';
-import type { AdminAction, ReviewsState, SystemSnapshot, UpdateStatus, WorkspaceStatus } from '../../shared/protocol';
+import type { AdminAction, ReviewsState, SystemSnapshot, UpdateStatus, UsageDay, WorkspaceStatus } from '../../shared/protocol';
+import { USAGE_HISTORY_DAYS } from '../../shared/usage';
 import { AGENT_LABEL, type HelperConfig } from './config';
 import type { SessionManager } from './session';
 import { readTimeline } from './timeline';
@@ -84,23 +85,22 @@ export async function defaultIsManaged(): Promise<boolean> {
   }
 }
 
-const TREND_DAYS = 14;
+/** One day's use as it is added up, before it becomes a `UsageDay`. */
+export type DayTotals = Omit<UsageDay, 'day' | 'models'> & { models: Map<string, { tokens: number; costUsd: number }> };
 
-/** The last two weeks, oldest first, with a day that had no usage shown as zero so the trend has no gaps. */
-export function usageTrend(
-  dayTotals: ReadonlyMap<string, { tokens: number; costUsd: number }>,
-  counting: boolean,
-  unpriced: string[] = [],
-  now = new Date(),
-): SystemSnapshot['usage'] {
-  const daily: SystemSnapshot['usage']['daily'] = [];
-  for (let back = TREND_DAYS - 1; back >= 0; back--) {
+export const emptyDay = (): DayTotals => ({ tokens: 0, costUsd: 0, output: 0, cacheRead: 0, models: new Map() });
+
+/** The last `USAGE_HISTORY_DAYS`, oldest first, with a day that had no usage shown as zero so the trend has no gaps. */
+export function usageTrend(dayTotals: ReadonlyMap<string, DayTotals>, counting: boolean, unpriced: string[] = [], now = new Date()): SystemSnapshot['usage'] {
+  const daily: UsageDay[] = [];
+  for (let back = USAGE_HISTORY_DAYS - 1; back >= 0; back--) {
     const day = new Date(now.getTime() - back * 86_400_000).toISOString().slice(0, 10);
-    daily.push({ day, ...(dayTotals.get(day) ?? { tokens: 0, costUsd: 0 }) });
+    const { models, ...totals } = dayTotals.get(day) ?? emptyDay();
+    daily.push({ day, ...totals, models: [...models].map(([model, used]) => ({ model, ...used })) });
   }
   let costUsd = 0;
   for (const total of dayTotals.values()) costUsd += total.costUsd;
-  return { daily, costUsd, todayUsd: daily[daily.length - 1].costUsd, counting, unpriced };
+  return { daily, costUsd, counting, unpriced };
 }
 
 export function createAdmin(options: AdminOptions): AdminService {
@@ -161,7 +161,7 @@ export function createAdmin(options: AdminOptions): AdminService {
       const snapshotSessions = store.list();
       tokens.keepOnly(snapshotSessions.flatMap((ws) => options.transcript(ws.id) ?? []));
       // Every counted transcript's usage by model and day, for the trend across workspaces.
-      const dayTotals = new Map<string, { tokens: number; costUsd: number }>();
+      const dayTotals = new Map<string, DayTotals>();
       let counting = false;
       const unpriced = new Set<string>();
       const sessionRows = snapshotSessions.map((ws) => {
@@ -177,10 +177,19 @@ export function createAdmin(options: AdminOptions): AdminService {
           if (isRealModel(bucket.model) && !rateFor(bucket.model, config.pricing)) unpriced.add(bucket.model);
           costUsd += cost;
           if (bucket.day) {
-            const day = dayTotals.get(bucket.day) ?? { tokens: 0, costUsd: 0 };
+            const day = dayTotals.get(bucket.day) ?? emptyDay();
             // New work only, as everywhere else: cache reads repeat earlier input.
-            day.tokens += bucket.usage.input + bucket.usage.output + bucket.usage.cacheWrite;
+            const tokens = bucket.usage.input + bucket.usage.output + bucket.usage.cacheWrite;
+            day.tokens += tokens;
             day.costUsd += cost;
+            day.output += bucket.usage.output;
+            day.cacheRead += bucket.usage.cacheRead;
+            if (isRealModel(bucket.model)) {
+              const model = day.models.get(bucket.model) ?? { tokens: 0, costUsd: 0 };
+              model.tokens += tokens;
+              model.costUsd += cost;
+              day.models.set(bucket.model, model);
+            }
             dayTotals.set(bucket.day, day);
           }
         }

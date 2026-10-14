@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach } from 'vitest';
 import { resolve } from 'node:path';
-import type { HistoryEntry, PrDetails, ReviewRequest, SystemSession, SystemSnapshot, Workspace } from '../../shared/protocol';
+import type { HistoryEntry, PrDetails, ReviewRequest, SystemSession, SystemSnapshot, UsageDay, Workspace } from '../../shared/protocol';
 
 /** A workspace with everything unset; tests override what they care about. */
 export function makeWorkspace(overrides: Partial<Workspace> = {}): Workspace {
@@ -119,6 +119,11 @@ export function makeSession(overrides: Partial<SystemSession> = {}): SystemSessi
   };
 }
 
+/** One quiet day of usage; tests set what they care about. */
+export function makeUsageDay(overrides: Partial<UsageDay> = {}): UsageDay {
+  return { day: '2026-03-10', tokens: 0, costUsd: 0, output: 0, cacheRead: 0, models: [], ...overrides };
+}
+
 /** A healthy, fully set up install, so every setup step is done; tests break what they care about. */
 export function makeSnapshot(overrides: Partial<SystemSnapshot> = {}): SystemSnapshot {
   return {
@@ -150,7 +155,7 @@ export function makeSnapshot(overrides: Partial<SystemSnapshot> = {}): SystemSna
       pricing: { opus: { input: 15, output: 75 } },
       jiraBaseUrl: null,
     },
-    usage: { daily: [{ day: '2026-03-10', tokens: 0, costUsd: 0 }], costUsd: 0, todayUsd: 0, counting: false, unpriced: [] },
+    usage: { daily: [makeUsageDay({ day: '2026-03-10' })], costUsd: 0, counting: false, unpriced: [] },
     warnings: [],
     reviews: { fetchedAt: '2026-03-10T11:59:00.000Z', count: 3, error: null },
     setup: { promptsFileExists: true, repoRoots: [{ path: '/Users/me/code', exists: true }], statusHooks: true, configProblems: [] },
