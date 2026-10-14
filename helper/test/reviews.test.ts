@@ -483,6 +483,7 @@ describe('searches that fail on GitHub’s side', () => {
   it('tells a gateway error or a cut-off reply from one that will not get better', () => {
     expect(isTransient(gateway())).toBe(true);
     expect(isTransient(Object.assign(new Error('x'), { stderr: 'unexpected end of JSON input' }))).toBe(true);
+    expect(isTransient(Object.assign(new Error('x'), { stderr: 'Post "https://api.github.com/graphql": net/http: TLS handshake timeout' }))).toBe(true);
     expect(isTransient(Object.assign(new Error('x'), { stderr: 'HTTP 401: Bad credentials' }))).toBe(false);
     expect(isTransient(new Error('Command failed: gh search prs --repo acme/timeout-service'))).toBe(false);
   });
