@@ -98,7 +98,28 @@ describe('the list', () => {
     );
     expect(rows().map((row) => row.querySelector('.rereview')?.textContent ?? null)).toEqual(['New commits', null, null, null]);
     expect(rows().map((row) => row.querySelector<HTMLElement>('.ci')?.className ?? null)).toEqual(['ci failing', 'ci passing', 'ci pending', null]);
-    expect(rows()[0]!.querySelector<HTMLElement>('.ci')!.title).toBe('Checks failing');
+    expect(rows().map((row) => row.querySelector('.ci')?.textContent ?? null)).toEqual(['Checks failing', 'Checks passing', 'Checks running', null]);
+  });
+
+  it('leaves out a checks tag that Can merge, or a Checks failing reason, already says', async () => {
+    await start();
+    launcher.renderReviews(
+      state([
+        makeReview({ number: 1, merge: 'ready', ci: 'passing' }),
+        makeReview({ number: 2, merge: 'blocked', mergeReason: 'Checks failing', ci: 'failing' }),
+        makeReview({ number: 3, merge: 'blocked', mergeReason: 'Conflicts', ci: 'failing' }),
+        makeReview({ number: 4, merge: 'review', ci: 'passing' }),
+      ]),
+      [],
+    );
+    expect(rows().map((row) => row.querySelector('.ci')?.textContent ?? null)).toEqual([null, null, 'Checks failing', 'Checks passing']);
+  });
+
+  it('shows the checks as a tag, so the workspace dot is the row’s only dot', async () => {
+    await start();
+    launcher.renderReviews(state([makeReview({ url: 'u1', ci: 'passing' })]), [makeWorkspace({ pr: 'u1' })]);
+    expect(rows()[0]!.querySelectorAll('.has-workspace')).toHaveLength(1);
+    expect(rows()[0]!.querySelector('.ci')?.textContent).toBe('Checks passing');
   });
 
   it('marks requests that already have a workspace, and names it', async () => {

@@ -35,7 +35,7 @@ const MERGE_TITLES: Partial<Record<MergeState, string>> = {
   draft: 'Draft: not up for review yet',
 };
 
-const CI_TITLES: Record<CiState, string> = { passing: 'Checks passing', failing: 'Checks failing', pending: 'Checks running' };
+const CI_LABELS: Record<CiState, string> = { passing: 'Checks passing', failing: 'Checks failing', pending: 'Checks running' };
 
 /** What a request is filtered on for a facet. */
 const facetValue = (item: ReviewRequest, facet: Facet): string => (facet === 'status' ? MERGE_LABELS[item.merge] : item[facet]);
@@ -181,10 +181,9 @@ export function createLauncher({ send, create, closeCreate, selectedUrl, openWor
           again.title = 'You reviewed this PR, and the author has pushed since';
           head.append(again);
         }
-        if (item.ci) {
-          const ci = el('span', '', `ci ${item.ci}`);
-          ci.title = CI_TITLES[item.ci];
-          head.append(ci);
+        // "Can merge" already says the checks pass, and a blocked PR's reason may already say they fail.
+        if (item.ci && item.merge !== 'ready' && !(item.ci === 'failing' && item.mergeReason === 'Checks failing')) {
+          head.append(el('span', CI_LABELS[item.ci], `ci ${item.ci}`));
         }
         if (existing) {
           const dot = document.createElement('span');

@@ -490,7 +490,8 @@ body.collapsed #new .label {
 }
 
 .review .merge,
-.review .rereview {
+.review .rereview,
+.review .ci {
   padding: 0 5px;
   border-radius: 8px;
   font-size: 9.5px;
@@ -522,28 +523,19 @@ body.collapsed #new .label {
   color: var(--wait);
 }
 
-.review .ci {
-  flex: none;
-  width: 6px;
-  height: 6px;
-  margin-left: auto;
-  border-radius: 50%;
-}
-
 .review .ci.passing {
-  background: var(--good);
+  background: color-mix(in srgb, var(--good) 18%, transparent);
+  color: var(--good);
 }
 
 .review .ci.failing {
-  background: var(--bad);
+  background: color-mix(in srgb, var(--bad) 16%, transparent);
+  color: var(--bad);
 }
 
 .review .ci.pending {
-  background: var(--wait);
-}
-
-.review .ci + .has-workspace {
-  margin-left: 0;
+  background: color-mix(in srgb, var(--wait) 16%, transparent);
+  color: var(--wait);
 }
 
 .review .has-workspace {
