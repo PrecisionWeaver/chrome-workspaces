@@ -19,6 +19,11 @@ export async function getHelper(): Promise<HelperAddress> {
   return { token: reply.token, port: reply.port };
 }
 
+/** Whether Chrome could not find (or may not use) the native host, which only `npm run install-app` puts in place. */
+export function isHostMissing(error: unknown): boolean {
+  return /native messaging host (not found|is forbidden)/i.test(error instanceof Error ? error.message : String(error));
+}
+
 /** Asks the native host to load the launchd agent; the control connection's retries find the helper once it listens. */
 export async function startHelper(): Promise<void> {
   const reply = (await chrome.runtime.sendNativeMessage(NATIVE_HOST_NAME, { type: 'start' })) as NativeStartReply;

@@ -36,7 +36,7 @@ npm run doctor
 
 It checks Node, the config, the extension ID and build, the native-messaging host, the LaunchAgent, whether the helper answers, `claude`, `gh` and the status hooks, and says how to fix each. It works when the panel can't reach the helper.
 
-If the panel reports *native messaging host not found*, rerun `npm run setup` and fully restart Chrome.
+If Chrome can't find the native host, the panel's notice says the helper is not installed and offers to copy `npm run install-app`. Run it from the project folder and fully restart Chrome (`npm run setup` alone also registers the host).
 
 ## Running the helper
 

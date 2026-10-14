@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NATIVE_HOST_NAME, PROTOCOL, TOKEN_PROTOCOL_PREFIX, type ControlToClient } from '../../shared/protocol';
-import { connectControl, getHelper, openSocket, startHelper } from '../src/helper-client';
+import { connectControl, getHelper, isHostMissing, openSocket, startHelper } from '../src/helper-client';
 import { installChrome } from './chrome-mock';
 
 class FakeSocket {
@@ -46,6 +46,14 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
+});
+
+describe('isHostMissing', () => {
+  it("recognises Chrome's missing and forbidden native host errors", () => {
+    expect(isHostMissing(new Error('Specified native messaging host not found.'))).toBe(true);
+    expect(isHostMissing(new Error('Access to the specified native messaging host is forbidden.'))).toBe(true);
+    expect(isHostMissing(new Error('Native host has exited.'))).toBe(false);
+  });
 });
 
 describe('getHelper and startHelper', () => {

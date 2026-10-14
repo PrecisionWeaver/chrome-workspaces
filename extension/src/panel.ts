@@ -12,7 +12,7 @@ import {
   type WorkspaceStatus,
 } from '../../shared/protocol';
 import { el } from './dom';
-import { connectControl, getHelper, openSocket, startHelper } from './helper-client';
+import { connectControl, getHelper, isHostMissing, openSocket, startHelper } from './helper-client';
 import { createCreateView } from './create-view';
 import { attachFileDrop } from './file-drop';
 import { createGitView } from './git-view';
@@ -260,6 +260,20 @@ function showNotice(text: string | null): void {
   noticeEl.textContent = text ?? '';
 }
 
+const INSTALL_COMMAND = 'npm run install-app';
+
+// Chrome finds no native host until install-app has registered it, so there is nothing for Start helper to start.
+function showInstallNotice(): void {
+  const copy = el('button', 'Copy command', 'notice-action');
+  copy.type = 'button';
+  copy.onclick = () => {
+    void navigator.clipboard.writeText(INSTALL_COMMAND);
+    copy.textContent = 'Copied';
+  };
+  noticeEl.hidden = false;
+  noticeEl.replaceChildren(el('span', `The helper is not installed. In the chrome-workspaces folder, run ${INSTALL_COMMAND}, then restart Chrome.`), copy);
+}
+
 function showOfflineNotice(): void {
   const start = el('button', 'Start helper', 'notice-action');
   start.type = 'button';
@@ -269,12 +283,17 @@ function showOfflineNotice(): void {
     message.textContent = 'Starting the helper…';
     // On success the control connection's backoff reconnects and clears this notice.
     startHelper().catch((error) => {
+      if (isHostMissing(error)) return showInstallNotice();
       message.textContent = `Could not start the helper: ${error instanceof Error ? error.message : String(error)}. Try npm run agent:start.`;
       start.disabled = false;
     });
   };
   noticeEl.hidden = false;
   noticeEl.replaceChildren(message, start);
+  // A helper that was never installed is not "not running"; say so up front.
+  getHelper().catch((error) => {
+    if (isHostMissing(error) && noticeEl.contains(message)) showInstallNotice();
+  });
 }
 
 // ---- list ----
