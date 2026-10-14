@@ -34,6 +34,8 @@ const review: ReviewRequest = {
   ticket: 'PROJ-9',
   merge: 'unknown',
   mergeReason: null,
+  needsReReview: false,
+  ci: null,
 };
 
 describe('control channel', () => {

@@ -17,6 +17,8 @@ const review: ReviewRequest = {
   ticket: 'PROJ-9',
   merge: 'unknown',
   mergeReason: null,
+  needsReReview: false,
+  ci: null,
 };
 const defaultCwd = mkdtempSync(join(tmpdir(), 'cw-default-'));
 const repoDir = mkdtempSync(join(tmpdir(), 'cw-repo-'));

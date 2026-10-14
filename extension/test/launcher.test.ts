@@ -85,6 +85,22 @@ describe('the list', () => {
     expect(badges[0]!.className).toBe('merge ready');
   });
 
+  it('flags a PR that has new commits since your review, and shows its checks', async () => {
+    await start();
+    launcher.renderReviews(
+      state([
+        makeReview({ number: 1, needsReReview: true, ci: 'failing' }),
+        makeReview({ number: 2, ci: 'passing' }),
+        makeReview({ number: 3, ci: 'pending' }),
+        makeReview({ number: 4 }),
+      ]),
+      [],
+    );
+    expect(rows().map((row) => row.querySelector('.rereview')?.textContent ?? null)).toEqual(['New commits', null, null, null]);
+    expect(rows().map((row) => row.querySelector<HTMLElement>('.ci')?.className ?? null)).toEqual(['ci failing', 'ci passing', 'ci pending', null]);
+    expect(rows()[0]!.querySelector<HTMLElement>('.ci')!.title).toBe('Checks failing');
+  });
+
   it('marks requests that already have a workspace, and names it', async () => {
     await start();
     launcher.renderReviews(state([a, b]), [makeWorkspace({ name: 'acme/app #1', pr: 'u1' })]);
