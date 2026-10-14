@@ -103,6 +103,21 @@ describe('remove and restore through the control channel', () => {
     ws.close();
   });
 
+  it('restores into a window the others share as a tab group of its own', async () => {
+    const archived = h.store.create({ name: 'acme/app', cwd: h.defaultCwd, tabs: ['https://a.example'] });
+    const { ws, messages } = connectControl(h);
+    await opened(ws);
+    ws.send(JSON.stringify({ type: 'remove', id: archived.id }));
+    await waitFor(() => messages.some((m) => m.type === 'history' && m.entries.length === 1));
+    const entry = (messages.filter((m) => m.type === 'history').at(-1) as Extract<ControlToClient, { type: 'history' }>).entries[0];
+    ws.send(JSON.stringify({ type: 'restore', historyId: entry.id, windowId: 5 }));
+    await waitFor(() => h.store.list().length === 1);
+    const back = h.store.list()[0];
+    expect(back.windowId).toBe(5);
+    await waitFor(() => messages.some((m) => m.type === 'group' && m.id === back.id));
+    ws.close();
+  });
+
   it('keeps pin and color through an archive and restore', async () => {
     const pinned = h.store.create({ name: 'pinned', cwd: h.defaultCwd });
     h.store.mark(pinned.id, { pinned: true, color: 'green' });

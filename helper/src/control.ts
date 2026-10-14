@@ -205,7 +205,11 @@ export class ControlHub {
         this.options.history.remove(entry.id);
         if (entry.pinned || entry.color) store.mark(workspace.id, { pinned: entry.pinned, color: entry.color });
         if (message.windowId === null) this.send({ type: 'open', id: workspace.id });
-        else store.pairWindow(workspace.id, message.windowId);
+        else {
+          store.pairWindow(workspace.id, message.windowId);
+          // The window already holds a workspace, so this one gets its own tab group there, with its tabs.
+          this.send({ type: 'group', id: workspace.id });
+        }
         break;
       }
       case 'forget':
