@@ -193,6 +193,34 @@ describe('switchTo', () => {
     expect(fake.group(mine)?.collapsed).toBe(false);
   });
 
+  it('adopts the unclaimed tab group in its window that holds its tabs', async () => {
+    const { windowId, tab } = fake.addWindow();
+    const theirs = fake.addGroup([tab.id], { collapsed: false });
+    const first = fake.addTab(windowId, 'https://a.example/');
+    const second = fake.addTab(windowId, 'https://b.example/');
+    const mine = fake.addGroup([first.id, second.id], { collapsed: true });
+    const a = workspace({ id: 'a', windowId, groupId: theirs });
+    const b = workspace({ id: 'b', windowId, groupId: null, lastTabUrls: ['https://a.example/', 'https://b.example/'] });
+
+    const id = await switchTo(b, send, [a, b]);
+
+    expect(id).toBe(windowId);
+    expect(sent).toEqual([{ type: 'pair', id: 'b', windowId, groupId: mine }]);
+    expect(fake.group(mine)?.collapsed).toBe(false);
+    expect(fake.group(theirs)?.collapsed).toBe(true);
+  });
+
+  it('leaves a group-less workspace alone when no unclaimed group holds its tabs', async () => {
+    const { windowId, tab } = fake.addWindow();
+    const theirs = fake.addGroup([tab.id]);
+    const a = workspace({ id: 'a', windowId, groupId: theirs });
+    const b = workspace({ id: 'b', windowId, groupId: null, lastTabUrls: ['https://elsewhere.example/'] });
+
+    await switchTo(b, send, [a, b]);
+
+    expect(sent).toEqual([]);
+  });
+
   it('opens a fresh window when the workspace window has closed', async () => {
     const id = await switchTo(workspace({ windowId: 999, url: 'https://c.example/' }), send);
     expect(id).not.toBe(999);

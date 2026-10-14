@@ -1,8 +1,12 @@
 import type { ControlToHelper, Workspace } from '../../shared/protocol';
+import { similarity } from '../../shared/pairing';
 import { showsPage } from '../../shared/tab-urls';
 import { takeReviewTab } from './tabs';
 
 type Bounds = Pick<chrome.windows.Window, 'left' | 'top' | 'width' | 'height'>;
+/** How much of a workspace's tabs a group must share for the workspace to take it; the same bar as re-pairing after a restart. */
+const ADOPT_THRESHOLD = 0.5;
+
 type SharedSize = { maximized: true } | Bounds;
 
 /** Whichever workspace window was last moved, resized or maximized sets the size new windows open at. */
@@ -56,11 +60,37 @@ export async function switchTo(
 ): Promise<number | undefined> {
   if (workspace.windowId !== null && (await windowExists(workspace.windowId))) {
     await chrome.windows.update(workspace.windowId, { focused: true });
-    if (workspace.groupId !== null) await focusGroup(workspace.groupId);
-    if (all.some((other) => other.id !== workspace.id && other.windowId === workspace.windowId)) await showOnly(workspace.windowId, workspace.groupId);
+    const groupId = workspace.groupId ?? (await adoptGroup(workspace, send, all));
+    if (groupId !== null) await focusGroup(groupId);
+    if (all.some((other) => other.id !== workspace.id && other.windowId === workspace.windowId)) await showOnly(workspace.windowId, groupId);
     return workspace.windowId;
   }
   return openWindow(workspace, send);
+}
+
+/**
+ * A workspace sharing a window without a group of its own, e.g. one restored or merged in, takes
+ * the group there that no workspace claims and that holds its tabs. Returns the group, if any.
+ */
+async function adoptGroup(workspace: Workspace, send: (message: ControlToHelper) => boolean, all: readonly Workspace[]): Promise<number | null> {
+  if (workspace.windowId === null || workspace.lastTabUrls.length === 0) return null;
+  if (!all.some((other) => other.id !== workspace.id && other.windowId === workspace.windowId)) return null;
+  try {
+    const claimed = new Set(all.flatMap((other) => (other.groupId === null ? [] : [other.groupId])));
+    const tabs = await chrome.tabs.query({ windowId: workspace.windowId });
+    let best: { id: number; score: number } | null = null;
+    for (const group of await chrome.tabGroups.query({ windowId: workspace.windowId })) {
+      if (claimed.has(group.id)) continue;
+      const urls = tabs.flatMap((tab) => (tab.groupId === group.id && tab.url ? [tab.url] : []));
+      const score = similarity(workspace.lastTabUrls, urls);
+      if (score >= ADOPT_THRESHOLD && score > (best?.score ?? 0)) best = { id: group.id, score };
+    }
+    if (!best) return null;
+    send({ type: 'pair', id: workspace.id, windowId: workspace.windowId, groupId: best.id });
+    return best.id;
+  } catch {
+    return null;
+  }
 }
 
 export async function openWindow(workspace: Workspace, send: (message: ControlToHelper) => boolean): Promise<number | undefined> {
