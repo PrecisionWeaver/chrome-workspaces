@@ -86,6 +86,15 @@ export interface UsageDay {
   models: { model: string; tokens: number; costUsd: number }[];
 }
 
+/** One hour of today's use across every workspace. */
+export interface UsageHour {
+  /** UTC hour, 0 to 23. */
+  hour: number;
+  /** New work, counted as in `UsageDay`. */
+  tokens: number;
+  costUsd: number;
+}
+
 /** One process in a workspace's shell tree. */
 export interface SystemProcess {
   pid: number;
@@ -147,6 +156,8 @@ export interface SystemSnapshot {
   /** Tokens and estimated cost across every workspace, by day (UTC), oldest first; see `shared/pricing.ts` and `shared/usage.ts`. */
   usage: {
     daily: UsageDay[];
+    /** Today's (UTC) use by hour: always 24 entries, 0 to 23, with the hours not yet reached at zero. */
+    hourly: UsageHour[];
     /** Estimated cost since the first transcript still on disk, not only the days in `daily`. */
     costUsd: number;
     counting: boolean;

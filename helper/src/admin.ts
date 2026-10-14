@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { findWarnings } from '../../shared/guardrails';
 import { costOf, isRealModel, rateFor } from '../../shared/pricing';
-import type { AdminAction, ReviewsState, SystemSnapshot, UpdateStatus, UsageDay, WorkspaceStatus } from '../../shared/protocol';
+import type { AdminAction, ReviewsState, SystemSnapshot, UpdateStatus, UsageDay, UsageHour, WorkspaceStatus } from '../../shared/protocol';
 import { USAGE_HISTORY_DAYS } from '../../shared/usage';
 import { AGENT_LABEL, type HelperConfig } from './config';
 import type { SessionManager } from './session';
@@ -91,7 +91,12 @@ export type DayTotals = Omit<UsageDay, 'day' | 'models'> & { models: Map<string,
 export const emptyDay = (): DayTotals => ({ tokens: 0, costUsd: 0, output: 0, cacheRead: 0, models: new Map() });
 
 /** The last `USAGE_HISTORY_DAYS`, oldest first, with a day that had no usage shown as zero so the trend has no gaps. */
-export function usageTrend(dayTotals: ReadonlyMap<string, DayTotals>, counting: boolean, unpriced: string[] = [], now = new Date()): SystemSnapshot['usage'] {
+export function usageTrend(
+  dayTotals: ReadonlyMap<string, DayTotals>,
+  counting: boolean,
+  unpriced: string[] = [],
+  now = new Date(),
+): Omit<SystemSnapshot['usage'], 'hourly'> {
   const daily: UsageDay[] = [];
   for (let back = USAGE_HISTORY_DAYS - 1; back >= 0; back--) {
     const day = new Date(now.getTime() - back * 86_400_000).toISOString().slice(0, 10);
@@ -101,6 +106,11 @@ export function usageTrend(dayTotals: ReadonlyMap<string, DayTotals>, counting: 
   let costUsd = 0;
   for (const total of dayTotals.values()) costUsd += total.costUsd;
   return { daily, costUsd, counting, unpriced };
+}
+
+/** Today's use by hour, from the totals of each hour (UTC) that had any; every hour is listed so the chart has no gaps. */
+export function usageByHour(hourTotals: ReadonlyMap<number, { tokens: number; costUsd: number }>): UsageHour[] {
+  return Array.from({ length: 24 }, (_, hour) => ({ hour, ...(hourTotals.get(hour) ?? { tokens: 0, costUsd: 0 }) }));
 }
 
 export function createAdmin(options: AdminOptions): AdminService {
@@ -162,6 +172,8 @@ export function createAdmin(options: AdminOptions): AdminService {
       tokens.keepOnly(snapshotSessions.flatMap((ws) => options.transcript(ws.id) ?? []));
       // Every counted transcript's usage by model and day, for the trend across workspaces.
       const dayTotals = new Map<string, DayTotals>();
+      const today = new Date().toISOString().slice(0, 10);
+      const hourTotals = new Map<number, { tokens: number; costUsd: number }>();
       let counting = false;
       const unpriced = new Set<string>();
       const sessionRows = snapshotSessions.map((ws) => {
@@ -191,6 +203,12 @@ export function createAdmin(options: AdminOptions): AdminService {
               day.models.set(bucket.model, model);
             }
             dayTotals.set(bucket.day, day);
+            if (bucket.day === today && bucket.hour !== null) {
+              const hour = hourTotals.get(bucket.hour) ?? { tokens: 0, costUsd: 0 };
+              hour.tokens += tokens;
+              hour.costUsd += cost;
+              hourTotals.set(bucket.hour, hour);
+            }
           }
         }
         if (counted?.scanning) counting = true;
@@ -222,7 +240,7 @@ export function createAdmin(options: AdminOptions): AdminService {
           extensionId: config.extensionId,
         },
         sessions: sessionRows,
-        usage: usageTrend(dayTotals, counting, [...unpriced].sort()),
+        usage: { ...usageTrend(dayTotals, counting, [...unpriced].sort()), hourly: usageByHour(hourTotals) },
         warnings: findWarnings(sessionRows, config.limits),
         storage: { uploadsBytes: pathBytes(paths.uploadDir), logBytes: pathBytes(paths.logFile), dataBytes: pathBytes(paths.dataDir) },
         config: {

@@ -552,22 +552,40 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
   function usageCard(s: SystemSnapshot): HTMLElement {
     const range = USAGE_RANGES.find((r) => r.id === prefs.usageRange) ?? USAGE_RANGES[2];
     const summary = summarizeUsage(s.usage.daily, range.days);
-    // One bar is no chart, so a single day is drawn against the week it falls in.
-    const shown = s.usage.daily.slice(-(range.days === 1 ? 7 : range.days));
-    const peak = Math.max(1, ...shown.map((d) => d.tokens));
-    const chart = el('div', '', `usage-chart${shown.length > 14 ? ' dense' : ''}`);
-    shown.forEach((day, index) => {
-      const outside = index < shown.length - range.days;
-      const bar = el('div', '', `usage-bar${outside ? ' context' : ''}`);
+    // Today is drawn by hour. An older helper sends no hours, and then one bar is no chart, so it is drawn against its week.
+    const hourly = range.days === 1 && s.usage.hourly?.length === 24 ? s.usage.hourly : null;
+    const nowHour = new Date(s.takenAt).getUTCHours();
+    const days = s.usage.daily.slice(-(range.days === 1 ? 7 : range.days));
+    const bars = hourly
+      ? hourly.map((h) => ({
+          label: `${String(h.hour).padStart(2, '0')}:00 UTC`,
+          tokens: h.tokens,
+          costUsd: h.costUsd,
+          state: h.hour === nowHour ? 'now' : h.hour > nowHour ? 'context' : '',
+        }))
+      : days.map((d, i) => ({
+          label: d.day,
+          tokens: d.tokens,
+          costUsd: d.costUsd,
+          state: i === days.length - 1 ? 'now' : i < days.length - range.days ? 'context' : '',
+        }));
+    const peak = Math.max(1, ...bars.map((b) => b.tokens));
+    const chart = el('div', '', `usage-chart${bars.length > 14 ? ' dense' : ''}`);
+    for (const { label, tokens, costUsd, state } of bars) {
+      const bar = el('div', '', `usage-bar${state ? ` ${state}` : ''}`);
       const fill = el('span', '', 'usage-fill');
-      // A day with any use shows a sliver, so it is not mistaken for a quiet one.
-      fill.style.height = `${day.tokens > 0 ? Math.max(4, (day.tokens / peak) * 100) : 0}%`;
-      bar.title = `${day.day}\n${dayFigures(day.tokens, day.costUsd)}`;
+      // An hour or day with any use shows a sliver, so it is not mistaken for a quiet one.
+      fill.style.height = `${tokens > 0 ? Math.max(4, (tokens / peak) * 100) : 0}%`;
+      bar.title = `${label}\n${dayFigures(tokens, costUsd)}`;
       bar.append(fill);
       chart.append(bar);
-    });
+    }
     const axis = el('div', '', 'usage-axis');
-    axis.append(el('span', shortDay(shown[0].day)), el('span', `peak ${formatTokens(peak > 1 ? peak : 0)}`), el('span', 'today'));
+    axis.append(
+      el('span', hourly ? '00:00' : shortDay(days[0].day)),
+      el('span', `peak ${formatTokens(peak > 1 ? peak : 0)}`),
+      el('span', hourly ? '23:00 UTC' : 'today'),
+    );
 
     const change = usageChange(summary, summary.previous);
     const headline = el('div', '', 'usage-headline');

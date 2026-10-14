@@ -25,8 +25,14 @@ describe('usageFromLine', () => {
       usage: { input: 2, output: 482, cacheWrite: 64033, cacheRead: 26853 },
       model: 'claude-opus-5-5',
       day: '2026-10-08',
+      hour: 14,
     });
-    expect(usageFromLine(line('m2', use(1, 1), { timestamp: 'garbage' }))).toMatchObject({ day: '' });
+    expect(usageFromLine(line('m2', use(1, 1), { timestamp: 'garbage' }))).toMatchObject({ day: '', hour: null });
+    expect(usageFromLine(line('m3', use(1, 1), { timestamp: '2026-10-08T00:00:00Z' }))).toMatchObject({ day: '2026-10-08', hour: 0 });
+    expect(usageFromLine(line('m4', use(1, 1), { timestamp: '2026-10-08T23:59:59Z' }))).toMatchObject({ hour: 23 });
+    // A date alone says which day, but not which hour.
+    expect(usageFromLine(line('m5', use(1, 1), { timestamp: '2026-10-08' }))).toMatchObject({ day: '2026-10-08', hour: null });
+    expect(usageFromLine(line('m6', use(1, 1), { timestamp: '2026-10-08T24:00:00Z' }))).toMatchObject({ hour: null });
     expect(usageFromLine(JSON.stringify({ type: 'user', message: { content: 'hi' } }))).toBeNull();
     expect(usageFromLine('{"usage": cut off')).toBeNull();
     expect(usageFromLine(JSON.stringify({ message: { usage: use(1, 1) } }))).toBeNull();
@@ -60,6 +66,27 @@ describe('TranscriptTokens buckets', () => {
       ['claude-opus-5-5', '2026-10-07', 1, 10],
       ['claude-opus-5-5', '2026-10-08', 2, 20],
       ['claude-sonnet-4', '2026-10-08', 4, 40],
+    ]);
+  });
+});
+
+describe('TranscriptTokens hours', () => {
+  it('keeps hours apart within a day, and a streamed message in the hour of its last line', async () => {
+    const tokens = new TranscriptTokens();
+    const file = transcript([
+      line('a', use(1, 10), { timestamp: '2026-10-08T09:59:59Z' }),
+      line('a', use(1, 12), { timestamp: '2026-10-08T10:00:01Z' }),
+      line('b', use(2, 20), { timestamp: '2026-10-08T10:30:00Z' }),
+      line('c', use(4, 40), { timestamp: 'garbage' }),
+    ]);
+    await tokens.refresh(file);
+    const buckets = tokens
+      .peek(file)!
+      .buckets.map((b) => [b.day, b.hour, b.usage.input, b.usage.output])
+      .sort();
+    expect(buckets).toEqual([
+      ['', null, 4, 40],
+      ['2026-10-08', 10, 3, 32],
     ]);
   });
 });

@@ -1,10 +1,10 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ControlToHelper, SystemSnapshot, UpdateStatus, UsageDay } from '../../shared/protocol';
+import type { ControlToHelper, SystemSnapshot, UpdateStatus, UsageDay, UsageHour } from '../../shared/protocol';
 import type { TimelineEvent } from '../../shared/timeline';
 import { createSettingsView, formatBytes, formatDuration, formatKb, formatTokens, newTokens, type SettingsView } from '../src/settings-view';
 import { installChrome } from './chrome-mock';
-import { isolateDocumentListeners, loadPanelHtml, makeSession, makeSnapshot, makeUsageDay } from './fixtures';
+import { isolateDocumentListeners, loadPanelHtml, makeSession, makeSnapshot, makeUsageDay, makeUsageHours } from './fixtures';
 
 isolateDocumentListeners();
 
@@ -424,6 +424,7 @@ describe('the cards', () => {
         makeUsageDay({ day: '2026-03-10', tokens: 10 }),
         makeUsageDay({ day: '2026-03-11' }),
       ],
+      hourly: makeUsageHours(),
       costUsd: 12.5,
       counting: false,
       unpriced: [],
@@ -464,7 +465,7 @@ describe('the cards', () => {
       expect(buttons.map((b) => b.getAttribute('aria-pressed'))).toEqual(['false', 'false', 'true', 'false']);
     });
 
-    it('draws as many bars as the range has days, and today against the week it falls in', async () => {
+    it('draws as many bars as the range has days', async () => {
       await open(makeSnapshot({ usage: usage({ daily: sixty() }) }));
       expect(bars()).toHaveLength(14);
       await pick('30 days');
@@ -472,9 +473,29 @@ describe('the cards', () => {
       expect(card('Usage').querySelector('.usage-chart')!.classList.contains('dense')).toBe(true);
       await pick('7 days');
       expect(bars()).toHaveLength(7);
+      expect(bars().map((bar) => bar.classList.contains('now'))).toEqual([false, false, false, false, false, false, true]);
+    });
+
+    it('draws today by hour, marking the hour it is and dimming those still to come', async () => {
+      const hourly = makeUsageHours({ 9: { tokens: 400, costUsd: 4 }, 11: { tokens: 100 }, 14: { tokens: 50 } });
+      await open(makeSnapshot({ usage: usage({ daily: sixty(), hourly }) }));
+      await pick('Today');
+      expect(bars()).toHaveLength(24);
+      expect(bars()[9]!.title).toBe('09:00 UTC\n400 tokens · ~$4.00');
+      expect(bars()[9]!.querySelector<HTMLElement>('.usage-fill')!.style.height).toBe('100%');
+      expect(bars()[11]!.querySelector<HTMLElement>('.usage-fill')!.style.height).toBe('25%');
+      expect(bars()[3]!.querySelector<HTMLElement>('.usage-fill')!.style.height).toBe('0%');
+      // The snapshot was taken at 12:00 UTC.
+      expect(
+        bars().map((bar, hour) => (bar.classList.contains('now') ? 'now' : bar.classList.contains('context') ? 'later' : 'past' + (hour > 12 ? '!' : ''))),
+      ).toEqual([...Array(12).fill('past'), 'now', ...Array(11).fill('later')]);
+      expect(text('.usage-axis span', card('Usage'))).toEqual(['00:00', 'peak 400', '23:00 UTC']);
+    });
+
+    it('draws today against its week when the helper sends no hours', async () => {
+      await open(makeSnapshot({ usage: { ...usage({ daily: sixty() }), hourly: undefined as unknown as UsageHour[] } }));
       await pick('Today');
       expect(bars()).toHaveLength(7);
-      // Only today's bar is in the range; the six before it are for context.
       expect(bars().map((bar) => bar.classList.contains('context'))).toEqual([true, true, true, true, true, true, false]);
     });
 
