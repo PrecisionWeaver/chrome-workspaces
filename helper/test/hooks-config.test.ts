@@ -14,7 +14,16 @@ describe('typeStrippingSupported', () => {
 describe('hooksSettings', () => {
   it('runs one quoted command for each tracked event, whatever is in the paths', () => {
     const { hooks } = hooksSettings('/Users/me/Application Support/node', "/code/it's here/session-state.ts");
-    expect(Object.keys(hooks).sort()).toEqual(['Notification', 'PostToolUse', 'SessionEnd', 'SessionStart', 'Stop', 'UserPromptSubmit']);
+    expect(Object.keys(hooks).sort()).toEqual([
+      'Notification',
+      'PostToolUse',
+      'PostToolUseFailure',
+      'PreToolUse',
+      'SessionEnd',
+      'SessionStart',
+      'Stop',
+      'UserPromptSubmit',
+    ]);
     expect(hooks.Stop).toEqual([{ hooks: [{ type: 'command', command: `'/Users/me/Application Support/node' '/code/it'\\''s here/session-state.ts'` }] }]);
   });
 });

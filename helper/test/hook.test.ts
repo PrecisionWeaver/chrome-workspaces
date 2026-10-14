@@ -32,11 +32,11 @@ describe('hooks/session-state.ts', () => {
       transcript_path: '/t.jsonl',
       last_event: 'SessionStart',
     });
-    const states = ['UserPromptSubmit', 'Notification', 'PostToolUse', 'Stop', 'SessionEnd'].map((name) => {
+    const states = ['UserPromptSubmit', 'Notification', 'PreToolUse', 'Notification', 'PostToolUseFailure', 'PostToolUse', 'Stop', 'SessionEnd'].map((name) => {
       fire(data, { hook_event_name: name, session_id: ID });
       return read(data).status;
     });
-    expect(states).toEqual(['working', 'needs_input', 'working', 'idle', 'ended']);
+    expect(states).toEqual(['working', 'needs_input', 'working', 'needs_input', 'working', 'working', 'idle', 'ended']);
     expect(read(data)).toMatchObject({ cwd: '/repo', started_at: expect.any(String) });
   });
 
@@ -69,7 +69,7 @@ describe('hooks/session-state.ts', () => {
     const runs = [
       fire(data, 'not json'),
       fire(data, ''),
-      fire(data, { hook_event_name: 'PreToolUse', session_id: ID }),
+      fire(data, { hook_event_name: 'SubagentStop', session_id: ID }),
       fire(data, { hook_event_name: 'Stop', session_id: '../../evil' }),
       fire(data, { hook_event_name: 'Stop' }),
     ];

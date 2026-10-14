@@ -5,7 +5,10 @@ export const STATUS_BY_EVENT: Record<string, HookStatus> = {
   SessionStart: 'idle',
   UserPromptSubmit: 'working',
   Notification: 'needs_input',
+  // A tool starting means any permission prompt was answered, so a session left at needs_input is working again.
+  PreToolUse: 'working',
   PostToolUse: 'working',
+  PostToolUseFailure: 'working',
   Stop: 'idle',
   SessionEnd: 'ended',
 };
