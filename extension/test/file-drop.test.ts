@@ -17,7 +17,7 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 const file = (name: string, content = 'hello') => new File([content], name);
-/** Reading a file takes a few real ticks, so this waits on the clock rather than faking it. */
+/** Reading a file takes a few real ticks, so this waits on the clock rather than faking it. Only for asserting that nothing happened; otherwise wait for what should. */
 const settle = () => new Promise((resolve) => setTimeout(resolve, 20));
 
 /** A drag or drop event; happy-dom has no DragEvent, so the parts the code reads are attached. */
@@ -41,7 +41,7 @@ function paste(files: File[]) {
 describe('dropping files', () => {
   it('sends each file as base64 under its own name', async () => {
     dragEvent('drop', { files: [file('a.txt', 'hello'), file('b.png', 'world')] });
-    await settle();
+    await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(2));
     expect(send.mock.calls).toEqual([
       ['a.txt', btoa('hello')],
       ['b.png', btoa('world')],
@@ -81,7 +81,7 @@ describe('dropping files', () => {
 
   it('names a nameless file "file"', async () => {
     dragEvent('drop', { files: [file('')] });
-    await settle();
+    await vi.waitFor(() => expect(send).toHaveBeenCalled());
     expect(send.mock.calls[0]![0]).toBe('file');
   });
 });
@@ -89,10 +89,9 @@ describe('dropping files', () => {
 describe('pasting', () => {
   it("sends a pasted image and keeps it from the terminal's own paste", async () => {
     const { event, reached } = paste([file('image.png', 'png')]);
-    await settle();
+    await vi.waitFor(() => expect(send).toHaveBeenCalledWith('image.png', btoa('png')));
     expect(event.defaultPrevented).toBe(true);
     expect(reached).not.toHaveBeenCalled();
-    expect(send).toHaveBeenCalledWith('image.png', btoa('png'));
   });
 
   it('leaves plain text paste to the terminal', async () => {
@@ -109,7 +108,7 @@ describe('problems', () => {
     const big = file('big.bin');
     Object.defineProperty(big, 'size', { value: MAX_UPLOAD_BYTES + 1 });
     dragEvent('drop', { files: [big, file('ok.txt')] });
-    await settle();
+    await vi.waitFor(() => expect(send).toHaveBeenCalledWith('ok.txt', expect.any(String)));
     expect(notice).toHaveBeenCalledWith(`big.bin is over ${MAX_UPLOAD_BYTES / (1024 * 1024)} MB, so it was not added.`);
     expect(send).toHaveBeenCalledTimes(1);
     expect(send).toHaveBeenCalledWith('ok.txt', expect.any(String));
@@ -118,8 +117,7 @@ describe('problems', () => {
   it('says so when the terminal is not connected', async () => {
     send.mockReturnValue(false);
     dragEvent('drop', { files: [file('a.txt')] });
-    await settle();
-    expect(notice).toHaveBeenCalledWith('Not connected to the terminal, so the file was not added.');
+    await vi.waitFor(() => expect(notice).toHaveBeenCalledWith('Not connected to the terminal, so the file was not added.'));
   });
 
   it('says so when a file cannot be read', async () => {
@@ -128,8 +126,7 @@ describe('problems', () => {
       queueMicrotask(() => this.onerror?.(new ProgressEvent('error') as ProgressEvent<FileReader>));
     });
     dragEvent('drop', { files: [unreadable] });
-    await settle();
-    expect(notice).toHaveBeenCalledWith('Could not read gone.txt.');
+    await vi.waitFor(() => expect(notice).toHaveBeenCalledWith('Could not read gone.txt.'));
     vi.restoreAllMocks();
   });
 
