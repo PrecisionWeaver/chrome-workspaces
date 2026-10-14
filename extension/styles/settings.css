@@ -274,7 +274,7 @@
   border-radius: 3px;
 }
 
-.usage-bar:last-child .usage-fill {
+.usage-bar.now .usage-fill {
   background: var(--working);
 }
 

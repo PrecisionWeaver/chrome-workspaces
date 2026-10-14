@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { ControlToClient } from '../../shared/protocol';
 import { readProcesses, subtree } from '../src/system';
-import { emptyDay, usageTrend } from '../src/admin';
+import { emptyDay, usageByHour, usageTrend } from '../src/admin';
 import { connectControl, opened, startHarness, type Harness } from './harness';
 import { waitFor } from './wait-for';
 
@@ -148,6 +148,10 @@ describe('usage and cost', () => {
           models: [{ model: 'claude-opus-5-5', tokens: 2_000_000, costUsd: expect.closeTo(60) }],
         });
         expect(reply.snapshot.usage.daily[0]).toMatchObject({ tokens: 0, models: [] });
+        // The message was written at 10:00 UTC today.
+        expect(reply.snapshot.usage.hourly).toHaveLength(24);
+        expect(reply.snapshot.usage.hourly[10]).toEqual({ hour: 10, tokens: 2_000_000, costUsd: expect.closeTo(60) });
+        expect(reply.snapshot.usage.hourly.filter((h) => h.tokens > 0)).toHaveLength(1);
         expect(reply.snapshot.usage).toMatchObject({ costUsd: expect.closeTo(60), unpriced: [] });
         return;
       }
@@ -190,6 +194,22 @@ describe('usage and cost', () => {
     expect(trend.daily.find((d) => d.day === '2026-10-02')).toEqual({ day: '2026-10-02', tokens: 0, costUsd: 0, output: 0, cacheRead: 0, models: [] });
     // The total includes older days too; the series only reaches back sixty.
     expect(trend).toMatchObject({ costUsd: 7.5, counting: true, unpriced: ['mystery-1'] });
+  });
+});
+
+describe('usageByHour', () => {
+  it('lists all 24 hours, with those that had no use at zero', () => {
+    const hours = usageByHour(
+      new Map([
+        [3, { tokens: 5, costUsd: 1 }],
+        [23, { tokens: 7, costUsd: 0 }],
+      ]),
+    );
+    expect(hours).toHaveLength(24);
+    expect(hours.map((h) => h.hour)).toEqual(Array.from({ length: 24 }, (_, i) => i));
+    expect(hours[3]).toEqual({ hour: 3, tokens: 5, costUsd: 1 });
+    expect(hours[23]).toEqual({ hour: 23, tokens: 7, costUsd: 0 });
+    expect(hours[4]).toEqual({ hour: 4, tokens: 0, costUsd: 0 });
   });
 });
 

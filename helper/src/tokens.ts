@@ -4,17 +4,20 @@ import type { TokenTotals } from '../../shared/protocol';
 
 const CHUNK_BYTES = 4 * 1024 * 1024;
 
-/** One assistant message's usage, with the model that produced it and the day it was written (UTC). */
+/** One assistant message's usage, with the model that produced it and the day and hour it was written (UTC). */
 interface Counted {
   usage: TokenTotals;
   model: string;
   day: string;
+  /** 0 to 23, or null when the line had no usable timestamp. */
+  hour: number | null;
 }
 
-/** Usage split by model and day, e.g. for pricing and a trend. */
+/** Usage split by model, day and hour, e.g. for pricing and a trend. */
 export interface UsageBucket {
   model: string;
   day: string;
+  hour: number | null;
   usage: TokenTotals;
 }
 
@@ -34,12 +37,12 @@ interface Tracked {
 
 const zero = (): TokenTotals => ({ input: 0, output: 0, cacheWrite: 0, cacheRead: 0 });
 
-/** Messages grouped by model and day, which is all that pricing and a trend need. */
+/** Messages grouped by model, day and hour, which is all that pricing and a trend need. */
 function bucketsOf(messages: ReadonlyMap<string, Counted>): UsageBucket[] {
   const buckets = new Map<string, UsageBucket>();
-  for (const { model, day, usage } of messages.values()) {
-    const key = `${model}|${day}`;
-    const bucket = buckets.get(key) ?? { model, day, usage: zero() };
+  for (const { model, day, hour, usage } of messages.values()) {
+    const key = `${model}|${day}|${hour}`;
+    const bucket = buckets.get(key) ?? { model, day, hour, usage: zero() };
     bucket.usage.input += usage.input;
     bucket.usage.output += usage.output;
     bucket.usage.cacheWrite += usage.cacheWrite;
@@ -59,7 +62,7 @@ interface UsageLine {
 }
 
 /** The usage a transcript line carries, with the id of the message it belongs to; null for any other line. */
-export function usageFromLine(line: string): { id: string; usage: TokenTotals; model: string; day: string } | null {
+export function usageFromLine(line: string): { id: string; usage: TokenTotals; model: string; day: string; hour: number | null } | null {
   // Most lines carry none, and parsing every line of a large transcript is the cost to avoid.
   if (!line.includes('"usage"')) return null;
   let parsed: UsageLine;
@@ -80,8 +83,9 @@ export function usageFromLine(line: string): { id: string; usage: TokenTotals; m
       cacheRead: n(usage.cache_read_input_tokens),
     },
     model: typeof model === 'string' ? model : '',
-    // The timestamp is ISO 8601 in UTC, so its first ten characters are the day.
+    // The timestamp is ISO 8601 in UTC, so its first ten characters are the day and the two after the `T` the hour.
     day: typeof parsed.timestamp === 'string' && /^\d{4}-\d{2}-\d{2}/.test(parsed.timestamp) ? parsed.timestamp.slice(0, 10) : '',
+    hour: typeof parsed.timestamp === 'string' && /^\d{4}-\d{2}-\d{2}T([01]\d|2[0-3])/.test(parsed.timestamp) ? Number(parsed.timestamp.slice(11, 13)) : null,
   };
 }
 
@@ -159,7 +163,9 @@ export class TranscriptTokens {
           // A message repeated while streaming grows; the largest of each figure is its final usage.
           t.byMessage.set(found.id, {
             model: found.model || seen?.model || '',
+            // The day and hour come from the same line, so an hour is never paired with another line's day.
             day: found.day || seen?.day || '',
+            hour: found.day ? found.hour : (seen?.hour ?? null),
             usage: seen
               ? {
                   input: Math.max(seen.usage.input, found.usage.input),
