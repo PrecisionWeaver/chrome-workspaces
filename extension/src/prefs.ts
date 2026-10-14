@@ -1,4 +1,5 @@
 import { DENSITIES, THEMES, type Density, type Theme } from '../../shared/keynav';
+import { DEFAULT_USAGE_RANGE, USAGE_RANGES, type UsageRangeId } from '../../shared/usage';
 
 export interface Prefs {
   /** Desktop notification when a workspace starts waiting for input or finishes. */
@@ -7,9 +8,11 @@ export interface Prefs {
   density: Density;
   /** The setup checklist in Settings was dismissed. */
   setupDismissed: boolean;
+  /** How far back the usage chart and its figures in Settings go. */
+  usageRange: UsageRangeId;
 }
 
-const DEFAULTS: Prefs = { notify: false, theme: 'system', density: 'comfortable', setupDismissed: false };
+const DEFAULTS: Prefs = { notify: false, theme: 'system', density: 'comfortable', setupDismissed: false, usageRange: DEFAULT_USAGE_RANGE };
 
 /** Stored preferences with anything missing or invalid replaced by its default, since storage can hold anything. */
 export function normalizePrefs(stored: unknown): Prefs {
@@ -19,6 +22,7 @@ export function normalizePrefs(stored: unknown): Prefs {
     theme: THEMES.includes(p.theme as Theme) ? (p.theme as Theme) : DEFAULTS.theme,
     density: DENSITIES.includes(p.density as Density) ? (p.density as Density) : DEFAULTS.density,
     setupDismissed: p.setupDismissed === true,
+    usageRange: USAGE_RANGES.some((range) => range.id === p.usageRange) ? (p.usageRange as UsageRangeId) : DEFAULT_USAGE_RANGE,
   };
 }
 

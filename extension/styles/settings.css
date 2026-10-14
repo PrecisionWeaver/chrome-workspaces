@@ -181,12 +181,77 @@
   color: var(--faint);
 }
 
+.usage-range {
+  display: flex;
+  gap: 0;
+  margin-bottom: 10px;
+}
+
+.usage-range-btn {
+  flex: 1;
+  padding: 3px 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.usage-range-btn:first-child {
+  border-radius: var(--radius) 0 0 var(--radius);
+}
+
+.usage-range-btn:last-child {
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+.usage-range-btn + .usage-range-btn {
+  margin-left: -1px;
+}
+
+.usage-range-btn:hover:not(.active) {
+  border-color: var(--border-strong);
+  background: var(--raised);
+  color: var(--text);
+}
+
+.usage-range-btn.active {
+  position: relative;
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.usage-headline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 12px;
+  margin-bottom: 8px;
+}
+
+.usage-cost {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.usage-tokens {
+  color: var(--text);
+}
+
+.usage-change {
+  color: var(--muted);
+}
+
 .usage-chart {
   display: flex;
   align-items: flex-end;
   gap: 3px;
   height: 56px;
-  margin-bottom: 8px;
+}
+
+.usage-chart.dense {
+  gap: 2px;
 }
 
 .usage-bar {
@@ -198,6 +263,10 @@
   border-radius: 3px;
 }
 
+.usage-bar.context .usage-fill {
+  opacity: 0.45;
+}
+
 .usage-fill {
   display: block;
   width: 100%;
@@ -207,6 +276,14 @@
 
 .usage-bar:last-child .usage-fill {
   background: var(--working);
+}
+
+.usage-axis {
+  display: flex;
+  justify-content: space-between;
+  margin: 3px 0 8px;
+  color: var(--faint);
+  font-size: 10px;
 }
 
 .activity {

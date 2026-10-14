@@ -1,10 +1,10 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ControlToHelper, SystemSnapshot, UpdateStatus } from '../../shared/protocol';
+import type { ControlToHelper, SystemSnapshot, UpdateStatus, UsageDay } from '../../shared/protocol';
 import type { TimelineEvent } from '../../shared/timeline';
 import { createSettingsView, formatBytes, formatDuration, formatKb, formatTokens, newTokens, type SettingsView } from '../src/settings-view';
 import { installChrome } from './chrome-mock';
-import { isolateDocumentListeners, loadPanelHtml, makeSession, makeSnapshot } from './fixtures';
+import { isolateDocumentListeners, loadPanelHtml, makeSession, makeSnapshot, makeUsageDay } from './fixtures';
 
 isolateDocumentListeners();
 
@@ -322,7 +322,7 @@ describe('the cards', () => {
       box.checked = true;
       box.dispatchEvent(new Event('change'));
       await flush();
-      expect(fake.storage.local.prefs).toEqual({ theme: 'dark', density: 'compact', notify: true, setupDismissed: false });
+      expect(fake.storage.local.prefs).toEqual({ theme: 'dark', density: 'compact', notify: true, setupDismissed: false, usageRange: '14d' });
     });
   });
 
@@ -420,37 +420,127 @@ describe('the cards', () => {
   describe('Usage', () => {
     const usage = (overrides: Partial<SystemSnapshot['usage']> = {}): SystemSnapshot['usage'] => ({
       daily: [
-        { day: '2026-03-09', tokens: 1_000_000, costUsd: 3 },
-        { day: '2026-03-10', tokens: 10, costUsd: 0 },
-        { day: '2026-03-11', tokens: 0, costUsd: 0 },
+        makeUsageDay({ day: '2026-03-09', tokens: 1_000_000, costUsd: 3 }),
+        makeUsageDay({ day: '2026-03-10', tokens: 10 }),
+        makeUsageDay({ day: '2026-03-11' }),
       ],
       costUsd: 12.5,
-      todayUsd: 0,
       counting: false,
       unpriced: [],
       ...overrides,
     });
+    const bars = () => [...card('Usage').querySelectorAll<HTMLElement>('.usage-bar')];
+    const headline = () => text('.usage-headline span', card('Usage'));
+    const pick = async (label: string) => {
+      button(label, card('Usage')).click();
+      await flush();
+    };
+
+    /** Sixty days ending 2026-03-11: ten tokens and a dollar each, but a hundred and ten dollars today. */
+    const sixty = (): UsageDay[] =>
+      Array.from({ length: 60 }, (_, i) => {
+        const day = new Date(Date.UTC(2026, 2, 11) - (59 - i) * 86_400_000).toISOString().slice(0, 10);
+        const today = i === 59;
+        return makeUsageDay({
+          day,
+          tokens: today ? 100 : 10,
+          costUsd: today ? 10 : 1,
+          output: today ? 40 : 4,
+          cacheRead: 1000,
+          models: [{ model: 'claude-opus-5-5', tokens: today ? 100 : 10, costUsd: today ? 10 : 1 }],
+        });
+      });
 
     it('draws a bar a day, scaled to the busiest, with a sliver for any use and nothing for none', async () => {
       await open(makeSnapshot({ usage: usage() }));
-      const fills = [...card('Usage').querySelectorAll<HTMLElement>('.usage-fill')].map((fill) => fill.style.height);
-      expect(fills).toEqual(['100%', '4%', '0%']);
-      const bar = card('Usage').querySelector<HTMLElement>('.usage-bar')!;
-      expect(bar.title).toBe('2026-03-09\n1.0M tokens · ~$3.00');
+      expect(bars().map((bar) => bar.querySelector<HTMLElement>('.usage-fill')!.style.height)).toEqual(['100%', '4%', '0%']);
+      expect(bars()[0]!.title).toBe('2026-03-09\n1.0M tokens · ~$3.00');
     });
 
-    it('totals the fourteen days and the estimated cost, noting that counting is not done', async () => {
-      await open(makeSnapshot({ usage: usage({ counting: true }) }));
+    it('offers today, 7, 14 and 30 days, with 14 chosen to begin with', async () => {
+      await open(makeSnapshot({ usage: usage() }));
+      const buttons = [...card('Usage').querySelectorAll<HTMLButtonElement>('.usage-range-btn')];
+      expect(buttons.map((b) => b.textContent)).toEqual(['Today', '7 days', '14 days', '30 days']);
+      expect(buttons.map((b) => b.getAttribute('aria-pressed'))).toEqual(['false', 'false', 'true', 'false']);
+    });
+
+    it('draws as many bars as the range has days, and today against the week it falls in', async () => {
+      await open(makeSnapshot({ usage: usage({ daily: sixty() }) }));
+      expect(bars()).toHaveLength(14);
+      await pick('30 days');
+      expect(bars()).toHaveLength(30);
+      expect(card('Usage').querySelector('.usage-chart')!.classList.contains('dense')).toBe(true);
+      await pick('7 days');
+      expect(bars()).toHaveLength(7);
+      await pick('Today');
+      expect(bars()).toHaveLength(7);
+      // Only today's bar is in the range; the six before it are for context.
+      expect(bars().map((bar) => bar.classList.contains('context'))).toEqual([true, true, true, true, true, true, false]);
+    });
+
+    it('changes the cost and tokens, and how they compare with the range before, as the range does', async () => {
+      await open(makeSnapshot({ usage: usage({ daily: sixty() }) }));
+      await pick('Today');
+      expect(headline()).toEqual(['~$10', '100 tokens', '↑ 900% vs yesterday']);
+      await pick('7 days');
+      expect(headline()).toEqual(['~$16', '160 tokens', '↑ 129% vs the previous 7 days']);
+      await pick('14 days');
+      expect(headline()).toEqual(['~$23', '230 tokens', '↑ 64% vs the previous 14 days']);
+      await pick('30 days');
+      expect(headline()).toEqual(['~$39', '390 tokens', '↑ 30% vs the previous 30 days']);
+    });
+
+    it('remembers the range, and uses it when the view is made again', async () => {
+      await open(makeSnapshot({ usage: usage({ daily: sixty() }) }));
+      await pick('30 days');
+      expect(fake.storage.local.prefs).toMatchObject({ usageRange: '30d' });
+      loadPanelHtml();
+      view = createSettingsView({ send: () => true, onToggle: () => {} });
+      await flush();
+      await open(makeSnapshot({ usage: usage({ daily: sixty() }) }));
+      expect(bars()).toHaveLength(30);
+      expect(button('30 days', card('Usage')).getAttribute('aria-pressed')).toBe('true');
+    });
+
+    it('breaks the range down: per day, active days, busiest day, output, cache reads and model', async () => {
+      await open(makeSnapshot({ usage: usage({ daily: sixty() }) }));
+      await pick('7 days');
       expect(kv(card('Usage'))).toEqual({
-        Today: '0 tokens',
-        'Last 14 days': '1.0M tokens',
-        'Since sessions began': '~$13 estimated (still counting…)',
+        'Per day': '23 tokens · ~$2.29',
+        'Active days': '7 of 7',
+        'Busiest day': 'Mar 11 · 100 tokens · ~$10',
+        Output: '64 tokens (40% of new work)',
+        'Cache reads': '7.0K tokens',
+        'By model': 'claude-opus-5-5 · 160 tokens · ~$16 · 100%',
+        'Since sessions began': '~$13 estimated',
       });
     });
 
-    it('shows today’s cost when there is some', async () => {
-      await open(makeSnapshot({ usage: usage({ todayUsd: 1.5 }) }));
-      expect(kv(card('Usage')).Today).toBe('0 tokens · ~$1.50');
+    it('leaves out the per-day figures for a single day, which has no spread', async () => {
+      await open(makeSnapshot({ usage: usage({ daily: sixty() }) }));
+      await pick('Today');
+      expect(Object.keys(kv(card('Usage')))).toEqual(['Output', 'Cache reads', 'By model', 'Since sessions began']);
+    });
+
+    it('lists the dearest models first, and folds the rest into a count', async () => {
+      const models = ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((model, i) => ({ model, tokens: 10, costUsd: i + 1 }));
+      await open(makeSnapshot({ usage: usage({ daily: [makeUsageDay({ day: '2026-03-11', tokens: 70, costUsd: 28, models })] }) }));
+      const lines = kv(card('Usage'))['By model']!.split('\n');
+      expect(lines.map((line) => line.split(' · ')[0])).toEqual(['g', 'f', 'e', 'd', 'c', '+ 2 more']);
+      expect(lines[0]).toBe('g · 10 tokens · ~$7.00 · 25%');
+    });
+
+    it('says so when a range has no usage, rather than showing a page of zeros', async () => {
+      await open(makeSnapshot({ usage: usage({ daily: [makeUsageDay({ day: '2026-03-11' })] }) }));
+      expect(text('.settings-note', card('Usage'))[0]).toBe('No usage in the last 14 days.');
+      expect(headline()).toEqual(['~$0', '0 tokens']);
+      await pick('Today');
+      expect(text('.settings-note', card('Usage'))[0]).toBe('No usage today.');
+    });
+
+    it('notes that counting is not done, and totals the cost since the sessions began', async () => {
+      await open(makeSnapshot({ usage: usage({ counting: true }) }));
+      expect(kv(card('Usage'))['Since sessions began']).toBe('~$13 estimated (still counting…)');
     });
 
     it('names the models that have no rate, singular or plural', async () => {
@@ -464,7 +554,7 @@ describe('the cards', () => {
 
     it('shows the rates', async () => {
       await open();
-      expect(text('.settings-note', card('Usage'))[0]).toContain('opus $15/$75');
+      expect(text('.settings-note', card('Usage')).at(-1)).toContain('opus $15/$75');
     });
   });
 

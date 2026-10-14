@@ -85,6 +85,7 @@ vi.mock('../src/helper-client', () => ({
   getHelper: vi.fn(() => (helperUp ? Promise.resolve({ token: 't', port: 1 }) : Promise.reject(new Error('down')))),
   openSocket: vi.fn((_helper: unknown, path: string) => new FakeSocket(path)),
   startHelper: () => startHelper(),
+  isHostMissing: (error: unknown) => /native messaging host not found/i.test(String(error)),
 }));
 
 let fake: ReturnType<typeof installChrome>;
@@ -1119,6 +1120,30 @@ describe('connection', () => {
     await flush();
     expect($('notice').textContent).toContain('Could not start the helper: not installed. Try npm run agent:start.');
     expect($('notice').querySelector<HTMLButtonElement>('.notice-action')!.disabled).toBe(false);
+  });
+
+  it('tells a missing native host to run the installer instead of offering to start it', async () => {
+    const hostMissing = new Error('Specified native messaging host not found.');
+    const { getHelper } = await import('../src/helper-client');
+    vi.mocked(getHelper).mockRejectedValueOnce(hostMissing);
+    await boot();
+    onConnected(false);
+    await flush();
+    expect($('notice').textContent).toContain('The helper is not installed.');
+    expect($('notice').textContent).toContain('npm run install-app');
+    const writeText = vi.fn(async () => {});
+    vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } });
+    $('notice').querySelector<HTMLButtonElement>('.notice-action')!.click();
+    expect(writeText).toHaveBeenCalledWith('npm run install-app');
+  });
+
+  it('points to the installer when starting fails because the native host is missing', async () => {
+    startHelper.mockRejectedValue(new Error('Specified native messaging host not found.'));
+    await boot();
+    onConnected(false);
+    $('notice').querySelector<HTMLButtonElement>('.notice-action')!.click();
+    await flush();
+    expect($('notice').textContent).toContain('The helper is not installed.');
   });
 
   it('clears the notice once connected', async () => {

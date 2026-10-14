@@ -12,6 +12,7 @@ import type {
 import { el } from './dom';
 import { DENSITIES, THEMES } from '../../shared/keynav';
 import { formatUsd } from '../../shared/pricing';
+import { previousLabel, shortDay, summarizeUsage, USAGE_RANGES, usageChange } from '../../shared/usage';
 import { buildChecklist, remaining, type SetupItem } from '../../shared/onboarding';
 import { loadPrefs, normalizePrefs, savePrefs, type Prefs } from './prefs';
 
@@ -60,6 +61,9 @@ export function formatTokens(count: number): string {
   const [value, unit] = count < 1e6 ? [count / 1e3, 'K'] : count < 1e9 ? [count / 1e6, 'M'] : [count / 1e9, 'B'];
   return `${value >= 100 ? value.toFixed(0) : value.toFixed(1)}${unit}`;
 }
+
+/** Models listed under the usage figures before the rest are folded into a count. */
+const MODEL_ROWS = 5;
 
 /** Tokens that were new work: everything but reads of the prompt cache, which are repeats of earlier input. */
 export const newTokens = (t: TokenTotals): number => t.input + t.output + t.cacheWrite;
@@ -523,30 +527,97 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
     return card('Updates', ...children);
   }
 
+  function rangePicker(): HTMLElement {
+    const picker = el('div', '', 'usage-range');
+    picker.setAttribute('role', 'group');
+    picker.setAttribute('aria-label', 'Usage range');
+    for (const { id, label } of USAGE_RANGES) {
+      const active = id === prefs.usageRange;
+      const button = el('button', label, `usage-range-btn${active ? ' active' : ''}`);
+      button.type = 'button';
+      button.setAttribute('aria-pressed', String(active));
+      button.addEventListener('click', () => {
+        if (prefs.usageRange === id) return;
+        prefs = { ...prefs, usageRange: id };
+        void savePrefs({ usageRange: id });
+        render();
+      });
+      picker.append(button);
+    }
+    return picker;
+  }
+
+  const dayFigures = (tokens: number, costUsd: number): string => `${formatTokens(tokens)} tokens${costUsd > 0 ? ` · ~${formatUsd(costUsd)}` : ''}`;
+
   function usageCard(s: SystemSnapshot): HTMLElement {
-    const { daily, costUsd, todayUsd } = s.usage;
-    const peak = Math.max(1, ...daily.map((d) => d.tokens));
-    const chart = el('div', '', 'usage-chart');
-    for (const day of daily) {
-      const bar = el('div', '', 'usage-bar');
+    const range = USAGE_RANGES.find((r) => r.id === prefs.usageRange) ?? USAGE_RANGES[2];
+    const summary = summarizeUsage(s.usage.daily, range.days);
+    // One bar is no chart, so a single day is drawn against the week it falls in.
+    const shown = s.usage.daily.slice(-(range.days === 1 ? 7 : range.days));
+    const peak = Math.max(1, ...shown.map((d) => d.tokens));
+    const chart = el('div', '', `usage-chart${shown.length > 14 ? ' dense' : ''}`);
+    shown.forEach((day, index) => {
+      const outside = index < shown.length - range.days;
+      const bar = el('div', '', `usage-bar${outside ? ' context' : ''}`);
       const fill = el('span', '', 'usage-fill');
       // A day with any use shows a sliver, so it is not mistaken for a quiet one.
       fill.style.height = `${day.tokens > 0 ? Math.max(4, (day.tokens / peak) * 100) : 0}%`;
-      bar.title = `${day.day}\n${formatTokens(day.tokens)} tokens${day.costUsd > 0 ? ` · ~${formatUsd(day.costUsd)}` : ''}`;
+      bar.title = `${day.day}\n${dayFigures(day.tokens, day.costUsd)}`;
       bar.append(fill);
       chart.append(bar);
+    });
+    const axis = el('div', '', 'usage-axis');
+    axis.append(el('span', shortDay(shown[0].day)), el('span', `peak ${formatTokens(peak > 1 ? peak : 0)}`), el('span', 'today'));
+
+    const change = usageChange(summary, summary.previous);
+    const headline = el('div', '', 'usage-headline');
+    headline.append(el('span', `~${formatUsd(summary.costUsd)}`, 'usage-cost'), el('span', `${formatTokens(summary.tokens)} tokens`, 'usage-tokens'));
+    if (change) headline.append(el('span', `${change} vs ${previousLabel(range.days)}`, 'usage-change'));
+
+    const rows: HTMLElement[] = [];
+    if (summary.tokens === 0 && summary.costUsd === 0) {
+      rows.push(el('p', `No usage ${range.days === 1 ? 'today' : `in the last ${range.days} days`}.`, 'settings-note'));
+    } else {
+      if (range.days > 1) {
+        rows.push(
+          row('Per day', dayFigures(Math.round(summary.tokens / range.days), summary.costUsd / range.days), `Averaged over all ${range.days} days`),
+          row('Active days', `${summary.activeDays} of ${range.days}`),
+        );
+        if (summary.busiest) rows.push(row('Busiest day', `${shortDay(summary.busiest.day)} · ${dayFigures(summary.busiest.tokens, summary.busiest.costUsd)}`));
+      }
+      const outputShare = summary.tokens > 0 ? ` (${Math.round((summary.output / summary.tokens) * 100)}% of new work)` : '';
+      rows.push(
+        row('Output', `${formatTokens(summary.output)} tokens${outputShare}`),
+        row(
+          'Cache reads',
+          `${formatTokens(summary.cacheRead)} tokens`,
+          'Input served from the prompt cache. It repeats earlier input, so it is not counted in the totals above.',
+        ),
+      );
+      if (summary.models.length) {
+        const total = summary.costUsd > 0 ? summary.costUsd : summary.tokens;
+        const lines = summary.models.slice(0, MODEL_ROWS).map((m) => {
+          const share = total > 0 ? Math.round(((summary.costUsd > 0 ? m.costUsd : m.tokens) / total) * 100) : 0;
+          return `${m.model} · ${dayFigures(m.tokens, m.costUsd)} · ${share}%`;
+        });
+        const more = summary.models.length - MODEL_ROWS;
+        rows.push(row('By model', [...lines, ...(more > 0 ? [`+ ${more} more`] : [])].join('\n')));
+      }
     }
+
     const rates = Object.entries(s.config.pricing)
       .map(([family, r]) => `${family} $${r.input}/$${r.output}`)
       .join(', ');
     return card(
       'Usage',
+      rangePicker(),
+      headline,
       chart,
-      row('Today', `${formatTokens(daily[daily.length - 1].tokens)} tokens${todayUsd > 0 ? ` · ~${formatUsd(todayUsd)}` : ''}`),
-      row('Last 14 days', `${formatTokens(daily.reduce((sum, d) => sum + d.tokens, 0))} tokens`),
+      axis,
+      ...rows,
       row(
         'Since sessions began',
-        `~${formatUsd(costUsd)} estimated${s.usage.counting ? ' (still counting…)' : ''}`,
+        `~${formatUsd(s.usage.costUsd)} estimated${s.usage.counting ? ' (still counting…)' : ''}`,
         'Across every workspace transcript still on disk',
       ),
       ...(s.usage.unpriced.length
@@ -560,7 +631,7 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
         : []),
       el(
         'p',
-        `Dollar figures are estimates. Rates (per million tokens, input/output): ${rates}. Cache writes cost 1.25× input and cache reads 0.1×. Set "pricing" in the config to correct them.`,
+        `Dollar figures are estimates. Days are UTC. Rates (per million tokens, input/output): ${rates}. Cache writes cost 1.25× input and cache reads 0.1×. Set "pricing" in the config to correct them.`,
         'settings-note',
       ),
     );
