@@ -482,8 +482,9 @@ body.collapsed #new .label {
 
 .review .ref {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 2px 6px;
   color: var(--accent);
   font-size: 11px;
 }
@@ -522,6 +523,7 @@ body.collapsed #new .label {
 }
 
 .review .ci {
+  flex: none;
   width: 6px;
   height: 6px;
   margin-left: auto;
@@ -545,6 +547,7 @@ body.collapsed #new .label {
 }
 
 .review .has-workspace {
+  flex: none;
   width: 6px;
   height: 6px;
   margin-left: auto;
