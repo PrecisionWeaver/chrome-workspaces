@@ -149,13 +149,13 @@ describe('for a review request', () => {
     expect($<HTMLSelectElement>('create-repo').value).toBe('');
   });
 
-  it('does not start from the repo, tabs or window of an earlier workspace', async () => {
+  it('starts from the last repo but never the tabs of an earlier workspace', async () => {
     fake.storage.local.newRepo = '/Users/me/web';
     fake.storage.local.newTabs = 'https://example.com/';
     await open();
     view.setRepos([{ name: 'web', path: '/Users/me/web', root: '/Users/me' }]);
     expect($<HTMLSelectElement>('create-repo').value).toBe('/Users/me/web');
-    expect($<HTMLTextAreaElement>('create-tabs').value).toBe('https://example.com/');
+    expect($<HTMLTextAreaElement>('create-tabs').value).toBe('');
 
     await open(review);
     expect($<HTMLSelectElement>('create-repo').value).toBe('');
@@ -456,7 +456,7 @@ describe('creating', () => {
     expect(sentOfType('create')).toEqual([]);
   });
 
-  it('remembers the model, repo, tabs and window for next time, but not a review’s repo and tabs', async () => {
+  it('remembers the model, repo and window for next time, but not tabs or a review’s repo', async () => {
     await open();
     view.setRepos([{ name: 'app', path: '/Users/me/app', root: '/Users/me' }]);
     type('create-name', 'w');
@@ -465,7 +465,8 @@ describe('creating', () => {
     type('create-tabs', ' example.com/a ');
     submit();
     await flush();
-    expect(fake.storage.local).toMatchObject({ newModel: 'opus', newRepo: '/Users/me/app', newTabs: 'example.com/a', useThisWindow: false });
+    expect(fake.storage.local).toMatchObject({ newModel: 'opus', newRepo: '/Users/me/app', useThisWindow: false });
+    expect(fake.storage.local).not.toHaveProperty('newTabs');
 
     await open(makeReview({ url: PR }));
     choose('blank');
@@ -474,7 +475,7 @@ describe('creating', () => {
     type('create-tabs', 'example.com/z');
     submit();
     await flush();
-    expect(fake.storage.local).toMatchObject({ newModel: 'haiku', newRepo: '/Users/me/app', newTabs: 'example.com/a' });
+    expect(fake.storage.local).toMatchObject({ newModel: 'haiku', newRepo: '/Users/me/app' });
   });
 
   describe('in this window', () => {

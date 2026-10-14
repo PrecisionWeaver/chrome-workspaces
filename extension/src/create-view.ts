@@ -252,9 +252,9 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
 
     send({ type: 'listPrompts' });
     send({ type: 'listRepos' });
-    void chrome.storage.local.get(['useThisWindow', 'newRepo', 'newModel', 'newTabs']).then(({ useThisWindow, newRepo, newModel, newTabs }) => {
-      // A review starts with only its PR; the saved list is for workspaces made from scratch.
-      tabsInput.value = !request && typeof newTabs === 'string' ? newTabs : '';
+    // Tabs belong to one ticket, so unlike the repo and model they start empty every time.
+    tabsInput.value = '';
+    void chrome.storage.local.get(['useThisWindow', 'newRepo', 'newModel']).then(({ useThisWindow, newRepo, newModel }) => {
       target.select(useThisWindow === true && windowId !== undefined ? 'here' : 'new');
       modelSelect.value = typeof newModel === 'string' ? newModel : '';
       if (modelSelect.value !== newModel) modelSelect.value = '';
@@ -385,7 +385,7 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
       useThisWindow: target.value() === 'here',
       newModel: modelSelect.value,
       // A review's repo and tabs belong to that PR, not to the next workspace.
-      ...(review ? {} : { newRepo: repoSelect.value, newTabs: tabsInput.value.trim() }),
+      ...(review ? {} : { newRepo: repoSelect.value }),
     });
     send({
       type: 'create',
