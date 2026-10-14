@@ -81,7 +81,7 @@ describe('remove and restore through the control channel', () => {
     const back = h.store.list()[0];
     expect(back).toMatchObject({ name: 'closing', ticket: 'PROJ-7', model: 'sonnet', resume: RESUME, lastTabUrls: ['https://a.example'] });
     expect(back.id).not.toBe(ws0.id);
-    expect(messages.some((m) => m.type === 'open' && m.id === back.id)).toBe(true);
+    await waitFor(() => messages.some((m) => m.type === 'open' && m.id === back.id));
     // Restored once; it is no longer in history, and restoring it again does nothing.
     await waitFor(() => histories().at(-1)?.entries.length === 0);
     ws.send(JSON.stringify({ type: 'restore', historyId: entry.id, windowId: null }));
