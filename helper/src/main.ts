@@ -36,7 +36,8 @@ const store = new WorkspaceStore(join(DATA_DIR, 'workspaces.json'));
 const sessions = new SessionManager(SCROLLBACK_LIMIT);
 const auth = { token: loadOrCreateToken(DATA_DIR), allowedOrigins: [`chrome-extension://${config.extensionId}`] };
 
-let sessionState: Map<string, WorkspaceSession> = readSessionStatus(SESSIONS_DIR);
+const readSessions = (): Map<string, WorkspaceSession> => readSessionStatus(SESSIONS_DIR, new Map(store.list().map((ws) => [ws.id, ws.cwd])));
+let sessionState: Map<string, WorkspaceSession> = readSessions();
 const statuses = (): Record<string, WorkspaceStatus> => Object.fromEntries(store.list().map((ws) => [ws.id, sessionState.get(ws.id)?.status ?? null]));
 
 const REVIEW_POLL_MS = 5 * 60_000;
@@ -149,7 +150,7 @@ reviews.onChange(() => control.broadcastState());
 reviews.start(REVIEW_POLL_MS);
 const stopWatching = watchSessionStatus(SESSIONS_DIR, () => {
   const previous = sessionState;
-  sessionState = readSessionStatus(SESSIONS_DIR);
+  sessionState = readSessions();
   control.broadcastState();
   for (const [id, { browserAt }] of sessionState) {
     if (browserAt !== null && browserAt !== previous.get(id)?.browserAt) control.send({ type: 'browser', id, at: browserAt });

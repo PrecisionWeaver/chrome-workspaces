@@ -14,10 +14,19 @@ export interface WorkspaceSession {
   transcriptPath: string | null;
 }
 
+function isInside(path: string, directory: string): boolean {
+  return path === directory || path.startsWith(directory.endsWith('/') ? directory : `${directory}/`);
+}
+
 const LIVE_STATUSES = new Set(['needs_input', 'working', 'idle']);
 
-/** The hook in hooks/session-state.ts writes one file per Claude session; this groups them by workspace. */
-export function readSessionStatus(dir: string): Map<string, WorkspaceSession> {
+/**
+ * The hook in hooks/session-state.ts writes one file per Claude session; this groups them by workspace.
+ * With `workspaceCwds` (workspace id → directory), a session started elsewhere is not the workspace's:
+ * a `claude` run from its shell in another project inherits its id, and would otherwise be the one resumed.
+ * An ended session that never recorded a message has nothing to resume, so it does not stand in for the last real one.
+ */
+export function readSessionStatus(dir: string, workspaceCwds: ReadonlyMap<string, string> = new Map()): Map<string, WorkspaceSession> {
   const newest = new Map<string, SessionFile>();
   let names: string[];
   try {
@@ -35,6 +44,9 @@ export function readSessionStatus(dir: string): Map<string, WorkspaceSession> {
     }
     const workspaceId = session.cw_workspace_id;
     if (!workspaceId || !session.session_id) continue;
+    const home = workspaceCwds.get(workspaceId);
+    if (home && session.cwd && !isInside(session.cwd, home)) continue;
+    if (session.status === 'ended' && session.transcript_path && !existsSync(session.transcript_path)) continue;
     const current = newest.get(workspaceId);
     if (!current || (session.started_at ?? '') > (current.started_at ?? '')) newest.set(workspaceId, session);
   }

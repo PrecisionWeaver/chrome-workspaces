@@ -56,6 +56,35 @@ describe('readSessionStatus', () => {
   it('returns nothing when there is no sessions folder', () => {
     expect(readSessionStatus(join(tmpdir(), 'cw-sessions-does-not-exist')).size).toBe(0);
   });
+
+  it("ignores a newer session started outside the workspace's directory, e.g. one that inherited its id", () => {
+    const dir = stateDir({
+      'a.json': { session_id: ID_OLD, cw_workspace_id: 'ws-1', status: 'ended', started_at: '2026-01-01T00:00:00Z', cwd: '/acme/app' },
+      'b.json': { session_id: ID_NEW, cw_workspace_id: 'ws-1', status: 'working', started_at: '2026-01-02T00:00:00Z', cwd: '/acme/other' },
+    });
+    expect(readSessionStatus(dir, new Map([['ws-1', '/acme/app']])).get('ws-1')?.claudeSessionId).toBe(ID_OLD);
+  });
+
+  it('keeps a session started in a worktree inside the workspace directory', () => {
+    const dir = stateDir({
+      'a.json': { session_id: ID_NEW, cw_workspace_id: 'ws-1', status: 'idle', started_at: '2026-01-02T00:00:00Z', cwd: '/acme/app/.worktrees/topic' },
+    });
+    expect(readSessionStatus(dir, new Map([['ws-1', '/acme/app']])).get('ws-1')?.claudeSessionId).toBe(ID_NEW);
+    // A sibling directory that merely shares the prefix is not inside it.
+    const sibling = stateDir({
+      'a.json': { session_id: ID_NEW, cw_workspace_id: 'ws-1', status: 'idle', started_at: '2026-01-02T00:00:00Z', cwd: '/acme/app-two' },
+    });
+    expect(readSessionStatus(sibling, new Map([['ws-1', '/acme/app']])).has('ws-1')).toBe(false);
+  });
+
+  it('does not let an ended session that never recorded a message hide the conversation before it', () => {
+    const empty = join(tmpdir(), 'cw-no-such-transcript.jsonl');
+    const dir = stateDir({
+      'a.json': { session_id: ID_OLD, cw_workspace_id: 'ws-1', status: 'ended', started_at: '2026-01-01T00:00:00Z' },
+      'b.json': { session_id: ID_NEW, cw_workspace_id: 'ws-1', status: 'ended', started_at: '2026-01-02T00:00:00Z', transcript_path: empty },
+    });
+    expect(readSessionStatus(dir).get('ws-1')?.claudeSessionId).toBe(ID_OLD);
+  });
 });
 
 describe('lastTranscriptCwd', () => {
@@ -109,6 +138,7 @@ describe('pruneSessions', () => {
 
 describe('importLegacySessions', () => {
   it('brings over workspace sessions as ended, so they resume, and leaves the rest', () => {
+    const transcript = join(stateDir({ 't.jsonl': '{}' }), 't.jsonl');
     const legacy = stateDir({
       'a.json': {
         session_id: ID_OLD,
@@ -116,7 +146,7 @@ describe('importLegacySessions', () => {
         status: 'working',
         started_at: '2026-01-01T00:00:00Z',
         cwd: '/repo',
-        transcript_path: '/t.jsonl',
+        transcript_path: transcript,
         pid: 5,
       },
       'plain.json': { session_id: ID_NEW, status: 'idle' },
@@ -125,7 +155,7 @@ describe('importLegacySessions', () => {
     });
     const dir = stateDir({});
     expect(importLegacySessions(legacy, dir)).toBe(1);
-    expect(readSessionStatus(dir).get('ws-1')).toEqual({ status: null, claudeSessionId: ID_OLD, browserAt: null, cwd: '/repo', transcriptPath: '/t.jsonl' });
+    expect(readSessionStatus(dir).get('ws-1')).toEqual({ status: null, claudeSessionId: ID_OLD, browserAt: null, cwd: '/repo', transcriptPath: transcript });
     expect(readdirSync(dir)).toEqual(['a.json']);
   });
 
