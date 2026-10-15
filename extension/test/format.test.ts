@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatBytes, formatDuration, formatTokens, newTokens } from '../../extension/src/settings-view';
+import { formatBytes, formatDuration, formatTokens, newTokens } from '../src/format';
 
 describe('settings formatters', () => {
   it('abbreviates token counts', () => {

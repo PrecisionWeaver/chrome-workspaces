@@ -10,10 +10,11 @@ import type {
   UpdateStatus,
 } from '../../shared/protocol';
 import { el } from './dom';
+import { card, actions, row } from './settings-parts';
+import { planCard, usageCard } from './settings-usage';
+import { formatBytes, formatDuration, formatKb, formatTokens, newTokens } from './format';
 import { DENSITIES, THEMES } from '../../shared/keynav';
-import { resetLabel } from '../../shared/plan-usage';
 import { formatUsd } from '../../shared/pricing';
-import { previousLabel, shortDay, summarizeUsage, USAGE_RANGES, usageChange } from '../../shared/usage';
 import { buildChecklist, remaining, type SetupItem } from '../../shared/onboarding';
 import { loadPrefs, normalizePrefs, savePrefs, type Prefs } from './prefs';
 
@@ -45,39 +46,8 @@ const POLL_MS = 3000;
 // A destructive button turns into a confirmation for this long before it disarms.
 const ARM_MS = 4000;
 
-export const formatBytes = (bytes: number): string =>
-  bytes < 1024
-    ? `${bytes} B`
-    : bytes < 1024 * 1024
-      ? `${(bytes / 1024).toFixed(1)} KB`
-      : bytes < 1024 ** 3
-        ? `${(bytes / 1024 ** 2).toFixed(1)} MB`
-        : `${(bytes / 1024 ** 3).toFixed(2)} GB`;
-
-export const formatKb = (kb: number): string => formatBytes(kb * 1024);
-
-/** A token count as 1.2K, 3.4M or 1.1B. */
-export function formatTokens(count: number): string {
-  if (count < 1000) return String(count);
-  const [value, unit] = count < 1e6 ? [count / 1e3, 'K'] : count < 1e9 ? [count / 1e6, 'M'] : [count / 1e9, 'B'];
-  return `${value >= 100 ? value.toFixed(0) : value.toFixed(1)}${unit}`;
-}
-
-/** Models listed under the usage figures before the rest are folded into a count. */
-const MODEL_ROWS = 5;
-
-/** Tokens that were new work: everything but reads of the prompt cache, which are repeats of earlier input. */
-export const newTokens = (t: TokenTotals): number => t.input + t.output + t.cacheWrite;
-
 const tokenBreakdown = (t: TokenTotals): string =>
   `input ${t.input.toLocaleString()} · output ${t.output.toLocaleString()} · cache written ${t.cacheWrite.toLocaleString()} · cache read ${t.cacheRead.toLocaleString()}`;
-
-export function formatDuration(seconds: number): string {
-  const d = Math.floor(seconds / 86400);
-  const h = Math.floor((seconds % 86400) / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  return d ? `${d}d ${h}h` : h ? `${h}h ${m}m` : m ? `${m}m ${seconds % 60}s` : `${seconds}s`;
-}
 
 const STATUS_LABEL = { working: 'working', needs_input: 'needs input', idle: 'idle' } as const;
 
@@ -153,30 +123,6 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
     button.addEventListener('click', run);
     return button;
   }
-
-  const row = (label: string, value: string | Node, title = ''): HTMLElement => {
-    const line = el('div', '', 'kv');
-    line.title = title;
-    line.append(el('span', label, 'k'));
-    const v = el('span', '', 'v');
-    v.append(value);
-    line.append(v);
-    return line;
-  };
-
-  const card = (title: string, ...children: Node[]): HTMLElement => {
-    const node = el('section', '', 'settings-card');
-    // Matches a card across renders; the count after a "·" changes from poll to poll.
-    node.dataset.key = title.split(' · ')[0];
-    node.append(el('h3', title), ...children);
-    return node;
-  };
-
-  const actions = (...buttons: Node[]): HTMLElement => {
-    const node = el('div', '', 'settings-actions');
-    node.append(...buttons);
-    return node;
-  };
 
   // ---- sections ----
 
@@ -528,173 +474,10 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
     return card('Updates', ...children);
   }
 
-  function rangePicker(): HTMLElement {
-    const picker = el('div', '', 'usage-range');
-    picker.setAttribute('role', 'group');
-    picker.setAttribute('aria-label', 'Usage range');
-    for (const { id, label } of USAGE_RANGES) {
-      const active = id === prefs.usageRange;
-      const button = el('button', label, `usage-range-btn${active ? ' active' : ''}`);
-      button.type = 'button';
-      button.setAttribute('aria-pressed', String(active));
-      button.addEventListener('click', () => {
-        if (prefs.usageRange === id) return;
-        prefs = { ...prefs, usageRange: id };
-        void savePrefs({ usageRange: id });
-        render();
-      });
-      picker.append(button);
-    }
-    return picker;
-  }
-
-  const dayFigures = (tokens: number, costUsd: number): string => `${formatTokens(tokens)} tokens${costUsd > 0 ? ` · ~${formatUsd(costUsd)}` : ''}`;
-
-  /** The plan's session and weekly limits, as `/usage` shows them, from what claude last told a workspace's status line. */
-  function planCard(s: SystemSnapshot): HTMLElement {
-    const now = Date.parse(s.takenAt);
-    const { limits, updatedAt } = s.plan;
-    if (!limits.length) {
-      return card(
-        'Plan usage',
-        el(
-          'p',
-          'No figures yet. claude reports them to a workspace after its first reply, for Pro and Max plans, so open a workspace and send a message. Sessions started outside this app are not counted.',
-          'settings-note',
-        ),
-      );
-    }
-    const meters = limits.map((limit) => {
-      const level = limit.percent >= 90 ? ' bad' : limit.percent >= 70 ? ' warn' : '';
-      const line = el('div', '', 'plan-limit');
-      const head = el('div', '', 'plan-limit-head');
-      head.append(el('span', limit.label, 'plan-limit-label'), el('span', `${Math.round(limit.percent)}% used`, 'plan-limit-percent'));
-      const bar = el('div', '', `plan-meter${level}`);
-      bar.setAttribute('role', 'progressbar');
-      bar.setAttribute('aria-label', limit.label);
-      bar.setAttribute('aria-valuenow', String(Math.round(limit.percent)));
-      const fill = el('span', '', 'plan-meter-fill');
-      fill.style.width = `${Math.min(100, limit.percent)}%`;
-      bar.append(fill);
-      line.append(head, bar, el('div', resetLabel(limit.resetsAt, now), 'plan-limit-reset'));
-      return line;
-    });
-    const age = updatedAt ? Math.max(0, Math.round((now - Date.parse(updatedAt)) / 60_000)) : null;
-    return card(
-      'Plan usage',
-      ...meters,
-      el(
-        'p',
-        `${age === null ? '' : age < 1 ? 'Reported just now. ' : `Reported ${age < 60 ? `${age}m` : `${Math.floor(age / 60)}h`} ago. `}Updates as workspaces reply; sessions started outside this app are not counted.`,
-        'settings-note',
-      ),
-    );
-  }
-
-  function usageCard(s: SystemSnapshot): HTMLElement {
-    const range = USAGE_RANGES.find((r) => r.id === prefs.usageRange) ?? USAGE_RANGES[2];
-    const summary = summarizeUsage(s.usage.daily, range.days);
-    // Today is drawn by hour. An older helper sends no hours, and then one bar is no chart, so it is drawn against its week.
-    const hourly = range.days === 1 && s.usage.hourly?.length === 24 ? s.usage.hourly : null;
-    const nowHour = new Date(s.takenAt).getHours();
-    const days = s.usage.daily.slice(-(range.days === 1 ? 7 : range.days));
-    const bars = hourly
-      ? hourly.map((h) => ({
-          label: `${String(h.hour).padStart(2, '0')}:00`,
-          tokens: h.tokens,
-          costUsd: h.costUsd,
-          state: h.hour === nowHour ? 'now' : h.hour > nowHour ? 'context' : '',
-        }))
-      : days.map((d, i) => ({
-          label: d.day,
-          tokens: d.tokens,
-          costUsd: d.costUsd,
-          state: i === days.length - 1 ? 'now' : i < days.length - range.days ? 'context' : '',
-        }));
-    const peak = Math.max(1, ...bars.map((b) => b.tokens));
-    const chart = el('div', '', `usage-chart${bars.length > 14 ? ' dense' : ''}`);
-    for (const { label, tokens, costUsd, state } of bars) {
-      const bar = el('div', '', `usage-bar${state ? ` ${state}` : ''}`);
-      const fill = el('span', '', 'usage-fill');
-      // An hour or day with any use shows a sliver, so it is not mistaken for a quiet one.
-      fill.style.height = `${tokens > 0 ? Math.max(4, (tokens / peak) * 100) : 0}%`;
-      bar.title = `${label}\n${dayFigures(tokens, costUsd)}`;
-      bar.append(fill);
-      chart.append(bar);
-    }
-    const axis = el('div', '', 'usage-axis');
-    axis.append(
-      el('span', hourly ? '00:00' : shortDay(days[0].day)),
-      el('span', `peak ${formatTokens(peak > 1 ? peak : 0)}`),
-      el('span', hourly ? '23:00' : 'today'),
-    );
-
-    const change = usageChange(summary, summary.previous);
-    const headline = el('div', '', 'usage-headline');
-    headline.append(el('span', `~${formatUsd(summary.costUsd)}`, 'usage-cost'), el('span', `${formatTokens(summary.tokens)} tokens`, 'usage-tokens'));
-    if (change) headline.append(el('span', `${change} vs ${previousLabel(range.days)}`, 'usage-change'));
-
-    const rows: HTMLElement[] = [];
-    if (summary.tokens === 0 && summary.costUsd === 0) {
-      rows.push(el('p', `No usage ${range.days === 1 ? 'today' : `in the last ${range.days} days`}.`, 'settings-note'));
-    } else {
-      if (range.days > 1) {
-        rows.push(
-          row('Per day', dayFigures(Math.round(summary.tokens / range.days), summary.costUsd / range.days), `Averaged over all ${range.days} days`),
-          row('Active days', `${summary.activeDays} of ${range.days}`),
-        );
-        if (summary.busiest) rows.push(row('Busiest day', `${shortDay(summary.busiest.day)} · ${dayFigures(summary.busiest.tokens, summary.busiest.costUsd)}`));
-      }
-      const outputShare = summary.tokens > 0 ? ` (${Math.round((summary.output / summary.tokens) * 100)}% of new work)` : '';
-      rows.push(
-        row('Output', `${formatTokens(summary.output)} tokens${outputShare}`),
-        row(
-          'Cache reads',
-          `${formatTokens(summary.cacheRead)} tokens`,
-          'Input served from the prompt cache. It repeats earlier input, so it is not counted in the totals above.',
-        ),
-      );
-      if (summary.models.length) {
-        const total = summary.costUsd > 0 ? summary.costUsd : summary.tokens;
-        const lines = summary.models.slice(0, MODEL_ROWS).map((m) => {
-          const share = total > 0 ? Math.round(((summary.costUsd > 0 ? m.costUsd : m.tokens) / total) * 100) : 0;
-          return `${m.model} · ${dayFigures(m.tokens, m.costUsd)} · ${share}%`;
-        });
-        const more = summary.models.length - MODEL_ROWS;
-        rows.push(row('By model', [...lines, ...(more > 0 ? [`+ ${more} more`] : [])].join('\n')));
-      }
-    }
-
-    const rates = Object.entries(s.config.pricing)
-      .map(([family, r]) => `${family} $${r.input}/$${r.output}`)
-      .join(', ');
-    return card(
-      'Usage',
-      rangePicker(),
-      headline,
-      chart,
-      axis,
-      ...rows,
-      row(
-        'Since sessions began',
-        `~${formatUsd(s.usage.costUsd)} estimated${s.usage.counting ? ' (still counting…)' : ''}`,
-        'Across every workspace transcript still on disk',
-      ),
-      ...(s.usage.unpriced.length
-        ? [
-            el(
-              'p',
-              `No rate for ${s.usage.unpriced.join(', ')}, so ${s.usage.unpriced.length === 1 ? 'it is' : 'they are'} missing from the cost. Add ${s.usage.unpriced.length === 1 ? 'it' : 'them'} under "pricing" in the config.`,
-              'settings-note warn',
-            ),
-          ]
-        : []),
-      el(
-        'p',
-        `Dollar figures are estimates. Days are in your local time. Rates (per million tokens, input/output): ${rates}. Cache writes cost 1.25× input and cache reads 0.1×. Set "pricing" in the config to correct them.`,
-        'settings-note',
-      ),
-    );
+  function setUsageRange(usageRange: Prefs['usageRange']): void {
+    prefs = { ...prefs, usageRange };
+    void savePrefs({ usageRange });
+    render();
   }
 
   function setupCard(s: SystemSnapshot): HTMLElement | null {
@@ -790,7 +573,7 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       helperCard(snapshot),
       updatesCard(),
       planCard(snapshot),
-      usageCard(snapshot),
+      usageCard(snapshot, prefs.usageRange, setUsageRange),
       sessionsCard(snapshot),
       housekeepingCard(snapshot),
       configCard(snapshot),

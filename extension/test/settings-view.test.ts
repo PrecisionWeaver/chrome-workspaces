@@ -2,7 +2,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ControlToHelper, SystemSnapshot, UpdateStatus, UsageDay, UsageHour } from '../../shared/protocol';
 import type { TimelineEvent } from '../../shared/timeline';
-import { createSettingsView, formatBytes, formatDuration, formatKb, formatTokens, newTokens, type SettingsView } from '../src/settings-view';
+import { formatBytes, formatDuration, formatKb, formatTokens, newTokens } from '../src/format';
+import { createSettingsView, type SettingsView } from '../src/settings-view';
 import { installChrome } from './chrome-mock';
 import { isolateDocumentListeners, loadPanelHtml, makeSession, makeSnapshot, makeUsageDay, makeUsageHours } from './fixtures';
 
