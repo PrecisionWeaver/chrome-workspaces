@@ -123,6 +123,19 @@ describe('plan usage card', () => {
     expect(plan.textContent).toContain('Reported 5m ago.');
   });
 
+  it('shows how far over a limit is, and keeps the bar full', async () => {
+    await open(
+      makeSnapshot({
+        plan: { limits: [{ id: 'five_hour', label: 'Current session', percent: 104.2, resetsAt: resets(30) }], updatedAt: '2026-03-10T11:55:00.000Z' },
+      }),
+    );
+    const plan = card('Plan usage');
+    expect(plan.querySelector('.plan-limit-percent')!.textContent).toBe('104% used · 4% over');
+    expect(plan.querySelector<HTMLElement>('.plan-meter-fill')!.style.width).toBe('100%');
+    expect(plan.querySelector('.plan-meter')!.classList.contains('over')).toBe(true);
+    expect(plan.querySelector('.plan-meter')!.getAttribute('aria-valuenow')).toBe('104');
+  });
+
   it('says what is needed when there are no figures', async () => {
     await open();
     expect(card('Plan usage').querySelector('.plan-meter')).toBeNull();

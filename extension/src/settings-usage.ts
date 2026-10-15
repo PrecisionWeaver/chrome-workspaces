@@ -46,14 +46,16 @@ export function planCard(s: SystemSnapshot): HTMLElement {
     );
   }
   const meters = limits.map((limit) => {
-    const level = limit.percent >= 90 ? ' bad' : limit.percent >= 70 ? ' warn' : '';
+    const used = Math.round(limit.percent);
+    const over = used > 100 ? used - 100 : 0;
+    const level = over ? ' over' : limit.percent >= 90 ? ' bad' : limit.percent >= 70 ? ' warn' : '';
     const line = el('div', '', 'plan-limit');
     const head = el('div', '', 'plan-limit-head');
-    head.append(el('span', limit.label, 'plan-limit-label'), el('span', `${Math.round(limit.percent)}% used`, 'plan-limit-percent'));
+    head.append(el('span', limit.label, 'plan-limit-label'), el('span', over ? `${used}% used · ${over}% over` : `${used}% used`, 'plan-limit-percent'));
     const bar = el('div', '', `plan-meter${level}`);
     bar.setAttribute('role', 'progressbar');
     bar.setAttribute('aria-label', limit.label);
-    bar.setAttribute('aria-valuenow', String(Math.round(limit.percent)));
+    bar.setAttribute('aria-valuenow', String(used));
     const fill = el('span', '', 'plan-meter-fill');
     fill.style.width = `${Math.min(100, limit.percent)}%`;
     bar.append(fill);

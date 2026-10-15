@@ -637,3 +637,12 @@
 .plan-meter.bad .plan-meter-fill {
   background: var(--bad);
 }
+
+.plan-meter.over .plan-meter-fill {
+  background: repeating-linear-gradient(135deg, var(--bad) 0 6px, transparent 6px 9px), var(--bad);
+}
+
+.plan-meter.over + .plan-limit-reset,
+.plan-limit-head:has(+ .plan-meter.over) .plan-limit-percent {
+  color: var(--bad);
+}
