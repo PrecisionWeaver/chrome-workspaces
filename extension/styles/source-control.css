@@ -146,6 +146,8 @@
   align-items: baseline;
   gap: 6px;
   width: 100%;
+  /* Padding counts inside the width, or each row is wider than the list and scrolls it sideways. */
+  box-sizing: border-box;
   padding: 2px 4px;
   background: none;
   border: 0;
@@ -323,7 +325,8 @@ button.git-branch-name:hover {
 }
 
 .git-file-name {
-  flex: none;
+  flex: 0 1 auto;
+  min-width: 0;
   max-width: 70%;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -367,6 +370,7 @@ button.git-branch-name:hover {
   align-items: center;
   gap: 2px;
   width: 100%;
+  box-sizing: border-box;
   height: 24px;
   padding: 0 4px 0 0;
   background: none;

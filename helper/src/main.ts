@@ -3,6 +3,7 @@ import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
+import { PLAN_USAGE_FILE } from '../../shared/plan-usage';
 import { MONITOR_SESSION, SHELL_SESSION, type WorkspaceStatus } from '../../shared/protocol';
 import { createAdmin, defaultIsManaged, defaultRunShell, defaultSpawnDetached } from './admin';
 import { createApi } from './api';
@@ -11,6 +12,7 @@ import { ControlHub } from './control';
 import { launchSpec, monitorSpec, shellSpec } from './launch';
 import { importLegacySessions, readSessionStatus, lastTranscriptCwd, pruneSessions, watchSessionStatus, type WorkspaceSession } from './session-status';
 import { writeHooksFile } from './hooks-config';
+import { readPlanUsage } from './plan-usage';
 import { GH_BRANCH_PR, GH_PR_DETAILS, GH_PR_THREADS, PR_THREADS_QUERY } from './pr-details';
 import { readPrompts } from './prompts';
 import { createGitService } from './git';
@@ -76,6 +78,7 @@ const prDetails = async (url: string) =>
   (await execFileAsync(shell, ['-l', '-c', GH_PR_DETAILS], { env: { ...process.env, CW_PR_URL: url }, timeout: 30_000, maxBuffer: 4 * 1024 * 1024 })).stdout;
 
 const admin = createAdmin({
+  planUsage: () => readPlanUsage(join(DATA_DIR, PLAN_USAGE_FILE)),
   sessions,
   store,
   config,

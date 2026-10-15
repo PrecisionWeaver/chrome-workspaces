@@ -123,6 +123,23 @@ export interface SystemSession {
   processes: SystemProcess[];
 }
 
+/** One of the plan's rate limits, as `/usage` shows it. */
+export interface PlanLimit {
+  id: string;
+  label: string;
+  /** Share used, 0 to 100 (a spend limit can pass 100). */
+  percent: number;
+  /** When it resets; always in the future, since a window that has passed is dropped. */
+  resetsAt: string;
+}
+
+/** The plan's limits as claude last reported them to a workspace's status line; empty when none has yet, or the plan has none. */
+export interface PlanUsage {
+  limits: PlanLimit[];
+  /** When claude last reported them, so the card can say how old they are. */
+  updatedAt: string | null;
+}
+
 export interface SystemSnapshot {
   takenAt: string;
   helper: {
@@ -163,6 +180,7 @@ export interface SystemSnapshot {
     counting: boolean;
     /** Models used that have no rate, so are missing from the cost. */ unpriced: string[];
   };
+  plan: PlanUsage;
   /** Workspaces using a lot of memory, and servers left running; see `findWarnings`. */
   warnings: GuardrailWarning[];
   reviews: { fetchedAt: string | null; count: number; error: string | null };
