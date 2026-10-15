@@ -108,7 +108,7 @@ describe('for a review request', () => {
     expect($('create-title').textContent).toContain('Add the thing');
     expect($('create-prompt').hidden).toBe(false);
     expect(document.activeElement).toBe($('create-filter'));
-    expect($('create-tabs-label').textContent).toBe('The PR opens first, then these');
+    expect($<HTMLTextAreaElement>('create-tabs').value).toBe(PR);
     expect($('create-templates').hidden).toBe(true);
   });
 
@@ -159,7 +159,7 @@ describe('for a review request', () => {
 
     await open(review);
     expect($<HTMLSelectElement>('create-repo').value).toBe('');
-    expect($<HTMLTextAreaElement>('create-tabs').value).toBe('');
+    expect($<HTMLTextAreaElement>('create-tabs').value).toBe(review.url);
   });
 
   describe('details', () => {
@@ -429,12 +429,26 @@ describe('creating', () => {
     expect(document.activeElement).toBe($('create-filter'));
   });
 
-  it('leads a review workspace with its PR, once, ahead of the tabs typed', async () => {
+  it('prefills a review workspace with its PR, and sends what is left in the box', async () => {
     await open(makeReview({ url: PR }));
     choose('blank');
     type('create-tabs', `${PR}\nexample.com/a`);
     submit();
     expect(created()).toMatchObject({ pr: PR, urls: [PR, 'https://example.com/a'] });
+  });
+
+  it('opens a review workspace without its PR when it is cleared from the box', async () => {
+    await open(makeReview({ url: PR }));
+    choose('blank');
+    type('create-tabs', 'example.com/a');
+    submit();
+    expect(created()).toMatchObject({ pr: PR, urls: ['https://example.com/a'] });
+  });
+
+  it('starts a new workspace with empty tabs after a review', async () => {
+    await open(makeReview({ url: PR }));
+    await open();
+    expect($<HTMLTextAreaElement>('create-tabs').value).toBe('');
   });
 
   it('refuses a tab that is not a web address, with the reason', async () => {
