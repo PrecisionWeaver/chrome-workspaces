@@ -70,7 +70,6 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
   const githubButton = $<HTMLButtonElement>('create-github');
   const ticketButton = $<HTMLButtonElement>('create-ticket');
   const threadsEl = $<HTMLDivElement>('create-threads');
-  const tabsLabel = $<HTMLSpanElement>('create-tabs-label');
   const templateBox = $<HTMLDivElement>('create-templates');
   const templateSelect = $<HTMLSelectElement>('create-template');
   const templateDelete = $<HTMLButtonElement>('template-delete');
@@ -232,7 +231,6 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
     ticketButton.replaceChildren(...(request?.ticket ? [icon('ticket'), `${request.ticket} in Jira`] : []));
     ticketButton.dataset.url = ticket ?? '';
     threadsEl.replaceChildren();
-    tabsLabel.textContent = request ? 'The PR opens first, then these' : 'optional, one URL per line';
     if (request) {
       title.replaceChildren(el('code', ref(request), 'ref-chip'), el('span', request.title));
       const cached = detailsCache.get(request.url);
@@ -252,8 +250,8 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
 
     send({ type: 'listPrompts' });
     send({ type: 'listRepos' });
-    // Tabs belong to one ticket, so unlike the repo and model they start empty every time.
-    tabsInput.value = '';
+    // Tabs belong to one ticket, so unlike the repo and model they start empty every time, bar a review's PR.
+    tabsInput.value = request?.url ?? '';
     void chrome.storage.local.get(['useThisWindow', 'newRepo', 'newModel']).then(({ useThisWindow, newRepo, newModel }) => {
       target.select(useThisWindow === true && windowId !== undefined ? 'here' : 'new');
       modelSelect.value = typeof newModel === 'string' ? newModel : '';
@@ -373,8 +371,7 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
       return;
     }
     const typed = parseTabUrls(tabsInput.value);
-    // The PR leads the tabs, so a new window, a tab group and an adopted window all open at it.
-    const urls = review ? [...new Set([review.url, ...typed.urls])] : typed.urls;
+    const urls = typed.urls;
     tabsInput.setCustomValidity(
       typed.invalid.length ? `Not a web address: ${typed.invalid[0]}` : urls.length > MAX_TAB_URLS ? `At most ${MAX_TAB_URLS} tabs` : '',
     );
