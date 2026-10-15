@@ -48,7 +48,7 @@ If Chrome can't find the native host, the panel's notice says the helper is not 
 | `npm run agent:status` | Show status |
 | `npm run helper` | Run in the foreground (stop the agent first) |
 
-Logs: `~/.chrome-workspaces/helper.log`.
+Logs: `~/.chrome-workspaces/helper.log`, with the previous 5 MB or more in `helper.log.1`.
 
 ## Scripting workspaces
 

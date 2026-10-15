@@ -23,11 +23,16 @@ import { startServer } from './server';
 import { SessionManager } from './session';
 import { loadOrCreateToken } from './token';
 import { WorkspaceStore } from './workspace-store';
+import { rotateLog } from './log-rotation';
 import { pruneUploads } from './uploads';
 
 const config = loadConfig();
 const shell = process.env.SHELL ?? '/bin/zsh';
 pruneUploads(join(DATA_DIR, 'uploads'));
+const LOG_FILE = join(DATA_DIR, 'helper.log');
+rotateLog(LOG_FILE);
+// The agent can run for weeks, so the log is checked as well as at start.
+setInterval(() => rotateLog(LOG_FILE), 60 * 60_000).unref();
 // The folder exists before the first hook runs, so its changes can be watched from the start.
 mkdirSync(SESSIONS_DIR, { recursive: true, mode: 0o700 });
 pruneSessions(SESSIONS_DIR);
@@ -85,7 +90,7 @@ const admin = createAdmin({
   paths: {
     dataDir: DATA_DIR,
     uploadDir: join(DATA_DIR, 'uploads'),
-    logFile: join(DATA_DIR, 'helper.log'),
+    logFile: LOG_FILE,
     configFile: join(DATA_DIR, 'config.json'),
     workspacesFile: join(DATA_DIR, 'workspaces.json'),
     hooksFile,
