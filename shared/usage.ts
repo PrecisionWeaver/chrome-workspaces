@@ -90,8 +90,29 @@ export const previousLabel = (days: number): string => (days === 1 ? 'yesterday'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-/** `2026-10-07` as "Oct 7", without asking the locale, since the day is already a UTC date. */
+/** `2026-10-07` as "Oct 7", without asking the locale. */
 export function shortDay(day: string): string {
   const [, month, date] = day.split('-').map(Number);
   return month >= 1 && month <= 12 ? `${MONTHS[month - 1]} ${date}` : day;
+}
+
+const two = (n: number): string => String(n).padStart(2, '0');
+
+/** A date's day in this machine's time zone, as `2026-10-07`. Days are the person's own, not UTC's. */
+export const localDay = (date: Date): string => `${date.getFullYear()}-${two(date.getMonth() + 1)}-${two(date.getDate())}`;
+
+/** The day `back` days before `from`'s, by the calendar rather than by 24 hours, so a clock change cannot skip or repeat one. */
+export const localDayBack = (from: Date, back: number): string => localDay(new Date(from.getFullYear(), from.getMonth(), from.getDate() - back, 12));
+
+/**
+ * When a transcript line was written, in this machine's time zone. Claude writes ISO 8601 in UTC (`…Z`), which is not
+ * the day a person is living in. A bare date says which day but not which hour, and is already a calendar day, so it is
+ * kept as written. Null for anything that is not a date.
+ */
+export function localDayAndHour(timestamp: unknown): { day: string; hour: number | null } | null {
+  if (typeof timestamp !== 'string') return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(timestamp)) return { day: timestamp, hour: null };
+  if (!/^\d{4}-\d{2}-\d{2}T/.test(timestamp)) return null;
+  const date = new Date(timestamp);
+  return Number.isNaN(date.getTime()) ? null : { day: localDay(date), hour: date.getHours() };
 }

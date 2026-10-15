@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { ControlToClient } from '../../shared/protocol';
 import { readProcesses, subtree } from '../src/system';
 import { emptyDay, usageByHour, usageTrend } from '../src/admin';
+import { localDay } from '../../shared/usage';
 import { connectControl, opened, startHarness, type Harness } from './harness';
 import { waitFor } from './wait-for';
 
@@ -114,14 +115,20 @@ describe('warnings', () => {
 });
 
 describe('usage and cost', () => {
+  // The trend test below names days, so it needs a known zone.
+  process.env.TZ = 'America/New_York';
+
   it('prices a transcript by its model and puts each day in the trend, with quiet days as zero', async () => {
     const workspace = h.store.create({ name: 'priced', cwd: h.defaultCwd });
     const file = join(mkdtempSync(join(tmpdir(), 'cw-adm-cost-')), 't.jsonl');
-    const today = new Date().toISOString().slice(0, 10);
+    // Ten in the morning on the machine's own clock, whatever zone it is in.
+    const wrote = new Date();
+    wrote.setHours(10, 0, 0, 0);
+    const today = localDay(wrote);
     const msg = (id: string, out: number) =>
       JSON.stringify({
         type: 'assistant',
-        timestamp: `${today}T10:00:00.000Z`,
+        timestamp: wrote.toISOString(),
         message: {
           id,
           model: 'claude-opus-5-5',
@@ -148,7 +155,7 @@ describe('usage and cost', () => {
           models: [{ model: 'claude-opus-5-5', tokens: 2_000_000, costUsd: expect.closeTo(60) }],
         });
         expect(reply.snapshot.usage.daily[0]).toMatchObject({ tokens: 0, models: [] });
-        // The message was written at 10:00 UTC today.
+        // The message was written at 10:00 local time today.
         expect(reply.snapshot.usage.hourly).toHaveLength(24);
         expect(reply.snapshot.usage.hourly[10]).toEqual({ hour: 10, tokens: 2_000_000, costUsd: expect.closeTo(60) });
         expect(reply.snapshot.usage.hourly.filter((h) => h.tokens > 0)).toHaveLength(1);

@@ -554,11 +554,11 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
     const summary = summarizeUsage(s.usage.daily, range.days);
     // Today is drawn by hour. An older helper sends no hours, and then one bar is no chart, so it is drawn against its week.
     const hourly = range.days === 1 && s.usage.hourly?.length === 24 ? s.usage.hourly : null;
-    const nowHour = new Date(s.takenAt).getUTCHours();
+    const nowHour = new Date(s.takenAt).getHours();
     const days = s.usage.daily.slice(-(range.days === 1 ? 7 : range.days));
     const bars = hourly
       ? hourly.map((h) => ({
-          label: `${String(h.hour).padStart(2, '0')}:00 UTC`,
+          label: `${String(h.hour).padStart(2, '0')}:00`,
           tokens: h.tokens,
           costUsd: h.costUsd,
           state: h.hour === nowHour ? 'now' : h.hour > nowHour ? 'context' : '',
@@ -584,7 +584,7 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
     axis.append(
       el('span', hourly ? '00:00' : shortDay(days[0].day)),
       el('span', `peak ${formatTokens(peak > 1 ? peak : 0)}`),
-      el('span', hourly ? '23:00 UTC' : 'today'),
+      el('span', hourly ? '23:00' : 'today'),
     );
 
     const change = usageChange(summary, summary.previous);
@@ -649,7 +649,7 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
         : []),
       el(
         'p',
-        `Dollar figures are estimates. Days are UTC. Rates (per million tokens, input/output): ${rates}. Cache writes cost 1.25× input and cache reads 0.1×. Set "pricing" in the config to correct them.`,
+        `Dollar figures are estimates. Days are in your local time. Rates (per million tokens, input/output): ${rates}. Cache writes cost 1.25× input and cache reads 0.1×. Set "pricing" in the config to correct them.`,
         'settings-note',
       ),
     );

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { UsageDay } from '../../shared/protocol';
-import { previousLabel, shortDay, summarizeUsage, usageChange } from '../../shared/usage';
+import { localDay, localDayAndHour, localDayBack, previousLabel, shortDay, summarizeUsage, usageChange } from '../../shared/usage';
+
+process.env.TZ = 'America/New_York';
 
 const day = (n: number, tokens: number, costUsd = 0, extra: Partial<UsageDay> = {}): UsageDay => ({
   day: `2026-10-${String(n).padStart(2, '0')}`,
@@ -113,5 +115,28 @@ describe('labels', () => {
     expect(shortDay('2026-10-07')).toBe('Oct 7');
     expect(shortDay('2026-01-31')).toBe('Jan 31');
     expect(shortDay('garbage')).toBe('garbage');
+  });
+});
+
+describe('local days', () => {
+  it('names a date by the day it is on the machine, not in UTC', () => {
+    // 02:30 UTC on the 8th is 22:30 on the 7th in Eastern time.
+    expect(localDay(new Date('2026-10-08T02:30:00Z'))).toBe('2026-10-07');
+    expect(localDay(new Date('2026-10-08T06:30:00Z'))).toBe('2026-10-08');
+  });
+
+  it('counts back by the calendar, so a clock change cannot skip or repeat a day', () => {
+    // Clocks went back on 1 November 2026 (a 25-hour day) and forward on 8 March 2026 (a 23-hour one).
+    const around = (from: string, days: number) => Array.from({ length: days }, (_, i) => localDayBack(new Date(from), i));
+    expect(around('2026-11-03T17:00:00Z', 4)).toEqual(['2026-11-03', '2026-11-02', '2026-11-01', '2026-10-31']);
+    expect(around('2026-03-10T17:00:00Z', 4)).toEqual(['2026-03-10', '2026-03-09', '2026-03-08', '2026-03-07']);
+    expect(localDayBack(new Date('2026-03-01T17:00:00Z'), 30)).toBe('2026-01-30');
+  });
+
+  it('reads a timestamp as a local day and hour', () => {
+    expect(localDayAndHour('2026-10-08T02:30:00Z')).toEqual({ day: '2026-10-07', hour: 22 });
+    expect(localDayAndHour('2026-10-08')).toEqual({ day: '2026-10-08', hour: null });
+    expect(localDayAndHour(12)).toBeNull();
+    expect(localDayAndHour(undefined)).toBeNull();
   });
 });

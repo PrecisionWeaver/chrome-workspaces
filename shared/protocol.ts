@@ -74,7 +74,7 @@ export interface TokenTotals {
 
 /** One day's use across every workspace. */
 export interface UsageDay {
-  /** UTC date, `2026-10-07`. */
+  /** The date in the machine's time zone, `2026-10-07`. */
   day: string;
   /** New work: input, output and cache writes. */
   tokens: number;
@@ -88,7 +88,7 @@ export interface UsageDay {
 
 /** One hour of today's use across every workspace. */
 export interface UsageHour {
-  /** UTC hour, 0 to 23. */
+  /** The hour in the machine's time zone, 0 to 23. */
   hour: number;
   /** New work, counted as in `UsageDay`. */
   tokens: number;
@@ -153,10 +153,10 @@ export interface SystemSnapshot {
     pricing: Record<string, { input: number; output: number }>;
     jiraBaseUrl: string | null;
   };
-  /** Tokens and estimated cost across every workspace, by day (UTC), oldest first; see `shared/pricing.ts` and `shared/usage.ts`. */
+  /** Tokens and estimated cost across every workspace, by day (local time), oldest first; see `shared/pricing.ts` and `shared/usage.ts`. */
   usage: {
     daily: UsageDay[];
-    /** Today's (UTC) use by hour: always 24 entries, 0 to 23, with the hours not yet reached at zero. */
+    /** Today's use by hour, in local time: always 24 entries, 0 to 23, with the hours not yet reached at zero. */
     hourly: UsageHour[];
     /** Estimated cost since the first transcript still on disk, not only the days in `daily`. */
     costUsd: number;

@@ -1,10 +1,11 @@
 import { open, stat } from 'node:fs/promises';
 import { StringDecoder } from 'node:string_decoder';
 import type { TokenTotals } from '../../shared/protocol';
+import { localDayAndHour } from '../../shared/usage';
 
 const CHUNK_BYTES = 4 * 1024 * 1024;
 
-/** One assistant message's usage, with the model that produced it and the day and hour it was written (UTC). */
+/** One assistant message's usage, with the model that produced it and the day and hour it was written, in the local time zone. */
 interface Counted {
   usage: TokenTotals;
   model: string;
@@ -72,6 +73,7 @@ export function usageFromLine(line: string): { id: string; usage: TokenTotals; m
     return null;
   }
   const { id, usage, model } = parsed.message ?? {};
+  const when = localDayAndHour(parsed.timestamp);
   if (typeof id !== 'string' || !usage) return null;
   const n = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : 0);
   return {
@@ -83,9 +85,7 @@ export function usageFromLine(line: string): { id: string; usage: TokenTotals; m
       cacheRead: n(usage.cache_read_input_tokens),
     },
     model: typeof model === 'string' ? model : '',
-    // The timestamp is ISO 8601 in UTC, so its first ten characters are the day and the two after the `T` the hour.
-    day: typeof parsed.timestamp === 'string' && /^\d{4}-\d{2}-\d{2}/.test(parsed.timestamp) ? parsed.timestamp.slice(0, 10) : '',
-    hour: typeof parsed.timestamp === 'string' && /^\d{4}-\d{2}-\d{2}T([01]\d|2[0-3])/.test(parsed.timestamp) ? Number(parsed.timestamp.slice(11, 13)) : null,
+    ...(when ? { day: when.day, hour: when.hour } : { day: '', hour: null }),
   };
 }
 

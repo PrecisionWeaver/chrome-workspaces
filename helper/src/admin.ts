@@ -5,7 +5,7 @@ import { promisify } from 'node:util';
 import { findWarnings } from '../../shared/guardrails';
 import { costOf, isRealModel, rateFor } from '../../shared/pricing';
 import type { AdminAction, ReviewsState, SystemSnapshot, UpdateStatus, UsageDay, UsageHour, WorkspaceStatus } from '../../shared/protocol';
-import { USAGE_HISTORY_DAYS } from '../../shared/usage';
+import { localDay, localDayBack, USAGE_HISTORY_DAYS } from '../../shared/usage';
 import { AGENT_LABEL, type HelperConfig } from './config';
 import type { SessionManager } from './session';
 import { readTimeline } from './timeline';
@@ -99,7 +99,7 @@ export function usageTrend(
 ): Omit<SystemSnapshot['usage'], 'hourly'> {
   const daily: UsageDay[] = [];
   for (let back = USAGE_HISTORY_DAYS - 1; back >= 0; back--) {
-    const day = new Date(now.getTime() - back * 86_400_000).toISOString().slice(0, 10);
+    const day = localDayBack(now, back);
     const { models, ...totals } = dayTotals.get(day) ?? emptyDay();
     daily.push({ day, ...totals, models: [...models].map(([model, used]) => ({ model, ...used })) });
   }
@@ -108,7 +108,7 @@ export function usageTrend(
   return { daily, costUsd, counting, unpriced };
 }
 
-/** Today's use by hour, from the totals of each hour (UTC) that had any; every hour is listed so the chart has no gaps. */
+/** Today's use by hour, from the totals of each local hour that had any; every hour is listed so the chart has no gaps. */
 export function usageByHour(hourTotals: ReadonlyMap<number, { tokens: number; costUsd: number }>): UsageHour[] {
   return Array.from({ length: 24 }, (_, hour) => ({ hour, ...(hourTotals.get(hour) ?? { tokens: 0, costUsd: 0 }) }));
 }
@@ -172,7 +172,7 @@ export function createAdmin(options: AdminOptions): AdminService {
       tokens.keepOnly(snapshotSessions.flatMap((ws) => options.transcript(ws.id) ?? []));
       // Every counted transcript's usage by model and day, for the trend across workspaces.
       const dayTotals = new Map<string, DayTotals>();
-      const today = new Date().toISOString().slice(0, 10);
+      const today = localDay(new Date());
       const hourTotals = new Map<number, { tokens: number; costUsd: number }>();
       let counting = false;
       const unpriced = new Set<string>();
