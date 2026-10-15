@@ -24,7 +24,7 @@ Run `format`, `typecheck`, `test:coverage` and `build:extension` before committi
 
 ## Conventions
 
-- Add or change a message in `shared/protocol.ts` first; both sides then type-check against it. Validate incoming control messages in `control.ts` (`isControlToHelper`, `isAdminAction`).
+- Add or change a message in `shared/protocol.ts` first; both sides then type-check against it. Validate incoming control messages in `control-messages.ts` (`isControlToHelper`, `isAdminAction`).
 - Put pure logic in `shared/` or a small helper module with its own test, not inside `panel.ts` or `control.ts`.
 - Helper tests use real temp git repos and the `harness.ts` / `wait-for.ts` utilities; prefer those to mocks.
 - Extension tests (`extension/test/`) call `installChrome()` from `chrome-mock.ts`, an in-memory `chrome.tabs`, `tabGroups`, `windows`, `storage` and the events and smaller APIs the code uses. It keeps real state, so assert on the resulting tabs and groups, not on calls, and fire events with `fake.events.*.emit`. Tests of views start the file with `// @vitest-environment happy-dom`, load the shipped markup with `loadPanelHtml()` (so ids match `panel.html`), and call `isolateDocumentListeners()` because views never remove their `document` listeners. xterm and `helper-client` are replaced with `vi.mock`. Fixtures are in `fixtures.ts`. Extend the fake when code uses an API it lacks. It models Chrome's behaviour only as far as a test needed, so a pass is not a substitute for trying it in Chrome.
