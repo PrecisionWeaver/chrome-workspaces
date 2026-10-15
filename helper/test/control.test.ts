@@ -459,14 +459,14 @@ describe('control channel', () => {
     const file = join(mkdtempSync(join(tmpdir(), 'cw-ctl-tl-')), 't.jsonl');
     writeFileSync(
       file,
-      [
+      `${[
         JSON.stringify({ type: 'user', timestamp: '2026-10-08T10:00:00Z', message: { role: 'user', content: 'fix the bug' } }),
         JSON.stringify({
           type: 'assistant',
           timestamp: '2026-10-08T10:00:03Z',
           message: { role: 'assistant', content: [{ type: 'tool_use', name: 'Edit', input: { file_path: '/repo/a.ts' } }] },
         }),
-      ].join('\n') + '\n',
+      ].join('\n')}\n`,
     );
     h.transcripts[withTranscript.id] = file;
 

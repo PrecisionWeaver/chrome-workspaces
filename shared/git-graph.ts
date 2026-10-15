@@ -32,7 +32,7 @@ interface Lane {
 
 /** Commits must be newest first with children before parents, as `git log --topo-order` gives. */
 export function layoutGraph(commits: readonly GraphCommit[]): GraphRow[] {
-  let lanes: (Lane | null)[] = [];
+  const lanes: (Lane | null)[] = [];
   let nextColor = 0;
   const rows: GraphRow[] = [];
 

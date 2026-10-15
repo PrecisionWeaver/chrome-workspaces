@@ -278,7 +278,7 @@ describe('changes', () => {
     expect(text('#git-changes h3')).toEqual(['Staged changes2−', 'Changes4+']);
     const [staged, unstaged] = [...document.querySelectorAll('#git-changes h3')].map((heading) => {
       const rows: string[] = [];
-      for (let node = heading.nextElementSibling; node && node.classList.contains('git-file'); node = node.nextElementSibling)
+      for (let node = heading.nextElementSibling; node?.classList.contains('git-file'); node = node.nextElementSibling)
         rows.push(`${node.querySelector('.git-file-name')?.textContent}:${node.querySelector('.git-letter')?.textContent}`);
       return rows;
     });
