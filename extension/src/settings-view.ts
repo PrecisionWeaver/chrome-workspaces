@@ -11,6 +11,7 @@ import type {
 } from '../../shared/protocol';
 import { el } from './dom';
 import { DENSITIES, THEMES } from '../../shared/keynav';
+import { resetLabel } from '../../shared/plan-usage';
 import { formatUsd } from '../../shared/pricing';
 import { previousLabel, shortDay, summarizeUsage, USAGE_RANGES, usageChange } from '../../shared/usage';
 import { buildChecklist, remaining, type SetupItem } from '../../shared/onboarding';
@@ -549,6 +550,47 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
 
   const dayFigures = (tokens: number, costUsd: number): string => `${formatTokens(tokens)} tokens${costUsd > 0 ? ` · ~${formatUsd(costUsd)}` : ''}`;
 
+  /** The plan's session and weekly limits, as `/usage` shows them, from what claude last told a workspace's status line. */
+  function planCard(s: SystemSnapshot): HTMLElement {
+    const now = Date.parse(s.takenAt);
+    const { limits, updatedAt } = s.plan;
+    if (!limits.length) {
+      return card(
+        'Plan usage',
+        el(
+          'p',
+          'No figures yet. claude reports them to a workspace after its first reply, for Pro and Max plans, so open a workspace and send a message. Sessions started outside this app are not counted.',
+          'settings-note',
+        ),
+      );
+    }
+    const meters = limits.map((limit) => {
+      const level = limit.percent >= 90 ? ' bad' : limit.percent >= 70 ? ' warn' : '';
+      const line = el('div', '', 'plan-limit');
+      const head = el('div', '', 'plan-limit-head');
+      head.append(el('span', limit.label, 'plan-limit-label'), el('span', `${Math.round(limit.percent)}% used`, 'plan-limit-percent'));
+      const bar = el('div', '', `plan-meter${level}`);
+      bar.setAttribute('role', 'progressbar');
+      bar.setAttribute('aria-label', limit.label);
+      bar.setAttribute('aria-valuenow', String(Math.round(limit.percent)));
+      const fill = el('span', '', 'plan-meter-fill');
+      fill.style.width = `${Math.min(100, limit.percent)}%`;
+      bar.append(fill);
+      line.append(head, bar, el('div', resetLabel(limit.resetsAt, now), 'plan-limit-reset'));
+      return line;
+    });
+    const age = updatedAt ? Math.max(0, Math.round((now - Date.parse(updatedAt)) / 60_000)) : null;
+    return card(
+      'Plan usage',
+      ...meters,
+      el(
+        'p',
+        `${age === null ? '' : age < 1 ? 'Reported just now. ' : `Reported ${age < 60 ? `${age}m` : `${Math.floor(age / 60)}h`} ago. `}Updates as workspaces reply; sessions started outside this app are not counted.`,
+        'settings-note',
+      ),
+    );
+  }
+
   function usageCard(s: SystemSnapshot): HTMLElement {
     const range = USAGE_RANGES.find((r) => r.id === prefs.usageRange) ?? USAGE_RANGES[2];
     const summary = summarizeUsage(s.usage.daily, range.days);
@@ -747,6 +789,7 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       preferencesCard(),
       helperCard(snapshot),
       updatesCard(),
+      planCard(snapshot),
       usageCard(snapshot),
       sessionsCard(snapshot),
       housekeepingCard(snapshot),

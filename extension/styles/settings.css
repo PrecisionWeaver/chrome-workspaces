@@ -601,3 +601,39 @@
   padding: 1px 8px;
   font-size: 11px;
 }
+
+.plan-limit {
+  margin-bottom: 12px;
+}
+
+.plan-limit-head {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.plan-limit-percent,
+.plan-limit-reset {
+  color: var(--muted);
+}
+
+.plan-meter {
+  height: 8px;
+  overflow: hidden;
+  background: var(--raised);
+  border-radius: var(--radius);
+}
+
+.plan-meter-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+
+.plan-meter.warn .plan-meter-fill {
+  background: var(--wait);
+}
+
+.plan-meter.bad .plan-meter-fill {
+  background: var(--bad);
+}

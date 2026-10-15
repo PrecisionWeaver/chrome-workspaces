@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { findWarnings } from '../../shared/guardrails';
 import { costOf, isRealModel, rateFor } from '../../shared/pricing';
-import type { AdminAction, ReviewsState, SystemSnapshot, UpdateStatus, UsageDay, UsageHour, WorkspaceStatus } from '../../shared/protocol';
+import type { AdminAction, PlanUsage, ReviewsState, SystemSnapshot, UpdateStatus, UsageDay, UsageHour, WorkspaceStatus } from '../../shared/protocol';
 import { localDay, localDayBack, USAGE_HISTORY_DAYS } from '../../shared/usage';
 import { AGENT_LABEL, type HelperConfig } from './config';
 import type { SessionManager } from './session';
@@ -39,6 +39,8 @@ export interface AdminOptions {
   /** Whether launchd runs this process. */
   isManaged: () => Promise<boolean>;
   processes?: () => Promise<Proc[]>;
+  /** The plan's limits from the status line wrapper; none when absent. */
+  planUsage?: () => PlanUsage;
 }
 
 export interface ActionResult {
@@ -241,6 +243,7 @@ export function createAdmin(options: AdminOptions): AdminService {
         },
         sessions: sessionRows,
         usage: { ...usageTrend(dayTotals, counting, [...unpriced].sort()), hourly: usageByHour(hourTotals) },
+        plan: options.planUsage?.() ?? { limits: [], updatedAt: null },
         warnings: findWarnings(sessionRows, config.limits),
         storage: { uploadsBytes: pathBytes(paths.uploadDir), logBytes: pathBytes(paths.logFile), dataBytes: pathBytes(paths.dataDir) },
         config: {

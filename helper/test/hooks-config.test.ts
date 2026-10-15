@@ -28,6 +28,16 @@ describe('hooksSettings', () => {
   });
 });
 
+describe('hooksSettings status line', () => {
+  it('runs the wrapper as the status line when there is one, and has none otherwise', () => {
+    expect(hooksSettings('/n/node', '/h.ts', "/code/it's/status-line.ts").statusLine).toEqual({
+      type: 'command',
+      command: `'/n/node' '/code/it'\\''s/status-line.ts'`,
+    });
+    expect(hooksSettings('/n/node', '/h.ts')).not.toHaveProperty('statusLine');
+  });
+});
+
 describe('writeHooksFile', () => {
   const dir = () => mkdtempSync(join(tmpdir(), 'cw-hooks-'));
 

@@ -97,6 +97,38 @@ async function open(snapshot: SystemSnapshot = makeSnapshot()) {
   sent.length = 0;
 }
 
+describe('plan usage card', () => {
+  const resets = (minutes: number) => new Date(Date.parse('2026-03-10T12:00:00.000Z') + minutes * 60_000).toISOString();
+
+  it('draws a bar for each limit with how much is used and when it resets, and says how old the figures are', async () => {
+    await open(
+      makeSnapshot({
+        plan: {
+          limits: [
+            { id: 'five_hour', label: 'Current session', percent: 23.5, resetsAt: resets(130) },
+            { id: 'seven_day', label: 'Current week', percent: 95, resetsAt: resets(60 * 24 * 3) },
+          ],
+          updatedAt: '2026-03-10T11:55:00.000Z',
+        },
+      }),
+    );
+    const plan = card('Plan usage');
+    const labels = [...plan.querySelectorAll('.plan-limit-label')].map((n) => n.textContent);
+    expect(labels).toEqual(['Current session', 'Current week']);
+    expect([...plan.querySelectorAll('.plan-limit-percent')].map((n) => n.textContent)).toEqual(['24% used', '95% used']);
+    expect(plan.querySelector('.plan-limit-reset')!.textContent).toBe('Resets in 2h 10m');
+    expect([...plan.querySelectorAll<HTMLElement>('.plan-meter-fill')].map((n) => n.style.width)).toEqual(['23.5%', '95%']);
+    expect([...plan.querySelectorAll('.plan-meter')].map((n) => n.classList.contains('bad'))).toEqual([false, true]);
+    expect(plan.textContent).toContain('Reported 5m ago.');
+  });
+
+  it('says what is needed when there are no figures', async () => {
+    await open();
+    expect(card('Plan usage').querySelector('.plan-meter')).toBeNull();
+    expect(card('Plan usage').textContent).toContain('No figures yet');
+  });
+});
+
 describe('opening, closing and polling', () => {
   it('shows a loading note, asks the helper straight away, and tells the panel', () => {
     view.show();
@@ -198,6 +230,7 @@ describe('the cards', () => {
       'Preferences',
       'Helper',
       'Updates',
+      'Plan usage',
       'Usage',
       'Workspace sessions',
       'Housekeeping',
