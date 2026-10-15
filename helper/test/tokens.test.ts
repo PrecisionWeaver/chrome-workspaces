@@ -17,7 +17,7 @@ const use = (input: number, output: number, write = 0, read = 0) => ({
 });
 const transcript = (lines: string[]) => {
   const file = join(mkdtempSync(join(tmpdir(), 'cw-tok-')), 't.jsonl');
-  writeFileSync(file, lines.join('\n') + '\n');
+  writeFileSync(file, `${lines.join('\n')}\n`);
   return file;
 };
 
@@ -139,7 +139,7 @@ describe('TranscriptTokens', () => {
     appendFileSync(file, line('b', use(1, 20)).slice(0, 30));
     await tokens.refresh(file);
     expect(tokens.peek(file)?.totals.output).toBe(10);
-    appendFileSync(file, line('b', use(1, 20)).slice(30) + '\n');
+    appendFileSync(file, `${line('b', use(1, 20)).slice(30)}\n`);
     await tokens.refresh(file);
     expect(tokens.peek(file)?.totals).toMatchObject({ input: 2, output: 30 });
   });
@@ -157,7 +157,7 @@ describe('TranscriptTokens', () => {
     const tokens = new TranscriptTokens();
     const file = transcript([line('a', use(1, 500)), line('b', use(1, 500))]);
     await tokens.refresh(file);
-    writeFileSync(file, line('c', use(1, 7)) + '\n');
+    writeFileSync(file, `${line('c', use(1, 7))}\n`);
     await tokens.refresh(file);
     expect(tokens.peek(file)?.totals.output).toBe(7);
     const missing = join(tmpdir(), 'cw-no-such-transcript.jsonl');

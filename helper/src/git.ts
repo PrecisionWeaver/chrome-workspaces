@@ -237,7 +237,7 @@ export function createGitService(): GitService {
       if (tracked) {
         // Staged and unstaged together; a repository with no commits has no HEAD to compare to.
         const head = await run(cwd, ['diff', '--no-color', 'HEAD', '--', path], [0, 128]).catch(() => null);
-        if (head && head.stdout) return cap(head.stdout);
+        if (head?.stdout) return cap(head.stdout);
         return cap((await run(cwd, ['diff', '--no-color', '--cached', '--', path])).stdout);
       }
       // Untracked: shown whole, as an addition. Exit code 1 only means the files differ.

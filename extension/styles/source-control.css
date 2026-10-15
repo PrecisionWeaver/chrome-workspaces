@@ -188,7 +188,7 @@
   border: 0;
   border-radius: 4px;
   color: var(--muted);
-  font: 600 12px/1 var(--mono);
+  font: 600 12px / 1 var(--mono);
   cursor: pointer;
 }
 
@@ -501,7 +501,7 @@ button.git-branch-name:hover {
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  font: 12px/1.5 var(--mono);
+  font: 12px / 1.5 var(--mono);
 }
 
 .diff-line {

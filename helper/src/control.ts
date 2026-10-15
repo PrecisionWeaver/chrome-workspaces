@@ -1,14 +1,6 @@
 import { isAbsolute } from 'node:path';
 import type { WebSocket } from 'ws';
-import {
-  type ControlToClient,
-  type ControlToHelper,
-  type Prompt,
-  type Repo,
-  type ReviewsState,
-  type Workspace,
-  type WorkspaceStatus,
-} from '../../shared/protocol';
+import type { ControlToClient, ControlToHelper, Prompt, Repo, ReviewsState, Workspace, WorkspaceStatus } from '../../shared/protocol';
 import { isDirectory } from './config';
 import { isControlToHelper } from './control-messages';
 import type { AdminService } from './admin';
@@ -326,7 +318,10 @@ export class ControlHub {
     const missing = 'unknown workspace';
     const dir = workspace ? this.gitDirectory(workspace) : null;
     const result = (action: string, work: (cwd: string) => Promise<string>) => {
-      if (!dir) return this.sendTo(ws, { type: 'gitResult', id, action, ok: false, message: missing });
+      if (!dir) {
+        this.sendTo(ws, { type: 'gitResult', id, action, ok: false, message: missing });
+        return;
+      }
       dir.then(work).then(
         (done) => this.sendTo(ws, { type: 'gitResult', id, action, ok: true, message: done }),
         (error: unknown) => this.sendTo(ws, { type: 'gitResult', id, action, ok: false, message: text(error) }),
@@ -335,7 +330,10 @@ export class ControlHub {
 
     switch (message.type) {
       case 'git':
-        if (!dir) return this.sendTo(ws, { type: 'git', id, state: null, error: missing });
+        if (!dir) {
+          this.sendTo(ws, { type: 'git', id, state: null, error: missing });
+          return;
+        }
         dir
           .then((cwd) => git.state(cwd))
           .then(
@@ -345,7 +343,10 @@ export class ControlHub {
         break;
       case 'gitCommit': {
         const { sha } = message;
-        if (!dir) return this.sendTo(ws, { type: 'gitCommit', id, sha, files: [], error: missing });
+        if (!dir) {
+          this.sendTo(ws, { type: 'gitCommit', id, sha, files: [], error: missing });
+          return;
+        }
         dir
           .then((cwd) => git.commitFiles(cwd, sha))
           .then(
@@ -357,7 +358,10 @@ export class ControlHub {
       case 'gitDiff': {
         const { path } = message;
         const sha = message.sha ?? null;
-        if (!dir) return this.sendTo(ws, { type: 'gitDiff', id, path, sha, diff: '', truncated: false, error: missing });
+        if (!dir) {
+          this.sendTo(ws, { type: 'gitDiff', id, path, sha, diff: '', truncated: false, error: missing });
+          return;
+        }
         dir
           .then((cwd) => git.diff(cwd, path, sha, message.base === true))
           .then(
@@ -367,7 +371,10 @@ export class ControlHub {
         break;
       }
       case 'gitChecks':
-        if (!dir) return this.sendTo(ws, { type: 'gitChecks', id, pr: null, checks: null, error: missing });
+        if (!dir) {
+          this.sendTo(ws, { type: 'gitChecks', id, pr: null, checks: null, error: missing });
+          return;
+        }
         dir
           .then((cwd) => this.options.branchPr(cwd))
           .then(
@@ -384,7 +391,10 @@ export class ControlHub {
           );
         break;
       case 'gitBranches':
-        if (!dir) return this.sendTo(ws, { type: 'gitBranches', id, branches: [], error: missing });
+        if (!dir) {
+          this.sendTo(ws, { type: 'gitBranches', id, branches: [], error: missing });
+          return;
+        }
         dir
           .then((cwd) => git.branches(cwd))
           .then(
@@ -393,7 +403,10 @@ export class ControlHub {
           );
         break;
       case 'gitCompare':
-        if (!dir) return this.sendTo(ws, { type: 'gitCompare', id, compare: null, error: missing });
+        if (!dir) {
+          this.sendTo(ws, { type: 'gitCompare', id, compare: null, error: missing });
+          return;
+        }
         dir
           .then((cwd) => git.compare(cwd))
           .then(

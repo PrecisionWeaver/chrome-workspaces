@@ -53,7 +53,9 @@ export function createPalette(items: () => PaletteItem[], onClose: () => void): 
   }
 
   function highlight(): void {
-    [...list.children].forEach((row, index) => row.classList.toggle('active', index === active));
+    [...list.children].forEach((row, index) => {
+      row.classList.toggle('active', index === active);
+    });
     list.children[active]?.scrollIntoView({ block: 'nearest' });
   }
 

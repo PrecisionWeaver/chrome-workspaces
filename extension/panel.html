@@ -1,5 +1,5 @@
 <!doctype html>
-<html>
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <link rel="stylesheet" href="xterm.css" />
@@ -44,31 +44,31 @@
     </svg>
     <nav id="list">
       <div id="list-header" class="section-header">
-        <button id="collapse" class="icon-btn" title="Collapse list" aria-label="Collapse list">
+        <button type="button" id="collapse" class="icon-btn" title="Collapse list" aria-label="Collapse list">
           <svg class="icon"><use href="#i-chevron-left" /></svg>
         </button>
         <span id="list-title" class="section-title">Workspaces</span>
-        <button id="shell-open" class="icon-btn" title="Terminal" aria-label="Terminal">
+        <button type="button" id="shell-open" class="icon-btn" title="Terminal" aria-label="Terminal">
           <svg class="icon"><use href="#i-terminal" /></svg>
         </button>
-        <button id="monitor-open" class="icon-btn" title="System monitor" aria-label="System monitor">
+        <button type="button" id="monitor-open" class="icon-btn" title="System monitor" aria-label="System monitor">
           <svg class="icon"><use href="#i-activity" /></svg>
         </button>
-        <button id="settings-open" class="icon-btn" title="Settings" aria-label="Settings">
+        <button type="button" id="settings-open" class="icon-btn" title="Settings" aria-label="Settings">
           <svg class="icon"><use href="#i-gear" /></svg>
         </button>
       </div>
       <input id="list-search" type="search" placeholder="Filter workspaces" aria-label="Filter workspaces" autocomplete="off" hidden />
       <ul id="workspaces"></ul>
-      <button id="new" title="New workspace"><span class="plus">+</span><span class="label">New workspace</span></button>
+      <button type="button" id="new" title="New workspace"><span class="plus">+</span><span class="label">New workspace</span></button>
       <section id="git" class="section">
         <div class="v-resizer" data-resize="git" title="Drag to resize, double-click to reset"></div>
         <div id="git-header" class="section-header">
-          <button id="git-toggle" class="icon-btn section-toggle" title="Collapse source control" aria-label="Collapse source control">
+          <button type="button" id="git-toggle" class="icon-btn section-toggle" title="Collapse source control" aria-label="Collapse source control">
             <svg class="icon"><use href="#i-chevron-down" /></svg>
           </button>
           <span id="git-title" class="section-title">Source control</span>
-          <button id="git-refresh" class="icon-btn" title="Refresh source control" aria-label="Refresh source control">
+          <button type="button" id="git-refresh" class="icon-btn" title="Refresh source control" aria-label="Refresh source control">
             <svg class="icon"><use href="#i-refresh" /></svg>
           </button>
         </div>
@@ -87,11 +87,11 @@
       <section id="reviews" class="section">
         <div class="v-resizer" data-resize="reviews" title="Drag to resize, double-click to reset"></div>
         <div id="reviews-header" class="section-header">
-          <button id="reviews-toggle" class="icon-btn section-toggle" title="Collapse review requests" aria-label="Collapse review requests">
+          <button type="button" id="reviews-toggle" class="icon-btn section-toggle" title="Collapse review requests" aria-label="Collapse review requests">
             <svg class="icon"><use href="#i-chevron-down" /></svg>
           </button>
           <span id="reviews-title" class="section-title">Review requests</span>
-          <button id="reviews-refresh" class="icon-btn" title="Refresh review requests" aria-label="Refresh review requests">
+          <button type="button" id="reviews-refresh" class="icon-btn" title="Refresh review requests" aria-label="Refresh review requests">
             <svg class="icon"><use href="#i-refresh" /></svg>
           </button>
         </div>
@@ -225,6 +225,7 @@
             <svg class="icon"><use href="#i-arrow-left" /></svg>Back
           </button>
         </div>
+        <!-- biome-ignore lint/a11y/useHeadingContent: filled in by git-view.ts when a diff opens -->
         <h2 id="diff-title"></h2>
         <div id="diff-meta"></div>
         <div id="diff-layout">
@@ -236,6 +237,7 @@
       <div id="palette" hidden>
         <div id="palette-box" role="dialog" aria-label="Command palette">
           <input id="palette-input" placeholder="Jump to a workspace or review, or run a command…" autocomplete="off" spellcheck="false" />
+          <!-- biome-ignore lint/a11y/noNoninteractiveElementToInteractiveRole: the palette is an ARIA listbox -->
           <ul id="palette-results" role="listbox"></ul>
           <div id="palette-foot">↑↓ to move · Enter to choose · Esc to close</div>
         </div>

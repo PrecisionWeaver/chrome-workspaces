@@ -79,7 +79,7 @@ describe('session tokens', () => {
         type: 'assistant',
         message: { id, usage: { input_tokens: 3, output_tokens: out, cache_creation_input_tokens: 100, cache_read_input_tokens: 1000 } },
       });
-    writeFileSync(file, [message('a', 50), message('a', 50), message('b', 25)].join('\n') + '\n');
+    writeFileSync(file, `${[message('a', 50), message('a', 50), message('b', 25)].join('\n')}\n`);
     h.transcripts[workspace.id] = file;
 
     let tokens: unknown = null;
@@ -135,7 +135,7 @@ describe('usage and cost', () => {
           usage: { input_tokens: 1_000_000, output_tokens: out, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
         },
       });
-    writeFileSync(file, [msg('a', 1_000_000), msg('a', 1_000_000)].join('\n') + '\n');
+    writeFileSync(file, `${[msg('a', 1_000_000), msg('a', 1_000_000)].join('\n')}\n`);
     h.transcripts[workspace.id] = file;
 
     for (let i = 0; i < 50; i++) {

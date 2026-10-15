@@ -29,7 +29,7 @@ const current: string = JSON.parse(readFileSync('package.json', 'utf8')).version
 const version = nextVersion(current, bump);
 if (run('git', ['tag', '--list', `v${version}`])) throw new Error(`Tag v${version} already exists.`);
 
-step('npm', ['run', 'format:check']);
+step('npm', ['run', 'check']);
 step('npm', ['run', 'typecheck']);
 step('npm', ['test']);
 step('npm', ['run', 'build:extension']);
@@ -38,8 +38,8 @@ const branch = `release/v${version}`;
 step('git', ['checkout', '-b', branch]);
 rewrite('package.json', version);
 rewrite('extension/manifest.json', version);
-// JSON.stringify's layout is not Prettier's, and CI checks formatting.
-step('npx', ['prettier', '--write', 'package.json', 'extension/manifest.json']);
+// JSON.stringify's layout is not Biome's, and CI checks formatting.
+step('npx', ['biome', 'format', '--write', 'package.json', 'extension/manifest.json']);
 step('git', ['commit', '-am', `release: v${version}`]);
 // The build above still carries the old version; rebuild so the unpacked extension in extension/dist matches.
 step('npm', ['run', 'build:extension']);
