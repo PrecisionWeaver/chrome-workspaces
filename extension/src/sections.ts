@@ -17,7 +17,10 @@ export function makeSectionsResizable(fitTerminal: () => void): void {
   void chrome.storage.local.get('sectionHeights').then(({ sectionHeights }) => {
     for (const section of ['git', 'reviews'] as const) {
       const height = (sectionHeights as Partial<Record<Section, number>> | undefined)?.[section];
-      if (typeof height === 'number') apply(section, (heights[section] = height));
+      if (typeof height === 'number') {
+        heights[section] = height;
+        apply(section, height);
+      }
     }
   });
 

@@ -23,7 +23,9 @@ export function listFollowingTabs(workspaces: readonly Workspace[], windowId: nu
   const slots = workspaces.flatMap((ws, index) => (byGroup.get(ws.groupId as number) === ws ? [index] : []));
   const ids = workspaces.map((ws) => ws.id);
   const next = [...ids];
-  slots.forEach((slot, i) => (next[slot] = ordered[i].id));
+  slots.forEach((slot, i) => {
+    next[slot] = ordered[i].id;
+  });
   return next.every((id, i) => id === ids[i]) ? null : next;
 }
 

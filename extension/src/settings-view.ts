@@ -70,7 +70,6 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
   let switchShortcut = '';
   const readShortcut = () => chrome.commands.getAll().then((commands) => (switchShortcut = commands.find((c) => c.name === 'next-workspace')?.shortcut ?? ''));
   void readShortcut();
-  let workspaceCount = 0;
   void loadPrefs().then((loaded) => {
     prefs = loaded;
     if (isOpen) render();
@@ -270,7 +269,9 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
 
     if (open) {
       const list = el('div', '', 'procs');
-      session.processes.forEach((proc, index) => list.append(processRow(session, proc, index === 0)));
+      session.processes.forEach((proc, index) => {
+        list.append(processRow(session, proc, index === 0));
+      });
       wrapper.append(list);
     }
     if (open) {

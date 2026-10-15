@@ -548,7 +548,14 @@ export type ControlToHelper =
   | { type: 'git'; id: string }
   | { type: 'gitCommit'; id: string; sha: string }
   /** A file's diff against HEAD, or its change in commit `sha`. */
-  | { type: 'gitDiff'; id: string; path: string; sha?: string; /** The file's change since the branch forked from its base. */ base?: boolean }
+  | {
+      type: 'gitDiff';
+      id: string;
+      path: string;
+      sha?: string;
+      /** The file's change since the branch forked from its base. */
+      base?: boolean;
+    }
   /** Stages or unstages `paths`; with no paths, everything. */
   | { type: 'gitStage'; id: string; paths: string[]; stage: boolean }
   /** Throws away the working-tree changes of `paths`, deleting untracked ones. */

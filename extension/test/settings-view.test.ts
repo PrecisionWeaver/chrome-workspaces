@@ -551,7 +551,7 @@ describe('the cards', () => {
       expect(bars()[11]!.querySelector<HTMLElement>('.usage-fill')!.style.height).toBe('25%');
       expect(bars()[3]!.querySelector<HTMLElement>('.usage-fill')!.style.height).toBe('0%');
       // The snapshot was taken at 08:00 local time (12:00 UTC).
-      expect(bars().map((bar, hour) => (bar.classList.contains('now') ? 'now' : bar.classList.contains('context') ? 'later' : 'past'))).toEqual([
+      expect(bars().map((bar, _hour) => (bar.classList.contains('now') ? 'now' : bar.classList.contains('context') ? 'later' : 'past'))).toEqual([
         ...Array(8).fill('past'),
         'now',
         ...Array(15).fill('later'),

@@ -3,7 +3,11 @@
 // Covers what PR templates use: headings, lists with tasks, tables, quotes, code, and inline styles.
 
 export type Inline =
-  { t: 'text'; v: string } | { t: 'code'; v: string } | { t: 'br' } | { t: 'strong' | 'em' | 'del'; c: Inline[] } | { t: 'link'; href: string; c: Inline[] };
+  | { t: 'text'; v: string }
+  | { t: 'code'; v: string }
+  | { t: 'br' }
+  | { t: 'strong' | 'em' | 'del'; c: Inline[] }
+  | { t: 'link'; href: string; c: Inline[] };
 
 export type Block =
   | { t: 'heading'; level: number; c: Inline[] }

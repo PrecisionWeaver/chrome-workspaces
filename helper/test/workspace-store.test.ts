@@ -123,7 +123,7 @@ describe('WorkspaceStore', () => {
 
   it('pins to the end of the pinned block at the top, and unpins to just below it', () => {
     const store = new WorkspaceStore(tempFile());
-    const [a, b, c, d] = ['a', 'b', 'c', 'd'].map((name) => store.create({ name, cwd: '/tmp' }));
+    const [_a, b, c, d] = ['a', 'b', 'c', 'd'].map((name) => store.create({ name, cwd: '/tmp' }));
     const names = () =>
       store
         .list()

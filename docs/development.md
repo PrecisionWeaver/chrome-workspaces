@@ -6,20 +6,21 @@
 npm test                  # vitest, ~1000 tests: real git repos and pty sessions, and a fake chrome.* with happy-dom for the extension
 npm run test:coverage     # the same, with a coverage floor (vitest.config.ts); CI runs this
 npm run typecheck         # tsc --noEmit, covers shared, helper, extension, scripts
-npm run format            # Prettier; CI runs format:check
+npm run format            # Biome formatter
+npm run check             # Biome format and lint (CI); `npm run lint` for lint alone
 npm run doctor            # checks the local install end to end
 npm run build:extension   # esbuild into extension/dist; reload the extension at chrome://extensions
 npm run helper            # run in the foreground (stop the agent first)
 npm run agent:restart     # restart the launchd helper; ends every open terminal
 ```
 
-Run `format`, `typecheck`, `test:coverage` and `build:extension` before committing. Extension-only changes need a reload in Chrome and no helper restart; helper changes need `agent:restart`.
+Run `format`, `check`, `typecheck`, `test:coverage` and `build:extension` before committing. Extension-only changes need a reload in Chrome and no helper restart; helper changes need `agent:restart`.
 
 ## Workflow
 
 - Work on a feature branch (`feat/...`, `fix/...`, `chore/...`), open a pull request, and merge it on GitHub once CI passes. Do not commit on `main`. Release branches are the exception: [releasing.md](releasing.md) fast-forwards them.
 - Commit when asked; push and merge when asked. Delete merged branches once the user agrees.
-- `.github/workflows/ci.yml` runs the format check, typecheck, tests with coverage and the build on every pull request and every branch push except `main`; `release.yml` runs the same checks on `main`.
+- `.github/workflows/ci.yml` runs the Biome check, typecheck, tests with coverage and the build on every pull request and every branch push except `main`; `release.yml` runs the same checks on `main`.
 - To release, see [releasing.md](releasing.md).
 
 ## Conventions
