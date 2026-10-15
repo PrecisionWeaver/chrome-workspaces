@@ -52,6 +52,8 @@ describe('formatDuration', () => {
   ])('%d seconds reads %s', (seconds, expected) => expect(formatDuration(seconds)).toBe(expected));
 });
 
+// The hour a snapshot was taken in is the person's own, so the zone is pinned: 12:00 UTC is 08:00 in Eastern Daylight Time.
+process.env.TZ = 'America/New_York';
 const NOW = Date.parse('2026-03-10T12:00:00.000Z');
 
 let fake: ReturnType<typeof installChrome>;
@@ -481,15 +483,17 @@ describe('the cards', () => {
       await open(makeSnapshot({ usage: usage({ daily: sixty(), hourly }) }));
       await pick('Today');
       expect(bars()).toHaveLength(24);
-      expect(bars()[9]!.title).toBe('09:00 UTC\n400 tokens · ~$4.00');
+      expect(bars()[9]!.title).toBe('09:00\n400 tokens · ~$4.00');
       expect(bars()[9]!.querySelector<HTMLElement>('.usage-fill')!.style.height).toBe('100%');
       expect(bars()[11]!.querySelector<HTMLElement>('.usage-fill')!.style.height).toBe('25%');
       expect(bars()[3]!.querySelector<HTMLElement>('.usage-fill')!.style.height).toBe('0%');
-      // The snapshot was taken at 12:00 UTC.
-      expect(
-        bars().map((bar, hour) => (bar.classList.contains('now') ? 'now' : bar.classList.contains('context') ? 'later' : 'past' + (hour > 12 ? '!' : ''))),
-      ).toEqual([...Array(12).fill('past'), 'now', ...Array(11).fill('later')]);
-      expect(text('.usage-axis span', card('Usage'))).toEqual(['00:00', 'peak 400', '23:00 UTC']);
+      // The snapshot was taken at 08:00 local time (12:00 UTC).
+      expect(bars().map((bar, hour) => (bar.classList.contains('now') ? 'now' : bar.classList.contains('context') ? 'later' : 'past'))).toEqual([
+        ...Array(8).fill('past'),
+        'now',
+        ...Array(15).fill('later'),
+      ]);
+      expect(text('.usage-axis span', card('Usage'))).toEqual(['00:00', 'peak 400', '23:00']);
     });
 
     it('draws today against its week when the helper sends no hours', async () => {

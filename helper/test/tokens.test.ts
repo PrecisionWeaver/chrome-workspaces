@@ -4,6 +4,9 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { TranscriptTokens, usageFromLine } from '../src/tokens';
 
+// Days and hours are the person's own, so these tests pin a zone: Eastern Daylight Time, four hours behind UTC, until November.
+process.env.TZ = 'America/New_York';
+
 const line = (id: string, usage: Record<string, number>, extra: Record<string, unknown> = {}, model = 'claude-opus-5-5') =>
   JSON.stringify({ type: 'assistant', message: { id, usage, model }, ...extra });
 const use = (input: number, output: number, write = 0, read = 0) => ({
@@ -18,6 +21,28 @@ const transcript = (lines: string[]) => {
   return file;
 };
 
+describe('usageFromLine in the local time zone', () => {
+  const at = (timestamp: string) => usageFromLine(line('m', use(1, 1), { timestamp }));
+
+  it('puts a message on the day and hour the person lived it, not on the UTC ones', () => {
+    // Just after UTC midnight is still yesterday evening in Eastern time.
+    expect(at('2026-10-08T00:00:00Z')).toMatchObject({ day: '2026-10-07', hour: 20 });
+    expect(at('2026-10-08T03:59:59Z')).toMatchObject({ day: '2026-10-07', hour: 23 });
+    expect(at('2026-10-08T04:00:00Z')).toMatchObject({ day: '2026-10-08', hour: 0 });
+    expect(at('2026-10-08T23:59:59Z')).toMatchObject({ day: '2026-10-08', hour: 19 });
+  });
+
+  it('follows the clock change: the same UTC time is an hour later on the wall in winter', () => {
+    expect(at('2026-12-01T05:00:00Z')).toMatchObject({ day: '2026-12-01', hour: 0 });
+    expect(at('2026-10-01T05:00:00Z')).toMatchObject({ day: '2026-10-01', hour: 1 });
+  });
+
+  it('keeps a bare date as the day it says, with no hour, and rejects what is not a date', () => {
+    expect(at('2026-10-08')).toMatchObject({ day: '2026-10-08', hour: null });
+    for (const bad of ['', 'garbage', '2026-10-08Tgarbage', '2026-13-45T10:00:00Z']) expect(at(bad)).toMatchObject({ day: '', hour: null });
+  });
+});
+
 describe('usageFromLine', () => {
   it('reads the four figures and the message id, and ignores lines without usage', () => {
     expect(usageFromLine(line('m1', use(2, 482, 64033, 26853), { timestamp: '2026-10-08T14:22:01.000Z' }))).toEqual({
@@ -25,14 +50,9 @@ describe('usageFromLine', () => {
       usage: { input: 2, output: 482, cacheWrite: 64033, cacheRead: 26853 },
       model: 'claude-opus-5-5',
       day: '2026-10-08',
-      hour: 14,
+      hour: 10,
     });
     expect(usageFromLine(line('m2', use(1, 1), { timestamp: 'garbage' }))).toMatchObject({ day: '', hour: null });
-    expect(usageFromLine(line('m3', use(1, 1), { timestamp: '2026-10-08T00:00:00Z' }))).toMatchObject({ day: '2026-10-08', hour: 0 });
-    expect(usageFromLine(line('m4', use(1, 1), { timestamp: '2026-10-08T23:59:59Z' }))).toMatchObject({ hour: 23 });
-    // A date alone says which day, but not which hour.
-    expect(usageFromLine(line('m5', use(1, 1), { timestamp: '2026-10-08' }))).toMatchObject({ day: '2026-10-08', hour: null });
-    expect(usageFromLine(line('m6', use(1, 1), { timestamp: '2026-10-08T24:00:00Z' }))).toMatchObject({ hour: null });
     expect(usageFromLine(JSON.stringify({ type: 'user', message: { content: 'hi' } }))).toBeNull();
     expect(usageFromLine('{"usage": cut off')).toBeNull();
     expect(usageFromLine(JSON.stringify({ message: { usage: use(1, 1) } }))).toBeNull();
@@ -52,10 +72,10 @@ describe('TranscriptTokens buckets', () => {
   it('groups usage by model and day, counting a repeated message once and keeping its model and day', async () => {
     const tokens = new TranscriptTokens();
     const file = transcript([
-      line('a', use(1, 10), { timestamp: '2026-10-07T23:59:00Z' }),
-      line('a', use(1, 10), { timestamp: '2026-10-07T23:59:01Z' }),
-      line('b', use(2, 20), { timestamp: '2026-10-08T00:01:00Z' }),
-      line('c', use(4, 40), { timestamp: '2026-10-08T09:00:00Z' }, 'claude-sonnet-4'),
+      line('a', use(1, 10), { timestamp: '2026-10-08T03:59:00Z' }),
+      line('a', use(1, 10), { timestamp: '2026-10-08T03:59:01Z' }),
+      line('b', use(2, 20), { timestamp: '2026-10-08T04:01:00Z' }),
+      line('c', use(4, 40), { timestamp: '2026-10-08T13:00:00Z' }, 'claude-sonnet-4'),
     ]);
     await tokens.refresh(file);
     const buckets = tokens
@@ -86,7 +106,7 @@ describe('TranscriptTokens hours', () => {
       .sort();
     expect(buckets).toEqual([
       ['', null, 4, 40],
-      ['2026-10-08', 10, 3, 32],
+      ['2026-10-08', 6, 3, 32],
     ]);
   });
 });
