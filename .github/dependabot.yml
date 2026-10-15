@@ -11,3 +11,7 @@ updates:
     groups:
       dev-tools:
         dependency-type: development
+    ignore:
+      # engines says Node >=22.18, so newer typings would allow APIs that Node 22 lacks.
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
