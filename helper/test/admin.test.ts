@@ -229,7 +229,9 @@ describe('updates', () => {
     const origin = join(root, 'origin.git');
     git(root, 'init', '-q', '--bare', '-b', 'main', origin);
     const seed = join(root, 'seed');
-    git(root, 'clone', '-q', origin, seed);
+    // Not a clone: git warns about cloning an empty repository.
+    git(root, 'init', '-q', '-b', 'main', seed);
+    git(seed, 'remote', 'add', 'origin', origin);
     writeFileSync(join(seed, 'a.txt'), '1\n');
     git(seed, 'add', '.');
     git(seed, 'commit', '-qm', 'first');

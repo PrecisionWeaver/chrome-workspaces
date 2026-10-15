@@ -14,7 +14,13 @@ export interface RateWindow {
   used_percentage: number;
   /** Unix epoch seconds. */
   resets_at: number;
+  /** A spend limit's dollars and period, which claude sends on their own schedule and can leave out. */
+  used_usd?: number;
+  limit_usd?: number;
+  period?: 'daily' | 'weekly' | 'monthly';
 }
+
+const PERIODS = ['daily', 'weekly', 'monthly'];
 
 /** What `hooks/status-line.ts` saves: the newest figure for each window, and when one last arrived. */
 export interface PlanUsageFile {
@@ -24,10 +30,16 @@ export interface PlanUsageFile {
 
 function windowOf(value: unknown): RateWindow | null {
   if (typeof value !== 'object' || value === null) return null;
-  const { used_percentage, resets_at } = value as { used_percentage?: unknown; resets_at?: unknown };
+  const { used_percentage, resets_at, used_usd, limit_usd, period } = value as Record<string, unknown>;
   if (typeof used_percentage !== 'number' || !Number.isFinite(used_percentage)) return null;
   if (typeof resets_at !== 'number' || !Number.isFinite(resets_at)) return null;
-  return { used_percentage, resets_at };
+  const found: RateWindow = { used_percentage, resets_at };
+  if (typeof used_usd === 'number' && Number.isFinite(used_usd) && typeof limit_usd === 'number' && Number.isFinite(limit_usd) && limit_usd > 0) {
+    found.used_usd = used_usd;
+    found.limit_usd = limit_usd;
+    if (typeof period === 'string' && PERIODS.includes(period)) found.period = period as RateWindow['period'];
+  }
+  return found;
 }
 
 /**
@@ -40,7 +52,15 @@ export function mergeRateLimits(saved: unknown, incoming: unknown): Record<strin
     if (typeof source !== 'object' || source === null) continue;
     for (const { id } of WINDOWS) {
       const found = windowOf((source as Record<string, unknown>)[id]);
-      if (found) merged[id] = found;
+      if (!found) continue;
+      // The dollars come about five minutes apart from the percentage, so a message without them keeps the last ones for the same period.
+      const before = merged[id];
+      if (found.used_usd === undefined && before?.used_usd !== undefined && before.resets_at === found.resets_at) {
+        found.used_usd = before.used_usd;
+        found.limit_usd = before.limit_usd;
+        found.period = before.period;
+      }
+      merged[id] = found;
     }
   }
   return merged;
@@ -56,7 +76,11 @@ export function planUsageOf(file: unknown, now: number): PlanUsage {
   for (const { id, label } of WINDOWS) {
     const found = windows[id];
     if (!found || found.resets_at * 1000 <= now) continue;
-    limits.push({ id, label, percent: Math.max(0, found.used_percentage), resetsAt: new Date(found.resets_at * 1000).toISOString() });
+    const limit: PlanLimit = { id, label, percent: Math.max(0, found.used_percentage), resetsAt: new Date(found.resets_at * 1000).toISOString() };
+    if (found.used_usd !== undefined && found.limit_usd !== undefined && found.period) {
+      limit.spend = { usedUsd: found.used_usd, limitUsd: found.limit_usd, period: found.period };
+    }
+    limits.push(limit);
   }
   return { limits, updatedAt: limits.length && typeof saved_at === 'string' ? saved_at : null };
 }

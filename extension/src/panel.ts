@@ -28,6 +28,8 @@ import { createSettingsView } from './settings-view';
 import { makeSectionsResizable } from './sections';
 import { noteReviewTab, openInWorkspace } from './tabs';
 import { createLauncher } from './launcher';
+import { createListResizer } from './list-resizer';
+import { terminalTheme } from './terminal-theme';
 import { loadSelection, onSelectionChange, select, shownIn, type Selection } from './selection';
 import { showOnly, switchTo } from './windows';
 
@@ -47,14 +49,6 @@ const fit = new FitAddon();
 term.loadAddon(fit);
 term.open(terminalEl);
 
-const DARK_TERMINAL = { background: '#1e1e1e' };
-const LIGHT_TERMINAL = {
-  background: '#ffffff',
-  foreground: '#1f2328',
-  cursor: '#1f2328',
-  cursorAccent: '#ffffff',
-  selectionBackground: 'rgba(31, 111, 235, 0.25)',
-};
 const systemDark = window.matchMedia('(prefers-color-scheme: dark)');
 let appearance: Prefs | null = null;
 
@@ -65,8 +59,8 @@ function applyAppearance(prefs: Prefs | null = appearance): void {
   const theme = resolveTheme(prefs.theme, systemDark.matches);
   document.documentElement.dataset.theme = theme;
   document.documentElement.dataset.density = prefs.density;
-  term.options.theme = theme === 'light' ? LIGHT_TERMINAL : DARK_TERMINAL;
-  tools.setTheme(theme === 'light' ? LIGHT_TERMINAL : DARK_TERMINAL);
+  term.options.theme = terminalTheme(theme);
+  tools.setTheme(terminalTheme(theme));
 }
 void loadPrefs().then(applyAppearance);
 onPrefsChange(applyAppearance);
@@ -653,35 +647,11 @@ $<HTMLButtonElement>('collapse').addEventListener('click', () => {
   fitTerminal();
 });
 
+const listResizer = createListResizer($<HTMLDivElement>('list-resizer'), fitTerminal);
+
 void chrome.storage.local.get(['listCollapsed', 'listWidth']).then(({ listCollapsed, listWidth }) => {
   document.body.classList.toggle('collapsed', listCollapsed === true);
-  if (typeof listWidth === 'number') setListWidth(listWidth);
-  fitTerminal();
-});
-
-const MIN_LIST_WIDTH = 140;
-const MAX_LIST_WIDTH = 520;
-const resizer = $<HTMLDivElement>('list-resizer');
-
-function setListWidth(width: number): number {
-  const clamped = Math.min(MAX_LIST_WIDTH, Math.max(MIN_LIST_WIDTH, Math.round(width)));
-  document.body.style.setProperty('--list-width', `${clamped}px`);
-  return clamped;
-}
-
-resizer.addEventListener('pointerdown', (event) => {
-  resizer.setPointerCapture(event.pointerId);
-  resizer.classList.add('dragging');
-});
-
-resizer.addEventListener('pointermove', (event) => {
-  if (resizer.hasPointerCapture(event.pointerId)) setListWidth(event.clientX);
-});
-
-resizer.addEventListener('pointerup', (event) => {
-  resizer.releasePointerCapture(event.pointerId);
-  resizer.classList.remove('dragging');
-  void chrome.storage.local.set({ listWidth: setListWidth(event.clientX) });
+  if (typeof listWidth === 'number') listResizer.setWidth(listWidth);
   fitTerminal();
 });
 

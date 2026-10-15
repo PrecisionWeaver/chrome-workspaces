@@ -131,6 +131,8 @@ export interface PlanLimit {
   percent: number;
   /** When it resets; always in the future, since a window that has passed is dropped. */
   resetsAt: string;
+  /** Estimated spend against a dollar limit, when claude reports it (a gateway's spend limit, on newer versions). */
+  spend?: { usedUsd: number; limitUsd: number; period: 'daily' | 'weekly' | 'monthly' };
 }
 
 /** The plan's limits as claude last reported them to a workspace's status line; empty when none has yet, or the plan has none. */

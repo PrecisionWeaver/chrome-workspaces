@@ -2,7 +2,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ControlToHelper, SystemSnapshot, UpdateStatus, UsageDay, UsageHour } from '../../shared/protocol';
 import type { TimelineEvent } from '../../shared/timeline';
-import { createSettingsView, formatBytes, formatDuration, formatKb, formatTokens, newTokens, type SettingsView } from '../src/settings-view';
+import { formatBytes, formatDuration, formatKb, formatTokens, newTokens } from '../src/format';
+import { createSettingsView, type SettingsView } from '../src/settings-view';
 import { installChrome } from './chrome-mock';
 import { isolateDocumentListeners, loadPanelHtml, makeSession, makeSnapshot, makeUsageDay, makeUsageHours } from './fixtures';
 
@@ -120,6 +121,35 @@ describe('plan usage card', () => {
     expect([...plan.querySelectorAll<HTMLElement>('.plan-meter-fill')].map((n) => n.style.width)).toEqual(['23.5%', '95%']);
     expect([...plan.querySelectorAll('.plan-meter')].map((n) => n.classList.contains('bad'))).toEqual([false, true]);
     expect(plan.textContent).toContain('Reported 5m ago.');
+  });
+
+  it('stops at 100% when claude reports a little past it', async () => {
+    await open(
+      makeSnapshot({
+        plan: { limits: [{ id: 'five_hour', label: 'Current session', percent: 104.2, resetsAt: resets(30) }], updatedAt: '2026-03-10T11:55:00.000Z' },
+      }),
+    );
+    const plan = card('Plan usage');
+    expect(plan.querySelector('.plan-limit-percent')!.textContent).toBe('100% used');
+    expect(plan.querySelector<HTMLElement>('.plan-meter-fill')!.style.width).toBe('100%');
+    expect(plan.querySelector('.plan-meter')!.classList.contains('bad')).toBe(true);
+    expect(plan.querySelector('.plan-meter')!.getAttribute('aria-valuenow')).toBe('100');
+  });
+
+  it("shows a spend limit's dollars beside its reset", async () => {
+    await open(
+      makeSnapshot({
+        plan: {
+          limits: [
+            { id: 'spend_limit', label: 'Spend limit', percent: 112, resetsAt: resets(60 * 24 * 3), spend: { usedUsd: 56, limitUsd: 50, period: 'monthly' } },
+          ],
+          updatedAt: '2026-03-10T11:55:00.000Z',
+        },
+      }),
+    );
+    const plan = card('Plan usage');
+    expect(plan.querySelector('.plan-limit-percent')!.textContent).toBe('100% used');
+    expect(plan.querySelector('.plan-limit-reset')!.textContent).toMatch(/^\$56 \/ \$50 spent \(monthly\) · Resets /);
   });
 
   it('says what is needed when there are no figures', async () => {
