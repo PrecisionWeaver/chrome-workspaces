@@ -19,6 +19,22 @@ describe('mergeRateLimits', () => {
     });
   });
 
+  it("keeps a spend limit's dollars across a message that has only the percentage, until its period turns over", () => {
+    const dollars = { used_percentage: 60, resets_at: at(900), used_usd: 30, limit_usd: 50, period: 'weekly' };
+    expect(mergeRateLimits({ spend_limit: dollars }, { spend_limit: { used_percentage: 64, resets_at: at(900) } })).toEqual({
+      spend_limit: { ...dollars, used_percentage: 64 },
+    });
+    expect(mergeRateLimits({ spend_limit: dollars }, { spend_limit: { used_percentage: 1, resets_at: at(9000) } })).toEqual({
+      spend_limit: { used_percentage: 1, resets_at: at(9000) },
+    });
+  });
+
+  it('ignores dollars that are not a usable amount and period', () => {
+    expect(mergeRateLimits(null, { spend_limit: { used_percentage: 5, resets_at: at(9), used_usd: 1, limit_usd: 0, period: 'daily' } })).toEqual({
+      spend_limit: { used_percentage: 5, resets_at: at(9) },
+    });
+  });
+
   it('skips a window that is missing a figure', () => {
     expect(mergeRateLimits(null, { five_hour: { used_percentage: '10', resets_at: at(1) }, seven_day: { used_percentage: 5 } })).toEqual({});
     expect(mergeRateLimits('nope', undefined)).toEqual({});
@@ -26,6 +42,16 @@ describe('mergeRateLimits', () => {
 });
 
 describe('planUsageOf', () => {
+  it("carries a spend limit's dollars and period", () => {
+    const file = {
+      saved_at: '2026-03-10T11:58:00.000Z',
+      rate_limits: { spend_limit: { used_percentage: 112, resets_at: at(60), used_usd: 56, limit_usd: 50, period: 'monthly' } },
+    };
+    expect(planUsageOf(file, NOW).limits).toEqual([
+      { id: 'spend_limit', label: 'Spend limit', percent: 112, resetsAt: '2026-03-10T13:00:00.000Z', spend: { usedUsd: 56, limitUsd: 50, period: 'monthly' } },
+    ]);
+  });
+
   it('lists the windows in /usage order with their reset times, and drops one whose reset has passed', () => {
     const file = {
       saved_at: '2026-03-10T11:58:00.000Z',
