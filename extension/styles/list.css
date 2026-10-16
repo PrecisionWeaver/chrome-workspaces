@@ -490,6 +490,7 @@ body.collapsed #new .label {
 }
 
 .review .merge,
+.review .approved,
 .review .rereview,
 .review .ci {
   padding: 0 5px;
@@ -516,6 +517,11 @@ body.collapsed #new .label {
 .review .merge.blocked {
   background: color-mix(in srgb, var(--wait) 16%, transparent);
   color: var(--wait);
+}
+
+.review .approved {
+  background: color-mix(in srgb, var(--good) 18%, transparent);
+  color: var(--good);
 }
 
 .review .rereview {

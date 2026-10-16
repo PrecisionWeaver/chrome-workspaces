@@ -364,6 +364,8 @@ export interface ReviewRequest {
   mergeReason: string | null;
   /** Your last review asked for changes or commented, and the author has pushed since. */
   needsReReview: boolean;
+  /** Your latest review on the PR is an approval. */
+  approved: boolean;
   /** Null when the PR has no checks, or the lookup that carries them failed. */
   ci: CiState | null;
 }

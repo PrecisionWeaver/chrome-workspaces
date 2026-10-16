@@ -176,6 +176,11 @@ export function createLauncher({ send, create, closeCreate, selectedUrl, openWor
           merge.title = MERGE_TITLES[item.merge] ?? `Cannot merge yet: ${item.mergeReason ?? 'blocked'}`;
           head.append(merge);
         }
+        if (item.approved) {
+          const approved = el('span', 'Approved', 'approved');
+          approved.title = 'You approved this PR';
+          head.append(approved);
+        }
         if (item.needsReReview) {
           const again = el('span', 'New commits', 'rereview');
           again.title = 'You reviewed this PR, and the author has pushed since';

@@ -101,6 +101,12 @@ describe('the list', () => {
     expect(rows().map((row) => row.querySelector('.ci')?.textContent ?? null)).toEqual(['Checks failing', 'Checks passing', 'Checks running', null]);
   });
 
+  it('marks a PR you approved', async () => {
+    await start();
+    launcher.renderReviews(state([makeReview({ number: 1, approved: true }), makeReview({ number: 2 })]), []);
+    expect(rows().map((row) => row.querySelector('.approved')?.textContent ?? null)).toEqual(['Approved', null]);
+  });
+
   it('leaves out a checks tag that Can merge, or a Checks failing reason, already says', async () => {
     await start();
     launcher.renderReviews(

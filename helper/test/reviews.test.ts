@@ -49,6 +49,7 @@ describe('parseReviewRequests', () => {
         merge: 'draft',
         mergeReason: null,
         needsReReview: false,
+        approved: false,
         ci: null,
       },
       {
@@ -63,6 +64,7 @@ describe('parseReviewRequests', () => {
         merge: 'unknown',
         mergeReason: null,
         needsReReview: false,
+        approved: false,
         ci: null,
       },
     ]);
@@ -352,6 +354,24 @@ const lookup = (url: string, extra: Record<string, unknown> = {}) => ({
 const review = (login: string, state: string, oid: string | null) => ({ author: { login }, state, commit: oid === null ? null : { oid } });
 const answer = (viewer: string | null, ...lookups: ReturnType<typeof lookup>[]) =>
   JSON.stringify({ data: { ...(viewer ? { viewer: { login: viewer } } : {}), ...Object.fromEntries(lookups.map((l, i) => [`r${i}`, l])) } });
+
+describe('a PR you approved', () => {
+  const approved = (extra: Record<string, unknown>, viewer: string | null = 'me') =>
+    parseMergeStatuses(answer(viewer, lookup(URL1, extra))).get(URL1)?.approved;
+  const reviews = (...nodes: ReturnType<typeof review>[]) => ({ latestReviews: { nodes } });
+
+  it('is true when your latest review is an approval, whatever the case of your login', () => {
+    expect(approved(reviews(review('me', 'APPROVED', 'old')))).toBe(true);
+    expect(approved(reviews(review('ME', 'APPROVED', 'new')), 'me')).toBe(true);
+  });
+
+  it("is false for another reviewer's approval, your other reviews, or an unknown viewer", () => {
+    expect(approved(reviews(review('them', 'APPROVED', 'new')))).toBe(false);
+    expect(approved(reviews(review('me', 'CHANGES_REQUESTED', 'new')))).toBe(false);
+    expect(approved(reviews(review('me', 'APPROVED', 'new')), null)).toBe(false);
+    expect(approved({})).toBe(false);
+  });
+});
 
 describe('a PR that needs another look', () => {
   const reviews = (...nodes: ReturnType<typeof review>[]) => ({ latestReviews: { nodes } });
