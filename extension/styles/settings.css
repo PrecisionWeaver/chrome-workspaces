@@ -50,21 +50,31 @@
   color: var(--bad);
 }
 
+/* One column in the side panel; more as it widens. "dense" lets a later short card fill the gap a wide one leaves. */
 #settings-body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+  grid-auto-flow: row dense;
+  align-content: start;
   gap: 12px;
-  max-width: 900px;
+  max-width: 1440px;
 }
 
 .settings-card {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
   padding: 12px 14px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface);
+}
+
+.settings-card.wide {
+  grid-column: 1 / -1;
 }
 
 .settings-card h3 {
@@ -417,6 +427,12 @@
   flex-wrap: wrap;
   gap: 6px;
   margin-top: 10px;
+}
+
+/* Cards in a row share its height, so a card's closing buttons sit at the bottom, level with its neighbours'. */
+.settings-card > .settings-actions:last-child {
+  margin-top: auto;
+  padding-top: 10px;
 }
 
 .settings-btn {
