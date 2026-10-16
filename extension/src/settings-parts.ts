@@ -20,6 +20,12 @@ export const card = (title: string, ...children: Node[]): HTMLElement => {
   return node;
 };
 
+/** Spans a card across every column once the view is wide enough for more than one. */
+export const wide = (node: HTMLElement): HTMLElement => {
+  node.classList.add('wide');
+  return node;
+};
+
 export const actions = (...buttons: Node[]): HTMLElement => {
   const node = el('div', '', 'settings-actions');
   node.append(...buttons);

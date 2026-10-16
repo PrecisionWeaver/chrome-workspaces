@@ -10,7 +10,7 @@ import type {
   UpdateStatus,
 } from '../../shared/protocol';
 import { el } from './dom';
-import { card, actions, row } from './settings-parts';
+import { card, actions, row, wide } from './settings-parts';
 import { planCard, usageCard } from './settings-usage';
 import { formatBytes, formatDuration, formatKb, formatTokens, newTokens } from './format';
 import { DENSITIES, THEMES } from '../../shared/keynav';
@@ -568,16 +568,17 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       body.replaceChildren(el('div', error ? `Could not read the system: ${error}` : 'Loading…', 'settings-empty'));
       return;
     }
+    // Checklists, the session list and the config read best across the whole view; the rest share rows.
     const cards = [
-      ...[setupCard(snapshot), warningsCard(snapshot)].filter((card): card is HTMLElement => card !== null),
+      ...[setupCard(snapshot), warningsCard(snapshot)].filter((card): card is HTMLElement => card !== null).map(wide),
       preferencesCard(),
       helperCard(snapshot),
       updatesCard(),
       planCard(snapshot),
       usageCard(snapshot, prefs.usageRange, setUsageRange),
-      sessionsCard(snapshot),
+      wide(sessionsCard(snapshot)),
       housekeepingCard(snapshot),
-      configCard(snapshot),
+      wide(configCard(snapshot)),
       diagnosticsCard(snapshot),
     ];
     // Detaching a focused dropdown closes it, so its card stays put, a poll behind, until focus leaves.
