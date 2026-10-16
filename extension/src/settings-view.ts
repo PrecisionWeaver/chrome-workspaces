@@ -10,7 +10,7 @@ import type {
   UpdateStatus,
 } from '../../shared/protocol';
 import { el } from './dom';
-import { card, actions, row, wide } from './settings-parts';
+import { card, actions, row } from './settings-parts';
 import { planCard, usageCard } from './settings-usage';
 import { formatBytes, formatDuration, formatKb, formatTokens, newTokens } from './format';
 import { DENSITIES, THEMES } from '../../shared/keynav';
@@ -54,6 +54,7 @@ const STATUS_LABEL = { working: 'working', needs_input: 'needs input', idle: 'id
 export function createSettingsView({ send, onToggle }: SettingsViewOptions): SettingsView {
   const section = $<HTMLElement>('settings');
   const body = $<HTMLDivElement>('settings-body');
+  const grid = $<HTMLDivElement>('settings-cards');
   const resultEl = $<HTMLDivElement>('settings-result');
   const updatedEl = $<HTMLSpanElement>('settings-updated');
 
@@ -565,32 +566,31 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
     const scroll = body.scrollTop;
     updatedEl.textContent = snapshot ? `updated ${new Date(snapshot.takenAt).toLocaleTimeString()}` : '';
     if (!snapshot) {
-      body.replaceChildren(el('div', error ? `Could not read the system: ${error}` : 'Loading…', 'settings-empty'));
+      grid.replaceChildren(el('div', error ? `Could not read the system: ${error}` : 'Loading…', 'settings-empty'));
       return;
     }
-    // Checklists, the session list and the config read best across the whole view; the rest share rows.
     const cards = [
-      ...[setupCard(snapshot), warningsCard(snapshot)].filter((card): card is HTMLElement => card !== null).map(wide),
+      ...[setupCard(snapshot), warningsCard(snapshot)].filter((card): card is HTMLElement => card !== null),
       preferencesCard(),
       helperCard(snapshot),
       updatesCard(),
       planCard(snapshot),
       usageCard(snapshot, prefs.usageRange, setUsageRange),
-      wide(sessionsCard(snapshot)),
+      sessionsCard(snapshot),
       housekeepingCard(snapshot),
-      wide(configCard(snapshot)),
+      configCard(snapshot),
       diagnosticsCard(snapshot),
     ];
     // Detaching a focused dropdown closes it, so its card stays put, a poll behind, until focus leaves.
     const active = document.activeElement;
-    const held = active instanceof HTMLSelectElement && body.contains(active) ? active.closest<HTMLElement>('.settings-card') : null;
+    const held = active instanceof HTMLSelectElement && grid.contains(active) ? active.closest<HTMLElement>('.settings-card') : null;
     const at = held ? cards.findIndex((card) => card.dataset.key === held.dataset.key) : -1;
     if (held && at >= 0) {
-      for (const child of [...body.children]) if (child !== held) child.remove();
+      for (const child of [...grid.children]) if (child !== held) child.remove();
       held.before(...cards.slice(0, at));
       held.after(...cards.slice(at + 1));
     } else {
-      body.replaceChildren(...cards);
+      grid.replaceChildren(...cards);
     }
     body.scrollTop = scroll;
   }
