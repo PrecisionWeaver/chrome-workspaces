@@ -79,6 +79,7 @@ export function makeReview(overrides: Partial<ReviewRequest> = {}): ReviewReques
     merge: 'review',
     mergeReason: null,
     needsReReview: false,
+    approved: false,
     ci: null,
     ...overrides,
   };

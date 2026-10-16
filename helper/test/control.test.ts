@@ -35,6 +35,7 @@ const review: ReviewRequest = {
   merge: 'unknown',
   mergeReason: null,
   needsReReview: false,
+  approved: false,
   ci: null,
 };
 

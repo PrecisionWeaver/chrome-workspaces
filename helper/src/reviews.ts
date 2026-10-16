@@ -82,7 +82,7 @@ function standing(mergeStateStatus: string, reviewDecision: string | null): Stan
   return { merge: 'unknown', mergeReason: null };
 }
 
-type Lookup = Standing & Pick<ReviewRequest, 'needsReReview' | 'ci'>;
+type Lookup = Standing & Pick<ReviewRequest, 'needsReReview' | 'approved' | 'ci'>;
 
 interface PullRequestNode {
   url: string;
@@ -112,6 +112,12 @@ function needsReReview(pr: PullRequestNode, viewer: string | undefined): boolean
   return reviewed !== '' && !!pr.headRefOid && reviewed !== pr.headRefOid;
 }
 
+/** Your latest review on the PR is an approval. */
+function approvedByViewer(pr: PullRequestNode, viewer: string | undefined): boolean {
+  const mine = pr.latestReviews?.nodes?.find((review) => viewer !== undefined && review.author?.login.toLowerCase() === viewer.toLowerCase());
+  return mine?.state === 'APPROVED';
+}
+
 /** Reads the response of `mergeStatusQuery`; PRs missing from it, e.g. in a repo the token cannot see, stay unknown. */
 export function parseMergeStatuses(json: string): Map<string, Lookup> {
   const parsed = JSON.parse(json) as {
@@ -122,7 +128,12 @@ export function parseMergeStatuses(json: string): Map<string, Lookup> {
   for (const lookup of Object.values(parsed.data ?? {})) {
     const pr = (lookup as { pullRequest?: PullRequestNode | null } | null)?.pullRequest;
     if (!pr) continue;
-    result.set(pr.url, { ...standing(pr.mergeStateStatus, pr.reviewDecision), needsReReview: needsReReview(pr, viewer), ci: ciOf(pr) });
+    result.set(pr.url, {
+      ...standing(pr.mergeStateStatus, pr.reviewDecision),
+      needsReReview: needsReReview(pr, viewer),
+      approved: approvedByViewer(pr, viewer),
+      ci: ciOf(pr),
+    });
   }
   return result;
 }
@@ -170,6 +181,7 @@ export function parseReviewRequests(jsons: readonly string[]): ReviewRequest[] {
       merge: (pr.isDraft ? 'draft' : 'unknown') as MergeState,
       mergeReason: null,
       needsReReview: false,
+      approved: false,
       ci: null,
     }))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
@@ -303,7 +315,9 @@ export class ReviewsPoller {
         const fresh = statuses.get(item.url);
         const last = before.get(item.url);
         // The review and check signals are the lookup's whenever it answered, whatever the merge state says.
-        const signals = fresh ? { needsReReview: fresh.needsReReview, ci: fresh.ci } : { needsReReview: last?.needsReReview ?? false, ci: last?.ci ?? null };
+        const signals = fresh
+          ? { needsReReview: fresh.needsReReview, approved: fresh.approved, ci: fresh.ci }
+          : { needsReReview: last?.needsReReview ?? false, approved: last?.approved ?? false, ci: last?.ci ?? null };
         // A draft is a draft whatever else GitHub reports; the search result already says so.
         if (item.isDraft) return { ...item, ...signals };
         if (fresh && fresh.merge !== 'unknown') return { ...item, ...fresh };
