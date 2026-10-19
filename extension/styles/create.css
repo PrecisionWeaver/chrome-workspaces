@@ -421,6 +421,10 @@
 }
 
 #create-details .glance summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  list-style: none;
   color: var(--muted);
   cursor: pointer;
   user-select: none;

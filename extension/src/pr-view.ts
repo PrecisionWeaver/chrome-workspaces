@@ -1,5 +1,5 @@
 import { PR_COMMITS_SHOWN, PR_FILES_SHOWN, type PrDetails, type PrThread, type ReviewRequest } from '../../shared/protocol';
-import { el } from './dom';
+import { caret, el } from './dom';
 import { renderMarkdown } from './markdown-view';
 
 export const repoName = (review: ReviewRequest) => review.repo.split('/')[1] ?? review.repo;
@@ -102,13 +102,20 @@ export function renderDetails(pr: PrDetails): Node[] {
   return nodes;
 }
 
+/** A <details> heading led by the shared caret, in place of the browser's own triangle. */
+function disclosure(text: string): HTMLElement {
+  const summary = el('summary', '');
+  summary.append(caret(false), text);
+  return summary;
+}
+
 /** Files and commits as collapsed counts, so the details stay brief until you open one. */
 function glanceLists(pr: PrDetails): Node[] {
   const lists: Node[] = [];
 
   if (pr.files.length) {
     const files = el('details', '', 'glance');
-    files.append(el('summary', `${pr.changedFiles} file${pr.changedFiles === 1 ? '' : 's'} changed`));
+    files.append(disclosure(`${pr.changedFiles} file${pr.changedFiles === 1 ? '' : 's'} changed`));
     const list = el('ul');
     for (const file of pr.files) {
       const slash = file.path.lastIndexOf('/');
@@ -130,7 +137,7 @@ function glanceLists(pr: PrDetails): Node[] {
 
   if (pr.commits.length) {
     const commits = el('details', '', 'glance');
-    commits.append(el('summary', `${pr.commitCount} commit${pr.commitCount === 1 ? '' : 's'}`));
+    commits.append(disclosure(`${pr.commitCount} commit${pr.commitCount === 1 ? '' : 's'}`));
     const list = el('ul');
     for (const commit of pr.commits) {
       const row = el('li', '', 'glance-row');
@@ -182,7 +189,7 @@ export function renderThreads(threads: readonly PrThread[], total: number): Node
   nodes.push(...open.map(card));
   if (resolved.length) {
     const folded = el('details', '', 'glance');
-    folded.append(el('summary', `${resolved.length} resolved thread${resolved.length === 1 ? '' : 's'}`));
+    folded.append(disclosure(`${resolved.length} resolved thread${resolved.length === 1 ? '' : 's'}`));
     folded.append(...resolved.map(card));
     nodes.push(folded);
   }

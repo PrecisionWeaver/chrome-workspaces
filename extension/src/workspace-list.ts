@@ -2,6 +2,7 @@ import { needsInputCount } from '../../shared/attention';
 import { nextIndex } from '../../shared/keynav';
 import { filterList } from '../../shared/list-filter';
 import { type ControlToHelper, type HistoryEntry, type Workspace, type WorkspaceStatus, WORKSPACE_COLORS } from '../../shared/protocol';
+import { caret } from './dom';
 import { closeMenu, menuItem, openMenu } from './menu';
 
 export interface WorkspaceListOptions {
@@ -71,7 +72,7 @@ export function createWorkspaceList(options: WorkspaceListOptions): WorkspaceLis
     if (closed.length) {
       const toggle = document.createElement('li');
       toggle.className = 'archived-toggle';
-      toggle.textContent = `${closedOpen ? '▾' : '▸'} Archived (${closed.length})`;
+      toggle.append(caret(closedOpen), `Archived (${closed.length})`);
       toggle.addEventListener('click', () => {
         closedOpen = !closedOpen;
         renderList();
