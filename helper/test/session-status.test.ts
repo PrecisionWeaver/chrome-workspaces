@@ -2,7 +2,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { importLegacySessions, lastTranscriptCwd, pruneSessions, readSessionStatus } from '../src/session-status';
+import { continuedInSession, importLegacySessions, lastTranscriptCwd, pruneSessions, readSessionStatus } from '../src/session-status';
 import { existsSync, readdirSync, utimesSync } from 'node:fs';
 
 function stateDir(files: Record<string, unknown>): string {
@@ -77,6 +77,48 @@ describe('readSessionStatus', () => {
     expect(readSessionStatus(sibling, new Map([['ws-1', '/acme/app']])).has('ws-1')).toBe(false);
   });
 
+  describe('a conversation continued in a fork started from another workspace', () => {
+    const ID_FORK = '33333333-3333-3333-3333-333333333333';
+    const transcriptWith = (lines: unknown[]) => {
+      const file = join(mkdtempSync(join(tmpdir(), 'cw-transcript-')), 't.jsonl');
+      writeFileSync(file, lines.map((line) => JSON.stringify(line)).join('\n'));
+      return file;
+    };
+    const files = (continuedIn: string | null) => ({
+      'a.json': {
+        session_id: ID_OLD,
+        cw_workspace_id: 'ws-1',
+        status: 'idle',
+        started_at: '2026-01-01T00:00:00Z',
+        cwd: '/acme/app',
+        transcript_path: transcriptWith(continuedIn ? [{ type: 'continued-in', sessionId: ID_OLD, continuedInSessionId: continuedIn }] : [{ type: 'user' }]),
+      },
+      // The fork inherited the id of the workspace whose shell started it, and began in the project directory.
+      'b.json': { session_id: ID_FORK, cw_workspace_id: 'ws-2', status: 'working', started_at: '2026-01-02T00:00:00Z', cwd: '/acme/app' },
+    });
+    const homes = new Map([
+      ['ws-1', '/acme/app'],
+      ['ws-2', '/acme/tools'],
+    ]);
+
+    it('belongs to the workspace the conversation was in, so its status shows there', () => {
+      const result = readSessionStatus(stateDir(files(ID_FORK)), homes);
+      expect(result.get('ws-1')).toMatchObject({ claudeSessionId: ID_FORK, status: 'working' });
+      expect(result.has('ws-2')).toBe(false);
+    });
+
+    it('is left out when the earlier session never continued in it', () => {
+      const result = readSessionStatus(stateDir(files(null)), homes);
+      expect(result.get('ws-1')).toMatchObject({ claudeSessionId: ID_OLD, status: 'idle' });
+    });
+
+    it('is not taken from a workspace it really belongs to', () => {
+      const result = readSessionStatus(stateDir(files(ID_FORK)), new Map([...homes, ['ws-2', '/acme/app']]));
+      expect(result.get('ws-1')?.claudeSessionId).toBe(ID_OLD);
+      expect(result.get('ws-2')?.claudeSessionId).toBe(ID_FORK);
+    });
+  });
+
   it('does not let an ended session that never recorded a message hide the conversation before it', () => {
     const empty = join(tmpdir(), 'cw-no-such-transcript.jsonl');
     const dir = stateDir({
@@ -119,6 +161,24 @@ describe('lastTranscriptCwd', () => {
     // Nothing in the last 256 KB but filler without a directory, so the old one is out of reach.
     const bare = JSON.stringify({ pad: 'x'.repeat(2000) });
     expect(lastTranscriptCwd(transcript([JSON.stringify({ cwd: '/old' }), ...Array.from({ length: 300 }, () => bare)]))).toBeNull();
+  });
+});
+
+describe('continuedInSession', () => {
+  const transcript = (lines: string[]) => {
+    const file = join(mkdtempSync(join(tmpdir(), 'cw-transcript-')), 't.jsonl');
+    writeFileSync(file, lines.join('\n'));
+    return file;
+  };
+
+  it('returns the session the transcript was continued in', () => {
+    const file = transcript([JSON.stringify({ type: 'user' }), JSON.stringify({ type: 'continued-in', continuedInSessionId: ID_NEW })]);
+    expect(continuedInSession(file)).toBe(ID_NEW);
+  });
+
+  it('is null without one, and for a file that is not there', () => {
+    expect(continuedInSession(transcript([JSON.stringify({ type: 'user' })]))).toBeNull();
+    expect(continuedInSession('/no/such/file.jsonl')).toBeNull();
   });
 });
 
