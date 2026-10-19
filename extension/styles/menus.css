@@ -47,8 +47,10 @@
   justify-content: space-between;
 }
 
-.archived-toggle .caret {
-  margin-right: 4px;
+.archived-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .archived-clear {

@@ -72,7 +72,10 @@ export function createWorkspaceList(options: WorkspaceListOptions): WorkspaceLis
     if (closed.length) {
       const toggle = document.createElement('li');
       toggle.className = 'archived-toggle';
-      toggle.append(caret(closedOpen), `Archived (${closed.length})`);
+      const label = document.createElement('span');
+      label.className = 'archived-label';
+      label.append(caret(closedOpen), `Archived (${closed.length})`);
+      toggle.append(label);
       toggle.addEventListener('click', () => {
         closedOpen = !closedOpen;
         renderList();
