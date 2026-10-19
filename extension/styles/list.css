@@ -77,6 +77,19 @@
   padding: 0;
 }
 
+/* The disclosure chevron points down when open and turns right when closed, wherever it appears. */
+.caret {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  transform: rotate(-90deg);
+}
+
+.caret.open,
+details[open] > summary .caret {
+  transform: none;
+}
+
 /* The chevron turns when its section collapses. */
 .section.collapsed .section-toggle {
   transform: rotate(-90deg);

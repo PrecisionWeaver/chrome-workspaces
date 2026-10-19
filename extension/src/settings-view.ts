@@ -9,7 +9,7 @@ import type {
   TokenTotals,
   UpdateStatus,
 } from '../../shared/protocol';
-import { el } from './dom';
+import { caret, el } from './dom';
 import { card, actions, row } from './settings-parts';
 import { planCard, usageCard } from './settings-usage';
 import { formatBytes, formatDuration, formatKb, formatTokens, newTokens } from './format';
@@ -228,7 +228,8 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
     const wrapper = el('div', '', 'session');
 
     const head = el('div', '', 'session-head');
-    const toggle = el('button', running ? (open ? '▾' : '▸') : '', 'session-toggle');
+    const toggle = el('button', '', 'session-toggle');
+    if (running) toggle.append(caret(open));
     toggle.type = 'button';
     toggle.disabled = !running;
     toggle.addEventListener('click', () => {

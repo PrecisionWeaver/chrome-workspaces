@@ -11,7 +11,7 @@ import type {
   Workspace,
   WorkspaceStatus,
 } from '../../shared/protocol';
-import { el } from './dom';
+import { caret, el } from './dom';
 import { menuItem, openMenu } from './menu';
 import { relative } from './pr-view';
 
@@ -207,7 +207,7 @@ export function createGitView({ send, onToggle, status }: GitViewOptions): GitVi
       const branch = el('button', '', 'git-branch-name');
       branch.type = 'button';
       branch.title = 'Switch branch';
-      branch.append(el('span', '⎇', 'git-branch-icon'), el('span', state.branch ?? 'detached HEAD'), el('span', '▾', 'git-branch-caret'));
+      branch.append(el('span', '⎇', 'git-branch-icon'), el('span', state.branch ?? 'detached HEAD'), caret(true));
       branch.addEventListener('click', () => openBranchMenu(branch));
       branchEl.append(branch);
       // Claude moves into worktrees on its own; say so when this is one, since it has its own branch and history.

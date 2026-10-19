@@ -273,9 +273,8 @@ button.git-branch-name:hover {
   background: var(--raised);
 }
 
-.git-branch-caret {
+.git-branch-name .caret {
   color: var(--faint);
-  font-size: 9px;
 }
 
 .git-chip-btn {

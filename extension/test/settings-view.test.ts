@@ -694,9 +694,9 @@ describe('the cards', () => {
       ];
       await open(makeSnapshot({ sessions: [{ ...running, processes }] }));
       const toggle = () => card('Workspace sessions').querySelector<HTMLButtonElement>('.session-toggle')!;
-      expect(toggle().textContent).toBe('▸');
+      expect(toggle().querySelector('.caret.open')).toBeNull();
       toggle().click();
-      expect(toggle().textContent).toBe('▾');
+      expect(toggle().querySelector('.caret.open')).not.toBeNull();
       expect(text('.proc .cmd', card('Workspace sessions'))).toEqual(['-zsh', 'node server.js']);
       expect(text('.proc .num', card('Workspace sessions'))).toEqual(['0.0%', '1.0 MB', '10:00', '12.3%', '50.0 MB', '09:00']);
       expect(text('.port', card('Workspace sessions'))).toEqual([':3000', ':3001']);

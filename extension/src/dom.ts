@@ -14,6 +14,14 @@ export function promptCard(text: string): Node[] {
   return nodes;
 }
 
+/** The disclosure chevron: down when open, turned right when closed. The same icon as the section headers. */
+export function caret(open: boolean): SVGSVGElement {
+  const svg = icon('chevron-down');
+  svg.classList.add('caret');
+  svg.classList.toggle('open', open);
+  return svg;
+}
+
 /** An icon from the sprite in panel.html, sized and coloured by the surrounding button. */
 export function icon(name: string): SVGSVGElement {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');

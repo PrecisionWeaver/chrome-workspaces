@@ -633,10 +633,12 @@ describe('archived workspaces', () => {
   it('folds them under a count, and opens the list on click', async () => {
     await boot();
     onControlMessage({ type: 'history', entries: history });
-    expect(toggle()!.textContent).toBe('▸ Archived (2)');
+    expect(toggle()!.textContent).toBe('Archived (2)');
+    expect(toggle()!.querySelector('.caret.open')).toBeNull();
     expect(closed()).toHaveLength(0);
     toggle()!.click();
-    expect(toggle()!.textContent).toContain('▾ Archived (2)');
+    expect(toggle()!.textContent).toContain('Archived (2)');
+    expect(toggle()!.querySelector('.caret.open')).not.toBeNull();
     expect(closed().map((row) => row.querySelector('.name')!.textContent)).toEqual(['old/one', 'old/two']);
     expect(closed()[0]!.title).toContain('Resumes its conversation');
     expect(closed()[1]!.title).not.toContain('Resumes');
