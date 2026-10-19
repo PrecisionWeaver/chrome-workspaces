@@ -18,6 +18,20 @@ function isInside(path: string, directory: string): boolean {
   return path === directory || path.startsWith(directory.endsWith('/') ? directory : `${directory}/`);
 }
 
+const MAX_CONTINUATIONS = 5;
+
+/** Follows "continued in" links from a workspace's session to a newer session that was kept out for its id or directory. */
+function followContinuations(session: SessionFile, strays: ReadonlyMap<string, SessionFile>): SessionFile {
+  let current = session;
+  for (let hop = 0; hop < MAX_CONTINUATIONS && current.transcript_path; hop++) {
+    const nextId = continuedInSession(current.transcript_path);
+    const next = nextId ? strays.get(nextId) : undefined;
+    if (!next || (next.started_at ?? '') <= (current.started_at ?? '')) break;
+    current = next;
+  }
+  return current;
+}
+
 const LIVE_STATUSES = new Set(['needs_input', 'working', 'idle']);
 
 /**
@@ -28,6 +42,8 @@ const LIVE_STATUSES = new Set(['needs_input', 'working', 'idle']);
  */
 export function readSessionStatus(dir: string, workspaceCwds: ReadonlyMap<string, string> = new Map()): Map<string, WorkspaceSession> {
   const newest = new Map<string, SessionFile>();
+  // Sessions kept out of their workspace for starting elsewhere, by session id: a continuation may still belong to it.
+  const strays = new Map<string, SessionFile>();
   let names: string[];
   try {
     names = readdirSync(dir).filter((name) => name.endsWith('.json'));
@@ -45,10 +61,18 @@ export function readSessionStatus(dir: string, workspaceCwds: ReadonlyMap<string
     const workspaceId = session.cw_workspace_id;
     if (!workspaceId || !session.session_id) continue;
     const home = workspaceCwds.get(workspaceId);
-    if (home && session.cwd && !isInside(session.cwd, home)) continue;
     if (session.status === 'ended' && session.transcript_path && !existsSync(session.transcript_path)) continue;
+    if (home && session.cwd && !isInside(session.cwd, home)) {
+      strays.set(session.session_id, session);
+      continue;
+    }
     const current = newest.get(workspaceId);
     if (!current || (session.started_at ?? '') > (current.started_at ?? '')) newest.set(workspaceId, session);
+  }
+
+  // A fork started from another workspace's shell carries that workspace's id, but it is this conversation carried on.
+  for (const [workspaceId, session] of newest) {
+    newest.set(workspaceId, followContinuations(session, strays));
   }
 
   const result = new Map<string, WorkspaceSession>();
@@ -68,12 +92,8 @@ export function readSessionStatus(dir: string, workspaceCwds: ReadonlyMap<string
 
 const TRANSCRIPT_TAIL_BYTES = 256 * 1024;
 
-/**
- * The directory of the newest message in a claude transcript. Claude records its current directory
- * on every message, so this follows it into a worktree, which the session file's `cwd` does not.
- * Only the end of the file is read, since transcripts grow large.
- */
-export function lastTranscriptCwd(path: string): string | null {
+/** The lines at the end of a claude transcript, oldest first. Only the end is read, since transcripts grow large. */
+function transcriptTail(path: string): string[] | null {
   let fd: number | undefined;
   try {
     fd = openSync(path, 'r');
@@ -84,21 +104,41 @@ export function lastTranscriptCwd(path: string): string | null {
     const lines = buffer.toString('utf8').split('\n');
     // A tail that starts mid-file begins with a partial line.
     if (size > length) lines.shift();
-    for (let i = lines.length - 1; i >= 0; i--) {
-      if (!lines[i].includes('"cwd"')) continue;
-      try {
-        const { cwd } = JSON.parse(lines[i]) as { cwd?: unknown };
-        if (typeof cwd === 'string' && cwd) return cwd;
-      } catch {
-        // A line cut off by a write in progress.
-      }
-    }
-    return null;
+    return lines;
   } catch {
     return null;
   } finally {
     if (fd !== undefined) closeSync(fd);
   }
+}
+
+/** The value of `field` on the newest transcript line that has a string for it. */
+function lastTranscriptField(path: string, field: string): string | null {
+  const lines = transcriptTail(path);
+  if (!lines) return null;
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (!lines[i].includes(`"${field}"`)) continue;
+    try {
+      const value = (JSON.parse(lines[i]) as Record<string, unknown>)[field];
+      if (typeof value === 'string' && value) return value;
+    } catch {
+      // A line cut off by a write in progress.
+    }
+  }
+  return null;
+}
+
+/**
+ * The directory of the newest message in a claude transcript. Claude records its current directory
+ * on every message, so this follows it into a worktree, which the session file's `cwd` does not.
+ */
+export function lastTranscriptCwd(path: string): string | null {
+  return lastTranscriptField(path, 'cwd');
+}
+
+/** The session a transcript was continued in (a fork, or a new session carrying the conversation on), if it records one. */
+export function continuedInSession(path: string): string | null {
+  return lastTranscriptField(path, 'continuedInSessionId');
 }
 
 /** Calls `onChange` (debounced) whenever a session's state file changes. Returns a stop function. */
