@@ -60,8 +60,23 @@
   display: flex;
   align-items: center;
   gap: 4px;
+  min-width: 0;
+  max-width: 100%;
   color: var(--text);
   font-weight: 600;
+}
+
+/* A long branch name gives way first: it truncates, and the chips beside it keep their room. */
+.git-branch-name > span:nth-child(2) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.git-branch-icon,
+.git-branch-name .caret {
+  flex: none;
 }
 
 .git-branch-icon,
@@ -71,6 +86,11 @@
 }
 
 .git-worktree {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   padding: 0 6px;
   border-radius: 8px;
   background: var(--accent-soft);
@@ -278,6 +298,7 @@ button.git-branch-name:hover {
 }
 
 .git-chip-btn {
+  flex: none;
   padding: 0 6px;
   background: var(--raised);
   border: 0;
@@ -304,8 +325,16 @@ button.git-branch-name:hover {
 }
 
 .branch-menu {
+  max-width: calc(100vw - 8px);
   max-height: 260px;
   overflow-y: auto;
+}
+
+/* The menu never grows past the panel: a long name is cut with an ellipsis, and its tooltip has the whole of it. */
+.branch-menu > button {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .popup-note {
@@ -386,6 +415,7 @@ button.git-branch-name:hover {
 .git-graph {
   flex: none;
   display: block;
+  max-width: 96px;
 }
 
 .git-commit-text {
