@@ -188,7 +188,8 @@ describe('the branch line', () => {
   it('shows the branch, with a button to switch', async () => {
     await ready(gitState({ branch: 'feature/x' }));
     expect(text('.git-branch-name span:nth-child(2)')).toEqual(['feature/x']);
-    expect($('git-branch').querySelector<HTMLElement>('.git-branch-name')!.title).toBe('Switch branch');
+    // A long name is cut with an ellipsis, so the tooltip carries all of it.
+    expect($('git-branch').querySelector<HTMLElement>('.git-branch-name')!.title).toBe('feature/x\nSwitch branch');
   });
 
   it('says detached HEAD when there is no branch', async () => {
@@ -685,7 +686,7 @@ describe('switching branch', () => {
     const items = [...menu()!.querySelectorAll<HTMLButtonElement>('button')];
     expect(items.map((item) => item.textContent)).toEqual(['✓ main', 'feature/x']);
     expect(items.map((item) => item.disabled)).toEqual([true, false]);
-    expect(items.map((item) => item.title)).toEqual(['tracks origin/main', 'local only']);
+    expect(items.map((item) => item.title)).toEqual(['main\ntracks origin/main', 'feature/x\nlocal only']);
     items[1]!.click();
     expect(sentOfType('gitSwitch')).toEqual([{ type: 'gitSwitch', id: 'ws-a', branch: 'feature/x' }]);
     expect(menu()).toBeNull();

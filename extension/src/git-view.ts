@@ -206,7 +206,7 @@ export function createGitView({ send, onToggle, status }: GitViewOptions): GitVi
     if (state) {
       const branch = el('button', '', 'git-branch-name');
       branch.type = 'button';
-      branch.title = 'Switch branch';
+      branch.title = `${state.branch ?? 'detached HEAD'}\nSwitch branch`;
       branch.append(el('span', '⎇', 'git-branch-icon'), el('span', state.branch ?? 'detached HEAD'), caret(true));
       branch.addEventListener('click', () => openBranchMenu(branch));
       branchEl.append(branch);
@@ -332,7 +332,7 @@ export function createGitView({ send, onToggle, status }: GitViewOptions): GitVi
             menuItem(b.name, () => workspaceId && send({ type: 'gitSwitch', id: workspaceId, branch: b.name }), {
               checked: b.current,
               disabled: b.current,
-              title: b.upstream ? `tracks ${b.upstream}` : 'local only',
+              title: `${b.name}\n${b.upstream ? `tracks ${b.upstream}` : 'local only'}`,
             }),
           )
         : [el('div', 'No branches', 'popup-note')],
