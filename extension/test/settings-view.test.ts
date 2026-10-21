@@ -259,8 +259,8 @@ describe('the cards', () => {
     expect(cards().map((node) => node.dataset.key)).toEqual([
       'Plan usage',
       'Usage',
-      'Preferences',
       'Updates',
+      'Preferences',
       'Workspace sessions',
       'Helper',
       'Housekeeping',
