@@ -34,7 +34,9 @@ export const isTransient = (error: unknown): boolean => TRANSIENT.test(failureTe
 export const isRateLimited = (error: unknown): boolean => RATE_LIMITED.test(failureText(error));
 
 /** One request per this many PRs: GitHub's answer time grows with the size of the query, and a big one can time out. */
-export const MERGE_BATCH = 25;
+export const MERGE_BATCH = 10;
+/** Batches asked at once: several big queries together are what GitHub times out on. */
+export const MERGE_CONCURRENCY = 2;
 
 /** Why a lookup failed, in a few words: the log would otherwise hold a stack trace with no reason in it. */
 export function describeFailure(error: unknown): string {
@@ -83,6 +85,8 @@ function standing(mergeStateStatus: string, reviewDecision: string | null): Stan
 }
 
 type Lookup = Standing & Pick<ReviewRequest, 'needsReReview' | 'approved' | 'ci'>;
+/** A batch's answer, or how many of its PRs went unread and why. */
+type BatchResult = Map<string, Lookup> | { unread: number; reason: string; limited: boolean };
 
 interface PullRequestNode {
   url: string;
@@ -233,6 +237,7 @@ export class ReviewsPoller {
           this.current = { items, error: this.limitedNotice, fetchedAt: new Date().toISOString() };
         },
         (error: unknown) => {
+          if (!isRateLimited(error)) console.warn(`could not list review requests: ${describeFailure(error)}`);
           const message = isRateLimited(error) ? this.pauseNotice() : error instanceof Error ? error.message : String(error);
           this.current = { ...this.current, error: message };
         },
@@ -251,6 +256,7 @@ export class ReviewsPoller {
     this.waitMs = this.waitMs === 0 ? RATE_LIMIT_FIRST_WAIT_MS : Math.min(this.waitMs * 2, RATE_LIMIT_MAX_WAIT_MS);
     this.pausedUntil = this.now() + this.waitMs;
     const at = new Date(this.pausedUntil).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    console.warn(`GitHub is rate-limiting; review requests pause for ${this.waitMs / 60_000} min`);
     return `GitHub is rate-limiting requests. Trying again after ${at}.`;
   }
 
@@ -274,38 +280,64 @@ export class ReviewsPoller {
     return { items, reviewedOnly: new Set(items.filter((item) => !requested.has(item.url)).map((item) => item.url)) };
   }
 
-  /** The merge states of one batch, tried twice, or the reason it could not be read. */
-  private async mergeBatch(items: ReviewRequest[]): Promise<Map<string, Lookup> | string> {
-    let failure = '';
-    for (let attempt = 0; attempt < 2; attempt++) {
-      if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, this.retryDelayMs));
-      try {
-        return parseMergeStatuses(await this.fetchMerge!(mergeStatusQuery(items)));
-      } catch (error) {
-        failure = describeFailure(error);
-        if (isRateLimited(error)) break;
-      }
+  /**
+   * The merge states of one batch, or how many PRs could not be read and why. A failed batch is tried once more as two
+   * halves, since a smaller query is what gets past a timeout; a rate limit is not tried again.
+   */
+  private async mergeBatch(items: ReviewRequest[], retry = true): Promise<BatchResult[]> {
+    try {
+      return [parseMergeStatuses(await this.fetchMerge!(mergeStatusQuery(items)))];
+    } catch (error) {
+      const failure = { unread: items.length, reason: describeFailure(error), limited: isRateLimited(error) };
+      if (!retry || failure.limited) return [failure];
+      await new Promise((resolve) => setTimeout(resolve, this.retryDelayMs));
+      if (items.length === 1) return this.mergeBatch(items, false);
+      const half = Math.ceil(items.length / 2);
+      return (await Promise.all([this.mergeBatch(items.slice(0, half), false), this.mergeBatch(items.slice(half), false)])).flat();
     }
-    return failure;
+  }
+
+  /** Every batch, a few at a time; once GitHub rate-limits one, the rest are not asked, since asking extends the limit. */
+  private async mergeBatches(batches: ReviewRequest[][]): Promise<BatchResult[]> {
+    const results: BatchResult[] = [];
+    let next = 0;
+    let limited = false;
+    const worker = async () => {
+      while (next < batches.length) {
+        const batch = batches[next++];
+        if (limited) {
+          results.push({ unread: batch.length, reason: 'skipped while rate-limited', limited: true });
+          continue;
+        }
+        const batchResults = await this.mergeBatch(batch);
+        if (batchResults.some((result) => !(result instanceof Map) && result.limited)) limited = true;
+        results.push(...batchResults);
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(MERGE_CONCURRENCY, batches.length) }, worker));
+    return results;
   }
 
   private async withMergeStatus(items: ReviewRequest[], reviewedOnly: ReadonlySet<string>): Promise<ReviewRequest[]> {
     if (!this.fetchMerge || items.length === 0) return items.filter((item) => !reviewedOnly.has(item.url));
     const batches: ReviewRequest[][] = [];
     for (let i = 0; i < items.length; i += MERGE_BATCH) batches.push(items.slice(i, i + MERGE_BATCH));
-    const results = await Promise.all(batches.map((batch) => this.mergeBatch(batch)));
 
     const statuses = new Map<string, Lookup>();
     const failures: string[] = [];
     let unread = 0;
-    results.forEach((result, index) => {
-      if (typeof result === 'string') {
-        failures.push(result);
-        unread += batches[index].length;
-      } else for (const [url, lookup] of result) statuses.set(url, lookup);
-    });
+    let limited = false;
+    for (const result of await this.mergeBatches(batches)) {
+      if (result instanceof Map) {
+        for (const [url, lookup] of result) statuses.set(url, lookup);
+        continue;
+      }
+      failures.push(result.reason);
+      unread += result.unread;
+      limited ||= result.limited;
+    }
     if (failures.length) console.warn(`could not read merge states for ${unread} of ${items.length} PRs: ${[...new Set(failures)].join('; ')}`);
-    if (failures.some((failure) => RATE_LIMITED.test(failure))) this.limitedNotice = this.pauseNotice();
+    if (limited) this.limitedNotice = this.pauseNotice();
 
     // A PR whose lookup failed, or that GitHub has not finished working out (it answers UNKNOWN while it computes a
     // PR's mergeability), keeps what the last good lookup said rather than losing its badge until the next poll.
