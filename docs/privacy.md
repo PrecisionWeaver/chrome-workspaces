@@ -4,10 +4,10 @@ Chrome Workspaces runs on your Mac and has no server of its own. It sends nothin
 
 ## What leaves your machine
 
-| What | When | Where to |
-|---|---|---|
+| What                                                                                   | When                                                                          | Where to                                    |
+| -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------- |
 | `gh` searches and queries for pull requests, their details, review comments and checks | Every 5 minutes, on ↻, and when you open a PR or a workspace's source control | GitHub, as the account `gh` is signed in to |
-| `git fetch` of this app's own repository | When you press **Check for updates** | This copy's `origin` |
+| `git fetch` of this app's own repository                                               | When you press **Check for updates**                                          | This copy's `origin`                        |
 
 Opening a Jira ticket, a PR or a workspace's tabs is ordinary browsing in Chrome. `claude` itself talks to Anthropic as it always does; this app only starts it.
 
