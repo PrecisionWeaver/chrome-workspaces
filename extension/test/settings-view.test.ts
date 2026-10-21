@@ -262,9 +262,9 @@ describe('the cards', () => {
       'Workspace sessions',
       'Preferences',
       'Updates',
+      'Configuration',
       'Helper',
       'Housekeeping',
-      'Configuration',
       'Diagnostics',
     ]);
   });

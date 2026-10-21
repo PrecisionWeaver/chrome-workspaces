@@ -587,8 +587,8 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
     const filled = [
       [alerts, present(setupCard(snapshot), warningsCard(snapshot))],
       [columns[0], [planCard(snapshot), usageCard(snapshot, prefs.usageRange, setUsageRange), sessionsCard(snapshot)]],
-      [columns[1], [preferencesCard(), updatesCard()]],
-      [columns[2], [helperCard(snapshot), housekeepingCard(snapshot), configCard(snapshot), diagnosticsCard(snapshot)]],
+      [columns[1], [preferencesCard(), updatesCard(), configCard(snapshot)]],
+      [columns[2], [helperCard(snapshot), housekeepingCard(snapshot), diagnosticsCard(snapshot)]],
     ] as const;
     // Detaching a focused dropdown closes it, so its card stays put, a poll behind, until focus leaves.
     const active = document.activeElement;
