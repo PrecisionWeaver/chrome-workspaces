@@ -90,6 +90,15 @@
   color: var(--wait);
 }
 
+.memory-total {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+}
+
 .settings-empty {
   color: var(--faint);
 }
