@@ -280,7 +280,7 @@ describe('the cards', () => {
         Port: '4000',
         Node: 'v22.18.0',
         Version: 'abc1234',
-        'Panels connected': '2',
+        Connections: '2',
       });
     });
 

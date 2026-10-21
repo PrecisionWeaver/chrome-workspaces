@@ -137,7 +137,7 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       row('Port', String(helper.port)),
       row('Node', helper.node),
       row('Version', helper.commit ?? 'unknown'),
-      row('Panels connected', String(helper.clients)),
+      row('Connections', String(helper.clients)),
     );
     const unmanaged = 'Started by hand, so launchd cannot restart it. Run npm run agent:start to manage it.';
     // Empty until the helper answers; an empty log reads "(empty)", so a blank here means it is still loading.
