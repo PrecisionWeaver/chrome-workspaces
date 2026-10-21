@@ -76,6 +76,7 @@ export function makeReview(overrides: Partial<ReviewRequest> = {}): ReviewReques
     isDraft: false,
     updatedAt: new Date().toISOString(),
     ticket: null,
+    branch: 'feature/add-the-thing',
     merge: 'review',
     mergeReason: null,
     needsReReview: false,

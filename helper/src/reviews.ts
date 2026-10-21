@@ -57,7 +57,7 @@ export function mergeStatusQuery(items: readonly ReviewRequest[]): string {
     const [owner, name] = item.repo.split('/');
     if (!owner || !name || !SAFE_NAME.test(owner) || !SAFE_NAME.test(name)) return [];
     return [
-      `r${index}: repository(owner: "${owner}", name: "${name}") { pullRequest(number: ${item.number}) { url mergeStateStatus reviewDecision headRefOid ` +
+      `r${index}: repository(owner: "${owner}", name: "${name}") { pullRequest(number: ${item.number}) { url headRefName mergeStateStatus reviewDecision headRefOid ` +
         'latestReviews(first: 100) { nodes { author { login } state commit { oid } } } ' +
         'commits(last: 1) { nodes { commit { statusCheckRollup { state } } } } } }',
     ];
@@ -84,12 +84,13 @@ function standing(mergeStateStatus: string, reviewDecision: string | null): Stan
   return { merge: 'unknown', mergeReason: null };
 }
 
-type Lookup = Standing & Pick<ReviewRequest, 'needsReReview' | 'approved' | 'ci'>;
+type Lookup = Standing & Pick<ReviewRequest, 'branch' | 'needsReReview' | 'approved' | 'ci'>;
 /** A batch's answer, or how many of its PRs went unread and why. */
 type BatchResult = Map<string, Lookup> | { unread: number; reason: string; limited: boolean };
 
 interface PullRequestNode {
   url: string;
+  headRefName?: string;
   mergeStateStatus: string;
   reviewDecision: string | null;
   headRefOid?: string;
@@ -134,6 +135,7 @@ export function parseMergeStatuses(json: string): Map<string, Lookup> {
     if (!pr) continue;
     result.set(pr.url, {
       ...standing(pr.mergeStateStatus, pr.reviewDecision),
+      branch: pr.headRefName ?? '',
       needsReReview: needsReReview(pr, viewer),
       approved: approvedByViewer(pr, viewer),
       ci: ciOf(pr),
@@ -182,6 +184,7 @@ export function parseReviewRequests(jsons: readonly string[]): ReviewRequest[] {
       isDraft: pr.isDraft,
       updatedAt: pr.updatedAt,
       ticket: ticketFromTitle(pr.title),
+      branch: '',
       merge: (pr.isDraft ? 'draft' : 'unknown') as MergeState,
       mergeReason: null,
       needsReReview: false,
@@ -348,8 +351,8 @@ export class ReviewsPoller {
         const last = before.get(item.url);
         // The review and check signals are the lookup's whenever it answered, whatever the merge state says.
         const signals = fresh
-          ? { needsReReview: fresh.needsReReview, approved: fresh.approved, ci: fresh.ci }
-          : { needsReReview: last?.needsReReview ?? false, approved: last?.approved ?? false, ci: last?.ci ?? null };
+          ? { branch: fresh.branch, needsReReview: fresh.needsReReview, approved: fresh.approved, ci: fresh.ci }
+          : { branch: last?.branch ?? '', needsReReview: last?.needsReReview ?? false, approved: last?.approved ?? false, ci: last?.ci ?? null };
         // A draft is a draft whatever else GitHub reports; the search result already says so.
         if (item.isDraft) return { ...item, ...signals };
         if (fresh && fresh.merge !== 'unknown') return { ...item, ...fresh };

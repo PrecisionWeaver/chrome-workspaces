@@ -47,6 +47,7 @@ describe('parseReviewRequests', () => {
         isDraft: true,
         updatedAt: '2026-10-02T00:00:00Z',
         ticket: null,
+        branch: '',
         merge: 'draft',
         mergeReason: null,
         needsReReview: false,
@@ -62,6 +63,7 @@ describe('parseReviewRequests', () => {
         isDraft: false,
         updatedAt: '2026-10-01T00:00:00Z',
         ticket: 'PROJ-10',
+        branch: '',
         merge: 'unknown',
         mergeReason: null,
         needsReReview: false,
@@ -447,10 +449,16 @@ describe('a PR that needs another look', () => {
   const needs = (extra: Record<string, unknown>, viewer: string | null = 'me') =>
     parseMergeStatuses(answer(viewer, lookup(URL1, extra))).get(URL1)?.needsReReview;
 
+  it('reads the head branch from the lookup', () => {
+    expect(parseMergeStatuses(answer('me', lookup(URL1, { headRefName: 'proj-9/rework-sync' }))).get(URL1)?.branch).toBe('proj-9/rework-sync');
+    expect(parseMergeStatuses(answer('me', lookup(URL1))).get(URL1)?.branch).toBe('');
+  });
+
   it('asks for the viewer, the reviewed commit and the rolled-up checks, not each check run', () => {
     const query = mergeStatusQuery(parseReviewRequests([GH]));
     expect(query).toContain('viewer { login }');
     expect(query).toContain('headRefOid');
+    expect(query).toContain('headRefName');
     expect(query).toContain('latestReviews(first: 100) { nodes { author { login } state commit { oid } } }');
     expect(query).toContain('statusCheckRollup { state }');
     expect(query).not.toContain('contexts');
