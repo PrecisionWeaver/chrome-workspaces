@@ -287,6 +287,15 @@
   border-radius: 3px;
 }
 
+/* On white, a faded bar loses its hue and the track vanishes; keep the fill stronger and the track visible. */
+:root[data-theme='light'] .usage-bar {
+  background: var(--raised);
+}
+
+:root[data-theme='light'] .usage-bar.context .usage-fill {
+  opacity: 0.7;
+}
+
 .usage-bar.now .usage-fill {
   background: var(--working);
 }
