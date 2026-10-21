@@ -313,13 +313,21 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
         'settings-note',
       ),
       list,
+      memoryLine('Helper', s.helper.rssKb, 'The helper process that runs these sessions'),
       memoryTotal(s.helper.rssKb, workspaceKb),
     );
   }
 
+  function memoryLine(label: string, kb: number, title: string): HTMLElement {
+    const line = el('div', '', 'memory-line');
+    line.append(el('span', label, 'k'), el('span', formatKb(kb), 'v'));
+    line.title = title;
+    return line;
+  }
+
   /** Helper plus every workspace's processes. RSS counts shared pages once per process, so it runs a little high. */
   function memoryTotal(helperKb: number, workspaceKb: number): HTMLElement {
-    const line = el('div', '', 'memory-total');
+    const line = el('div', '', 'memory-line memory-total');
     line.append(el('span', 'Total memory', 'k'), el('span', formatKb(helperKb + workspaceKb), 'v'));
     line.title = `Helper ${formatKb(helperKb)} + workspaces ${formatKb(workspaceKb)}\nMemory shared between processes is counted once per process, so this is slightly high.`;
     return line;

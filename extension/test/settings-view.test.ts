@@ -659,6 +659,7 @@ describe('the cards', () => {
 
     it('totals the helper and every workspace', async () => {
       await open(makeSnapshot({ sessions: [running, { ...running, id: 'ws-c' }] }));
+      expect(text('.memory-line:not(.memory-total) .v', card('Workspace sessions'))).toEqual(['50.0 MB']);
       expect(text('.memory-total .v', card('Workspace sessions'))).toEqual(['54.0 MB']);
       expect(card('Workspace sessions').querySelector<HTMLElement>('.memory-total')!.title).toContain('Helper 50.0 MB + workspaces 4.0 MB');
     });

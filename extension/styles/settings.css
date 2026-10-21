@@ -90,13 +90,17 @@
   color: var(--wait);
 }
 
-.memory-total {
+.memory-line {
   display: flex;
   justify-content: space-between;
-  margin-top: 10px;
+  margin-top: 6px;
+  color: var(--muted);
+}
+
+.memory-total {
+  margin-top: 8px;
   padding-top: 8px;
   border-top: 1px solid var(--border);
-  color: var(--muted);
 }
 
 .settings-empty {
