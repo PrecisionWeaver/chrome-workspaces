@@ -50,83 +50,21 @@
   color: var(--bad);
 }
 
-/* One column in the side panel, then two and three as it widens (by the width of the body, not the window). Cards are grouped by purpose: activity, preferences, system. Explicit placement, not source order, arranges the groups, so the short preferences group ends up last rather than in the middle; the alerts group always spans the full width. */
+/* One column in the side panel; as many 340px-plus columns as fit when it widens, up to three. Columns pack cards of different heights without gaps; the cards sit in an inner box because columns inside a fixed-height scroller would overflow sideways. */
 #settings-body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  container-type: inline-size;
 }
 
 #settings-cards {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 12px;
-  align-items: start;
-}
-
-.settings-group {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-width: 0;
-}
-
-.settings-group:empty {
-  display: none;
-}
-
-.settings-alerts {
-  grid-column: 1 / -1;
-  grid-row: 1;
-}
-
-@container (min-width: 700px) {
-  #settings-cards {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .settings-group.activity {
-    grid-column: 1;
-    grid-row: 2 / span 2;
-  }
-
-  .settings-group.prefs {
-    grid-column: 2;
-    grid-row: 2;
-  }
-
-  .settings-group.system {
-    grid-column: 2;
-    grid-row: 3;
-  }
-}
-
-@container (min-width: 1040px) {
-  #settings-cards {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .settings-group.activity,
-  .settings-group.system,
-  .settings-group.prefs {
-    grid-row: 2;
-  }
-
-  .settings-group.activity {
-    grid-column: 1;
-  }
-
-  .settings-group.system {
-    grid-column: 2;
-  }
-
-  .settings-group.prefs {
-    grid-column: 3;
-  }
+  columns: 340px 3;
+  column-gap: 12px;
 }
 
 .settings-card {
+  margin-bottom: 12px;
+  break-inside: avoid;
   padding: 12px 14px;
   border: 1px solid var(--border);
   border-radius: 8px;
