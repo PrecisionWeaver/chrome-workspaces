@@ -3,7 +3,7 @@
 ## Requirements
 
 - macOS and Google Chrome.
-- Node 22.18 or newer.
+- Node 24 or newer.
 - [Claude Code](https://docs.claude.com/en/docs/claude-code) (`claude`) on your login shell's `PATH`.
 - Optional: [`gh`](https://cli.github.com), signed in, for review requests, PR details and CI status.
 - Optional: [`btop`](https://github.com/aristocratos/btop) (`brew install btop`) for the system monitor; `top` is used without it.

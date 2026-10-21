@@ -17,7 +17,7 @@ All of it is in [docs/features.md](docs/features.md).
 
 ## Quick start
 
-Requires macOS, Google Chrome, Node 22.18+ and Claude Code. `gh` is optional, for review requests.
+Requires macOS, Google Chrome, Node 24+ and Claude Code. `gh` is optional, for review requests.
 
 ```bash
 npm install
