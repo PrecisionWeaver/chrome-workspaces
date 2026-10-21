@@ -50,7 +50,7 @@
   color: var(--bad);
 }
 
-/* One column in the side panel; as many 340px-plus columns as fit when it widens, with no cap. Columns pack cards of different heights without gaps; the cards sit in an inner box because columns inside a fixed-height scroller would overflow sideways. */
+/* One column in the side panel; as many 340px-plus columns as fit when it widens, with no cap. Cards are grouped into columns (activity, preferences, system) that stack in that order when narrow; the alerts group spans the full width. */
 #settings-body {
   flex: 1;
   min-height: 0;
@@ -58,13 +58,28 @@
 }
 
 #settings-cards {
-  columns: 340px;
-  column-gap: 12px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+.settings-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.settings-group:empty {
+  display: none;
+}
+
+.settings-alerts {
+  grid-column: 1 / -1;
 }
 
 .settings-card {
-  margin-bottom: 12px;
-  break-inside: avoid;
   padding: 12px 14px;
   border: 1px solid var(--border);
   border-radius: 8px;
