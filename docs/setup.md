@@ -20,10 +20,9 @@ npm run install-app -- --default-cwd ~/code --repo-root ~/code
 `setup` writes `~/.chrome-workspaces/`, Chrome's native-host manifest, and a LaunchAgent. It keeps whatever is already in your config.
 
 In Chrome:
-
 1. `chrome://settings/appearance` → side panel position → **Left**.
 2. `chrome://extensions` → Developer mode → **Load unpacked** → `extension/dist`.
-3. Optional: `chrome://extensions/shortcuts` → bind *Open the workspace panel*.
+3. Optional: `chrome://extensions/shortcuts` → bind _Open the workspace panel_.
 4. Click the toolbar icon to open the panel.
 
 Settings then shows a **Getting started** checklist for anything still missing.
@@ -40,13 +39,13 @@ If Chrome can't find the native host, the panel's notice says the helper is not 
 
 ## Running the helper
 
-| Command | |
-|---|---|
-| `npm run agent:start` | Start and enable at login |
-| `npm run agent:restart` | Restart (**ends every open shell**) |
-| `npm run agent:stop` | Stop and disable at login |
-| `npm run agent:status` | Show status |
-| `npm run helper` | Run in the foreground (stop the agent first) |
+| Command                 |                                              |
+| ----------------------- | -------------------------------------------- |
+| `npm run agent:start`   | Start and enable at login                    |
+| `npm run agent:restart` | Restart (**ends every open shell**)          |
+| `npm run agent:stop`    | Stop and disable at login                    |
+| `npm run agent:status`  | Show status                                  |
+| `npm run helper`        | Run in the foreground (stop the agent first) |
 
 Logs: `~/.chrome-workspaces/helper.log`, with the previous 5 MB or more in `helper.log.1`.
 
@@ -54,12 +53,12 @@ Logs: `~/.chrome-workspaces/helper.log`, with the previous 5 MB or more in `help
 
 The helper has a small HTTP API on `127.0.0.1:4178` for shell scripts and other local tools. Every request needs the token in `~/.chrome-workspaces/token` as a bearer header.
 
-| Request | |
-|---|---|
-| `GET /workspaces` | Every workspace, and its status |
-| `POST /workspaces` | Create one from JSON: `name` or `ticket`, and optionally `cwd`, `url` (its first tab), `prompt` (its first message), or `pr` (a GitHub PR URL, which fills in the rest). An existing workspace for the same ticket or PR is focused instead. |
-| `POST /workspaces/<id>/focus` | Switch Chrome to it |
-| `DELETE /workspaces/<id>` | End its session and remove it |
+| Request                       |                                                                                                                                                                                                                                              |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /workspaces`             | Every workspace, and its status                                                                                                                                                                                                              |
+| `POST /workspaces`            | Create one from JSON: `name` or `ticket`, and optionally `cwd`, `url` (its first tab), `prompt` (its first message), or `pr` (a GitHub PR URL, which fills in the rest). An existing workspace for the same ticket or PR is focused instead. |
+| `POST /workspaces/<id>/focus` | Switch Chrome to it                                                                                                                                                                                                                          |
+| `DELETE /workspaces/<id>`     | End its session and remove it                                                                                                                                                                                                                |
 
 ```bash
 printf 'header = "Authorization: Bearer %s"\n' "$(cat ~/.chrome-workspaces/token)" |

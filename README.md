@@ -28,16 +28,16 @@ That sets up, builds and starts the helper, then lists the Chrome steps: load `e
 
 ## Documentation
 
-| Doc | Contents |
-|---|---|
-| [docs/setup.md](docs/setup.md) | Install, troubleshoot, run the helper, script workspaces, uninstall |
-| [docs/features.md](docs/features.md) | Everything the panel does, and its limitations |
-| [docs/configuration.md](docs/configuration.md) | `config.json` fields |
-| [docs/privacy.md](docs/privacy.md) | What leaves your machine, and what is kept |
-| [docs/architecture.md](docs/architecture.md) | How the pieces fit, layout, security model |
-| [docs/development.md](docs/development.md) | Commands, workflow, conventions |
-| [docs/releasing.md](docs/releasing.md) | Cutting a release |
-| [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md) | Contributing, and reporting a vulnerability |
+| Doc                                                            | Contents                                                            |
+| -------------------------------------------------------------- | ------------------------------------------------------------------- |
+| [docs/setup.md](docs/setup.md)                                 | Install, troubleshoot, run the helper, script workspaces, uninstall |
+| [docs/features.md](docs/features.md)                           | Everything the panel does, and its limitations                      |
+| [docs/configuration.md](docs/configuration.md)                 | `config.json` fields                                                |
+| [docs/privacy.md](docs/privacy.md)                             | What leaves your machine, and what is kept                          |
+| [docs/architecture.md](docs/architecture.md)                   | How the pieces fit, layout, security model                          |
+| [docs/development.md](docs/development.md)                     | Commands, workflow, conventions                                     |
+| [docs/releasing.md](docs/releasing.md)                         | Cutting a release                                                   |
+| [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md) | Contributing, and reporting a vulnerability                         |
 
 ## License
 
