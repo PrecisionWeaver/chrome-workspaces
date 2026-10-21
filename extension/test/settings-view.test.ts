@@ -254,15 +254,15 @@ describe('result banner', () => {
 });
 
 describe('the cards', () => {
-  it('lists them in order, with the setup and warning cards first only when there is something to show', async () => {
+  it('lists them by column (activity, preferences, system), with the setup and warning cards first only when there is something to show', async () => {
     await open();
     expect(cards().map((node) => node.dataset.key)).toEqual([
-      'Preferences',
-      'Helper',
-      'Updates',
       'Plan usage',
       'Usage',
       'Workspace sessions',
+      'Preferences',
+      'Updates',
+      'Helper',
       'Housekeeping',
       'Configuration',
       'Diagnostics',

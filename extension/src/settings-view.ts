@@ -55,6 +55,9 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
   const section = $<HTMLElement>('settings');
   const body = $<HTMLDivElement>('settings-body');
   const grid = $<HTMLDivElement>('settings-cards');
+  // Persistent groups, so a held dropdown's card keeps its parent across renders. Alerts span the full width.
+  const alerts = el('div', '', 'settings-group settings-alerts');
+  const columns = [el('div', '', 'settings-group'), el('div', '', 'settings-group'), el('div', '', 'settings-group')];
   const resultEl = $<HTMLDivElement>('settings-result');
   const updatedEl = $<HTMLSpanElement>('settings-updated');
 
@@ -580,29 +583,28 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       grid.replaceChildren(el('div', error ? `Could not read the system: ${error}` : 'Loading…', 'settings-empty'));
       return;
     }
-    const cards = [
-      ...[setupCard(snapshot), warningsCard(snapshot)].filter((card): card is HTMLElement => card !== null),
-      preferencesCard(),
-      helperCard(snapshot),
-      updatesCard(),
-      planCard(snapshot),
-      usageCard(snapshot, prefs.usageRange, setUsageRange),
-      sessionsCard(snapshot),
-      housekeepingCard(snapshot),
-      configCard(snapshot),
-      diagnosticsCard(snapshot),
-    ];
+    const present = (...cards: (HTMLElement | null)[]): HTMLElement[] => cards.filter((card): card is HTMLElement => card !== null);
+    const filled = [
+      [alerts, present(setupCard(snapshot), warningsCard(snapshot))],
+      [columns[0], [planCard(snapshot), usageCard(snapshot, prefs.usageRange, setUsageRange), sessionsCard(snapshot)]],
+      [columns[1], [preferencesCard(), updatesCard()]],
+      [columns[2], [helperCard(snapshot), housekeepingCard(snapshot), configCard(snapshot), diagnosticsCard(snapshot)]],
+    ] as const;
     // Detaching a focused dropdown closes it, so its card stays put, a poll behind, until focus leaves.
     const active = document.activeElement;
     const held = active instanceof HTMLSelectElement && grid.contains(active) ? active.closest<HTMLElement>('.settings-card') : null;
-    const at = held ? cards.findIndex((card) => card.dataset.key === held.dataset.key) : -1;
-    if (held && at >= 0) {
-      for (const child of [...grid.children]) if (child !== held) child.remove();
-      held.before(...cards.slice(0, at));
-      held.after(...cards.slice(at + 1));
-    } else {
-      grid.replaceChildren(...cards);
+    grid.replaceChildren(alerts, ...columns);
+    for (const [group, cards] of filled) {
+      const at = held && group.contains(held) ? cards.findIndex((card) => card.dataset.key === held.dataset.key) : -1;
+      if (held && at >= 0) {
+        for (const child of [...group.children]) if (child !== held) child.remove();
+        held.before(...cards.slice(0, at));
+        held.after(...cards.slice(at + 1));
+      } else {
+        group.replaceChildren(...cards);
+      }
     }
+    alerts.hidden = alerts.childElementCount === 0;
     body.scrollTop = scroll;
   }
 
