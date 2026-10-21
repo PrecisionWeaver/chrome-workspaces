@@ -7,6 +7,7 @@ import {
   isRateLimited,
   isTransient,
   MERGE_BATCH,
+  MERGE_CONCURRENCY,
   mergeStatusQuery,
   parseMergeStatuses,
   parseReviewRequests,
@@ -269,19 +270,87 @@ describe('merge state batches', () => {
     expect(poller.state().items.every((item) => item.merge === 'ready')).toBe(true);
   });
 
-  it('retries a batch that failed once, and uses its answer', async () => {
-    let calls = 0;
+  it('retries a batch that failed as two halves, and uses their answers', async () => {
+    const sizes: number[] = [];
     const poller = new ReviewsPoller(
       async () => [many(3)],
       async (query) => {
-        if (calls++ === 0) throw Object.assign(new Error('Command failed'), { stderr: 'gh: HTTP 504' });
+        sizes.push((query.match(/pullRequest\(/g) ?? []).length);
+        if (sizes.length === 1) throw Object.assign(new Error('Command failed'), { stderr: 'gh: HTTP 504' });
+        return answer(query);
+      },
+      0,
+    );
+    await poller.refresh();
+    expect(sizes).toEqual([3, 2, 1]);
+    expect(poller.state().items.map((item) => item.merge)).toEqual(['ready', 'ready', 'ready']);
+  });
+
+  it('retries a batch of one PR as itself', async () => {
+    let calls = 0;
+    const poller = new ReviewsPoller(
+      async () => [many(1)],
+      async (query) => {
+        if (calls++ === 0) throw Object.assign(new Error('x'), { killed: true });
         return answer(query);
       },
       0,
     );
     await poller.refresh();
     expect(calls).toBe(2);
-    expect(poller.state().items.map((item) => item.merge)).toEqual(['ready', 'ready', 'ready']);
+    expect(poller.state().items[0].merge).toBe('ready');
+  });
+
+  it('loses only the half that fails again, and says how many', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const poller = new ReviewsPoller(
+      async () => [many(4)],
+      async (query) => {
+        // The whole batch, then the half holding PR 1, time out.
+        if (query.includes('pullRequest(number: 1)')) throw Object.assign(new Error('x'), { killed: true });
+        return answer(query);
+      },
+      0,
+    );
+    await poller.refresh();
+    const byNumber = new Map(poller.state().items.map((item) => [item.number, item.merge]));
+    expect([1, 2, 3, 4].map((n) => byNumber.get(n))).toEqual(['unknown', 'unknown', 'ready', 'ready']);
+    expect(warn).toHaveBeenCalledWith('could not read merge states for 2 of 4 PRs: timed out');
+    warn.mockRestore();
+  });
+
+  it(`asks no more than ${MERGE_CONCURRENCY} batches at once`, async () => {
+    let inFlight = 0;
+    let most = 0;
+    const poller = new ReviewsPoller(
+      async () => [many(MERGE_BATCH * 5)],
+      async (query) => {
+        most = Math.max(most, ++inFlight);
+        await new Promise((resolve) => setTimeout(resolve, 1));
+        inFlight--;
+        return answer(query);
+      },
+    );
+    await poller.refresh();
+    expect(most).toBe(MERGE_CONCURRENCY);
+    expect(poller.state().items.every((item) => item.merge === 'ready')).toBe(true);
+  });
+
+  it('asks no further batches once GitHub rate-limits one', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    let calls = 0;
+    const poller = new ReviewsPoller(
+      async () => [many(MERGE_BATCH * 5)],
+      async () => {
+        calls++;
+        throw Object.assign(new Error('x'), { stderr: 'gh: API rate limit exceeded' });
+      },
+      0,
+    );
+    await poller.refresh();
+    expect(calls).toBe(MERGE_CONCURRENCY);
+    expect(poller.state().error).toMatch(/rate-limiting/);
+    warn.mockRestore();
   });
 
   it('loses only the failed batch, and keeps those PRs' + "'" + ' last known state', async () => {

@@ -23,8 +23,13 @@ import { startServer } from './server';
 import { SessionManager } from './session';
 import { loadOrCreateToken } from './token';
 import { WorkspaceStore } from './workspace-store';
+import { stampConsole } from './log';
 import { rotateLog } from './log-rotation';
 import { pruneUploads } from './uploads';
+
+stampConsole();
+// A crash's stack trace follows unstamped, so this line says when it happened.
+process.on('uncaughtExceptionMonitor', (error) => console.error(`crashed: ${error instanceof Error ? error.message : String(error)}`));
 
 const config = loadConfig();
 const shell = process.env.SHELL ?? '/bin/zsh';
@@ -185,6 +190,7 @@ const server = await startServer({
     const resumeId = sessionState.get(id)?.claudeSessionId ?? workspace.resume ?? null;
     const spec = launchSpec(workspace, { shell, resumeId, defaultModel: config.defaultModel, command: config.claudeCommand, hooksFile });
     const session = sessions.create(spec);
+    console.log(`started ${workspace.name} in ${spec.cwd}${spec.args.join(' ').includes('--resume') ? ', resuming its conversation' : ''}`);
     if (spec.env?.CW_PROMPT !== undefined) store.clearPrompt(id);
     return session;
   },
@@ -193,7 +199,9 @@ const server = await startServer({
 console.log(`chrome-workspaces helper on ${HOST}:${server.port} for extension ${config.extensionId}`);
 for (const problem of config.problems) console.warn(`config: ${problem}`);
 
-function shutdown(): void {
+function shutdown(signal: NodeJS.Signals): void {
+  const running = sessions.list().filter((session) => !session.exited).length;
+  console.log(`stopping on ${signal}, ending ${running} terminal${running === 1 ? '' : 's'}`);
   stopWatching();
   reviews.stop();
   sessions.killAll();
