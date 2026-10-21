@@ -6,7 +6,7 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["**", "!**/package-lock.json", "!extension/dist", "!docs/images", "!coverage"]
+    "includes": ["**", "!**/package-lock.json", "!extension/dist", "!docs/images", "!coverage", "!**/*.md", "!**/*.yml"]
   },
   "formatter": {
     "enabled": true,
