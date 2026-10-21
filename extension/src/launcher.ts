@@ -37,12 +37,13 @@ const MERGE_TITLES: Partial<Record<MergeState, string>> = {
 
 const CI_LABELS: Record<CiState, string> = { passing: 'Checks passing', failing: 'Checks failing', pending: 'Checks running' };
 
-/** What a request is filtered on for a facet. */
-const facetValue = (item: ReviewRequest, facet: Facet): string => (facet === 'status' ? MERGE_LABELS[item.merge] : item[facet]);
+/** What a request is filtered on for a facet; a PR that cannot merge is filtered by why, such as Conflicts. */
+const facetValue = (item: ReviewRequest, facet: Facet): string =>
+  facet === 'status' ? (item.merge === 'blocked' && item.mergeReason ? item.mergeReason : MERGE_LABELS[item.merge]) : item[facet];
 
 /** Every word of the query must appear somewhere in the request. */
 function matches(item: ReviewRequest, query: string): boolean {
-  const haystack = `${ref(item)} ${item.repo} ${item.title} ${item.author} ${item.ticket ?? ''}${item.isDraft ? ' draft' : ''}`.toLowerCase();
+  const haystack = `${ref(item)} ${item.repo} ${item.title} ${item.author} ${item.ticket ?? ''} ${item.branch}${item.isDraft ? ' draft' : ''}`.toLowerCase();
   return query.split(/\s+/).every((word) => haystack.includes(word));
 }
 

@@ -359,6 +359,8 @@ export interface ReviewRequest {
   isDraft: boolean;
   updatedAt: string;
   ticket: string | null;
+  /** The PR's head branch; empty until the merge lookup has answered. */
+  branch: string;
   merge: MergeState;
   /** Why a `blocked` PR cannot merge, in a word or two; null otherwise. */
   mergeReason: string | null;

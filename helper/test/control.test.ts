@@ -32,6 +32,7 @@ const review: ReviewRequest = {
   isDraft: false,
   updatedAt: '2026-10-01T00:00:00Z',
   ticket: 'PROJ-9',
+  branch: 'feature/x',
   merge: 'unknown',
   mergeReason: null,
   needsReReview: false,

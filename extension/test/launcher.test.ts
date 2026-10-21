@@ -210,6 +210,18 @@ describe('searching', () => {
     makeReview({ number: 3, title: 'Refactor', url: 'u3', author: 'alice', isDraft: true, merge: 'draft' }),
   ];
 
+  it('finds a PR by its branch name', async () => {
+    await start();
+    launcher.renderReviews(
+      state([makeReview({ number: 1, url: 'u1', branch: 'proj-9/rework-sync' }), makeReview({ number: 2, url: 'u2', branch: 'fix/typo' })]),
+      [],
+    );
+    search('rework-sync');
+    expect(refs()).toEqual(['app#1']);
+    search('fix/');
+    expect(refs()).toEqual(['app#2']);
+  });
+
   it('needs every word to match somewhere: title, author, repo, ticket or number', async () => {
     await start();
     launcher.renderReviews(state(items), []);
@@ -297,6 +309,28 @@ describe('filtering by author, repo and status', () => {
     expect(facetButton('author').textContent).toBe('Authors 1/2');
     expect(facetButton('author').classList.contains('active')).toBe(true);
     expect($('reviews-title').textContent).toBe('Review requests (1 of 3)');
+  });
+
+  it('lists why a PR cannot merge as its own status', async () => {
+    await start();
+    launcher.renderReviews(
+      state([
+        makeReview({ number: 1, url: 'u1', merge: 'blocked', mergeReason: 'Conflicts' }),
+        makeReview({ number: 2, url: 'u2', merge: 'blocked', mergeReason: 'Behind' }),
+        makeReview({ number: 3, url: 'u3', merge: 'blocked' }),
+      ]),
+      [],
+    );
+    facetButton('status').click();
+    expect(options_().map((row) => row.querySelector('.facet-name')?.textContent)).toEqual(
+      ['Behind', 'Conflicts', "Can't merge"].sort((a, b) => a.localeCompare(b)),
+    );
+    const conflicts = options_()
+      .find((row) => row.querySelector('.facet-name')?.textContent === 'Conflicts')!
+      .querySelector('input') as HTMLInputElement;
+    conflicts.checked = false;
+    conflicts.dispatchEvent(new Event('change'));
+    expect(refs()).toEqual(['app#2', 'app#3']);
   });
 
   it('filters on status by its label', async () => {
