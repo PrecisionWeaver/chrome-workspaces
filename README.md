@@ -1,5 +1,8 @@
 # Chrome Workspaces
 
+[![release](https://github.com/PrecisionWeaver/chrome-workspaces/actions/workflows/release.yml/badge.svg)](https://github.com/PrecisionWeaver/chrome-workspaces/actions/workflows/release.yml)
+[![ci](https://github.com/PrecisionWeaver/chrome-workspaces/actions/workflows/ci.yml/badge.svg)](https://github.com/PrecisionWeaver/chrome-workspaces/actions/workflows/ci.yml)
+
 A Claude terminal for every Chrome window or tab group, docked in Chrome's side panel, with source control and pull-request review built in.
 
 Each workspace is a regular Chrome window, or a tab group inside one, with your profile, logins, extensions, and DevTools, paired with a terminal running `claude`. Keep a task's tabs in its window or group and switch between workspaces with `⌃⇧←` / `⌃⇧→`.
