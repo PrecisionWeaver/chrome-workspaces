@@ -57,7 +57,7 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
   const grid = $<HTMLDivElement>('settings-cards');
   // Persistent groups, so a held dropdown's card keeps its parent across renders. Alerts span the full width.
   const alerts = el('div', '', 'settings-group settings-alerts');
-  const columns = [el('div', '', 'settings-group'), el('div', '', 'settings-group'), el('div', '', 'settings-group')];
+  const columns = [el('div', '', 'settings-group activity'), el('div', '', 'settings-group prefs'), el('div', '', 'settings-group system')];
   const resultEl = $<HTMLDivElement>('settings-result');
   const updatedEl = $<HTMLSpanElement>('settings-updated');
 
