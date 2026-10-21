@@ -260,12 +260,12 @@ describe('the cards', () => {
       'Plan usage',
       'Usage',
       'Workspace sessions',
-      'Preferences',
-      'Updates',
-      'Configuration',
       'Helper',
       'Housekeeping',
       'Diagnostics',
+      'Preferences',
+      'Updates',
+      'Configuration',
     ]);
   });
 

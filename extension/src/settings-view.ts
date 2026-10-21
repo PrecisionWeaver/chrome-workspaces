@@ -57,7 +57,7 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
   const grid = $<HTMLDivElement>('settings-cards');
   // Persistent groups, so a held dropdown's card keeps its parent across renders. Alerts span the full width.
   const alerts = el('div', '', 'settings-group settings-alerts');
-  const columns = [el('div', '', 'settings-group activity'), el('div', '', 'settings-group prefs'), el('div', '', 'settings-group system')];
+  const columns = [el('div', '', 'settings-group'), el('div', '', 'settings-group'), el('div', '', 'settings-group')];
   const resultEl = $<HTMLDivElement>('settings-result');
   const updatedEl = $<HTMLSpanElement>('settings-updated');
 
@@ -587,8 +587,8 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
     const filled = [
       [alerts, present(setupCard(snapshot), warningsCard(snapshot))],
       [columns[0], [planCard(snapshot), usageCard(snapshot, prefs.usageRange, setUsageRange), sessionsCard(snapshot)]],
-      [columns[1], [preferencesCard(), updatesCard(), configCard(snapshot)]],
-      [columns[2], [helperCard(snapshot), housekeepingCard(snapshot), diagnosticsCard(snapshot)]],
+      [columns[1], [helperCard(snapshot), housekeepingCard(snapshot), diagnosticsCard(snapshot)]],
+      [columns[2], [preferencesCard(), updatesCard(), configCard(snapshot)]],
     ] as const;
     // Detaching a focused dropdown closes it, so its card stays put, a poll behind, until focus leaves.
     const active = document.activeElement;
