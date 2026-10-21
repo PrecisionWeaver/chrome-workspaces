@@ -300,19 +300,29 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
     const running = s.sessions.filter((x) => x.pid !== null).length;
     const counted = s.sessions.flatMap((x) => (x.tokens && !x.tokens.counting ? [x.tokens] : []));
     const total = counted.reduce((sum, t) => sum + newTokens(t), 0);
+    const workspaceKb = s.sessions.reduce((sum, x) => sum + x.processes.reduce((n, p) => n + p.rssKb, 0), 0);
     const list = el('div', '', 'sessions');
     // Running workspaces first, since those are the ones using the machine.
     list.append(...[...s.sessions].sort((a, b) => Number(b.pid !== null) - Number(a.pid !== null)).map(sessionRow));
     if (s.sessions.length === 0) list.append(el('div', 'No workspaces yet.', 'settings-empty'));
     return card(
-      `Workspace sessions · ${running} running${counted.length ? ` · ${formatTokens(total)} tokens` : ''}`,
+      `Workspace sessions · ${running} running${counted.length ? ` · ${formatTokens(total)} tokens` : ''}${running ? ` · ${formatKb(workspaceKb)}` : ''}`,
       el(
         'p',
         'Each runs a shell and claude, and shows the tokens that claude session has used (input, output and cache writes; hover for the breakdown). Expand one to see every process beneath it, and the ports they listen on. Stopping a process also stops its children.',
         'settings-note',
       ),
       list,
+      memoryTotal(s.helper.rssKb, workspaceKb),
     );
+  }
+
+  /** Helper plus every workspace's processes. RSS counts shared pages once per process, so it runs a little high. */
+  function memoryTotal(helperKb: number, workspaceKb: number): HTMLElement {
+    const line = el('div', '', 'memory-total');
+    line.append(el('span', 'Total memory', 'k'), el('span', formatKb(helperKb + workspaceKb), 'v'));
+    line.title = `Helper ${formatKb(helperKb)} + workspaces ${formatKb(workspaceKb)}\nMemory shared between processes is counted once per process, so this is slightly high.`;
+    return line;
   }
 
   function housekeepingCard(s: SystemSnapshot): HTMLElement {
