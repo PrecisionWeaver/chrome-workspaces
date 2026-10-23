@@ -1,8 +1,6 @@
 import type { CiState, ControlToHelper, MergeState, ReviewRequest, ReviewsState, Workspace } from '../../shared/protocol';
-import { el } from './dom';
+import { $, el } from './dom';
 import { ref, relative, byline } from './pr-view';
-
-const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
 export interface LauncherOptions {
   send(message: ControlToHelper): boolean;

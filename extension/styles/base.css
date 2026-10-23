@@ -216,12 +216,38 @@ code {
   color: var(--muted);
 }
 
+/* A hidden attribute always wins, whatever display an id rule gives the element. */
+[hidden] {
+  display: none !important;
+}
+
+/* A full-height page that replaces the terminal (settings, tool, diff). */
+.view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 14px 20px 20px;
+}
+
+/* The page's title, in its bar beside Back or below it. */
+.view-title {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* The bar itself: Back first, then the page's own title and buttons. */
+.view-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
 /* The buttons in the top bar of every view (Back, ticket, GitHub, refresh) and the change-repo button. */
-#create-bar button,
-#create-change,
-#diff-bar button,
-#tool-bar button,
-#settings-bar button {
+.view-bar button,
+#create-change {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -239,41 +265,24 @@ code {
     border-color 0.12s;
 }
 
-#create-bar button:hover,
-#create-change:hover,
-#diff-bar button:hover,
-#tool-bar button:hover,
-#settings-bar button:hover {
+.view-bar button:hover,
+#create-change:hover {
   background: var(--raised);
   border-color: var(--border-strong);
 }
 
-#create-bar button:active,
-#diff-bar button:active,
-#tool-bar button:active,
-#settings-bar button:active {
+.view-bar button:active {
   background: var(--active);
 }
 
-#create-bar button .icon,
-#diff-bar button .icon,
-#tool-bar button .icon,
-#settings-bar button .icon {
+.view-bar button .icon {
   flex: none;
   width: 14px;
   height: 14px;
 }
 
-/* The display above would otherwise win over the hidden attribute. */
-#create-bar button[hidden],
-#diff-bar button[hidden],
-#tool-bar button[hidden],
-#settings-bar button[hidden] {
-  display: none;
-}
-
 /* The refresh button is icon-only, so it is a square the same height as its neighbours. */
-#settings-bar button:has(.icon) {
+.view-bar button.icon-only {
   min-width: 30px;
   padding: 6px;
 }

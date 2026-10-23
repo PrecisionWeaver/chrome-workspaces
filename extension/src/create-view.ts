@@ -3,11 +3,9 @@ import { MAX_TAB_URLS, MODEL_ALIASES, WORKSPACE_COLORS } from '../../shared/prot
 import { parseTabUrls } from '../../shared/tab-urls';
 import { parseTemplates, removeTemplate, upsertTemplate, type Template } from '../../shared/templates';
 import type { ControlToClient, ControlToHelper, PrDetails, Prompt, Repo, ReviewRequest, Workspace, WorkspaceColor } from '../../shared/protocol';
-import { el, icon, promptCard } from './dom';
+import { $, el, icon, promptCard, wireBack } from './dom';
 import { ref, renderDetails, renderThreads, repoName } from './pr-view';
 import { findTab, noteReviewTab, openInWorkspace } from './tabs';
-
-const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
 export interface CreateViewOptions {
   send(message: ControlToHelper): boolean;
@@ -340,7 +338,7 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
     filter.focus();
   });
 
-  $<HTMLButtonElement>('create-close').addEventListener('click', close);
+  wireBack('create-close', close, () => isOpen);
 
   ticketButton.addEventListener('click', () => {
     if (ticketButton.dataset.url) void chrome.tabs.create({ url: ticketButton.dataset.url });
@@ -352,10 +350,6 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
     void openInWorkspace(here().workspace, here().windowId, url).then((tabId) => {
       if (tabId !== undefined) void noteReviewTab(url, tabId);
     });
-  });
-
-  document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && isOpen) close();
   });
 
   form.addEventListener('submit', (event) => {

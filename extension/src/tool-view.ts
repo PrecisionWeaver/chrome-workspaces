@@ -1,9 +1,8 @@
 import { FitAddon } from '@xterm/addon-fit';
 import { Terminal, type ITheme } from '@xterm/xterm';
 import { MONITOR_SESSION, SHELL_SESSION, type ClientMessage, type ServerMessage } from '../../shared/protocol';
+import { $, wireBack } from './dom';
 import { getHelper, openSocket } from './helper-client';
-
-const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
 /** The terminals that belong to no workspace: each is a helper session of its own. */
 export const TOOLS = {
@@ -37,7 +36,7 @@ export function createToolView({ onToggle }: ToolViewOptions): ToolView {
   const section = $<HTMLElement>('tool');
   const holder = $<HTMLDivElement>('tool-terminal');
   const title = $<HTMLSpanElement>('tool-title');
-  $<HTMLButtonElement>('tool-close').addEventListener('click', close);
+  wireBack('tool-close', close);
 
   const term = new Terminal({ fontFamily: 'Menlo, monospace', fontSize: 12, cursorBlink: true, theme: { background: '#1e1e1e' } });
   const fit = new FitAddon();

@@ -1,3 +1,5 @@
+export const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+
 export function el<K extends keyof HTMLElementTagNameMap>(tag: K, text = '', className = ''): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag);
   node.textContent = text;
@@ -30,4 +32,16 @@ export function icon(name: string): SVGSVGElement {
   use.setAttribute('href', `#i-${name}`);
   svg.append(use);
   return svg;
+}
+
+/**
+ * Wires a page's Back button to `close`, and Escape too while `isOpen` says the page is showing.
+ * A page that leaves Escape to its terminal passes no `isOpen`.
+ */
+export function wireBack(buttonId: string, close: () => void, isOpen?: () => boolean): void {
+  $<HTMLButtonElement>(buttonId).addEventListener('click', close);
+  if (!isOpen) return;
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && isOpen()) close();
+  });
 }

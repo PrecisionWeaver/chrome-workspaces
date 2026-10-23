@@ -7,13 +7,6 @@
   padding: 14px 20px 24px;
 }
 
-#create-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 14px;
-}
-
 #create-bar #create-close {
   margin-right: auto;
 }
@@ -24,10 +17,7 @@
   flex-wrap: wrap;
   gap: 4px 10px;
   margin: 0 0 12px;
-  font-size: 16px;
-  font-weight: 600;
   line-height: 1.35;
-  letter-spacing: -0.01em;
 }
 
 .ref-chip {
@@ -666,11 +656,6 @@
   outline: none;
 }
 
-#create-templates[hidden],
-.template-row[hidden] {
-  display: none;
-}
-
 .segmented {
   display: inline-flex;
   align-self: flex-start;
@@ -700,12 +685,6 @@
 
 .segmented button:disabled {
   opacity: 0.4;
-}
-
-#create-message[hidden],
-#create-prompt[hidden],
-#create-chosen[hidden] {
-  display: none;
 }
 
 #create-chosen {

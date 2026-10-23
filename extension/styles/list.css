@@ -409,10 +409,6 @@ body.collapsed #new .label {
   border-radius: var(--radius);
 }
 
-#reviews-facet[hidden] {
-  display: none;
-}
-
 #reviews-facet .facet-bulk {
   display: flex;
   gap: 4px;

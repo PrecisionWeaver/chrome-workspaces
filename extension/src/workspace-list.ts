@@ -2,7 +2,7 @@ import { needsInputCount } from '../../shared/attention';
 import { nextIndex } from '../../shared/keynav';
 import { filterList } from '../../shared/list-filter';
 import { type ControlToHelper, type HistoryEntry, type Workspace, type WorkspaceStatus, WORKSPACE_COLORS } from '../../shared/protocol';
-import { caret } from './dom';
+import { $, caret } from './dom';
 import { closeMenu, menuItem, openMenu } from './menu';
 
 export interface WorkspaceListOptions {
@@ -26,8 +26,6 @@ export interface WorkspaceList {
   /** Brings an archived workspace back, into this window as a tab group when it already holds one. */
   restore(entry: HistoryEntry): void;
 }
-
-const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
 /** The workspace list in the side panel: rows, filter, archived workspaces, context menu, drag to reorder and rename. */
 export function createWorkspaceList(options: WorkspaceListOptions): WorkspaceList {

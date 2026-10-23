@@ -117,7 +117,7 @@
         </form>
       </section>
       <section id="create" hidden>
-        <div id="create-bar">
+        <div id="create-bar" class="view-bar">
           <button type="button" id="create-close" title="Back to the terminal (Esc)">
             <svg class="icon"><use href="#i-arrow-left" /></svg>Back
           </button>
@@ -126,7 +126,7 @@
             <svg class="icon"><use href="#i-github" /></svg>Open in GitHub
           </button>
         </div>
-        <h2 id="create-title">New workspace</h2>
+        <h2 id="create-title" class="view-title">New workspace</h2>
         <div id="create-details" hidden></div>
         <div id="create-threads" hidden></div>
         <form id="create-form">
@@ -196,37 +196,37 @@
           </div>
         </form>
       </section>
-      <section id="settings" hidden>
-        <div id="settings-bar">
+      <section id="settings" class="view" hidden>
+        <div id="settings-bar" class="view-bar">
           <button type="button" id="settings-close" title="Back to the terminal (Esc)">
             <svg class="icon"><use href="#i-arrow-left" /></svg>Back
           </button>
-          <h2 id="settings-title">Settings</h2>
+          <h2 id="settings-title" class="view-title">Settings</h2>
           <span id="settings-updated"></span>
-          <button type="button" id="settings-refresh" title="Refresh now" aria-label="Refresh now">
+          <button type="button" id="settings-refresh" class="icon-only" title="Refresh now" aria-label="Refresh now">
             <svg class="icon"><use href="#i-refresh" /></svg>
           </button>
         </div>
         <div id="settings-result" hidden></div>
         <div id="settings-body"><div id="settings-cards"></div></div>
       </section>
-      <section id="tool" hidden>
-        <div id="tool-bar">
+      <section id="tool" class="view" hidden>
+        <div id="tool-bar" class="view-bar">
           <button type="button" id="tool-close" title="Back to the workspace (quitting the program also goes back)">
             <svg class="icon"><use href="#i-arrow-left" /></svg>Back
           </button>
-          <span id="tool-title"></span>
+          <span id="tool-title" class="view-title"></span>
         </div>
         <div id="tool-terminal"></div>
       </section>
-      <section id="diff" hidden>
-        <div id="diff-bar">
+      <section id="diff" class="view" hidden>
+        <div id="diff-bar" class="view-bar">
           <button type="button" id="diff-close" title="Back to the terminal (Esc)">
             <svg class="icon"><use href="#i-arrow-left" /></svg>Back
           </button>
         </div>
         <!-- biome-ignore lint/a11y/useHeadingContent: filled in by git-view.ts when a diff opens -->
-        <h2 id="diff-title"></h2>
+        <h2 id="diff-title" class="view-title"></h2>
         <div id="diff-meta"></div>
         <div id="diff-layout">
           <div id="diff-files" hidden></div>

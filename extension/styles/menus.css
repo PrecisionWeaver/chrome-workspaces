@@ -15,10 +15,6 @@
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
-#list-search[hidden] {
-  display: none;
-}
-
 .ws:focus-visible {
   outline-offset: -2px;
 }
