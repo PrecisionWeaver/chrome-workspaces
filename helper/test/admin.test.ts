@@ -192,6 +192,51 @@ describe('usage and cost', () => {
     throw new Error('the transcript was never counted');
   });
 
+  it('keeps counting an archived workspace, and a transcript a live workspace is on only once', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'cw-adm-archived-'));
+    const wrote = new Date();
+    wrote.setHours(10, 0, 0, 0);
+    const today = localDay(wrote);
+    const transcript = (name: string, id: string) => {
+      const file = join(dir, name);
+      const line = {
+        type: 'assistant',
+        timestamp: wrote.toISOString(),
+        message: {
+          id,
+          model: 'claude-opus-5-5',
+          usage: { input_tokens: 1_000_000, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
+        },
+      };
+      writeFileSync(file, `${JSON.stringify(line)}\n`);
+      return file;
+    };
+    const live = h.store.create({ name: 'live', cwd: h.defaultCwd });
+    h.transcripts[live.id] = transcript('live.jsonl', 'm1');
+    const gone = transcript('gone.jsonl', 'm2');
+    h.archived = [
+      { id: 'w-gone', name: 'gone', transcript: gone },
+      // Its workspace was restored onto the live one's transcript: not a second count.
+      { id: 'w-restored', name: 'restored', transcript: h.transcripts[live.id] },
+    ];
+
+    for (let i = 0; i < 50; i++) {
+      const { ws, reply } = await ask({ type: 'system' }, 'system');
+      ws.close();
+      if (reply.type !== 'system' || !reply.snapshot) throw new Error('no snapshot');
+      const { usage } = reply.snapshot;
+      if (!usage.counting && usage.daily.at(-1)?.tokens) {
+        expect(usage.daily.at(-1)).toMatchObject({ day: today, tokens: 2_000_000 });
+        expect(usage.workspaces.map((w) => w.name).sort()).toEqual(['gone', 'live']);
+        // Archived work is not a session of anyone's, so it has no row among the sessions.
+        expect(reply.snapshot.sessions.map((x) => x.id)).not.toContain('w-gone');
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    throw new Error('the transcripts were never counted');
+  });
+
   it("builds a 60-day series ending today, and sums every day's cost", () => {
     const now = new Date('2026-10-09T12:00:00Z');
     const day = (tokens: number, costUsd: number, models: [string, number, number][] = []) => ({
