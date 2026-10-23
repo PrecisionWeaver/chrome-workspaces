@@ -682,6 +682,39 @@ describe('the cards', () => {
     });
   });
 
+  describe('layout', () => {
+    const widen = async (width: number) => {
+      Object.defineProperty(document.getElementById('settings-body')!, 'clientWidth', { configurable: true, value: width });
+      await open(makeSnapshot());
+    };
+    const columnKeys = () =>
+      [...document.querySelectorAll('#settings-cards > .settings-column')].map((c) => [...c.children].map((n) => (n as HTMLElement).dataset.key));
+
+    it('is one column in a narrow panel, in the usual order', async () => {
+      await widen(400);
+      expect(columnKeys()).toHaveLength(1);
+      expect(document.querySelector('.settings-top')).toBeNull();
+    });
+
+    it('is two columns when the panel is wide, with Usage and the sessions at the top of each', async () => {
+      await widen(800);
+      const columns = columnKeys();
+      expect(columns).toHaveLength(2);
+      expect(columns.map((c) => c[0])).toEqual(['Usage', 'Workspace sessions']);
+    });
+
+    it('is three when it is wider still, and keeps a focused dropdown where it is across a refresh', async () => {
+      await widen(1200);
+      expect(columnKeys().map((c) => c[0])).toEqual(['Usage', 'Workspace sessions', 'Plan usage']);
+      const select = card('Preferences').querySelector('select')!;
+      select.focus();
+      const before = card('Preferences');
+      view.setSystem({ type: 'system', snapshot: makeSnapshot(), error: null });
+      expect(card('Preferences')).toBe(before);
+      expect(document.activeElement).toBe(select);
+    });
+  });
+
   describe('Workspace sessions', () => {
     const running = makeSession({ id: 'ws-a', name: 'acme/app', pid: 10 });
     const stopped = makeSession({ id: 'ws-b', name: 'acme/api', pid: null, processes: [] });

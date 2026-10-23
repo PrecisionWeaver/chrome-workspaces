@@ -50,7 +50,7 @@
   color: var(--bad);
 }
 
-/* One column in the side panel; as many 340px-plus columns as fit when it widens, up to three. Columns pack cards of different heights without gaps; the cards sit in an inner box because columns inside a fixed-height scroller would overflow sideways. */
+/* One column in the side panel; two and then three as it widens. The columns are built by `layoutCards`, not by CSS, so a card can lead one and none leaves a gap beneath the one above it. */
 #settings-body {
   flex: 1;
   min-height: 0;
@@ -58,13 +58,32 @@
 }
 
 #settings-cards {
-  columns: 340px 3;
-  column-gap: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.settings-top {
+  flex: 1 0 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.settings-column {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+#settings-cards > .settings-empty {
+  flex: 1 0 100%;
 }
 
 .settings-card {
-  margin-bottom: 12px;
-  break-inside: avoid;
   padding: 12px 14px;
   border: 1px solid var(--border);
   border-radius: 8px;

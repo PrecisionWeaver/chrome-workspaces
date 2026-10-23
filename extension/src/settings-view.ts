@@ -10,6 +10,7 @@ import type {
   UpdateStatus,
 } from '../../shared/protocol';
 import { caret, el } from './dom';
+import { columnCountFor, layoutCards } from './settings-layout';
 import { sparkline } from './sparkline';
 import { card, actions, row } from './settings-parts';
 import { planCard, usageCard } from './settings-usage';
@@ -635,18 +636,47 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       configCard(snapshot),
       diagnosticsCard(snapshot),
     ];
+    columnsNow = columnCountFor(body.clientWidth);
+    const { top, columns } = layoutCards(cards, columnsNow);
+    const groups = [...(top.length ? [{ cls: 'settings-top', cards: top }] : []), ...columns.map((c) => ({ cls: 'settings-column', cards: c }))];
     // Detaching a focused dropdown closes it, so its card stays put, a poll behind, until focus leaves.
     const active = document.activeElement;
     const held = active instanceof HTMLSelectElement && grid.contains(active) ? active.closest<HTMLElement>('.settings-card') : null;
-    const at = held ? cards.findIndex((card) => card.dataset.key === held.dataset.key) : -1;
-    if (held && at >= 0) {
-      for (const child of [...grid.children]) if (child !== held) child.remove();
-      held.before(...cards.slice(0, at));
-      held.after(...cards.slice(at + 1));
+    const holder = held?.parentElement;
+    const heldAt = held ? groups.findIndex((g) => g.cards.some((card) => card.dataset.key === held.dataset.key)) : -1;
+    // The same layout as last time, so the held card can stay where it is; a different one has to move it.
+    const same = holder !== null && holder !== undefined && heldAt >= 0 && [...grid.children].length === groups.length && grid.children[heldAt] === holder;
+    if (held && same) {
+      groups.forEach((g, i) => {
+        const node = grid.children[i] as HTMLElement;
+        if (node !== holder) {
+          node.replaceChildren(...g.cards);
+          return;
+        }
+        const at = g.cards.findIndex((card) => card.dataset.key === held.dataset.key);
+        for (const child of [...node.children]) if (child !== held) child.remove();
+        held.before(...g.cards.slice(0, at));
+        held.after(...g.cards.slice(at + 1));
+      });
     } else {
-      grid.replaceChildren(...cards);
+      grid.replaceChildren(
+        ...groups.map((g) => {
+          const node = el('div', '', g.cls);
+          node.append(...g.cards);
+          return node;
+        }),
+      );
     }
     body.scrollTop = scroll;
+  }
+
+  // Widening the panel adds a column, so the cards are dealt again when that changes, and not for every pixel.
+  let columnsNow = 0;
+  if (typeof ResizeObserver !== 'undefined') {
+    new ResizeObserver(() => {
+      const count = columnCountFor(body.clientWidth);
+      if (isOpen && snapshot && count !== columnsNow) render();
+    }).observe(body);
   }
 
   function showResult({ ok, message }: { ok: boolean; message: string }): void {
