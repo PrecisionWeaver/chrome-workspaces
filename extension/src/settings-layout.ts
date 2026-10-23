@@ -21,17 +21,19 @@ export interface CardLayout {
 }
 
 /**
- * Deals the cards into `count` columns. One column keeps their order. With more, the cards that need attention
- * go across the top and Usage and the workspace sessions head the first columns. The rest are dealt out in turn,
+ * Deals the cards into `count` columns. The cards that need attention come first, then Usage and the workspace sessions,
+ * then the rest: in one column that is the whole page. With more, the ones that need attention go across the top, Usage and
+ * the workspace sessions head the first columns, and the rest are dealt out in turn,
  * or, given `heightOf`, each to the shortest column so far, which evens the columns out.
  */
 export function layoutCards(cards: readonly HTMLElement[], count: number, heightOf?: (card: HTMLElement) => number): CardLayout {
-  if (count <= 1) return { top: [], columns: [[...cards]] };
   const key = (card: HTMLElement) => card.dataset.key ?? '';
   const top = cards.filter((card) => FULL_WIDTH.includes(key(card)));
   const rest = cards.filter((card) => !FULL_WIDTH.includes(key(card)));
   const lead = LEADING.flatMap((name) => rest.filter((card) => key(card) === name));
   const ordered = [...lead, ...rest.filter((card) => !LEADING.includes(key(card)))];
+  // One column is the same order top to bottom, so what leads the columns still leads the page on a narrow panel.
+  if (count <= 1) return { top: [], columns: [[...top, ...ordered]] };
   const columns: HTMLElement[][] = Array.from({ length: count }, () => []);
   if (!heightOf) {
     for (const [i, card] of ordered.entries()) columns[i % count].push(card);

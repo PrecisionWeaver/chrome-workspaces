@@ -18,10 +18,12 @@ describe('columnCountFor', () => {
 });
 
 describe('layoutCards', () => {
-  it('keeps their order in one column, setup and warnings included', () => {
+  it('leads with what needs attention, then Usage and the workspace sessions, in one column', () => {
     const { top, columns } = layoutCards(KEYS.map(card), 1);
     expect(top).toEqual([]);
-    expect(columns.map(keys)).toEqual([KEYS]);
+    expect(columns.map(keys)).toEqual([
+      ['Getting started', 'Needs attention', 'Usage', 'Workspace sessions', 'Plan usage', 'Preferences', 'Updates', 'Helper', 'Housekeeping'],
+    ]);
   });
 
   it('puts what needs attention across the top and leads with Usage and the workspace sessions', () => {

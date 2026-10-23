@@ -276,10 +276,10 @@ describe('the cards', () => {
   it('lists them in order, with the setup and warning cards first only when there is something to show', async () => {
     await open();
     expect(cards().map((node) => node.dataset.key)).toEqual([
-      'Plan usage',
       'Usage',
-      'Preferences',
       'Workspace sessions',
+      'Plan usage',
+      'Preferences',
       'Updates',
       'Helper',
       'Housekeeping',
@@ -690,9 +690,10 @@ describe('the cards', () => {
     const columnKeys = () =>
       [...document.querySelectorAll('#settings-cards > .settings-column')].map((c) => [...c.children].map((n) => (n as HTMLElement).dataset.key));
 
-    it('is one column in a narrow panel, in the usual order', async () => {
+    it('is one column in a narrow panel, with Usage and the sessions still at the top', async () => {
       await widen(400);
       expect(columnKeys()).toHaveLength(1);
+      expect(columnKeys()[0]!.slice(0, 2)).toEqual(['Usage', 'Workspace sessions']);
       expect(document.querySelector('.settings-top')).toBeNull();
     });
 
