@@ -123,6 +123,25 @@ describe('plan usage card', () => {
     expect(plan.textContent).toContain('Reported 5m ago.');
   });
 
+  it('marks an even pace on the bar and warns only when the limit would run out before it resets', async () => {
+    await open(
+      makeSnapshot({
+        plan: {
+          limits: [
+            { id: 'five_hour', label: 'Current session', percent: 40, resetsAt: resets(150) },
+            { id: 'seven_day', label: 'Current week', percent: 90, resetsAt: resets(60 * 24 * 3) },
+            { id: 'spend_limit', label: 'Spend limit', percent: 50, resetsAt: resets(60 * 24 * 3) },
+          ],
+          updatedAt: '2026-03-10T11:55:00.000Z',
+        },
+      }),
+    );
+    const lines = [...card('Plan usage').querySelectorAll('.plan-limit')];
+    expect(lines.map((n) => n.querySelector<HTMLElement>('.plan-meter-pace')?.style.left)).toEqual(['50%', `${(4 / 7) * 100}%`, undefined]);
+    expect(lines.map((n) => n.querySelector('.plan-limit-pace') !== null)).toEqual([false, true, false]);
+    expect(lines[1].querySelector('.plan-limit-pace')!.textContent).toMatch(/^At this pace you'll hit the limit .+, before it resets$/);
+  });
+
   it('stops at 100% when claude reports a little past it', async () => {
     await open(
       makeSnapshot({

@@ -652,10 +652,24 @@
 }
 
 .plan-meter {
+  position: relative;
   height: 8px;
   overflow: hidden;
   background: var(--raised);
   border-radius: var(--radius);
+}
+
+.plan-meter-pace {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--text);
+  opacity: 0.6;
+}
+
+.plan-limit-pace {
+  color: var(--wait);
 }
 
 .plan-meter-fill {

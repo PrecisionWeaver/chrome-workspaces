@@ -1,5 +1,5 @@
 import type { SystemSnapshot } from '../../shared/protocol';
-import { resetLabel } from '../../shared/plan-usage';
+import { hitLabel, planPace, resetLabel } from '../../shared/plan-usage';
 import { formatUsd } from '../../shared/pricing';
 import { previousLabel, shortDay, summarizeUsage, USAGE_RANGES, usageChange } from '../../shared/usage';
 import { el } from './dom';
@@ -59,6 +59,14 @@ export function planCard(s: SystemSnapshot): HTMLElement {
     const fill = el('span', '', 'plan-meter-fill');
     fill.style.width = `${Math.min(100, limit.percent)}%`;
     bar.append(fill);
+    const pace = planPace(limit, now);
+    if (pace) {
+      const tick = el('span', '', 'plan-meter-pace');
+      tick.style.left = `${pace.expectedPercent}%`;
+      tick.title = `Even pace: ${Math.round(pace.expectedPercent)}% by now`;
+      tick.setAttribute('aria-hidden', 'true');
+      bar.append(tick);
+    }
     const reset = resetLabel(limit.resetsAt, now);
     const { spend } = limit;
     line.append(
@@ -66,6 +74,7 @@ export function planCard(s: SystemSnapshot): HTMLElement {
       bar,
       el('div', spend ? `${formatUsd(spend.usedUsd)} / ${formatUsd(spend.limitUsd)} spent (${spend.period}) · ${reset}` : reset, 'plan-limit-reset'),
     );
+    if (pace?.hitsAt) line.append(el('div', `At this pace you'll hit the limit ${hitLabel(pace.hitsAt, now)}, before it resets`, 'plan-limit-pace'));
     return line;
   });
   const age = updatedAt ? Math.max(0, Math.round((now - Date.parse(updatedAt)) / 60_000)) : null;
