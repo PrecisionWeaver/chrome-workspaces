@@ -198,7 +198,7 @@ export interface SystemSnapshot {
     hourly: UsageHour[];
     /** Each workspace's use by day, so a range can be split by workspace; the busiest first is up to the card. */
     workspaces: UsageWorkspace[];
-    /** Estimated cost since the first transcript still on disk, not only the days in `daily`. */
+    /** Estimated cost across each workspace's current claude session, not only the days in `daily`. */
     costUsd: number;
     counting: boolean;
     /** Models used that have no rate, so are missing from the cost. */ unpriced: string[];

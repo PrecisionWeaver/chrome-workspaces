@@ -217,7 +217,7 @@ export function usageCard(s: SystemSnapshot, usageRange: UsageRangeId, onRange: 
     row(
       'Since sessions began',
       `~${formatUsd(s.usage.costUsd)} estimated${s.usage.counting ? ' (still counting…)' : ''}`,
-      'Across every workspace transcript still on disk',
+      "Across each workspace's current claude session",
     ),
     ...(s.usage.unpriced.length
       ? [
