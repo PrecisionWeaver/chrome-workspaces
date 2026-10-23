@@ -121,6 +121,11 @@
   color: var(--muted);
 }
 
+/* The Helper line opens the memory summary, so rule off the session list above it like a bill. */
+.sessions + .memory-line {
+  margin-top: 8px;
+}
+
 .memory-total {
   margin-top: 8px;
   padding-top: 8px;
@@ -520,6 +525,10 @@
 
 .session:first-child {
   border-top: 0;
+}
+
+.session:last-child {
+  border-bottom: 1px solid var(--border);
 }
 
 .session-head {
