@@ -43,6 +43,8 @@ export interface AdminOptions {
   status: (id: string) => { status: WorkspaceStatus; claudeSessionId: string | null };
   /** The transcript of the workspace's current claude session, for counting its tokens. */
   transcript: (id: string) => string | null;
+  /** Archived workspaces whose session files are still kept, so what they used stays in the totals. */
+  archived?: () => { id: string; name: string; transcript: string }[];
   /** Runs a command line in a login shell, resolving with its output and whether it exited cleanly. */
   runShell: (command: string) => Promise<{ output: string; ok: boolean }>;
   /** Starts a command that outlives the helper. */
@@ -185,7 +187,10 @@ export function createAdmin(options: AdminOptions): AdminService {
     async snapshot({ reviews, clients }) {
       const [procs, listening, managed] = await Promise.all([readProcs(), readListening(), options.isManaged()]);
       const snapshotSessions = store.list();
-      tokens.keepOnly(snapshotSessions.flatMap((ws) => options.transcript(ws.id) ?? []));
+      // An archived workspace is no longer listed, but what it used still counts. A transcript a live workspace is on is not counted twice.
+      const liveTranscripts = new Set(snapshotSessions.flatMap((ws) => options.transcript(ws.id) ?? []));
+      const archived = (options.archived?.() ?? []).filter((a) => !liveTranscripts.has(a.transcript));
+      tokens.keepOnly([...liveTranscripts, ...archived.map((a) => a.transcript)]);
       // Every counted transcript's usage by model and day, for the trend across workspaces.
       const dayTotals = new Map<string, DayTotals>();
       const today = localDay(new Date());
@@ -193,10 +198,8 @@ export function createAdmin(options: AdminOptions): AdminService {
       const workspaceUsage: UsageWorkspace[] = [];
       let counting = false;
       const unpriced = new Set<string>();
-      const sessionRows = snapshotSessions.map((ws) => {
-        const pid = sessions.get(ws.id)?.pid ?? null;
-        const live = options.status(ws.id);
-        const transcript = options.transcript(ws.id);
+      /** Adds a transcript's usage to the trend and to its workspace's row; returns what was counted and what it cost. */
+      const countUsage = (id: string, name: string, transcript: string | null) => {
         // Counting a large transcript the first time takes a while, so it runs behind the answer.
         if (transcript) void tokens.refresh(transcript);
         const counted = transcript ? tokens.peek(transcript) : null;
@@ -236,8 +239,14 @@ export function createAdmin(options: AdminOptions): AdminService {
         if (counted?.scanning) counting = true;
         if (ownDays.size) {
           const daily = [...ownDays].map(([day, used]) => ({ day, ...used })).sort((a, b) => a.day.localeCompare(b.day));
-          workspaceUsage.push({ id: ws.id, name: ws.name, daily });
+          workspaceUsage.push({ id, name, daily });
         }
+        return { counted, costUsd };
+      };
+      const sessionRows = snapshotSessions.map((ws) => {
+        const pid = sessions.get(ws.id)?.pid ?? null;
+        const live = options.status(ws.id);
+        const { counted, costUsd } = countUsage(ws.id, ws.name, options.transcript(ws.id));
         return {
           id: ws.id,
           name: ws.name,
@@ -251,6 +260,7 @@ export function createAdmin(options: AdminOptions): AdminService {
           history: pid === null ? [] : history.get(ws.id),
         };
       });
+      for (const a of archived) countUsage(a.id, a.name, a.transcript);
       const trend = usageTrend(dayTotals, counting, [...unpriced].sort());
       const since = trend.daily[0].day;
       const workspaces = workspaceUsage.map((w) => ({ ...w, daily: w.daily.filter((d) => d.day >= since) })).filter((w) => w.daily.length);

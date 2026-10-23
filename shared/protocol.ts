@@ -58,6 +58,8 @@ export interface HistoryEntry {
   color: WorkspaceColor | null;
   /** Its claude session, resumed when restored. */
   resumeId: string | null;
+  /** The id the workspace had, which its session files are kept under; absent in entries from before this was kept. */
+  workspaceId?: string;
   closedAt: string;
 }
 

@@ -36,6 +36,7 @@ export class HistoryStore {
       pinned: workspace.pinned,
       color: workspace.color,
       resumeId,
+      workspaceId: workspace.id,
       closedAt: new Date().toISOString(),
     };
     this.entries = [entry, ...this.entries].slice(0, MAX_HISTORY);

@@ -46,6 +46,8 @@ export interface Harness {
   resumeIds: Record<string, string>;
   /** The claude transcript of each workspace, by id, for token counts. */
   transcripts: Record<string, string>;
+  /** Workspaces archived since their session was last counted, as the helper still knows their transcripts. */
+  archived: { id: string; name: string; transcript: string }[];
   /** Whether the fake launchd manages the helper. */
   managed: boolean;
   /** Where uploads, the log and the data folder are for admin tests. */
@@ -79,6 +81,7 @@ export async function startHarness(): Promise<Harness> {
     branchPrJson: null as string | null,
     resumeIds: {} as Record<string, string>,
     transcripts: {} as Record<string, string>,
+    archived: [] as { id: string; name: string; transcript: string }[],
     managed: true,
     dataDir: dir,
     prDetailsJson: null as string | null,
@@ -133,6 +136,7 @@ export async function startHarness(): Promise<Harness> {
     commit: 'abc1234',
     status: (id) => ({ status: fakes.statuses[id] ?? null, claudeSessionId: null }),
     transcript: (id) => fakes.transcripts[id] ?? null,
+    archived: () => fakes.archived,
     runShell: async (command) => ({ output: `ran: ${command}`, ok: true }),
     spawnDetached: (command) => fakes.spawned.push(command),
     isManaged: async () => fakes.managed,
