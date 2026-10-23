@@ -943,6 +943,7 @@ describe('the command palette', () => {
       'Action: New workspace',
       'Action: Terminal',
       'Action: System monitor',
+      'Action: Expand activity',
       'Action: Open settings',
       'Action: Refresh review requests',
       'Action: Refresh source control',
@@ -1037,6 +1038,22 @@ describe('the other views', () => {
     expect($('tool-title').textContent).toBe('System monitor');
     $('shell-open').click();
     expect($('tool-title').textContent).toBe('Terminal');
+  });
+
+  it('keeps the activity section on the workspace in view, following each switch', async () => {
+    await boot();
+    state([ws('a'), ws('b')]);
+    expect(sent.filter((m) => m.type === 'activity')).toEqual([{ type: 'activity', id: 'a' }]);
+    onControlMessage({ type: 'activity', id: 'a', items: [], error: null });
+    expect($('activity-body').textContent).toContain('Nothing yet');
+    rows()[1]!.click();
+    await flush();
+    state([ws('a'), ws('b')]);
+    expect(sent.filter((m) => m.type === 'activity').at(-1)).toEqual({ type: 'activity', id: 'b' });
+    // Opening another view leaves the section where it is.
+    $('settings-open').click();
+    expect($('activity').hidden).toBe(false);
+    expect(sent.filter((m) => m.type === 'activity').length).toBe(2);
   });
 
   it('closes the overlay views when the workspace in view changes', async () => {

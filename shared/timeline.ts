@@ -15,7 +15,8 @@ export interface TimelineEvent {
 const MAX_SUMMARY = 160;
 const FILE_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'Read']);
 
-const oneLine = (text: string): string => {
+/** Text flattened to one line and cut to fit a row. */
+export const oneLine = (text: string): string => {
   const flat = text.replace(/\s+/g, ' ').trim();
   return flat.length > MAX_SUMMARY ? `${flat.slice(0, MAX_SUMMARY - 1)}…` : flat;
 };
@@ -40,6 +41,8 @@ export function describeTool(name: string, input: Record<string, unknown>): { su
     case 'Task':
     case 'Agent':
       return { summary: oneLine(description || str(input.prompt)) };
+    case 'Skill':
+      return { summary: oneLine(str(input.skill)) };
     default:
       return { summary: oneLine(description || str(input.command) || str(input.query) || str(input.url) || file) };
   }

@@ -157,11 +157,11 @@ export function watchSessionStatus(dir: string, onChange: () => void, debounceMs
 
 const RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
-/** Deletes state files nothing has touched in a month, so ended sessions do not pile up. */
+/** Deletes state and event files nothing has touched in a month, so ended sessions do not pile up. */
 export function pruneSessions(dir: string, now = Date.now()): void {
   let names: string[];
   try {
-    names = readdirSync(dir).filter((name) => name.endsWith('.json'));
+    names = readdirSync(dir).filter((name) => name.endsWith('.json') || name.endsWith('.jsonl'));
   } catch {
     return;
   }

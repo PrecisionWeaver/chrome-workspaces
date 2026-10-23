@@ -1,6 +1,10 @@
 import { existsSync, mkdirSync, renameSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { ACTIVITY_EVENTS } from '../../shared/activity';
 import { STATUS_BY_EVENT } from '../../shared/session-file';
+
+/** Every event the hook runs on: those that set a status, and those the activity view draws. */
+export const HOOK_EVENTS: readonly string[] = [...new Set([...Object.keys(STATUS_BY_EVENT), ...ACTIVITY_EVENTS])];
 
 /** The script claude runs on session events. */
 export const HOOK_SCRIPT = resolve(import.meta.dirname, '..', '..', 'hooks', 'session-state.ts');
@@ -24,7 +28,7 @@ const quote = (value: string) => `'${value.replace(/'/g, `'\\''`)}'`;
 export function hooksSettings(node: string, script: string, statusLineScript: string | null = null) {
   const command = `${quote(node)} ${quote(script)}`;
   return {
-    hooks: Object.fromEntries(Object.keys(STATUS_BY_EVENT).map((event) => [event, [{ hooks: [{ type: 'command', command }] }]])),
+    hooks: Object.fromEntries(HOOK_EVENTS.map((event) => [event, [{ hooks: [{ type: 'command', command }] }]])),
     ...(statusLineScript ? { statusLine: { type: 'command', command: `${quote(node)} ${quote(statusLineScript)}` } } : {}),
   };
 }

@@ -1,5 +1,6 @@
 import { isAbsolute } from 'node:path';
 import type { WebSocket } from 'ws';
+import type { ActivityItem } from '../../shared/activity';
 import type { ControlToClient, ControlToHelper, Prompt, Repo, ReviewsState, Workspace, WorkspaceStatus } from '../../shared/protocol';
 import { isDirectory } from './config';
 import { isControlToHelper } from './control-messages';
@@ -40,11 +41,15 @@ export interface ControlHubOptions {
   resumeId: (id: string) => string | null;
   /** The directory a workspace's claude last reported working in, if it has reported one. */
   workingDir: (id: string) => string | null;
+  /** The recent turns of a workspace's claude session; null when it has no session. */
+  activity: (id: string) => ActivityItem[] | null;
 }
 
 /** Keeps every connected extension context (service worker, panels) in sync with the store. */
 export class ControlHub {
   private readonly clients = new Set<WebSocket>();
+  // The workspace each client is watching the activity of, if any.
+  private readonly following = new Map<WebSocket, string>();
 
   constructor(private readonly options: ControlHubOptions) {
     options.store.onChange(() => this.broadcastState());
@@ -57,7 +62,10 @@ export class ControlHub {
 
   add(ws: WebSocket): void {
     this.clients.add(ws);
-    ws.on('close', () => this.clients.delete(ws));
+    ws.on('close', () => {
+      this.clients.delete(ws);
+      this.following.delete(ws);
+    });
     ws.on('message', (raw) => {
       let message: unknown;
       try {
@@ -79,6 +87,16 @@ export class ControlHub {
 
   broadcastState(): void {
     this.send(this.state());
+  }
+
+  /** Sends each following client its workspace's activity again; called when a session's events change. */
+  pushActivity(): void {
+    for (const [ws, id] of this.following) this.sendTo(ws, this.activityMessage(id));
+  }
+
+  private activityMessage(id: string): ControlToClient {
+    const items = this.options.store.get(id) ? this.options.activity(id) : null;
+    return { type: 'activity', id, items: items ?? [], error: items === null ? 'This workspace has no claude session yet.' : null };
   }
 
   private historyMessage(): ControlToClient {
@@ -241,6 +259,14 @@ export class ControlHub {
         });
         break;
       }
+      case 'activity':
+        if (message.id === null) {
+          this.following.delete(ws);
+          break;
+        }
+        this.following.set(ws, message.id);
+        this.sendTo(ws, this.activityMessage(message.id));
+        break;
       case 'exportData':
         this.sendTo(ws, { type: 'exportData', json: this.options.admin.exportData() });
         break;

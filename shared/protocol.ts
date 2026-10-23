@@ -1,6 +1,7 @@
 // Shared by the helper and the extension bundle — keep this free of Node imports.
 
 import type { GuardrailWarning } from './guardrails';
+import type { ActivityItem } from './activity';
 import type { TimelineEvent } from './timeline';
 
 export const PROTOCOL = 'cw.v1';
@@ -498,6 +499,8 @@ export type ControlToClient =
   | { type: 'updates'; status: UpdateStatus | null; error: string | null }
   /** Reply to `timeline`. */
   | { type: 'timeline'; id: string; events: TimelineEvent[]; error: string | null }
+  /** Reply to `activity`, and sent again to the same client whenever the workspace's claude does something. */
+  | { type: 'activity'; id: string; items: ActivityItem[]; error: string | null }
   /** Reply to `sendText`. */
   | { type: 'sent'; id: string; ok: boolean; message: string }
   /** Reply to `system`, to the client that asked. */
@@ -570,6 +573,8 @@ export type ControlToHelper =
   | { type: 'checkUpdates' }
   /** What the workspace's claude has recently done, from its transcript. */
   | { type: 'timeline'; id: string }
+  /** Follow a workspace's activity: the reply, then an update after every event. Null stops following. */
+  | { type: 'activity'; id: string | null }
   | { type: 'exportData' }
   /** Status and recent history of the workspace's repository. */
   | { type: 'git'; id: string }

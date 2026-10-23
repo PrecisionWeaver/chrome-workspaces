@@ -17,12 +17,14 @@
 }
 
 #git.collapsed,
-#reviews.collapsed {
+#reviews.collapsed,
+#activity.collapsed {
   height: auto !important;
 }
 
 #git.collapsed .v-resizer,
-#reviews.collapsed .v-resizer {
+#reviews.collapsed .v-resizer,
+#activity.collapsed .v-resizer {
   display: none;
 }
 

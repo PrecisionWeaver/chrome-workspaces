@@ -491,6 +491,40 @@ describe('control channel', () => {
     ws.close();
   });
 
+  it("follows a workspace's activity: a reply at once, another on every push, and none once it stops following", async () => {
+    const busy = h.store.create({ name: 'busy', cwd: h.defaultCwd });
+    const fresh = h.store.create({ name: 'new', cwd: h.defaultCwd });
+    const file = join(mkdtempSync(join(tmpdir(), 'cw-ctl-act-')), 's.events.jsonl');
+    writeFileSync(file, `${JSON.stringify({ at: '2026-10-08T10:00:00Z', event: 'UserPromptSubmit', promptId: 'p1', summary: 'fix the bug' })}\n`);
+    h.activityFiles[busy.id] = file;
+
+    const { ws, messages } = connectControl(h);
+    await opened(ws);
+    const replies = () => messages.filter((m): m is Extract<ControlToClient, { type: 'activity' }> => m.type === 'activity');
+    ws.send(JSON.stringify({ type: 'activity', id: busy.id }));
+    await waitFor(() => replies().length === 1);
+    expect(replies()[0]).toMatchObject({ id: busy.id, error: null, items: [{ kind: 'turn', prompt: 'fix the bug', endedAt: null }] });
+
+    writeFileSync(file, `${JSON.stringify({ at: '2026-10-08T10:00:05Z', event: 'Stop', promptId: 'p1' })}\n`, { flag: 'a' });
+    h.control.pushActivity();
+    await waitFor(() => replies().length === 2);
+    expect(replies()[1].items[0]).toMatchObject({ endedAt: '2026-10-08T10:00:05Z' });
+
+    ws.send(JSON.stringify({ type: 'activity', id: fresh.id }));
+    await waitFor(() => replies().length === 3);
+    expect(replies()[2]).toMatchObject({ id: fresh.id, items: [], error: expect.stringContaining('no claude session') });
+    ws.send(JSON.stringify({ type: 'activity', id: 'ws-00000000' }));
+    await waitFor(() => replies().length === 4);
+    expect(replies()[3]).toMatchObject({ items: [], error: expect.any(String) });
+
+    ws.send(JSON.stringify({ type: 'activity', id: null }));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    h.control.pushActivity();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(replies().length).toBe(4);
+    ws.close();
+  });
+
   it('sends the review threads of a pull request, and says why when it cannot', async () => {
     const { ws, messages } = connectControl(h);
     await opened(ws);

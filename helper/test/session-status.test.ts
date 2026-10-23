@@ -184,11 +184,11 @@ describe('continuedInSession', () => {
 
 describe('pruneSessions', () => {
   it('deletes state files untouched for a month, and keeps recent ones and other files', () => {
-    const dir = stateDir({ 'old.json': { session_id: ID_OLD }, 'new.json': { session_id: ID_NEW }, 'notes.txt': 'keep' });
+    const dir = stateDir({ 'old.json': { session_id: ID_OLD }, 'old.events.jsonl': '{}', 'new.json': { session_id: ID_NEW }, 'notes.txt': 'keep' });
     const old = Date.now() / 1000 - 31 * 24 * 60 * 60;
-    for (const name of ['old.json', 'notes.txt']) utimesSync(join(dir, name), old, old);
+    for (const name of ['old.json', 'old.events.jsonl', 'notes.txt']) utimesSync(join(dir, name), old, old);
     pruneSessions(dir);
-    expect([existsSync(join(dir, 'old.json')), existsSync(join(dir, 'new.json')), existsSync(join(dir, 'notes.txt'))]).toEqual([false, true, true]);
+    expect(['old.json', 'old.events.jsonl', 'new.json', 'notes.txt'].map((name) => existsSync(join(dir, name)))).toEqual([false, false, true, true]);
   });
 
   it('does nothing for a folder that does not exist', () => {

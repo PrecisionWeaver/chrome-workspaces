@@ -7,6 +7,7 @@ import { PLAN_USAGE_FILE } from '../../shared/plan-usage';
 import { MONITOR_SESSION, SHELL_SESSION, type WorkspaceStatus } from '../../shared/protocol';
 import { SAMPLE_INTERVAL_MS } from './resource-history';
 import { launchDirectory } from './launch-dir';
+import { activityFile, readActivity } from './activity';
 import { createAdmin, defaultIsManaged, defaultRunShell, defaultSpawnDetached } from './admin';
 import { createApi } from './api';
 import { DATA_DIR, HOST, LEGACY_SESSIONS_DIR, loadConfig, SESSIONS_DIR, PORT, SCROLLBACK_LIMIT } from './config';
@@ -174,6 +175,10 @@ const control = new ControlHub({
   history,
   resumeId: (id) => sessionState.get(id)?.claudeSessionId ?? store.get(id)?.resume ?? null,
   workingDir,
+  activity: (id) => {
+    const session = sessionState.get(id);
+    return session ? readActivity(activityFile(SESSIONS_DIR, session.claudeSessionId)) : null;
+  },
 });
 reviews.onChange(() => control.broadcastState());
 reviews.start(REVIEW_POLL_MS);
@@ -181,6 +186,7 @@ const stopWatching = watchSessionStatus(SESSIONS_DIR, () => {
   const previous = sessionState;
   sessionState = readSessions();
   control.broadcastState();
+  control.pushActivity();
   for (const [id, { browserAt }] of sessionState) {
     if (browserAt !== null && browserAt !== previous.get(id)?.browserAt) control.send({ type: 'browser', id, at: browserAt });
   }

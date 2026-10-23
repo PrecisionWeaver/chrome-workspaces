@@ -4,6 +4,7 @@ import { similarity } from '../../shared/pairing';
 import type { ClientMessage, HistoryEntry, ReviewRequest, ReviewsState, ServerMessage, Workspace, WorkspaceStatus } from '../../shared/protocol';
 import { $, el } from './dom';
 import { connectControl, getHelper, isHostMissing, openSocket, startHelper } from './helper-client';
+import { createActivitySection } from './activity-section';
 import { createCreateView } from './create-view';
 import { attachFileDrop } from './file-drop';
 import { createGitView } from './git-view';
@@ -69,6 +70,7 @@ const control = connectControl(
       workspaceList.render();
     }
     if (message.type === 'timeline') settings.setTimeline(message);
+    if (message.type === 'activity') activity.setActivity(message);
     if (message.type === 'updates') settings.setUpdates(message);
     if (message.type === 'system') {
       settings.setSystem(message);
@@ -174,6 +176,7 @@ const tools = createToolView({
     render();
   },
 });
+const activity = createActivitySection({ send });
 for (const [id, tool] of [
   ['monitor-open', 'monitor'],
   ['shell-open', 'shell'],
@@ -282,6 +285,7 @@ function render(): void {
   shownId = workspace?.id;
   git.setWorkspace(workspace);
   git.renderStatus();
+  activity.setWorkspace(workspace);
   const overlay = creator.isOpen || git.isOpen || settings.isOpen || tools.isOpen;
   pickerEl.hidden = overlay || workspace !== undefined;
   terminalEl.hidden = overlay || workspace === undefined;
@@ -477,6 +481,7 @@ function paletteItems(): PaletteItem[] {
     { kind: 'Action', label: 'New workspace', hint: 'Start a workspace', run: () => creator.show() },
     { kind: 'Action', label: 'Terminal', hint: 'A plain shell, not tied to a workspace', run: () => tools.show('shell') },
     { kind: 'Action', label: 'System monitor', hint: 'btop, in the panel', run: () => tools.show('monitor') },
+    { kind: 'Action', label: 'Expand activity', hint: "What this workspace's claude is doing, turn by turn", run: () => activity.expand() },
     { kind: 'Action', label: 'Open settings', hint: 'Helper, sessions, housekeeping', run: () => settings.show() },
     { kind: 'Action', label: 'Refresh review requests', run: () => send({ type: 'refreshReviews' }) },
     { kind: 'Action', label: 'Refresh source control', run: () => git.refresh() },
