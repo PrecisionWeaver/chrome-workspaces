@@ -38,6 +38,8 @@ function activityLine(input: HookInput, now: string): ActivityEvent {
     const toolInput = typeof input.tool_input === 'object' && input.tool_input !== null ? (input.tool_input as Record<string, unknown>) : {};
     const { summary, file } = describeTool(input.tool_name as string, toolInput);
     if (summary) line.summary = summary;
+    const subagent = str(toolInput.subagent_type);
+    if (subagent) line.subagentType = subagent;
     if (file) line.file = file;
   }
   if (str(input.tool_use_id)) line.toolUseId = input.tool_use_id;

@@ -1,7 +1,7 @@
-import type { ActivityAgent, ActivityCall, ActivityItem, ActivityTurn, ToolTally } from '../../shared/activity';
+import type { ActivityItem, ActivityTurn } from '../../shared/activity';
 import type { ControlToClient, ControlToHelper, Workspace } from '../../shared/protocol';
+import { drawTurn, legend } from './activity-chart';
 import { $, el } from './dom';
-import { formatDuration } from './format';
 
 export interface ActivitySectionOptions {
   send(message: ControlToHelper): boolean;
@@ -15,89 +15,17 @@ export interface ActivitySection {
   expand(): void;
 }
 
-// Elapsed times tick while a turn is running.
+// A running turn's lanes grow with the clock.
 const TICK_MS = 1000;
+const CHIP_PROMPT = 18;
 
 const clock = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-const elapsed = (from: string, to: string | null, now: number) =>
-  formatDuration(Math.max(0, Math.round(((to ? Date.parse(to) : now) - Date.parse(from)) / 1000)));
-
-function tallyRow(tools: ToolTally[]): HTMLElement {
-  const row = el('span', '', 'tally');
-  for (const { tool, count, failed } of tools) {
-    const chip = el('span', '', `tool${failed ? ' failed' : ''}`);
-    chip.append(el('span', tool), ' ', el('span', String(count), 'count'));
-    chip.title = failed ? `${count} call${count === 1 ? '' : 's'}, ${failed} failed` : `${count} call${count === 1 ? '' : 's'}`;
-    row.append(chip);
-  }
-  return row;
-}
-
-function activeCall(call: ActivityCall): HTMLElement {
-  const row = el('div', '', 'active-call');
-  row.append(el('span', call.tool, 'tool'), el('span', call.summary, 'summary'));
-  row.title = call.summary;
-  return row;
-}
-
-function agentNode(agent: ActivityAgent, now: number): HTMLElement {
-  const node = el('div', '', `node agent${agent.endedAt ? '' : ' running'}`);
-  const head = el('div', '', 'node-head');
-  head.append(el('span', agent.type, 'node-name'));
-  if (agent.summary) {
-    const summary = el('span', agent.summary, 'node-summary');
-    summary.title = agent.summary;
-    head.append(summary);
-  }
-  head.append(el('span', elapsed(agent.startedAt, agent.endedAt, now), 'node-elapsed'));
-  node.append(head);
-  if (agent.tools.length) node.append(tallyRow(agent.tools));
-  if (agent.active) node.append(activeCall(agent.active));
-  return node;
-}
-
-function turnRow(turn: ActivityTurn, now: number, open: boolean, toggle: () => void): HTMLElement {
-  const row = el('div', '', `turn${turn.endedAt ? '' : ' running'}${open ? ' open' : ''}`);
-  const head = el('div', '', 'turn-head');
-  head.tabIndex = 0;
-  head.setAttribute('role', 'button');
-  head.setAttribute('aria-expanded', String(open));
-  const prompt = el('span', turn.prompt || 'Earlier in the session', `turn-prompt${turn.prompt ? '' : ' earlier'}`);
-  head.title = turn.prompt;
-  head.append(el('span', clock(turn.startedAt), 'turn-time'), prompt, el('span', elapsed(turn.startedAt, turn.endedAt, now), 'turn-elapsed'));
-  head.addEventListener('click', toggle);
-  head.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      toggle();
-    }
-  });
-  row.append(head);
-  if (!open) return row;
-
-  const body = el('div', '', 'turn-body');
-  for (const skill of turn.skills) {
-    const node = el('div', '', 'node skill');
-    node.append(el('span', 'Skill', 'node-kind'), el('span', skill.name, 'node-name'));
-    body.append(node);
-  }
-  for (const agent of turn.agents) body.append(agentNode(agent, now));
-  if (turn.tools.length || turn.active) {
-    const node = el('div', '', `node own${turn.active ? ' running' : ''}`);
-    node.append(el('span', 'Claude', 'node-kind'));
-    if (turn.tools.length) node.append(tallyRow(turn.tools));
-    if (turn.active) node.append(activeCall(turn.active));
-    body.append(node);
-  }
-  if (!body.childElementCount) body.append(el('div', 'No tool calls.', 'node quiet'));
-  row.append(body);
-  return row;
-}
 
 /**
- * What the workspace's claude is doing, turn by turn, in the list beside the terminal: each prompt as a row, the
- * newest open to show the skills it invoked, the subagents it spawned and the tools each called, from the events
- * its hooks record. While the section is expanded the helper sends the list again after every event.
+ * What the workspace's claude is doing, drawn as a swimlane per turn: a strip of turns to pick from, and for the
+ * picked one (the newest by default) a lane for claude and one per subagent, with each tool call a block along
+ * the time axis. It sits in the list beside the terminal; while it is expanded the helper sends the list again
+ * after every event.
  */
 export function createActivitySection({ send }: ActivitySectionOptions): ActivitySection {
   const section = $<HTMLElement>('activity');
@@ -107,55 +35,79 @@ export function createActivitySection({ send }: ActivitySectionOptions): Activit
   let workspace: Workspace | undefined;
   // What the helper last sent for the workspace in view; null until it answers.
   let activity: { id: string; items: ActivityItem[]; error: string | null } | null = null;
-  // Turns opened or closed by hand; the newest turn is open unless closed here.
-  const opened = new Map<string, boolean>();
+  // The turn picked from the strip; null follows the newest.
+  let picked: string | null = null;
   let followingId: string | null = null;
   let ticker: ReturnType<typeof setInterval> | undefined;
 
   const collapsed = () => section.classList.contains('collapsed');
 
-  function render(): void {
-    const stuck = body.scrollTop + body.clientHeight >= body.scrollHeight - 4;
+  function chip(turn: ActivityTurn, selected: boolean): HTMLButtonElement {
+    const button = el('button', '', `chip${selected ? ' selected' : ''}${turn.endedAt ? '' : ' running'}`);
+    button.type = 'button';
+    const prompt = turn.prompt.length > CHIP_PROMPT ? `${turn.prompt.slice(0, CHIP_PROMPT - 1)}…` : turn.prompt || 'Earlier';
+    button.append(el('span', clock(turn.startedAt), 'chip-time'), el('span', prompt, 'chip-prompt'));
+    button.title = turn.prompt;
+    button.setAttribute('aria-pressed', String(selected));
+    return button;
+  }
+
+  function paint(): void {
+    // The strip is rebuilt on every tick and every event, so where it was scrolled to is put back.
+    const stripScroll = body.querySelector('.chips')?.scrollLeft ?? 0;
+    const bodyScroll = body.scrollTop;
     body.replaceChildren();
     state.textContent = '';
     state.classList.remove('running');
+    const empty = (text: string) => body.append(el('div', text, 'empty'));
     if (!workspace) {
-      body.append(el('div', 'No workspace is selected.', 'empty'));
+      empty('No workspace is selected.');
       return;
     }
     if (!activity || activity.id !== workspace.id) {
-      body.append(el('div', 'Loading…', 'empty'));
+      empty('Loading…');
       return;
     }
     if (activity.error) {
-      body.append(el('div', activity.error, 'empty'));
+      empty(activity.error);
       return;
     }
-    if (activity.items.length === 0) {
-      body.append(el('div', 'Nothing yet. Ask claude something and its work shows up here.', 'empty'));
+    const turns = activity.items.filter((item): item is ActivityTurn => item.kind === 'turn');
+    if (turns.length === 0) {
+      empty('Nothing yet. Ask claude something and its work shows up here.');
       return;
     }
-    const now = Date.now();
-    const last = activity.items.at(-1);
-    for (const item of activity.items) {
+
+    const newest = turns.at(-1) as ActivityTurn;
+    const shown = turns.find((turn) => turn.id === picked) ?? newest;
+    const strip = el('div', '', 'chips');
+    // Newest first, so the turn being worked on is at the left edge.
+    for (const item of [...activity.items].reverse()) {
       if (item.kind === 'compaction') {
-        body.append(el('div', `Compacted${item.trigger ? ` (${item.trigger})` : ''}`, 'compaction'));
+        const gap = el('span', '', 'chip-gap');
+        gap.title = `Context compacted${item.trigger ? ` (${item.trigger})` : ''}`;
+        strip.append(gap);
         continue;
       }
-      const open = opened.get(item.id) ?? item === last;
-      body.append(
-        turnRow(item, now, open, () => {
-          opened.set(item.id, !open);
-          render();
-        }),
-      );
+      const button = chip(item, item === shown);
+      button.addEventListener('click', () => {
+        picked = item === newest ? null : item.id;
+        render();
+      });
+      strip.append(button);
     }
-    const running = last?.kind === 'turn' && !last.endedAt;
+    const prompt = el('div', shown.prompt || 'Earlier in the session', `turn-prompt${shown.prompt ? '' : ' earlier'}`);
+    prompt.title = shown.prompt;
+    body.append(strip, prompt, drawTurn(shown, Date.now()), legend());
+    strip.scrollLeft = stripScroll;
+    body.scrollTop = bodyScroll;
+
+    const running = !newest.endedAt;
     state.textContent = running ? 'Working' : 'Idle';
     state.classList.toggle('running', running);
-    // Reading older turns is left alone; otherwise the newest stays in view.
-    if (stuck) body.scrollTop = body.scrollHeight;
   }
+
+  const render = paint;
 
   /** Follows the workspace in view while the section is expanded, and nothing while it is collapsed. */
   function follow(): void {
@@ -188,9 +140,10 @@ export function createActivitySection({ send }: ActivitySectionOptions): Activit
     setWorkspace(next) {
       const changed = next?.id !== workspace?.id;
       workspace = next;
-      opened.clear();
-      if (changed) follow();
-      else render();
+      if (changed) {
+        picked = null;
+        follow();
+      } else render();
     },
     setActivity(message) {
       if (message.id !== workspace?.id) return;
