@@ -29,7 +29,7 @@ Returns `{ expectedPercent: number; hitsAt: string | null } | null`.
 ## Rendering in `planCard` (`extension/src/settings-usage.ts`)
 
 - A 2px tick at `expectedPercent` inside `.plan-meter`, which gains `position: relative`. It is `aria-hidden`, with a `title` such as "Even pace: 40% by now". Fill past the tick means ahead of pace.
-- When `hitsAt` is set, the reset line gains a second sentence: "At this pace you'll hit the limit Thu 3pm, 9h before it resets". The time is formatted like `resetLabel` does, within a day as a relative time, otherwise as weekday and time. The sentence uses the warn colour.
+- When `hitsAt` is set, a line of its own under the reset line reads "At this pace you'll hit the limit in 2h 10m, before it resets", or "... the limit Thu 3:00 PM, before it resets" from a day away. `hitLabel(hitsAt, now)` in `shared/plan-usage.ts` formats the time as `resetLabel` does: relative within a day, otherwise weekday and time. The line uses the warn colour. It does not say how long before the reset, since the reset line above it already gives the reset time.
 - When `hitsAt` is null the card reads as it does today, apart from the tick.
 - The warn and bad levels (70% and 90%) are unchanged. Pace is an extra signal.
 
