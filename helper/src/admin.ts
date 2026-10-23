@@ -4,7 +4,17 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { findWarnings } from '../../shared/guardrails';
 import { costOf, isRealModel, rateFor } from '../../shared/pricing';
-import type { AdminAction, PlanUsage, ReviewsState, SystemSnapshot, UpdateStatus, UsageDay, UsageHour, WorkspaceStatus } from '../../shared/protocol';
+import type {
+  AdminAction,
+  PlanUsage,
+  ReviewsState,
+  SystemSnapshot,
+  UpdateStatus,
+  UsageDay,
+  UsageHour,
+  UsageWorkspace,
+  WorkspaceStatus,
+} from '../../shared/protocol';
 import { localDay, localDayBack, USAGE_HISTORY_DAYS } from '../../shared/usage';
 import { AGENT_LABEL, type HelperConfig } from './config';
 import type { SessionManager } from './session';
@@ -98,7 +108,7 @@ export function usageTrend(
   counting: boolean,
   unpriced: string[] = [],
   now = new Date(),
-): Omit<SystemSnapshot['usage'], 'hourly'> {
+): Omit<SystemSnapshot['usage'], 'hourly' | 'workspaces'> {
   const daily: UsageDay[] = [];
   for (let back = USAGE_HISTORY_DAYS - 1; back >= 0; back--) {
     const day = localDayBack(now, back);
@@ -176,6 +186,7 @@ export function createAdmin(options: AdminOptions): AdminService {
       const dayTotals = new Map<string, DayTotals>();
       const today = localDay(new Date());
       const hourTotals = new Map<number, { tokens: number; costUsd: number }>();
+      const workspaceUsage: UsageWorkspace[] = [];
       let counting = false;
       const unpriced = new Set<string>();
       const sessionRows = snapshotSessions.map((ws) => {
@@ -186,6 +197,7 @@ export function createAdmin(options: AdminOptions): AdminService {
         if (transcript) void tokens.refresh(transcript);
         const counted = transcript ? tokens.peek(transcript) : null;
         let costUsd = 0;
+        const ownDays = new Map<string, { tokens: number; costUsd: number }>();
         for (const bucket of counted?.buckets ?? []) {
           const cost = costOf(bucket.usage, bucket.model, config.pricing);
           if (isRealModel(bucket.model) && !rateFor(bucket.model, config.pricing)) unpriced.add(bucket.model);
@@ -205,6 +217,10 @@ export function createAdmin(options: AdminOptions): AdminService {
               day.models.set(bucket.model, model);
             }
             dayTotals.set(bucket.day, day);
+            const own = ownDays.get(bucket.day) ?? { tokens: 0, costUsd: 0 };
+            own.tokens += tokens;
+            own.costUsd += cost;
+            ownDays.set(bucket.day, own);
             if (bucket.day === today && bucket.hour !== null) {
               const hour = hourTotals.get(bucket.hour) ?? { tokens: 0, costUsd: 0 };
               hour.tokens += tokens;
@@ -214,6 +230,10 @@ export function createAdmin(options: AdminOptions): AdminService {
           }
         }
         if (counted?.scanning) counting = true;
+        if (ownDays.size) {
+          const daily = [...ownDays].map(([day, used]) => ({ day, ...used })).sort((a, b) => a.day.localeCompare(b.day));
+          workspaceUsage.push({ id: ws.id, name: ws.name, daily });
+        }
         return {
           id: ws.id,
           name: ws.name,
@@ -226,6 +246,9 @@ export function createAdmin(options: AdminOptions): AdminService {
           processes: pid === null ? [] : subtree(procs, pid).map((p) => toSystemProcess(p, listening)),
         };
       });
+      const trend = usageTrend(dayTotals, counting, [...unpriced].sort());
+      const since = trend.daily[0].day;
+      const workspaces = workspaceUsage.map((w) => ({ ...w, daily: w.daily.filter((d) => d.day >= since) })).filter((w) => w.daily.length);
       return {
         takenAt: new Date().toISOString(),
         helper: {
@@ -242,7 +265,7 @@ export function createAdmin(options: AdminOptions): AdminService {
           extensionId: config.extensionId,
         },
         sessions: sessionRows,
-        usage: { ...usageTrend(dayTotals, counting, [...unpriced].sort()), hourly: usageByHour(hourTotals) },
+        usage: { ...trend, hourly: usageByHour(hourTotals), workspaces },
         plan: options.planUsage?.() ?? { limits: [], updatedAt: null },
         warnings: findWarnings(sessionRows, config.limits),
         storage: { uploadsBytes: pathBytes(paths.uploadDir), logBytes: pathBytes(paths.logFile), dataBytes: pathBytes(paths.dataDir) },

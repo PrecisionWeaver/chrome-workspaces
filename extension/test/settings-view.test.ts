@@ -509,6 +509,7 @@ describe('the cards', () => {
         makeUsageDay({ day: '2026-03-11' }),
       ],
       hourly: makeUsageHours(),
+      workspaces: [],
       costUsd: 12.5,
       counting: false,
       unpriced: [],
@@ -540,6 +541,22 @@ describe('the cards', () => {
       await open(makeSnapshot({ usage: usage() }));
       expect(bars().map((bar) => bar.querySelector<HTMLElement>('.usage-fill')!.style.height)).toEqual(['100%', '4%', '0%']);
       expect(bars()[0]!.title).toBe('2026-03-09\n1.0M tokens · ~$3.00');
+    });
+
+    it('splits the range by workspace, folding the smallest into one line, and leaves it out for a single workspace', async () => {
+      const own = (name: string, tokens: number, costUsd: number) => ({ id: name, name, daily: [{ day: '2026-03-11', tokens, costUsd }] });
+      const names = ['acme/app', 'acme/api', 'acme/web', 'acme/docs', 'acme/cli', 'acme/lib', 'acme/ops'];
+      const workspaces = names.map((n, i) => own(n, 100, 7 - i));
+      await open(makeSnapshot({ usage: usage({ daily: sixty(), workspaces }) }));
+      await pick('Today');
+      const rows = [...card('Usage').querySelectorAll('.usage-split-row')];
+      expect(rows.map((r) => r.querySelector('.usage-split-name')!.textContent)).toEqual([...names.slice(0, 5), '2 more']);
+      expect(rows[0]!.querySelector('.usage-split-figure')!.textContent).toBe('~$7.00 · 25%');
+      expect(rows[5]!.querySelector('.usage-split-figure')!.textContent).toBe('~$3.00 · 11%');
+
+      await open(makeSnapshot({ usage: usage({ daily: sixty(), workspaces: workspaces.slice(0, 1) }) }));
+      await pick('Today');
+      expect(card('Usage').querySelector('.usage-split')).toBeNull();
     });
 
     it('offers today, 7, 14 and 30 days, with 14 chosen to begin with', async () => {

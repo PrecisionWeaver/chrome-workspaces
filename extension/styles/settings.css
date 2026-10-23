@@ -685,3 +685,50 @@
 .plan-meter.bad .plan-meter-fill {
   background: var(--bad);
 }
+
+.usage-split-title {
+  margin-top: 10px;
+  color: var(--muted);
+}
+
+.usage-split {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 4px;
+}
+
+.usage-split-row {
+  display: grid;
+  grid-template-columns: minmax(0, 7em) 1fr auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.usage-split-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.usage-split-track {
+  height: 8px;
+  background: var(--bg);
+  border-radius: 3px;
+}
+
+.usage-split-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+}
+
+:root[data-theme='light'] .usage-split-track {
+  background: var(--raised);
+}
+
+.usage-split-figure {
+  color: var(--muted);
+  white-space: nowrap;
+}

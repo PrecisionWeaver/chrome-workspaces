@@ -1,7 +1,7 @@
 import type { SystemSnapshot } from '../../shared/protocol';
 import { hitLabel, planPace, resetLabel } from '../../shared/plan-usage';
 import { formatUsd } from '../../shared/pricing';
-import { previousLabel, shortDay, summarizeUsage, USAGE_RANGES, usageChange } from '../../shared/usage';
+import { previousLabel, shortDay, summarizeUsage, summarizeWorkspaces, USAGE_RANGES, usageChange } from '../../shared/usage';
 import { el } from './dom';
 import { formatTokens } from './format';
 import type { Prefs } from './prefs';
@@ -11,6 +11,9 @@ type UsageRangeId = Prefs['usageRange'];
 
 /** Models listed under the usage figures before the rest are folded into a count. */
 const MODEL_ROWS = 5;
+
+/** Workspaces drawn in the split before the rest are folded into one line. */
+const WORKSPACE_ROWS = 5;
 
 function rangePicker(current: UsageRangeId, onChange: (id: UsageRangeId) => void): HTMLElement {
   const picker = el('div', '', 'usage-range');
@@ -89,6 +92,41 @@ export function planCard(s: SystemSnapshot): HTMLElement {
   );
 }
 
+/** A bar per workspace, sized by its share of the range's cost (or tokens when nothing is priced), with the rest folded into one. */
+function workspaceSplit(s: SystemSnapshot, days: number): HTMLElement | null {
+  const shares = summarizeWorkspaces(s.usage.workspaces ?? [], s.usage.daily, days);
+  if (shares.length < 2) return null;
+  const byCost = shares.some((w) => w.costUsd > 0);
+  const weight = (w: { tokens: number; costUsd: number }) => (byCost ? w.costUsd : w.tokens);
+  const total = shares.reduce((sum, w) => sum + weight(w), 0);
+  const shown = shares.slice(0, WORKSPACE_ROWS).map((w) => ({ label: w.name, ...w }));
+  const rest = shares.slice(WORKSPACE_ROWS);
+  if (rest.length) {
+    const tokens = rest.reduce((sum, w) => sum + w.tokens, 0);
+    const costUsd = rest.reduce((sum, w) => sum + w.costUsd, 0);
+    shown.push({ id: '', name: '', label: `${rest.length} more`, tokens, costUsd });
+  }
+  const list = el('div', '', 'usage-split');
+  list.setAttribute('role', 'list');
+  for (const w of shown) {
+    const share = total > 0 ? weight(w) / total : 0;
+    const line = el('div', '', 'usage-split-row');
+    line.setAttribute('role', 'listitem');
+    line.title = `${w.label}\n${dayFigures(w.tokens, w.costUsd)}`;
+    const track = el('div', '', 'usage-split-track');
+    const fill = el('span', '', 'usage-split-fill');
+    fill.style.width = `${weight(w) > 0 ? Math.max(2, share * 100) : 0}%`;
+    track.append(fill);
+    line.append(
+      el('span', w.label, 'usage-split-name'),
+      track,
+      el('span', `${byCost ? `~${formatUsd(w.costUsd)}` : formatTokens(w.tokens)} · ${Math.round(share * 100)}%`, 'usage-split-figure'),
+    );
+    list.append(line);
+  }
+  return list;
+}
+
 export function usageCard(s: SystemSnapshot, usageRange: UsageRangeId, onRange: (id: UsageRangeId) => void): HTMLElement {
   const range = USAGE_RANGES.find((r) => r.id === usageRange) ?? USAGE_RANGES[2];
   const summary = summarizeUsage(s.usage.daily, range.days);
@@ -162,6 +200,9 @@ export function usageCard(s: SystemSnapshot, usageRange: UsageRangeId, onRange: 
       rows.push(row('By model', [...lines, ...(more > 0 ? [`+ ${more} more`] : [])].join('\n')));
     }
   }
+
+  const split = summary.tokens === 0 && summary.costUsd === 0 ? null : workspaceSplit(s, range.days);
+  if (split) rows.push(el('div', 'By workspace', 'usage-split-title'), split);
 
   const rates = Object.entries(s.config.pricing)
     .map(([family, r]) => `${family} $${r.input}/$${r.output}`)

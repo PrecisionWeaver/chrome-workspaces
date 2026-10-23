@@ -1,4 +1,4 @@
-import type { UsageDay } from './protocol';
+import type { UsageDay, UsageWorkspace } from './protocol';
 
 /** The ranges Settings can show; `days` counts back from today, which is the last one. */
 export const USAGE_RANGES = [
@@ -115,4 +115,29 @@ export function localDayAndHour(timestamp: unknown): { day: string; hour: number
   if (!/^\d{4}-\d{2}-\d{2}T/.test(timestamp)) return null;
   const date = new Date(timestamp);
   return Number.isNaN(date.getTime()) ? null : { day: localDay(date), hour: date.getHours() };
+}
+
+/** What one workspace used over a range. */
+export interface WorkspaceShare {
+  id: string;
+  name: string;
+  tokens: number;
+  costUsd: number;
+}
+
+/** Splits the last `days` of `daily` (the days the range covers) by workspace, dearest first, leaving out any that used nothing. */
+export function summarizeWorkspaces(workspaces: readonly UsageWorkspace[], daily: readonly UsageDay[], days: number): WorkspaceShare[] {
+  const inRange = new Set(daily.slice(Math.max(0, daily.length - days)).map((d) => d.day));
+  const shares: WorkspaceShare[] = [];
+  for (const { id, name, daily: own } of workspaces) {
+    const share = { id, name, tokens: 0, costUsd: 0 };
+    for (const d of own) {
+      if (!inRange.has(d.day)) continue;
+      share.tokens += d.tokens;
+      share.costUsd += d.costUsd;
+    }
+    if (share.tokens > 0 || share.costUsd > 0) shares.push(share);
+  }
+  // With no rates there is no cost to rank by, so fall back to tokens.
+  return shares.sort((a, b) => b.costUsd - a.costUsd || b.tokens - a.tokens);
 }

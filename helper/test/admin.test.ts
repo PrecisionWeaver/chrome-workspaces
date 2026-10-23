@@ -160,6 +160,9 @@ describe('usage and cost', () => {
         expect(reply.snapshot.usage.hourly[10]).toEqual({ hour: 10, tokens: 2_000_000, costUsd: expect.closeTo(60) });
         expect(reply.snapshot.usage.hourly.filter((h) => h.tokens > 0)).toHaveLength(1);
         expect(reply.snapshot.usage).toMatchObject({ costUsd: expect.closeTo(60), unpriced: [] });
+        expect(reply.snapshot.usage.workspaces).toEqual([
+          { id: workspace.id, name: 'priced', daily: [{ day: today, tokens: 2_000_000, costUsd: expect.closeTo(60) }] },
+        ]);
         return;
       }
       await new Promise((resolve) => setTimeout(resolve, 20));

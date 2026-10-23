@@ -86,6 +86,14 @@ export interface UsageDay {
   models: { model: string; tokens: number; costUsd: number }[];
 }
 
+/** One workspace's use on one day, for the split by workspace. */
+export interface UsageWorkspace {
+  id: string;
+  name: string;
+  /** Only the days it used anything, oldest first, over the same history as `UsageSnapshot.daily`. */
+  daily: { day: string; tokens: number; costUsd: number }[];
+}
+
 /** One hour of today's use across every workspace. */
 export interface UsageHour {
   /** The hour in the machine's time zone, 0 to 23. */
@@ -177,6 +185,8 @@ export interface SystemSnapshot {
     daily: UsageDay[];
     /** Today's use by hour, in local time: always 24 entries, 0 to 23, with the hours not yet reached at zero. */
     hourly: UsageHour[];
+    /** Each workspace's use by day, so a range can be split by workspace; the busiest first is up to the card. */
+    workspaces: UsageWorkspace[];
     /** Estimated cost since the first transcript still on disk, not only the days in `daily`. */
     costUsd: number;
     counting: boolean;

@@ -162,7 +162,7 @@ export function makeSnapshot(overrides: Partial<SystemSnapshot> = {}): SystemSna
       pricing: { opus: { input: 15, output: 75 } },
       jiraBaseUrl: null,
     },
-    usage: { daily: [makeUsageDay({ day: '2026-03-10' })], hourly: makeUsageHours(), costUsd: 0, counting: false, unpriced: [] },
+    usage: { daily: [makeUsageDay({ day: '2026-03-10' })], hourly: makeUsageHours(), workspaces: [], costUsd: 0, counting: false, unpriced: [] },
     plan: { limits: [], updatedAt: null },
     warnings: [],
     reviews: { fetchedAt: '2026-03-10T11:59:00.000Z', count: 3, error: null },
