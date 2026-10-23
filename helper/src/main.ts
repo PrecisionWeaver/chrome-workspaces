@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import { PLAN_USAGE_FILE } from '../../shared/plan-usage';
 import { MONITOR_SESSION, SHELL_SESSION, type WorkspaceStatus } from '../../shared/protocol';
 import { SAMPLE_INTERVAL_MS } from './resource-history';
+import { launchDirectory } from './launch-dir';
 import { createAdmin, defaultIsManaged, defaultRunShell, defaultSpawnDetached } from './admin';
 import { createApi } from './api';
 import { DATA_DIR, HOST, LEGACY_SESSIONS_DIR, loadConfig, SESSIONS_DIR, PORT, SCROLLBACK_LIMIT } from './config';
@@ -88,6 +89,12 @@ const prompts = () => readPrompts(config.promptsFile);
 const prDetails = async (url: string) =>
   (await execFileAsync(shell, ['-l', '-c', GH_PR_DETAILS], { env: { ...process.env, CW_PR_URL: url }, timeout: 30_000, maxBuffer: 4 * 1024 * 1024 })).stdout;
 
+/** Where a workspace's claude last was: the worktree it moved into, else where it started. */
+function workingDir(id: string): string | null {
+  const session = sessionState.get(id);
+  return (session?.transcriptPath && lastTranscriptCwd(session.transcriptPath)) || session?.cwd || null;
+}
+
 const admin = createAdmin({
   planUsage: () => readPlanUsage(join(DATA_DIR, PLAN_USAGE_FILE)),
   sessions,
@@ -160,10 +167,7 @@ const control = new ControlHub({
   admin,
   history,
   resumeId: (id) => sessionState.get(id)?.claudeSessionId ?? store.get(id)?.resume ?? null,
-  workingDir: (id) => {
-    const session = sessionState.get(id);
-    return (session?.transcriptPath && lastTranscriptCwd(session.transcriptPath)) || session?.cwd || null;
-  },
+  workingDir,
 });
 reviews.onChange(() => control.broadcastState());
 reviews.start(REVIEW_POLL_MS);
@@ -191,7 +195,9 @@ const server = await startServer({
     if (!workspace) return undefined;
     // A restored workspace has no session of its own yet, so it resumes the one it had.
     const resumeId = sessionState.get(id)?.claudeSessionId ?? workspace.resume ?? null;
-    const spec = launchSpec(workspace, { shell, resumeId, defaultModel: config.defaultModel, command: config.claudeCommand, hooksFile });
+    // Resuming starts where claude was, which may be a worktree it moved into; a new conversation starts in the workspace's directory.
+    const cwd = resumeId ? launchDirectory(workspace.cwd, workingDir(id)) : undefined;
+    const spec = launchSpec(workspace, { shell, resumeId, cwd, defaultModel: config.defaultModel, command: config.claudeCommand, hooksFile });
     const session = sessions.create(spec);
     console.log(`started ${workspace.name} in ${spec.cwd}${spec.args.join(' ').includes('--resume') ? ', resuming its conversation' : ''}`);
     if (spec.env?.CW_PROMPT !== undefined) store.clearPrompt(id);

@@ -8,6 +8,8 @@ export interface LaunchOptions {
   shell: string;
   /** Claude session to resume; by id because workspaces can share a cwd, which defeats `--continue`. */
   resumeId: string | null;
+  /** Where to start, when that is not the workspace's own directory (a worktree claude was last working in). */
+  cwd?: string;
   /** Used by workspaces that did not pick a model. */
   defaultModel?: string | null;
   /** `claudeCommand` from the config, already checked to be a bare command name. */
@@ -36,7 +38,10 @@ export function shellSpec(shell: string, cwd: string): SessionSpec {
  * Runs claude inside a login shell, leaving the shell behind when claude quits. A configured wrapper
  * command must pass claude's arguments through; claude itself is the fallback when the shell cannot find it.
  */
-export function launchSpec(workspace: Workspace, { shell, resumeId, defaultModel = null, command = 'claude', hooksFile = null }: LaunchOptions): SessionSpec {
+export function launchSpec(
+  workspace: Workspace,
+  { shell, resumeId, cwd, defaultModel = null, command = 'claude', hooksFile = null }: LaunchOptions,
+): SessionSpec {
   const env: Record<string, string> = { CW_WORKSPACE_ID: workspace.id };
   if (workspace.ticket) env.DEVSPACE_TICKET = workspace.ticket;
 
@@ -62,7 +67,7 @@ export function launchSpec(workspace: Workspace, { shell, resumeId, defaultModel
     id: workspace.id,
     command: shell,
     args: ['-l', '-i', '-c', `${claude}; ${cleanup}exec ${shell} -l -i`],
-    cwd: workspace.cwd,
+    cwd: cwd ?? workspace.cwd,
     env,
   };
 }

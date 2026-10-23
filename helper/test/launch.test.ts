@@ -23,6 +23,13 @@ const RESUME = '169128c8-8b10-48e0-993f-a743c8fad9ef';
 const start = (args = '') => `claude${args}`;
 
 describe('launchSpec', () => {
+  it('starts in the workspace directory, or in the one it is given', () => {
+    expect(launchSpec(workspace, { shell: '/bin/zsh', resumeId: null }).cwd).toBe('/Users/me/project');
+    expect(launchSpec(workspace, { shell: '/bin/zsh', resumeId: RESUME, cwd: '/Users/me/project/.worktrees/topic' }).cwd).toBe(
+      '/Users/me/project/.worktrees/topic',
+    );
+  });
+
   it('starts claude in a login shell that remains after it quits', () => {
     const spec = launchSpec(workspace, { shell: '/bin/zsh', resumeId: null });
     expect(spec).toMatchObject({ id: 'ws-0123abcd', command: '/bin/zsh', cwd: '/Users/me/project' });
