@@ -10,7 +10,7 @@ import type {
   UpdateStatus,
 } from '../../shared/protocol';
 import { caret, el } from './dom';
-import { columnCountFor, layoutCards } from './settings-layout';
+import { type CardLayout, columnCountFor, keysOf, layoutCards, layoutFromKeys } from './settings-layout';
 import { sparkline } from './sparkline';
 import { card, actions, row } from './settings-parts';
 import { planCard, usageCard } from './settings-usage';
@@ -617,6 +617,39 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
     );
   }
 
+  /** Puts the layout's groups in the grid; the held card is not moved, so its open dropdown survives. */
+  function place(layout: CardLayout, held: HTMLElement | null): void {
+    const groups = [
+      ...(layout.top.length ? [{ cls: 'settings-top', cards: layout.top }] : []),
+      ...layout.columns.map((c) => ({ cls: 'settings-column', cards: c })),
+    ];
+    const holder = held?.parentElement;
+    const heldAt = held ? groups.findIndex((g) => g.cards.some((card) => card.dataset.key === held.dataset.key)) : -1;
+    // The same layout as last time, so the held card can stay where it is; a different one has to move it.
+    const same = holder != null && heldAt >= 0 && grid.children.length === groups.length && grid.children[heldAt] === holder;
+    if (held && same) {
+      groups.forEach((g, i) => {
+        const node = grid.children[i] as HTMLElement;
+        if (node !== holder) {
+          node.replaceChildren(...g.cards);
+          return;
+        }
+        const at = g.cards.findIndex((card) => card.dataset.key === held.dataset.key);
+        for (const child of [...node.children]) if (child !== held) child.remove();
+        held.before(...g.cards.slice(0, at));
+        held.after(...g.cards.slice(at + 1));
+      });
+      return;
+    }
+    grid.replaceChildren(
+      ...groups.map((g) => {
+        const node = el('div', '', g.cls);
+        node.append(...g.cards);
+        return node;
+      }),
+    );
+  }
+
   function render(): void {
     const scroll = body.scrollTop;
     updatedEl.textContent = snapshot ? `updated ${new Date(snapshot.takenAt).toLocaleTimeString()}` : '';
@@ -637,41 +670,32 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       diagnosticsCard(snapshot),
     ];
     columnsNow = columnCountFor(body.clientWidth);
-    const { top, columns } = layoutCards(cards, columnsNow);
-    const groups = [...(top.length ? [{ cls: 'settings-top', cards: top }] : []), ...columns.map((c) => ({ cls: 'settings-column', cards: c }))];
+    // Where the cards were put last time stays put while the cards and columns are the same, so a refresh never shuffles them.
+    const signature = `${columnsNow}|${snapshot.sessions.length}|${cards.map((card) => card.dataset.key).join(',')}`;
+    const settled = placement?.signature === signature;
+    const layout = settled && placement ? layoutFromKeys(cards, placement.keys) : layoutCards(cards, columnsNow);
     // Detaching a focused dropdown closes it, so its card stays put, a poll behind, until focus leaves.
     const active = document.activeElement;
     const held = active instanceof HTMLSelectElement && grid.contains(active) ? active.closest<HTMLElement>('.settings-card') : null;
-    const holder = held?.parentElement;
-    const heldAt = held ? groups.findIndex((g) => g.cards.some((card) => card.dataset.key === held.dataset.key)) : -1;
-    // The same layout as last time, so the held card can stay where it is; a different one has to move it.
-    const same = holder !== null && holder !== undefined && heldAt >= 0 && [...grid.children].length === groups.length && grid.children[heldAt] === holder;
-    if (held && same) {
-      groups.forEach((g, i) => {
-        const node = grid.children[i] as HTMLElement;
-        if (node !== holder) {
-          node.replaceChildren(...g.cards);
-          return;
-        }
-        const at = g.cards.findIndex((card) => card.dataset.key === held.dataset.key);
-        for (const child of [...node.children]) if (child !== held) child.remove();
-        held.before(...g.cards.slice(0, at));
-        held.after(...g.cards.slice(at + 1));
-      });
-    } else {
-      grid.replaceChildren(
-        ...groups.map((g) => {
-          const node = el('div', '', g.cls);
-          node.append(...g.cards);
-          return node;
-        }),
-      );
+    place(layout, held);
+    if (!settled && columnsNow > 1 && !held) {
+      // Heights are only known once the cards are laid out, so the first placement is a guess and this one evens the columns by them.
+      const heights = new Map(cards.map((card) => [card, card.offsetHeight]));
+      if ([...heights.values()].some((h) => h > 0)) {
+        const balanced = layoutCards(cards, columnsNow, (card) => heights.get(card) ?? 0);
+        placement = { signature, keys: keysOf(balanced) };
+        place(balanced, null);
+      }
+    } else if (!settled && columnsNow > 1) {
+      placement = null;
     }
     body.scrollTop = scroll;
   }
 
   // Widening the panel adds a column, so the cards are dealt again when that changes, and not for every pixel.
   let columnsNow = 0;
+  /** Where the cards went the last time they were evened out by height, for as long as the cards and columns stay the same. */
+  let placement: { signature: string; keys: string[][] } | null = null;
   if (typeof ResizeObserver !== 'undefined') {
     new ResizeObserver(() => {
       const count = columnCountFor(body.clientWidth);
@@ -696,6 +720,8 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
 
   function show(): void {
     isOpen = true;
+    // Heights may have changed while it was closed, so the columns are evened out again.
+    placement = null;
     section.hidden = false;
     resultEl.hidden = true;
     render();
