@@ -82,6 +82,8 @@ export function isControlToHelper(value: unknown): value is ControlToHelper {
       );
     case 'timeline':
       return typeof m.id === 'string';
+    case 'activity':
+      return m.id === null || typeof m.id === 'string';
     case 'system':
     case 'systemLog':
     case 'exportData':

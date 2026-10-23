@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import WebSocket from 'ws';
 import { PROTOCOL, TOKEN_PROTOCOL_PREFIX, type ControlToClient, type Prompt, type Repo, type ReviewRequest, type WorkspaceStatus } from '../../shared/protocol';
 import { createApi } from '../src/api';
+import { readActivity } from '../src/activity';
 import { type AdminService, createAdmin } from '../src/admin';
 import { ControlHub } from '../src/control';
 import { createGitService } from '../src/git';
@@ -46,6 +47,8 @@ export interface Harness {
   resumeIds: Record<string, string>;
   /** The claude transcript of each workspace, by id, for token counts. */
   transcripts: Record<string, string>;
+  /** Event files by workspace, read as the helper reads them. */
+  activityFiles: Record<string, string>;
   /** Workspaces archived since their session was last counted, as the helper still knows their transcripts. */
   archived: { id: string; name: string; transcript: string }[];
   /** Whether the fake launchd manages the helper. */
@@ -81,6 +84,8 @@ export async function startHarness(): Promise<Harness> {
     branchPrJson: null as string | null,
     resumeIds: {} as Record<string, string>,
     transcripts: {} as Record<string, string>,
+    /** Event files by workspace, read as the helper reads them. */
+    activityFiles: {} as Record<string, string>,
     archived: [] as { id: string; name: string; transcript: string }[],
     managed: true,
     dataDir: dir,
@@ -165,6 +170,7 @@ export async function startHarness(): Promise<Harness> {
     history: new HistoryStore(join(dir, 'history.json')),
     resumeId: (id) => fakes.resumeIds[id] ?? null,
     workingDir: (id) => fakes.workingDirs[id] ?? null,
+    activity: (id) => (fakes.activityFiles[id] ? readActivity(fakes.activityFiles[id]) : null),
   });
   const auth = { token: TOKEN, allowedOrigins: [ORIGIN] };
   const server = await startServer({

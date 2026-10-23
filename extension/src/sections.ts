@@ -2,9 +2,10 @@ const MIN_HEIGHT = 80;
 // Room kept for the workspace list above the sections.
 const MIN_LIST_HEIGHT = 120;
 
-type Section = 'git' | 'reviews';
+const SECTIONS = ['git', 'reviews', 'activity'] as const;
+type Section = (typeof SECTIONS)[number];
 
-/** Lets the Source control and Review requests sections be dragged taller or shorter by their top edge. */
+/** Lets the Source control, Review requests and Activity sections be dragged taller or shorter by their top edge. */
 export function makeSectionsResizable(fitTerminal: () => void): void {
   const heights: Partial<Record<Section, number>> = {};
 
@@ -15,7 +16,7 @@ export function makeSectionsResizable(fitTerminal: () => void): void {
   };
 
   void chrome.storage.local.get('sectionHeights').then(({ sectionHeights }) => {
-    for (const section of ['git', 'reviews'] as const) {
+    for (const section of SECTIONS) {
       const height = (sectionHeights as Partial<Record<Section, number>> | undefined)?.[section];
       if (typeof height === 'number') {
         heights[section] = height;
@@ -38,10 +39,10 @@ export function makeSectionsResizable(fitTerminal: () => void): void {
     });
     handle.addEventListener('pointermove', (event) => {
       if (!handle.hasPointerCapture(event.pointerId)) return;
-      // The other section keeps its height; the workspace list gives way first.
+      // The other sections keep their height; the workspace list gives way first.
       const list = document.getElementById('list') as HTMLElement;
-      const other = document.getElementById(section === 'git' ? 'reviews' : 'git') as HTMLElement;
-      const room = list.getBoundingClientRect().height - MIN_LIST_HEIGHT - other.getBoundingClientRect().height;
+      const others = SECTIONS.filter((name) => name !== section).map((name) => document.getElementById(name) as HTMLElement);
+      const room = list.getBoundingClientRect().height - MIN_LIST_HEIGHT - others.reduce((sum, node) => sum + node.getBoundingClientRect().height, 0);
       const next = Math.round(Math.min(Math.max(startHeight + (startY - event.clientY), MIN_HEIGHT), Math.max(room, MIN_HEIGHT)));
       heights[section] = next;
       apply(section, next);

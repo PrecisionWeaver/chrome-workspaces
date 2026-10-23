@@ -18,10 +18,13 @@ describe('hooksSettings', () => {
       'Notification',
       'PostToolUse',
       'PostToolUseFailure',
+      'PreCompact',
       'PreToolUse',
       'SessionEnd',
       'SessionStart',
       'Stop',
+      'SubagentStart',
+      'SubagentStop',
       'UserPromptSubmit',
     ]);
     expect(hooks.Stop).toEqual([{ hooks: [{ type: 'command', command: `'/Users/me/Application Support/node' '/code/it'\\''s here/session-state.ts'` }] }]);

@@ -69,7 +69,7 @@ describe('hooks/session-state.ts', () => {
     const runs = [
       fire(data, 'not json'),
       fire(data, ''),
-      fire(data, { hook_event_name: 'SubagentStop', session_id: ID }),
+      fire(data, { hook_event_name: 'Elicitation', session_id: ID }),
       fire(data, { hook_event_name: 'Stop', session_id: '../../evil' }),
       fire(data, { hook_event_name: 'Stop' }),
     ];
@@ -82,5 +82,71 @@ describe('hooks/session-state.ts', () => {
     fire(data, { hook_event_name: 'Stop', session_id: ID }, {});
     expect(read(data).cw_workspace_id).toBeNull();
     expect(readSessionStatus(sessions(data)).size).toBe(0);
+  });
+});
+
+describe('hooks/session-state.ts activity', () => {
+  const events = (data: string, id = ID) =>
+    readFileSync(join(sessions(data), `${id}.events.jsonl`), 'utf8')
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line));
+
+  it('appends one line per event the activity view draws, with the tool call summarised and the agent named', () => {
+    const data = mkdtempSync(join(tmpdir(), 'cw-hook-'));
+    const base = { session_id: ID, prompt_id: 'p1', cwd: '/repo' };
+    fire(data, { ...base, hook_event_name: 'UserPromptSubmit', prompt: 'fix the\n  bug' });
+    fire(data, { ...base, hook_event_name: 'PreToolUse', tool_name: 'Skill', tool_input: { skill: 'pest' }, tool_use_id: 'u1' });
+    fire(data, {
+      ...base,
+      hook_event_name: 'PreToolUse',
+      tool_name: 'Edit',
+      tool_input: { file_path: '/repo/a.ts', old_string: 'x'.repeat(5000) },
+      tool_use_id: 'u2',
+    });
+    fire(data, { ...base, hook_event_name: 'PostToolUseFailure', tool_name: 'Edit', tool_input: { file_path: '/repo/a.ts' }, tool_use_id: 'u2' });
+    fire(data, { ...base, hook_event_name: 'SubagentStart', agent_id: 'a1', agent_type: 'Explore' });
+    fire(data, {
+      ...base,
+      hook_event_name: 'PreToolUse',
+      agent_id: 'a1',
+      agent_type: 'Explore',
+      tool_name: 'Bash',
+      tool_input: { command: 'ls', description: 'List files' },
+      tool_use_id: 'u3',
+    });
+    fire(data, { ...base, hook_event_name: 'PreCompact', trigger: 'auto' });
+    fire(data, { ...base, hook_event_name: 'Notification', message: 'needs input' });
+    fire(data, { ...base, hook_event_name: 'Stop' });
+    expect(events(data)).toEqual([
+      { at: expect.any(String), event: 'UserPromptSubmit', promptId: 'p1', summary: 'fix the bug' },
+      { at: expect.any(String), event: 'PreToolUse', promptId: 'p1', tool: 'Skill', summary: 'pest', toolUseId: 'u1' },
+      { at: expect.any(String), event: 'PreToolUse', promptId: 'p1', tool: 'Edit', summary: '/repo/a.ts', file: '/repo/a.ts', toolUseId: 'u2' },
+      { at: expect.any(String), event: 'PostToolUseFailure', promptId: 'p1', tool: 'Edit', summary: '/repo/a.ts', file: '/repo/a.ts', toolUseId: 'u2' },
+      { at: expect.any(String), event: 'SubagentStart', promptId: 'p1', agentId: 'a1', agentType: 'Explore' },
+      {
+        at: expect.any(String),
+        event: 'PreToolUse',
+        promptId: 'p1',
+        agentId: 'a1',
+        agentType: 'Explore',
+        tool: 'Bash',
+        summary: 'List files',
+        toolUseId: 'u3',
+      },
+      { at: expect.any(String), event: 'PreCompact', promptId: 'p1', summary: 'auto' },
+      { at: expect.any(String), event: 'Stop', promptId: 'p1' },
+    ]);
+    // An event that only sets a status leaves no line, and one that only draws activity leaves the status alone.
+    expect(read(data)).toMatchObject({ status: 'idle', last_event: 'Stop' });
+    fire(data, { ...base, hook_event_name: 'SubagentStop', agent_id: 'a1', agent_type: 'Explore' });
+    expect(read(data)).toMatchObject({ status: 'idle', last_event: 'Stop' });
+    expect(events(data).at(-1)).toMatchObject({ event: 'SubagentStop', agentId: 'a1' });
+  });
+
+  it('writes no events file for a session whose id is not a plain name', () => {
+    const data = mkdtempSync(join(tmpdir(), 'cw-hook-'));
+    fire(data, { hook_event_name: 'SubagentStart', session_id: '../x', agent_id: 'a1' });
+    expect(() => readdirSync(sessions(data))).toThrow();
   });
 });

@@ -19,10 +19,12 @@ beforeEach(() => {
   document.body.innerHTML = `
     <div id="list"></div>
     <section id="git"><div class="v-resizer" data-resize="git"></div></section>
-    <section id="reviews"><div class="v-resizer" data-resize="reviews"></div></section>`;
+    <section id="reviews"><div class="v-resizer" data-resize="reviews"></div></section>
+    <section id="activity"><div class="v-resizer" data-resize="activity"></div></section>`;
   sized('list', 600);
   sized('git', 200);
   sized('reviews', 100);
+  sized('activity', 50);
   // Pointer capture is a browser feature; track it per handle.
   for (const handle of document.querySelectorAll<HTMLElement>('.v-resizer')) {
     let captured = false;
@@ -77,11 +79,15 @@ describe('dragging', () => {
     expect(height('git')).toBe('80px');
   });
 
-  it('leaves the workspace list 120px, and the other section its height', () => {
+  it('leaves the workspace list 120px, and the other sections their height', () => {
     pointer(handle('git'), 'pointerdown', 500);
     pointer(handle('git'), 'pointermove', -5000);
-    // 600 list - 120 minimum - 100 for the reviews section.
-    expect(height('git')).toBe('380px');
+    // 600 list - 120 minimum - 100 for the reviews section - 50 for activity.
+    expect(height('git')).toBe('330px');
+    pointer(handle('activity'), 'pointerdown', 500);
+    pointer(handle('activity'), 'pointermove', -5000);
+    // 600 list - 120 minimum - 200 for git - 100 for reviews.
+    expect(height('activity')).toBe('180px');
   });
 
   it('ignores moves when no drag is in progress', () => {

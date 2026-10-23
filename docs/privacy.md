@@ -13,13 +13,13 @@ Opening a Jira ticket, a PR or a workspace's tabs is ordinary browsing in Chrome
 
 ## What it reads on your machine
 
-- The session files its own hook writes to `~/.chrome-workspaces/sessions/`, and the Claude Code transcripts they point to, for status, activity, token counts and costs. They are read, never written or copied.
+- The session files its own hook writes to `~/.chrome-workspaces/sessions/` (a status file, and an event log holding each prompt and a one-line summary of each tool call, never a tool's whole input or output), and the Claude Code transcripts they point to, for status, activity, token counts and costs. The transcripts are read, never written or copied.
 - Git repositories that workspaces are in, and the folders in `repoRoots`.
 - Your prompts file.
 
 ## What it keeps
 
-Everything is under `~/.chrome-workspaces/`: the config, the workspace list, one small status file per Claude session (pruned after a month), recently closed workspaces, terminal scrollback (in memory only, gone when the helper restarts), files you drop into a terminal (deleted after a week), and the helper's log. The panel's own preferences live in Chrome's extension storage. `npm run uninstall -- --purge` deletes the folder.
+Everything is under `~/.chrome-workspaces/`: the config, the workspace list, one small status file and one event log per Claude session (both pruned after a month), recently closed workspaces, terminal scrollback (in memory only, gone when the helper restarts), files you drop into a terminal (deleted after a week), and the helper's log. The panel's own preferences live in Chrome's extension storage. `npm run uninstall -- --purge` deletes the folder.
 
 ## Who can reach the helper
 
