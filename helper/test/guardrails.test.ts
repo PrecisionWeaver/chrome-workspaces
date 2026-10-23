@@ -21,6 +21,7 @@ const session = (name: string, processes: SystemProcess[]): SystemSession => ({
   cwdMissing: false,
   claudeSessionId: null,
   tokens: null,
+  history: [],
   processes,
 });
 const limits = { memoryWarnMb: 100, idleServerHours: 2 };

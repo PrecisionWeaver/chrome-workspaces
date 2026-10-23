@@ -117,6 +117,7 @@ export function makeSession(overrides: Partial<SystemSession> = {}): SystemSessi
     claudeSessionId: null,
     tokens: null,
     processes: [{ pid: 100, ppid: 1, command: '-zsh', cpu: 0.1, rssKb: 2048, elapsed: '01:00', ports: [] }],
+    history: [],
     ...overrides,
   };
 }

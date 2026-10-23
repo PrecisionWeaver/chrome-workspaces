@@ -116,6 +116,15 @@ export interface SystemProcess {
   ports: number[];
 }
 
+/** What a session's shell tree was using at one moment. */
+export interface ResourceSample {
+  /** Epoch milliseconds. */
+  t: number;
+  rssKb: number;
+  /** Summed across its processes, so it can pass 100 on several cores. */
+  cpu: number;
+}
+
 export interface SystemSession {
   id: string;
   name: string;
@@ -129,6 +138,8 @@ export interface SystemSession {
   tokens: (TokenTotals & { counting: boolean; costUsd: number }) | null;
   /** The shell and everything beneath it, shell first. */
   processes: SystemProcess[];
+  /** Its recent memory and CPU, oldest first, one sample a minute; empty until it has been sampled. */
+  history: ResourceSample[];
 }
 
 /** One of the plan's rate limits, as `/usage` shows it. */

@@ -732,3 +732,28 @@
   color: var(--muted);
   white-space: nowrap;
 }
+
+.session-trend {
+  display: inline-flex;
+  align-items: center;
+}
+
+.sparkline {
+  stroke: var(--accent);
+  stroke-width: 1.25;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.sparkline.warn {
+  stroke: var(--wait);
+}
+
+.session-trends {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0 2px 24px;
+  color: var(--muted);
+  font-size: 11px;
+}

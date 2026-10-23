@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import WebSocket from 'ws';
 import { PROTOCOL, TOKEN_PROTOCOL_PREFIX, type ControlToClient, type Prompt, type Repo, type ReviewRequest, type WorkspaceStatus } from '../../shared/protocol';
 import { createApi } from '../src/api';
-import { createAdmin } from '../src/admin';
+import { type AdminService, createAdmin } from '../src/admin';
 import { ControlHub } from '../src/control';
 import { createGitService } from '../src/git';
 import { HistoryStore } from '../src/history';
@@ -19,6 +19,7 @@ export interface Harness {
   server: RunningServer;
   store: WorkspaceStore;
   sessions: SessionManager;
+  admin: AdminService;
   control: ControlHub;
   defaultCwd: string;
   statuses: Record<string, WorkspaceStatus>;
@@ -174,6 +175,7 @@ export async function startHarness(): Promise<Harness> {
     server,
     store,
     sessions,
+    admin,
     control,
     defaultCwd,
     url: (path: string) => `http://127.0.0.1:${server.port}${path}`,

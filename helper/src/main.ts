@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { PLAN_USAGE_FILE } from '../../shared/plan-usage';
 import { MONITOR_SESSION, SHELL_SESSION, type WorkspaceStatus } from '../../shared/protocol';
+import { SAMPLE_INTERVAL_MS } from './resource-history';
 import { createAdmin, defaultIsManaged, defaultRunShell, defaultSpawnDetached } from './admin';
 import { createApi } from './api';
 import { DATA_DIR, HOST, LEGACY_SESSIONS_DIR, loadConfig, SESSIONS_DIR, PORT, SCROLLBACK_LIMIT } from './config';
@@ -115,6 +116,8 @@ const admin = createAdmin({
   spawnDetached: defaultSpawnDetached,
   isManaged: defaultIsManaged,
 });
+// Memory and CPU trends need readings between snapshots, which are only taken while Settings is open.
+setInterval(() => void admin.sample().catch(() => {}), SAMPLE_INTERVAL_MS).unref();
 
 const history = new HistoryStore(join(DATA_DIR, 'history.json'));
 // Workspaces an older version had archived are history now.

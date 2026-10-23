@@ -693,6 +693,29 @@ describe('the cards', () => {
       expect(text('.session-detail', card('Workspace sessions'))).toEqual(['1 process · 2.0 MB', 'not running']);
     });
 
+    it('draws a memory line once a running session has been sampled a few times, in amber when it is over the limit', async () => {
+      const sample = (i: number, rssKb: number) => ({ t: 1_000_000 + i * 60_000, rssKb, cpu: i });
+      const growing = makeSession({ id: 'ws-a', name: 'acme/app', pid: 10, history: [sample(0, 100_000), sample(1, 200_000), sample(2, 300_000)] });
+      const leaking = makeSession({ id: 'ws-c', name: 'acme/web', pid: 11, history: [sample(0, 1_000_000), sample(1, 4_500_000), sample(2, 5_000_000)] });
+      const fresh = makeSession({ id: 'ws-d', name: 'acme/cli', pid: 12, history: [sample(0, 100_000), sample(1, 100_000)] });
+      await open(makeSnapshot({ sessions: [growing, leaking, fresh, stopped] }));
+      const lines = [...card('Workspace sessions').querySelectorAll<SVGElement>('.session-head .sparkline')];
+      expect(lines.map((l) => l.classList.contains('warn'))).toEqual([false, true]);
+      expect(lines[0]!.querySelector('polyline')!.getAttribute('points')).toBe('0.0,15.0 30.0,8.0 60.0,1.0');
+      expect(lines[0]!.closest('.session-trend')!.getAttribute('title')).toBe('Memory over the last 2m: 293.0 MB now, peak 293.0 MB');
+    });
+
+    it('shows memory and CPU together when a session is expanded', async () => {
+      const sample = (i: number) => ({ t: 1_000_000 + i * 60_000, rssKb: 100_000 + i * 1000, cpu: i });
+      await open(makeSnapshot({ sessions: [makeSession({ id: 'ws-a', pid: 10, history: [sample(0), sample(1), sample(2)] })] }));
+      expect(card('Workspace sessions').querySelector('.session-trends')).toBeNull();
+      card('Workspace sessions').querySelector<HTMLButtonElement>('.session-toggle')!.click();
+      await flush();
+      const trends = card('Workspace sessions').querySelector('.session-trends')!;
+      expect(trends.querySelectorAll('.sparkline')).toHaveLength(2);
+      expect(trends.querySelectorAll('.session-trend')[1]!.getAttribute('title')).toBe('CPU over the last 2m: 2.0% now, peak 2.0%');
+    });
+
     it('totals the helper and every workspace', async () => {
       await open(makeSnapshot({ sessions: [running, { ...running, id: 'ws-c' }] }));
       expect(text('.memory-line:not(.memory-total) .v', card('Workspace sessions'))).toEqual(['50.0 MB']);
