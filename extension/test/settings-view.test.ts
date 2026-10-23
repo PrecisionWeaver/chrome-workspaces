@@ -276,10 +276,10 @@ describe('the cards', () => {
   it('lists them in order, with the setup and warning cards first only when there is something to show', async () => {
     await open();
     expect(cards().map((node) => node.dataset.key)).toEqual([
-      'Plan usage',
       'Usage',
-      'Preferences',
       'Workspace sessions',
+      'Plan usage',
+      'Preferences',
       'Updates',
       'Helper',
       'Housekeeping',
@@ -679,6 +679,40 @@ describe('the cards', () => {
     it('shows the rates', async () => {
       await open();
       expect(text('.settings-note', card('Usage')).at(-1)).toContain('opus $15/$75');
+    });
+  });
+
+  describe('layout', () => {
+    const widen = async (width: number) => {
+      Object.defineProperty(document.getElementById('settings-body')!, 'clientWidth', { configurable: true, value: width });
+      await open(makeSnapshot());
+    };
+    const columnKeys = () =>
+      [...document.querySelectorAll('#settings-cards > .settings-column')].map((c) => [...c.children].map((n) => (n as HTMLElement).dataset.key));
+
+    it('is one column in a narrow panel, with Usage and the sessions still at the top', async () => {
+      await widen(400);
+      expect(columnKeys()).toHaveLength(1);
+      expect(columnKeys()[0]!.slice(0, 2)).toEqual(['Usage', 'Workspace sessions']);
+      expect(document.querySelector('.settings-top')).toBeNull();
+    });
+
+    it('is two columns when the panel is wide, with Usage and the sessions at the top of each', async () => {
+      await widen(800);
+      const columns = columnKeys();
+      expect(columns).toHaveLength(2);
+      expect(columns.map((c) => c[0])).toEqual(['Usage', 'Workspace sessions']);
+    });
+
+    it('is three when it is wider still, and keeps a focused dropdown where it is across a refresh', async () => {
+      await widen(1200);
+      expect(columnKeys().map((c) => c[0])).toEqual(['Usage', 'Workspace sessions', 'Plan usage']);
+      const select = card('Preferences').querySelector('select')!;
+      select.focus();
+      const before = card('Preferences');
+      view.setSystem({ type: 'system', snapshot: makeSnapshot(), error: null });
+      expect(card('Preferences')).toBe(before);
+      expect(document.activeElement).toBe(select);
     });
   });
 

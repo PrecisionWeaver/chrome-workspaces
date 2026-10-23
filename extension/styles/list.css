@@ -593,9 +593,6 @@ body.collapsed #list {
 body.collapsed #list-title,
 body.collapsed .ws .name,
 body.collapsed .ws .remove,
-body.collapsed #monitor-open,
-body.collapsed #shell-open,
-body.collapsed #settings-open,
 body.collapsed #git,
 body.collapsed #reviews,
 body.collapsed #list-resizer {
@@ -623,6 +620,33 @@ body.collapsed #new {
 
 body.collapsed #new {
   margin: 2px 0 8px;
+}
+
+/* The header's buttons join the rail itself, so the expand arrow stays at the top and the terminal, monitor and settings sit at the bottom, below + , rather than being hidden. */
+body.collapsed #list-header {
+  display: contents;
+}
+
+body.collapsed #collapse {
+  margin: 10px 0 6px;
+}
+
+body.collapsed #shell-open,
+body.collapsed #monitor-open,
+body.collapsed #settings-open {
+  order: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  margin-bottom: 4px;
+}
+
+body.collapsed #settings-open {
+  margin-bottom: 10px;
 }
 
 body.collapsed #collapse {
