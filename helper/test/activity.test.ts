@@ -36,6 +36,11 @@ describe('buildActivity', () => {
           { tool: 'Read', count: 1, failed: 0 },
           { tool: 'Bash', count: 2, failed: 1 },
         ],
+        calls: [
+          { id: 'u1', tool: 'Read', summary: '/repo/a.ts', at: at(1), endedAt: at(2), failed: false },
+          { id: 'u2', tool: 'Bash', summary: 'Run tests', at: at(3), endedAt: at(4), failed: true },
+          { id: 'u3', tool: 'Bash', summary: 'Run tests again', at: at(5), endedAt: at(6), failed: false },
+        ],
         active: null,
       },
     ]);
@@ -54,65 +59,138 @@ describe('buildActivity', () => {
     expect(returned.endedAt).toBeNull();
   });
 
-  it('lists skills by name and nests a subagent with the tools it called, named by the Agent call that spawned it', () => {
-    const items = buildActivity([
+  it('starts a subagent at its Agent call, nests the tools it runs by type, and ends it when the call returns', () => {
+    const events = [
       ev(0, 'UserPromptSubmit', { promptId: 'p1', summary: 'review this' }),
       ev(1, 'PreToolUse', { promptId: 'p1', tool: 'Skill', toolUseId: 'u1', summary: 'pest' }),
       ev(1, 'PostToolUse', { promptId: 'p1', tool: 'Skill', toolUseId: 'u1' }),
-      ev(2, 'PreToolUse', { promptId: 'p1', tool: 'Agent', toolUseId: 'u2', summary: 'Find the flaky test' }),
-      ev(3, 'SubagentStart', { promptId: 'p1', agentId: 'a1', agentType: 'Explore' }),
-      ev(4, 'PreToolUse', { promptId: 'p1', agentId: 'a1', agentType: 'Explore', tool: 'Grep', toolUseId: 'u3', summary: 'flaky' }),
-      ev(5, 'PostToolUse', { promptId: 'p1', agentId: 'a1', agentType: 'Explore', tool: 'Grep', toolUseId: 'u3' }),
-      ev(6, 'PreToolUse', { promptId: 'p1', agentId: 'a1', agentType: 'Explore', tool: 'Read', toolUseId: 'u4', summary: '/repo/t.ts' }),
-    ]);
-    const [turn] = turns(items);
-    expect(turn.skills).toEqual([{ name: 'pest', at: at(1) }]);
-    expect(turn.tools).toEqual([{ tool: 'Agent', count: 1, failed: 0 }]);
-    expect(turn.agents).toEqual([
+      ev(2, 'PreToolUse', { promptId: 'p1', tool: 'Agent', toolUseId: 'u2', summary: 'Find the flaky test', subagentType: 'Explore' }),
+      ev(4, 'PreToolUse', { promptId: 'p1', agentType: 'Explore', tool: 'Grep', toolUseId: 'u3', summary: 'flaky' }),
+      ev(5, 'PostToolUse', { promptId: 'p1', agentType: 'Explore', tool: 'Grep', toolUseId: 'u3' }),
+      ev(6, 'PreToolUse', { promptId: 'p1', agentType: 'Explore', tool: 'Read', toolUseId: 'u4', summary: '/repo/t.ts' }),
+    ];
+    const [running] = turns(buildActivity(events));
+    expect(running.skills).toEqual([{ name: 'pest', at: at(1) }]);
+    // The Agent call is the agent, not one of claude's own tools.
+    expect(running.tools).toEqual([]);
+    expect(running.agents).toEqual([
       {
-        id: 'a1',
+        id: 'u2',
         type: 'Explore',
         summary: 'Find the flaky test',
-        startedAt: at(3),
+        startedAt: at(2),
         endedAt: null,
         tools: [
           { tool: 'Grep', count: 1, failed: 0 },
           { tool: 'Read', count: 1, failed: 0 },
         ],
+        calls: [
+          { id: 'u3', tool: 'Grep', summary: 'flaky', at: at(4), endedAt: at(5), failed: false },
+          { id: 'u4', tool: 'Read', summary: '/repo/t.ts', at: at(6), endedAt: null, failed: false },
+        ],
         active: { tool: 'Read', summary: '/repo/t.ts', at: at(6) },
       },
     ]);
-    // The agent finishing and its Agent call returning leave the turn still running.
-    const [done] = turns(
-      buildActivity([
-        ev(0, 'UserPromptSubmit', { promptId: 'p1', summary: 'review this' }),
-        ev(2, 'PreToolUse', { promptId: 'p1', tool: 'Agent', toolUseId: 'u2', summary: 'Find the flaky test' }),
-        ev(3, 'SubagentStart', { promptId: 'p1', agentId: 'a1', agentType: 'Explore' }),
-        ev(7, 'SubagentStop', { promptId: 'p1', agentId: 'a1', agentType: 'Explore' }),
-        ev(8, 'PostToolUse', { promptId: 'p1', tool: 'Agent', toolUseId: 'u2' }),
-      ]),
-    );
-    expect(done.agents[0]).toMatchObject({ endedAt: at(7), active: null });
+    const [done] = turns(buildActivity([...events, ev(8, 'PostToolUse', { promptId: 'p1', tool: 'Agent', toolUseId: 'u2' })]));
+    expect(done.agents[0]).toMatchObject({ endedAt: at(8), active: null });
+    // Ending the agent ends the call it still had running.
+    expect(done.agents[0].calls.map((c) => c.endedAt)).toEqual([at(5), at(8)]);
     expect(done.endedAt).toBeNull();
   });
 
-  it('matches two agents to their own Agent calls, newest call first, and names an agent seen only through its tools', () => {
+  it('keeps agents of different types apart, puts a call under the newest running one of its type, and names an agent seen only through its tools', () => {
     const [turn] = turns(
       buildActivity([
         ev(0, 'UserPromptSubmit', { promptId: 'p1', summary: 'go' }),
-        ev(1, 'PreToolUse', { promptId: 'p1', tool: 'Agent', toolUseId: 'u1', summary: 'Review the diff' }),
-        ev(1, 'PreToolUse', { promptId: 'p1', tool: 'Agent', toolUseId: 'u2', summary: 'Check the tests' }),
-        ev(2, 'SubagentStart', { promptId: 'p1', agentId: 'a2', agentType: 'reviewer' }),
-        ev(2, 'SubagentStart', { promptId: 'p1', agentId: 'a1', agentType: 'reviewer' }),
-        ev(3, 'PreToolUse', { promptId: 'p1', agentId: 'a3', agentType: 'Plan', tool: 'Read', toolUseId: 'u3', summary: '/x' }),
+        ev(1, 'PreToolUse', { promptId: 'p1', tool: 'Agent', toolUseId: 'u1', summary: 'Review the diff', subagentType: 'reviewer' }),
+        ev(1, 'PreToolUse', { promptId: 'p1', tool: 'Agent', toolUseId: 'u2', summary: 'Check the tests', subagentType: 'test-engineer' }),
+        ev(2, 'PreToolUse', { promptId: 'p1', agentType: 'test-engineer', tool: 'Bash', toolUseId: 'u3', summary: 'Run them' }),
+        ev(3, 'PreToolUse', { promptId: 'p1', agentType: 'reviewer', tool: 'Read', toolUseId: 'u4', summary: '/a' }),
+        ev(4, 'PreToolUse', { promptId: 'p1', agentType: 'Plan', tool: 'Read', toolUseId: 'u5', summary: '/x' }),
       ]),
     );
-    expect(turn.agents.map((a) => [a.id, a.summary])).toEqual([
-      ['a2', 'Check the tests'],
-      ['a1', 'Review the diff'],
-      ['a3', ''],
+    expect(turn.agents.map((a) => [a.type, a.summary, a.tools.map((t) => t.tool)])).toEqual([
+      ['reviewer', 'Review the diff', ['Read']],
+      ['test-engineer', 'Check the tests', ['Bash']],
+      ['Plan', '', ['Read']],
     ]);
-    expect(turn.agents[2].type).toBe('Plan');
+    expect(turn.tools).toEqual([]);
+  });
+
+  it('takes an Agent call that names no type for a general-purpose agent', () => {
+    const [turn] = turns(
+      buildActivity([
+        ev(0, 'UserPromptSubmit', { promptId: 'p1', summary: 'go' }),
+        ev(1, 'PreToolUse', { promptId: 'p1', tool: 'Agent', toolUseId: 'u1', summary: 'Look around' }),
+        ev(2, 'PreToolUse', { promptId: 'p1', agentType: 'general-purpose', tool: 'Glob', toolUseId: 'u2', summary: '*.ts' }),
+        ev(3, 'PostToolUse', { promptId: 'p1', tool: 'Agent', toolUseId: 'u1' }),
+      ]),
+    );
+    expect(turn.agents).toHaveLength(1);
+    expect(turn.agents[0]).toMatchObject({ type: 'general-purpose', endedAt: at(3), tools: [{ tool: 'Glob', count: 1, failed: 0 }] });
+  });
+
+  it("ends a turn's running calls, and its subagents', when the turn stops, and pairs a call without an id by tool", () => {
+    const [turn] = turns(
+      buildActivity([
+        ev(0, 'UserPromptSubmit', { promptId: 'p1', summary: 'go' }),
+        ev(1, 'PreToolUse', { promptId: 'p1', tool: 'Bash', summary: 'a' }),
+        ev(2, 'PostToolUse', { promptId: 'p1', tool: 'Bash' }),
+        ev(3, 'PreToolUse', { promptId: 'p1', tool: 'Read', toolUseId: 'u1', summary: '/x' }),
+        ev(4, 'PreToolUse', { promptId: 'p1', tool: 'Agent', toolUseId: 'u2', summary: 'look', subagentType: 'Explore' }),
+        ev(5, 'PreToolUse', { promptId: 'p1', agentType: 'Explore', tool: 'Glob', toolUseId: 'u3', summary: '*' }),
+        ev(9, 'Stop', { promptId: 'p1' }),
+      ]),
+    );
+    expect(turn.calls.map((c) => [c.tool, c.endedAt])).toEqual([
+      ['Bash', at(2)],
+      ['Read', at(9)],
+    ]);
+    expect(turn.agents[0]).toMatchObject({ endedAt: at(9), active: null });
+    expect(turn.agents[0].calls[0].endedAt).toBe(at(9));
+  });
+
+  it('keeps only the latest calls of a lane', () => {
+    const [turn] = turns(
+      buildActivity([
+        ev(0, 'UserPromptSubmit', { promptId: 'p1', summary: 'go' }),
+        ...Array.from({ length: 450 }, (_, n) => ev(n + 1, 'PreToolUse', { promptId: 'p1', tool: 'Read', toolUseId: `u${n}`, summary: `${n}` })),
+      ]),
+    );
+    expect(turn.calls).toHaveLength(400);
+    expect(turn.calls[0].summary).toBe('50');
+    expect(turn.tools).toEqual([{ tool: 'Read', count: 450, failed: 0 }]);
+  });
+
+  it('binds an agent id when claude reports one, so later calls and the stop follow it', () => {
+    const [turn] = turns(
+      buildActivity([
+        ev(0, 'UserPromptSubmit', { promptId: 'p1', summary: 'go' }),
+        ev(1, 'PreToolUse', { promptId: 'p1', tool: 'Agent', toolUseId: 'u1', summary: 'one', subagentType: 'Explore' }),
+        ev(1, 'PreToolUse', { promptId: 'p1', tool: 'Agent', toolUseId: 'u2', summary: 'two', subagentType: 'Explore' }),
+        ev(2, 'SubagentStart', { promptId: 'p1', agentId: 'a1', agentType: 'Explore' }),
+        ev(2, 'SubagentStart', { promptId: 'p1', agentId: 'a2', agentType: 'Explore' }),
+        ev(3, 'PreToolUse', { promptId: 'p1', agentId: 'a2', agentType: 'Explore', tool: 'Read', toolUseId: 'u3', summary: '/b' }),
+        ev(4, 'PostToolUseFailure', { promptId: 'p1', agentId: 'a2', agentType: 'Explore', tool: 'Read', toolUseId: 'u3' }),
+        ev(5, 'SubagentStop', { promptId: 'p1', agentId: 'a1', agentType: 'Explore' }),
+      ]),
+    );
+    expect(turn.agents.map((a) => [a.summary, a.endedAt, a.tools])).toEqual([
+      ['one', at(5), []],
+      ['two', null, [{ tool: 'Read', count: 1, failed: 1 }]],
+    ]);
+  });
+
+  it('labels a prompt that is claude plumbing rather than something you typed', () => {
+    const items = turns(
+      buildActivity([
+        ev(0, 'UserPromptSubmit', { promptId: 'p1', summary: '<agent-message from="a1">done</agent-message>' }),
+        ev(1, 'UserPromptSubmit', { promptId: 'p2', summary: '<task-notification>x</task-notification>' }),
+        ev(2, 'UserPromptSubmit', { promptId: 'p3', summary: '<command-name>/model</command-name>' }),
+        ev(3, 'UserPromptSubmit', { promptId: 'p4', summary: 'a real question' }),
+      ]),
+    );
+    expect(items.map((t) => t.prompt)).toEqual(['Subagent reported back', 'Subagent reported back', 'System message', 'a real question']);
   });
 
   it('separates turns, marks a compaction between them, and ends a turn left open when the next begins', () => {
@@ -133,7 +211,7 @@ describe('buildActivity', () => {
     const items = buildActivity(
       [
         ev(0, 'PreToolUse', { tool: 'Edit', toolUseId: 'u1', summary: '/a', file: '/a' }),
-        ev(1, 'Stop', { agentId: 'a1' }),
+        ev(1, 'Stop', { agentType: 'Explore' }),
         ev(2, 'Stop'),
         ev(3, 'SessionStart'),
         ...[1, 2, 3].flatMap((n) => [ev(10 + n, 'UserPromptSubmit', { promptId: `p${n}`, summary: `prompt ${n}` }), ev(20 + n, 'Stop', { promptId: `p${n}` })]),
@@ -141,16 +219,17 @@ describe('buildActivity', () => {
       2,
     );
     expect(items.map((i) => (i.kind === 'turn' ? i.prompt : i.kind))).toEqual(['prompt 2', 'prompt 3']);
-    const all = turns(buildActivity([ev(0, 'PreToolUse', { tool: 'Edit', toolUseId: 'u1', summary: '/a' }), ev(1, 'Stop', { agentId: 'a1' }), ev(2, 'Stop')]));
+    const all = turns(
+      buildActivity([ev(0, 'PreToolUse', { tool: 'Edit', toolUseId: 'u1', summary: '/a' }), ev(1, 'Stop', { agentType: 'Explore' }), ev(2, 'Stop')]),
+    );
     expect(all).toEqual([expect.objectContaining({ id: 'turn-1', prompt: '', endedAt: at(2), tools: [{ tool: 'Edit', count: 1, failed: 0 }] })]);
   });
 
-  it('ignores a PostToolUse for an agent it never saw and a SubagentStop for an unknown agent', () => {
+  it('ignores a Skill failure, and a SubagentStop that names no agent', () => {
     const [turn] = turns(
       buildActivity([
         ev(0, 'UserPromptSubmit', { promptId: 'p1', summary: 'go' }),
-        ev(1, 'PostToolUse', { promptId: 'p1', agentId: 'ghost', tool: 'Read' }),
-        ev(2, 'SubagentStop', { promptId: 'p1', agentId: 'ghost' }),
+        ev(2, 'SubagentStop', { promptId: 'p1' }),
         ev(3, 'PostToolUseFailure', { promptId: 'p1', tool: 'Skill' }),
       ]),
     );

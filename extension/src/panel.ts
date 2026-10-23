@@ -481,7 +481,7 @@ function paletteItems(): PaletteItem[] {
     { kind: 'Action', label: 'New workspace', hint: 'Start a workspace', run: () => creator.show() },
     { kind: 'Action', label: 'Terminal', hint: 'A plain shell, not tied to a workspace', run: () => tools.show('shell') },
     { kind: 'Action', label: 'System monitor', hint: 'btop, in the panel', run: () => tools.show('monitor') },
-    { kind: 'Action', label: 'Expand activity', hint: "What this workspace's claude is doing, turn by turn", run: () => activity.expand() },
+    { kind: 'Action', label: 'Expand activity', hint: "What this workspace's claude is doing, as a timeline", run: () => activity.expand() },
     { kind: 'Action', label: 'Open settings', hint: 'Helper, sessions, housekeeping', run: () => settings.show() },
     { kind: 'Action', label: 'Refresh review requests', run: () => send({ type: 'refreshReviews' }) },
     { kind: 'Action', label: 'Refresh source control', run: () => git.refresh() },

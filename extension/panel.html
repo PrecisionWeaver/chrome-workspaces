@@ -61,6 +61,17 @@
       <input id="list-search" type="search" placeholder="Filter workspaces" aria-label="Filter workspaces" autocomplete="off" hidden />
       <ul id="workspaces"></ul>
       <button type="button" id="new" title="New workspace"><span class="plus">+</span><span class="label">New workspace</span></button>
+      <section id="activity" class="section">
+        <div class="v-resizer" data-resize="activity" title="Drag to resize, double-click to reset"></div>
+        <div id="activity-header" class="section-header">
+          <button type="button" id="activity-toggle" class="icon-btn section-toggle" title="Collapse activity" aria-label="Collapse activity">
+            <svg class="icon"><use href="#i-chevron-down" /></svg>
+          </button>
+          <span id="activity-title" class="section-title">Activity</span>
+          <span id="activity-state"></span>
+        </div>
+        <div id="activity-body"></div>
+      </section>
       <section id="git" class="section">
         <div class="v-resizer" data-resize="git" title="Drag to resize, double-click to reset"></div>
         <div id="git-header" class="section-header">
@@ -104,17 +115,6 @@
         <div id="reviews-facet" hidden></div>
         <div id="reviews-error" hidden></div>
         <ul id="reviews-list"></ul>
-      </section>
-      <section id="activity" class="section">
-        <div class="v-resizer" data-resize="activity" title="Drag to resize, double-click to reset"></div>
-        <div id="activity-header" class="section-header">
-          <button type="button" id="activity-toggle" class="icon-btn section-toggle" title="Collapse activity" aria-label="Collapse activity">
-            <svg class="icon"><use href="#i-chevron-down" /></svg>
-          </button>
-          <span id="activity-title" class="section-title">Activity</span>
-          <span id="activity-state"></span>
-        </div>
-        <div id="activity-body"></div>
       </section>
     </nav>
     <div id="list-resizer" title="Drag to resize"></div>

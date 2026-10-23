@@ -105,6 +105,13 @@ describe('hooks/session-state.ts activity', () => {
       tool_use_id: 'u2',
     });
     fire(data, { ...base, hook_event_name: 'PostToolUseFailure', tool_name: 'Edit', tool_input: { file_path: '/repo/a.ts' }, tool_use_id: 'u2' });
+    fire(data, {
+      ...base,
+      hook_event_name: 'PreToolUse',
+      tool_name: 'Agent',
+      tool_input: { description: 'Find it', subagent_type: 'Explore', prompt: 'long' },
+      tool_use_id: 'u9',
+    });
     fire(data, { ...base, hook_event_name: 'SubagentStart', agent_id: 'a1', agent_type: 'Explore' });
     fire(data, {
       ...base,
@@ -123,6 +130,7 @@ describe('hooks/session-state.ts activity', () => {
       { at: expect.any(String), event: 'PreToolUse', promptId: 'p1', tool: 'Skill', summary: 'pest', toolUseId: 'u1' },
       { at: expect.any(String), event: 'PreToolUse', promptId: 'p1', tool: 'Edit', summary: '/repo/a.ts', file: '/repo/a.ts', toolUseId: 'u2' },
       { at: expect.any(String), event: 'PostToolUseFailure', promptId: 'p1', tool: 'Edit', summary: '/repo/a.ts', file: '/repo/a.ts', toolUseId: 'u2' },
+      { at: expect.any(String), event: 'PreToolUse', promptId: 'p1', tool: 'Agent', summary: 'Find it', subagentType: 'Explore', toolUseId: 'u9' },
       { at: expect.any(String), event: 'SubagentStart', promptId: 'p1', agentId: 'a1', agentType: 'Explore' },
       {
         at: expect.any(String),
