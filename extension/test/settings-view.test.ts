@@ -123,6 +123,25 @@ describe('plan usage card', () => {
     expect(plan.textContent).toContain('Reported 5m ago.');
   });
 
+  it('marks an even pace on the bar and warns only when the limit would run out before it resets', async () => {
+    await open(
+      makeSnapshot({
+        plan: {
+          limits: [
+            { id: 'five_hour', label: 'Current session', percent: 40, resetsAt: resets(150) },
+            { id: 'seven_day', label: 'Current week', percent: 90, resetsAt: resets(60 * 24 * 3) },
+            { id: 'spend_limit', label: 'Spend limit', percent: 50, resetsAt: resets(60 * 24 * 3) },
+          ],
+          updatedAt: '2026-03-10T11:55:00.000Z',
+        },
+      }),
+    );
+    const lines = [...card('Plan usage').querySelectorAll('.plan-limit')];
+    expect(lines.map((n) => n.querySelector<HTMLElement>('.plan-meter-pace')?.style.left)).toEqual(['50%', `${(4 / 7) * 100}%`, undefined]);
+    expect(lines.map((n) => n.querySelector('.plan-limit-pace') !== null)).toEqual([false, true, false]);
+    expect(lines[1].querySelector('.plan-limit-pace')!.textContent).toMatch(/^At this pace you'll hit the limit .+, before it resets$/);
+  });
+
   it('stops at 100% when claude reports a little past it', async () => {
     await open(
       makeSnapshot({
@@ -490,6 +509,7 @@ describe('the cards', () => {
         makeUsageDay({ day: '2026-03-11' }),
       ],
       hourly: makeUsageHours(),
+      workspaces: [],
       costUsd: 12.5,
       counting: false,
       unpriced: [],
@@ -521,6 +541,22 @@ describe('the cards', () => {
       await open(makeSnapshot({ usage: usage() }));
       expect(bars().map((bar) => bar.querySelector<HTMLElement>('.usage-fill')!.style.height)).toEqual(['100%', '4%', '0%']);
       expect(bars()[0]!.title).toBe('2026-03-09\n1.0M tokens · ~$3.00');
+    });
+
+    it('splits the range by workspace, folding the smallest into one line, and leaves it out for a single workspace', async () => {
+      const own = (name: string, tokens: number, costUsd: number) => ({ id: name, name, daily: [{ day: '2026-03-11', tokens, costUsd }] });
+      const names = ['acme/app', 'acme/api', 'acme/web', 'acme/docs', 'acme/cli', 'acme/lib', 'acme/ops'];
+      const workspaces = names.map((n, i) => own(n, 100, 7 - i));
+      await open(makeSnapshot({ usage: usage({ daily: sixty(), workspaces }) }));
+      await pick('Today');
+      const rows = [...card('Usage').querySelectorAll('.usage-split-row')];
+      expect(rows.map((r) => r.querySelector('.usage-split-name')!.textContent)).toEqual([...names.slice(0, 5), '2 more']);
+      expect(rows[0]!.querySelector('.usage-split-figure')!.textContent).toBe('~$7.00 · 25%');
+      expect(rows[5]!.querySelector('.usage-split-figure')!.textContent).toBe('~$3.00 · 11%');
+
+      await open(makeSnapshot({ usage: usage({ daily: sixty(), workspaces: workspaces.slice(0, 1) }) }));
+      await pick('Today');
+      expect(card('Usage').querySelector('.usage-split')).toBeNull();
     });
 
     it('offers today, 7, 14 and 30 days, with 14 chosen to begin with', async () => {
@@ -655,6 +691,29 @@ describe('the cards', () => {
       expect(card('Workspace sessions').querySelector('h3')!.textContent).toBe('Workspace sessions · 1 running · 2.0 MB');
       expect(text('.session-name', card('Workspace sessions'))).toEqual(['acme/app', 'acme/api']);
       expect(text('.session-detail', card('Workspace sessions'))).toEqual(['1 process · 2.0 MB', 'not running']);
+    });
+
+    it('draws a memory line once a running session has been sampled a few times, in amber when it is over the limit', async () => {
+      const sample = (i: number, rssKb: number) => ({ t: 1_000_000 + i * 60_000, rssKb, cpu: i });
+      const growing = makeSession({ id: 'ws-a', name: 'acme/app', pid: 10, history: [sample(0, 100_000), sample(1, 200_000), sample(2, 300_000)] });
+      const leaking = makeSession({ id: 'ws-c', name: 'acme/web', pid: 11, history: [sample(0, 1_000_000), sample(1, 4_500_000), sample(2, 5_000_000)] });
+      const fresh = makeSession({ id: 'ws-d', name: 'acme/cli', pid: 12, history: [sample(0, 100_000), sample(1, 100_000)] });
+      await open(makeSnapshot({ sessions: [growing, leaking, fresh, stopped] }));
+      const lines = [...card('Workspace sessions').querySelectorAll<SVGElement>('.session-head .sparkline')];
+      expect(lines.map((l) => l.classList.contains('warn'))).toEqual([false, true]);
+      expect(lines[0]!.querySelector('polyline')!.getAttribute('points')).toBe('0.0,15.0 30.0,8.0 60.0,1.0');
+      expect(lines[0]!.closest('.session-trend')!.getAttribute('title')).toBe('Memory over the last 2m: 293.0 MB now, peak 293.0 MB');
+    });
+
+    it('shows memory and CPU together when a session is expanded', async () => {
+      const sample = (i: number) => ({ t: 1_000_000 + i * 60_000, rssKb: 100_000 + i * 1000, cpu: i });
+      await open(makeSnapshot({ sessions: [makeSession({ id: 'ws-a', pid: 10, history: [sample(0), sample(1), sample(2)] })] }));
+      expect(card('Workspace sessions').querySelector('.session-trends')).toBeNull();
+      card('Workspace sessions').querySelector<HTMLButtonElement>('.session-toggle')!.click();
+      await flush();
+      const trends = card('Workspace sessions').querySelector('.session-trends')!;
+      expect(trends.querySelectorAll('.sparkline')).toHaveLength(2);
+      expect(trends.querySelectorAll('.session-trend')[1]!.getAttribute('title')).toBe('CPU over the last 2m: 2.0% now, peak 2.0%');
     });
 
     it('totals the helper and every workspace', async () => {

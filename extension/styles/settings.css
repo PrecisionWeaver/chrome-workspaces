@@ -652,10 +652,24 @@
 }
 
 .plan-meter {
+  position: relative;
   height: 8px;
   overflow: hidden;
   background: var(--raised);
   border-radius: var(--radius);
+}
+
+.plan-meter-pace {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--text);
+  opacity: 0.6;
+}
+
+.plan-limit-pace {
+  color: var(--wait);
 }
 
 .plan-meter-fill {
@@ -670,4 +684,76 @@
 
 .plan-meter.bad .plan-meter-fill {
   background: var(--bad);
+}
+
+.usage-split-title {
+  margin-top: 10px;
+  color: var(--muted);
+}
+
+.usage-split {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 4px;
+}
+
+.usage-split-row {
+  display: grid;
+  grid-template-columns: minmax(0, 7em) 1fr auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.usage-split-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.usage-split-track {
+  height: 8px;
+  background: var(--bg);
+  border-radius: 3px;
+}
+
+.usage-split-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+}
+
+:root[data-theme='light'] .usage-split-track {
+  background: var(--raised);
+}
+
+.usage-split-figure {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.session-trend {
+  display: inline-flex;
+  align-items: center;
+}
+
+.sparkline {
+  stroke: var(--accent);
+  stroke-width: 1.25;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.sparkline.warn {
+  stroke: var(--wait);
+}
+
+.session-trends {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0 2px 24px;
+  color: var(--muted);
+  font-size: 11px;
 }

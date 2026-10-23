@@ -97,3 +97,43 @@ export function resetLabel(resetsAt: string, now: number): string {
   const time = date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
   return `Resets ${day} ${time}`;
 }
+
+/** Length of the windows whose start we can infer from `resetsAt`; a spend limit's period is not known, so it has none. */
+const WINDOW_MS: Record<string, number> = { five_hour: 5 * 60 * 60_000, seven_day: 7 * 24 * 60 * 60_000 };
+
+/** Too little of the window gone and one early message would swing the projection wildly. */
+const MIN_ELAPSED = 0.05;
+
+export interface PlanPace {
+  /** Where use would be if spread evenly over the window, 0 to 100. */
+  expectedPercent: number;
+  /** When the limit runs out at the current rate, only if that is before it resets. */
+  hitsAt: string | null;
+}
+
+/** Whether a limit is being used faster than the window allows, or null when there is no window to judge it by. */
+export function planPace(limit: PlanLimit, now: number): PlanPace | null {
+  const window = WINDOW_MS[limit.id];
+  if (!window) return null;
+  const resetsAt = Date.parse(limit.resetsAt);
+  const elapsed = Math.min(1, Math.max(0, 1 - (resetsAt - now) / window));
+  if (elapsed < MIN_ELAPSED) return null;
+  let hitsAt: string | null = null;
+  if (limit.percent > 0 && limit.percent < 100) {
+    const hit = now + ((100 - limit.percent) * elapsed * window) / limit.percent;
+    if (hit < resetsAt) hitsAt = new Date(hit).toISOString();
+  }
+  return { expectedPercent: elapsed * 100, hitsAt };
+}
+
+/** "in 2h 10m" within a day, otherwise "Thu 3:00 PM", in the person's own time. */
+export function hitLabel(hitsAt: string, now: number): string {
+  const at = Date.parse(hitsAt);
+  const minutes = Math.max(1, Math.ceil((at - now) / 60_000));
+  if (minutes < 60) return `in ${minutes}m`;
+  if (minutes < 24 * 60) return `in ${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+  const date = new Date(at);
+  const day = date.toLocaleDateString(undefined, { weekday: 'short' });
+  const time = date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  return `${day} ${time}`;
+}

@@ -45,6 +45,28 @@ async function ask(request: unknown, replyType: ControlToClient['type']) {
   return { ws, messages, reply };
 }
 
+describe('resource history', () => {
+  it("samples a running session's whole shell tree, and drops it once the session has stopped", async () => {
+    const { workspace } = await workspaceWithSleep('trend');
+    await h.admin.sample(1_000);
+    await h.admin.sample(61_000);
+    const { ws, reply } = await ask({ type: 'system' }, 'system');
+    if (reply.type !== 'system' || !reply.snapshot) throw new Error('no snapshot');
+    const mine = reply.snapshot.sessions.find((s) => s.id === workspace.id)!;
+    expect(mine.history.map((s) => s.t)).toEqual([1_000, 61_000]);
+    // The shell and its sleep, so more than the shell alone would be.
+    expect(mine.history[0].rssKb).toBe(mine.processes.reduce((sum, p) => sum + p.rssKb, 0));
+    ws.close();
+
+    h.sessions.remove(workspace.id);
+    await h.admin.sample(121_000);
+    const again = await ask({ type: 'system' }, 'system');
+    if (again.reply.type !== 'system' || !again.reply.snapshot) throw new Error('no snapshot');
+    expect(again.reply.snapshot.sessions.find((s) => s.id === workspace.id)!.history).toEqual([]);
+    again.ws.close();
+  });
+});
+
 describe('system snapshot', () => {
   it('lists every workspace with its shell tree, the helper, storage and effective config', async () => {
     const { workspace, session } = await workspaceWithSleep('busy');
@@ -160,6 +182,9 @@ describe('usage and cost', () => {
         expect(reply.snapshot.usage.hourly[10]).toEqual({ hour: 10, tokens: 2_000_000, costUsd: expect.closeTo(60) });
         expect(reply.snapshot.usage.hourly.filter((h) => h.tokens > 0)).toHaveLength(1);
         expect(reply.snapshot.usage).toMatchObject({ costUsd: expect.closeTo(60), unpriced: [] });
+        expect(reply.snapshot.usage.workspaces).toEqual([
+          { id: workspace.id, name: 'priced', daily: [{ day: today, tokens: 2_000_000, costUsd: expect.closeTo(60) }] },
+        ]);
         return;
       }
       await new Promise((resolve) => setTimeout(resolve, 20));

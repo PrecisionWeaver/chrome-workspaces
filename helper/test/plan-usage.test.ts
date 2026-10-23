@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { mergeRateLimits, PLAN_USAGE_FILE, planUsageOf, resetLabel } from '../../shared/plan-usage';
+import { hitLabel, mergeRateLimits, PLAN_USAGE_FILE, planPace, planUsageOf, resetLabel } from '../../shared/plan-usage';
 import { STATUS_LINE_SCRIPT } from '../src/hooks-config';
 import { readPlanUsage } from '../src/plan-usage';
 
@@ -129,5 +129,39 @@ describe('hooks/status-line.ts', () => {
 
   it('still exits 0 for input that is not JSON', () => {
     expect(run('not json', 'echo hi').result.status).toBe(0);
+  });
+});
+
+describe('planPace', () => {
+  const iso = (minutes: number) => new Date(NOW + minutes * 60_000).toISOString();
+  const session = (percent: number, resetsInMinutes: number) => ({ id: 'five_hour', label: 'Current session', percent, resetsAt: iso(resetsInMinutes) });
+
+  it('has nothing to say early in the window, or for a limit with no known window', () => {
+    expect(planPace(session(3, 295), NOW)).toBeNull();
+    expect(planPace({ id: 'spend_limit', label: 'Spend limit', percent: 50, resetsAt: iso(60) }, NOW)).toBeNull();
+  });
+
+  it('marks where an even pace would be, with no projection when use is on or under it', () => {
+    expect(planPace(session(40, 150), NOW)).toEqual({ expectedPercent: 50, hitsAt: null });
+  });
+
+  it('projects when the limit runs out if that is before it resets', () => {
+    // 60% used with half the window gone: 40% more takes another 100 minutes, 50 before the reset.
+    expect(planPace(session(60, 150), NOW)).toEqual({ expectedPercent: 50, hitsAt: iso(100) });
+  });
+
+  it('does not project for a limit already used up or not yet touched', () => {
+    expect(planPace(session(100, 150), NOW)!.hitsAt).toBeNull();
+    expect(planPace(session(112, 150), NOW)!.hitsAt).toBeNull();
+    expect(planPace(session(0, 150), NOW)!.hitsAt).toBeNull();
+  });
+});
+
+describe('hitLabel', () => {
+  it('is relative within a day and a weekday and time beyond', () => {
+    const iso = (minutes: number) => new Date(NOW + minutes * 60_000).toISOString();
+    expect(hitLabel(iso(45), NOW)).toBe('in 45m');
+    expect(hitLabel(iso(130), NOW)).toBe('in 2h 10m');
+    expect(hitLabel(iso(60 * 24 * 3), NOW)).toMatch(/^\w{3} /);
   });
 });

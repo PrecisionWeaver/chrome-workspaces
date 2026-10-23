@@ -10,6 +10,7 @@ import type {
   UpdateStatus,
 } from '../../shared/protocol';
 import { caret, el } from './dom';
+import { sparkline } from './sparkline';
 import { card, actions, row } from './settings-parts';
 import { planCard, usageCard } from './settings-usage';
 import { formatBytes, formatDuration, formatKb, formatTokens, newTokens } from './format';
@@ -222,7 +223,32 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
     return box;
   }
 
-  function sessionRow(session: SystemSession): HTMLElement {
+  /** Memory and CPU lately, as small lines; null until a session has been sampled a few times. */
+  function trendLines(session: SystemSession, warnMb: number): { memory: HTMLElement; cpu: HTMLElement } | null {
+    const { history } = session;
+    const memoryLine = sparkline(
+      history.map((h) => h.rssKb),
+      (history.at(-1)?.rssKb ?? 0) / 1024 >= warnMb ? 'warn' : '',
+    );
+    const cpuLine = sparkline(history.map((h) => h.cpu));
+    if (!memoryLine || !cpuLine) return null;
+    const minutes = Math.round((history[history.length - 1].t - history[0].t) / 60_000);
+    const span = minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+    const wrap = (line: SVGSVGElement, label: string, now: string, peak: string): HTMLElement => {
+      const node = el('span', '', 'session-trend');
+      node.title = `${label} over the last ${span}: ${now} now, peak ${peak}`;
+      node.append(line);
+      return node;
+    };
+    const rss = history.map((h) => h.rssKb);
+    const cpu = history.map((h) => h.cpu);
+    return {
+      memory: wrap(memoryLine, 'Memory', formatKb(rss[rss.length - 1]), formatKb(Math.max(...rss))),
+      cpu: wrap(cpuLine, 'CPU', `${cpu[cpu.length - 1].toFixed(1)}%`, `${Math.max(...cpu).toFixed(1)}%`),
+    };
+  }
+
+  function sessionRow(session: SystemSession, warnMb: number): HTMLElement {
     const running = session.pid !== null;
     const open = expanded.has(session.id) && running;
     const wrapper = el('div', '', 'session');
@@ -260,6 +286,8 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       ),
     );
     summary.title = session.cwd;
+    const trends = running ? trendLines(session, warnMb) : null;
+    if (trends) summary.append(trends.memory);
     head.append(
       toggle,
       summary,
@@ -275,6 +303,13 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
         list.append(processRow(session, proc, index === 0));
       });
       wrapper.append(list);
+      // Fresh lines: a node can sit in one place, and the row's own memory line is already in the header.
+      const both = trends ? trendLines(session, warnMb) : null;
+      if (both) {
+        const line = el('div', '', 'session-trends');
+        line.append(el('span', 'Memory', 'k'), both.memory, el('span', 'CPU', 'k'), both.cpu);
+        wrapper.append(line);
+      }
     }
     if (open) {
       const shown = activityOpen.has(session.id);
@@ -303,7 +338,7 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
     const workspaceKb = s.sessions.reduce((sum, x) => sum + x.processes.reduce((n, p) => n + p.rssKb, 0), 0);
     const list = el('div', '', 'sessions');
     // Running workspaces first, since those are the ones using the machine.
-    list.append(...[...s.sessions].sort((a, b) => Number(b.pid !== null) - Number(a.pid !== null)).map(sessionRow));
+    list.append(...[...s.sessions].sort((a, b) => Number(b.pid !== null) - Number(a.pid !== null)).map((x) => sessionRow(x, s.config.limits.memoryWarnMb)));
     if (s.sessions.length === 0) list.append(el('div', 'No workspaces yet.', 'settings-empty'));
     return card(
       `Workspace sessions · ${running} running${counted.length ? ` · ${formatTokens(total)} tokens` : ''}${running ? ` · ${formatKb(workspaceKb)}` : ''}`,

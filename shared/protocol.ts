@@ -86,6 +86,14 @@ export interface UsageDay {
   models: { model: string; tokens: number; costUsd: number }[];
 }
 
+/** One workspace's use on one day, for the split by workspace. */
+export interface UsageWorkspace {
+  id: string;
+  name: string;
+  /** Only the days it used anything, oldest first, over the same history as `UsageSnapshot.daily`. */
+  daily: { day: string; tokens: number; costUsd: number }[];
+}
+
 /** One hour of today's use across every workspace. */
 export interface UsageHour {
   /** The hour in the machine's time zone, 0 to 23. */
@@ -108,6 +116,15 @@ export interface SystemProcess {
   ports: number[];
 }
 
+/** What a session's shell tree was using at one moment. */
+export interface ResourceSample {
+  /** Epoch milliseconds. */
+  t: number;
+  rssKb: number;
+  /** Summed across its processes, so it can pass 100 on several cores. */
+  cpu: number;
+}
+
 export interface SystemSession {
   id: string;
   name: string;
@@ -121,6 +138,8 @@ export interface SystemSession {
   tokens: (TokenTotals & { counting: boolean; costUsd: number }) | null;
   /** The shell and everything beneath it, shell first. */
   processes: SystemProcess[];
+  /** Its recent memory and CPU, oldest first, one sample a minute; empty until it has been sampled. */
+  history: ResourceSample[];
 }
 
 /** One of the plan's rate limits, as `/usage` shows it. */
@@ -177,7 +196,9 @@ export interface SystemSnapshot {
     daily: UsageDay[];
     /** Today's use by hour, in local time: always 24 entries, 0 to 23, with the hours not yet reached at zero. */
     hourly: UsageHour[];
-    /** Estimated cost since the first transcript still on disk, not only the days in `daily`. */
+    /** Each workspace's use by day, so a range can be split by workspace; the busiest first is up to the card. */
+    workspaces: UsageWorkspace[];
+    /** Estimated cost across each workspace's current claude session, not only the days in `daily`. */
     costUsd: number;
     counting: boolean;
     /** Models used that have no rate, so are missing from the cost. */ unpriced: string[];

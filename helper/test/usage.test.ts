@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { UsageDay } from '../../shared/protocol';
-import { localDay, localDayAndHour, localDayBack, previousLabel, shortDay, summarizeUsage, usageChange } from '../../shared/usage';
+import { localDay, localDayAndHour, localDayBack, previousLabel, shortDay, summarizeUsage, summarizeWorkspaces, usageChange } from '../../shared/usage';
 
 process.env.TZ = 'America/New_York';
 
@@ -138,5 +138,38 @@ describe('local days', () => {
     expect(localDayAndHour('2026-10-08')).toEqual({ day: '2026-10-08', hour: null });
     expect(localDayAndHour(12)).toBeNull();
     expect(localDayAndHour(undefined)).toBeNull();
+  });
+});
+
+describe('summarizeWorkspaces', () => {
+  const daily = [day(1, 0), day(2, 0), day(3, 0), day(4, 0)];
+  const ws = (name: string, days: [number, number, number][]) => ({
+    id: name,
+    name,
+    daily: days.map(([n, tokens, costUsd]) => ({ day: `2026-10-0${n}`, tokens, costUsd })),
+  });
+
+  it('adds up each workspace over the range only, dearest first, leaving out any that used nothing', () => {
+    const shares = summarizeWorkspaces(
+      [
+        ws('acme/app', [
+          [1, 500, 5],
+          [3, 100, 1],
+          [4, 100, 1],
+        ]),
+        ws('acme/api', [[4, 300, 4]]),
+        ws('idle', [[1, 10, 1]]),
+      ],
+      daily,
+      2,
+    );
+    expect(shares).toEqual([
+      { id: 'acme/api', name: 'acme/api', tokens: 300, costUsd: 4 },
+      { id: 'acme/app', name: 'acme/app', tokens: 200, costUsd: 2 },
+    ]);
+  });
+
+  it('ranks by tokens when nothing is priced', () => {
+    expect(summarizeWorkspaces([ws('a', [[4, 10, 0]]), ws('b', [[4, 90, 0]])], daily, 1).map((s) => s.name)).toEqual(['b', 'a']);
   });
 });
