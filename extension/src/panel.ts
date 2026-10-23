@@ -2,7 +2,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import { Terminal } from '@xterm/xterm';
 import { similarity } from '../../shared/pairing';
 import type { ClientMessage, HistoryEntry, ReviewRequest, ReviewsState, ServerMessage, Workspace, WorkspaceStatus } from '../../shared/protocol';
-import { el } from './dom';
+import { $, el } from './dom';
 import { connectControl, getHelper, isHostMissing, openSocket, startHelper } from './helper-client';
 import { createCreateView } from './create-view';
 import { attachFileDrop } from './file-drop';
@@ -21,8 +21,6 @@ import { createWorkspaceList } from './workspace-list';
 import { terminalTheme } from './terminal-theme';
 import { loadSelection, onSelectionChange, select, shownIn, type Selection } from './selection';
 import { showOnly, switchTo } from './windows';
-
-const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
 const newButton = $<HTMLButtonElement>('new');
 const noticeEl = $<HTMLDivElement>('notice');

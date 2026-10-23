@@ -9,7 +9,7 @@ import type {
   TokenTotals,
   UpdateStatus,
 } from '../../shared/protocol';
-import { caret, el } from './dom';
+import { $, caret, el, wireBack } from './dom';
 import { type CardLayout, columnCountFor, keysOf, layoutCards, layoutFromKeys } from './settings-layout';
 import { sparkline } from './sparkline';
 import { card, actions, row } from './settings-parts';
@@ -19,8 +19,6 @@ import { DENSITIES, THEMES } from '../../shared/keynav';
 import { formatUsd } from '../../shared/pricing';
 import { buildChecklist, remaining, type SetupItem } from '../../shared/onboarding';
 import { loadPrefs, normalizePrefs, savePrefs, type Prefs } from './prefs';
-
-const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
 export interface SettingsViewOptions {
   send(message: ControlToHelper): boolean;
@@ -739,11 +737,8 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
     onToggle();
   }
 
-  $<HTMLButtonElement>('settings-close').addEventListener('click', close);
+  wireBack('settings-close', close, () => isOpen);
   $<HTMLButtonElement>('settings-refresh').addEventListener('click', poll);
-  document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && isOpen) close();
-  });
 
   return {
     get isOpen() {

@@ -235,11 +235,6 @@
   margin: 6px 4px 2px;
 }
 
-#git-save[hidden],
-#git-notice[hidden] {
-  display: none;
-}
-
 #git-message {
   width: 100%;
   box-sizing: border-box;
@@ -478,30 +473,8 @@ button.git-branch-name:hover {
 
 /* Diff view */
 
-#diff {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  padding: 14px 20px 20px;
-}
-
-#diff[hidden] {
-  display: none;
-}
-
-#diff-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 14px;
-}
-
 #diff-title {
   margin: 0 0 2px;
-  font-size: 16px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
 }
 
 #diff-meta {

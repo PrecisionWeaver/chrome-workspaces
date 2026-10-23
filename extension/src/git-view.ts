@@ -11,11 +11,9 @@ import type {
   Workspace,
   WorkspaceStatus,
 } from '../../shared/protocol';
-import { caret, el } from './dom';
+import { $, caret, el, wireBack } from './dom';
 import { menuItem, openMenu } from './menu';
 import { relative } from './pr-view';
-
-const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
 export interface GitViewOptions {
   send(message: ControlToHelper): boolean;
@@ -463,10 +461,7 @@ export function createGitView({ send, onToggle, status }: GitViewOptions): GitVi
     diffBody.replaceChildren(fragment);
   }
 
-  $<HTMLButtonElement>('diff-close').addEventListener('click', close);
-  document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && isOpen) close();
-  });
+  wireBack('diff-close', close, () => isOpen);
 
   // ---- accordion ----
 
