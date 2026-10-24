@@ -115,6 +115,27 @@
   height: auto;
 }
 
+.chart {
+  cursor: grab;
+  touch-action: pan-y;
+  user-select: none;
+}
+
+#activity-body.scrubbing .chart {
+  cursor: grabbing;
+}
+
+.live-button {
+  margin-left: auto;
+  padding: 0 7px;
+  background: var(--surface);
+  border: 1px solid var(--working);
+  border-radius: 8px;
+  color: var(--working);
+  font: inherit;
+  cursor: pointer;
+}
+
 .chart .axis,
 .chart .lane-label {
   fill: var(--muted);

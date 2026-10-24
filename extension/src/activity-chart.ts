@@ -43,6 +43,38 @@ const title = (parent: Element, text: string): void => {
   parent.append(node);
 };
 
+/** How much of a turn the drawing shows at once to begin with; a longer turn trails the clock and is dragged back through. */
+export const WINDOW_MS = 120_000;
+export const MIN_WINDOW_MS = 10_000;
+
+/** Where the drawing is looking: the window's right edge (null trails the end of the turn) and how much it takes in. */
+export interface View {
+  end: number | null;
+  /** Null is the default width. */
+  span?: number | null;
+}
+
+/** The stretch of the turn on show, and whether it is clamped to the live edge. */
+export function windowOf(turn: ActivityTurn, now: number, view: View | null): { from: number; to: number; live: boolean } {
+  const start = Date.parse(turn.startedAt);
+  const end = turn.endedAt ? Date.parse(turn.endedAt) : now;
+  const whole = Math.max(end - start, 1000);
+  const span = Math.min(Math.max(view?.span ?? WINDOW_MS, MIN_WINDOW_MS), whole);
+  const to = view?.end == null ? end : Math.min(Math.max(view.end, start + span), end);
+  const live = view?.end == null || to >= end;
+  return { from: Math.max(to - span, start), to: live ? end : to, live };
+}
+
+/** The view after zooming by `factor` (above 1 widens it), keeping the moment at `anchor` (0 left edge, 1 right) in place. */
+export function zoomed(turn: ActivityTurn, now: number, view: View, factor: number, anchor: number): View {
+  const { from, to } = windowOf(turn, now, view);
+  const whole = Math.max((turn.endedAt ? Date.parse(turn.endedAt) : now) - Date.parse(turn.startedAt), 1000);
+  const span = Math.min(Math.max((to - from) * factor, MIN_WINDOW_MS), Math.max(whole, MIN_WINDOW_MS));
+  const pinned = from + (to - from) * anchor;
+  const next = windowOf(turn, now, { end: pinned + span * (1 - anchor), span });
+  return { end: next.live ? null : next.to, span };
+}
+
 const seconds = (from: number, to: number) => formatDuration(Math.max(0, Math.round((to - from) / 1000)));
 
 interface Lane {
@@ -58,10 +90,11 @@ interface Lane {
  * a block coloured by its kind; a subagent is a bracket over the stretch it ran, with its own calls inside, so two
  * running together sit one above the other. A running call pulses, a failed one is outlined red, and a skill is a flag.
  */
-export function drawTurn(turn: ActivityTurn, now: number): SVGSVGElement {
-  const start = Date.parse(turn.startedAt);
-  const end = turn.endedAt ? Date.parse(turn.endedAt) : now;
+export function drawTurn(turn: ActivityTurn, now: number, view: View | null = null): SVGSVGElement {
+  const turnStart = Date.parse(turn.startedAt);
+  const { from: start, to: end } = windowOf(turn, now, view);
   const duration = Math.max(end - start, 1000);
+  const visible = (from: number, to: number) => to >= start && from <= end;
   const lanes: Lane[] = [
     // A helper older than the panel sends turns without their calls; they draw as empty lanes until it restarts.
     { label: 'Claude', detail: '', calls: turn.calls ?? [] },
@@ -81,8 +114,8 @@ export function drawTurn(turn: ActivityTurn, now: number): SVGSVGElement {
 
   const chart = svg('svg', { viewBox: `0 0 ${WIDTH} ${height}`, role: 'img', 'aria-label': 'Turn timeline' }, 'chart');
   chart.append(svg('text', { x: left, y: 9 }, 'axis'), svg('text', { x: WIDTH - 4, y: 9, 'text-anchor': 'end' }, 'axis'));
-  chart.children[0].textContent = '0s';
-  chart.children[1].textContent = seconds(start, end);
+  chart.children[0].textContent = seconds(turnStart, start);
+  chart.children[1].textContent = seconds(turnStart, end);
 
   lanes.forEach((lane, index) => {
     const top = AXIS + index * row;
@@ -93,9 +126,10 @@ export function drawTurn(turn: ActivityTurn, now: number): SVGSVGElement {
     chart.append(label);
     chart.append(svg('rect', { x: left, y: trackY, width: plot, height: LANE_HEIGHT, rx: 2 }, 'track'));
 
-    if (lane.span) {
+    if (lane.span && visible(lane.span.from, lane.span.to ?? now)) {
+      const spanEnd = lane.span.to ?? now;
       const from = x(lane.span.from);
-      const to = x(lane.span.to ?? now);
+      const to = x(spanEnd);
       const bracket = svg(
         'rect',
         { x: from, y: trackY, width: Math.max(to - from, MIN_BLOCK), height: LANE_HEIGHT, rx: 2 },
@@ -106,6 +140,7 @@ export function drawTurn(turn: ActivityTurn, now: number): SVGSVGElement {
     }
 
     for (const call of lane.calls) {
+      if (!visible(Date.parse(call.at), call.endedAt ? Date.parse(call.endedAt) : now)) continue;
       const from = x(Date.parse(call.at));
       const to = x(call.endedAt ? Date.parse(call.endedAt) : now);
       const block = svg(
@@ -123,6 +158,7 @@ export function drawTurn(turn: ActivityTurn, now: number): SVGSVGElement {
     // Skills are claude's, so their flags stand on its lane.
     if (index === 0) {
       for (const skill of turn.skills) {
+        if (!visible(Date.parse(skill.at), Date.parse(skill.at))) continue;
         const at = x(Date.parse(skill.at));
         const flag = svg('path', { d: `M${at} ${trackY - 1} l6 3.5 l-6 3.5 z` }, 'skill-flag');
         title(flag, `Skill: ${skill.name}`);

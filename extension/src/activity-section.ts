@@ -1,6 +1,6 @@
 import type { ActivityItem, ActivityTurn } from '../../shared/activity';
 import type { ControlToClient, ControlToHelper, Workspace } from '../../shared/protocol';
-import { drawTurn, legend } from './activity-chart';
+import { drawTurn, legend, type View, windowOf, zoomed } from './activity-chart';
 import { $, el } from './dom';
 
 export interface ActivitySectionOptions {
@@ -18,6 +18,8 @@ export interface ActivitySection {
 // A running turn's lanes grow with the clock.
 const TICK_MS = 1000;
 const CHIP_PROMPT = 18;
+// How much one notch of the wheel widens or narrows the window.
+const ZOOM_STEP = 1.25;
 
 const clock = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
@@ -38,6 +40,11 @@ export function createActivitySection({ send }: ActivitySectionOptions): Activit
   // The turn picked from the strip; null follows the newest.
   let picked: string | null = null;
   let followingId: string | null = null;
+  // Where the drawing is scrubbed back to; its end null trails the turn.
+  let view: View = { end: null };
+  // The turn the view was last scrubbed within, so a new one starts at its live edge.
+  let viewedId: string | null = null;
+  let drag: { x: number; end: number; msPerPx: number; pointer: number } | null = null;
   let ticker: ReturnType<typeof setInterval> | undefined;
 
   const collapsed = () => section.classList.contains('collapsed');
@@ -50,6 +57,12 @@ export function createActivitySection({ send }: ActivitySectionOptions): Activit
     button.title = turn.prompt;
     button.setAttribute('aria-pressed', String(selected));
     return button;
+  }
+
+  function shownTurn(): ActivityTurn | undefined {
+    if (!activity || activity.id !== workspace?.id) return undefined;
+    const turns = activity.items.filter((item): item is ActivityTurn => item.kind === 'turn');
+    return turns.find((turn) => turn.id === picked) ?? turns.at(-1);
   }
 
   function paint(): void {
@@ -80,6 +93,10 @@ export function createActivitySection({ send }: ActivitySectionOptions): Activit
 
     const newest = turns.at(-1) as ActivityTurn;
     const shown = turns.find((turn) => turn.id === picked) ?? newest;
+    if (shown.id !== viewedId) {
+      viewedId = shown.id;
+      view = { ...view, end: null };
+    }
     const strip = el('div', '', 'chips');
     // Newest first, so the turn being worked on is at the left edge.
     for (const item of [...activity.items].reverse()) {
@@ -92,13 +109,27 @@ export function createActivitySection({ send }: ActivitySectionOptions): Activit
       const button = chip(item, item === shown);
       button.addEventListener('click', () => {
         picked = item === newest ? null : item.id;
+        view = { end: null };
         render();
       });
       strip.append(button);
     }
     const prompt = el('div', shown.prompt || 'Earlier in the session', `turn-prompt${shown.prompt ? '' : ' earlier'}`);
     prompt.title = shown.prompt;
-    body.append(strip, prompt, drawTurn(shown, Date.now()), legend());
+    const now = Date.now();
+    const chart = drawTurn(shown, now, view);
+    const window = windowOf(shown, now, view);
+    const foot = legend();
+    if (!window.live) {
+      const live = el('button', 'Back to live', 'live-button');
+      live.type = 'button';
+      live.addEventListener('click', () => {
+        view = { ...view, end: null };
+        render();
+      });
+      foot.append(live);
+    }
+    body.append(strip, prompt, chart, foot);
     strip.scrollLeft = stripScroll;
     body.scrollTop = bodyScroll;
 
@@ -108,6 +139,52 @@ export function createActivitySection({ send }: ActivitySectionOptions): Activit
   }
 
   const render = paint;
+
+  // The chart is rebuilt every tick, so the drag is tracked on the body that outlives it.
+  body.addEventListener('pointerdown', (event) => {
+    const chart = (event.target as Element).closest<SVGSVGElement>('.chart');
+    const turn = shownTurn();
+    if (!chart || !turn || event.button !== 0) return;
+    const width = chart.getBoundingClientRect().width;
+    if (!width) return;
+    const now = Date.now();
+    const { from, to } = windowOf(turn, now, view);
+    drag = { x: event.clientX, end: to, msPerPx: (to - from) / width, pointer: event.pointerId };
+    body.setPointerCapture?.(event.pointerId);
+    body.classList.add('scrubbing');
+  });
+  body.addEventListener('pointermove', (event) => {
+    const turn = shownTurn();
+    if (!drag || !turn || event.pointerId !== drag.pointer) return;
+    // Dragging the picture right pulls earlier time into view.
+    const scrubbed = windowOf(turn, Date.now(), { end: drag.end - (event.clientX - drag.x) * drag.msPerPx });
+    view = { ...view, end: scrubbed.live ? null : scrubbed.to };
+    render();
+  });
+  // Scrolling over the chart widens or narrows the window around the moment under the pointer.
+  body.addEventListener(
+    'wheel',
+    (event) => {
+      const chart = (event.target as Element).closest<SVGSVGElement>('.chart');
+      const turn = shownTurn();
+      if (!chart || !turn || event.deltaY === 0) return;
+      const box = chart.getBoundingClientRect();
+      if (!box.width) return;
+      event.preventDefault();
+      const anchor = Math.min(Math.max((event.clientX - box.left) / box.width, 0), 1);
+      view = zoomed(turn, Date.now(), view, event.deltaY < 0 ? 1 / ZOOM_STEP : ZOOM_STEP, anchor);
+      render();
+    },
+    { passive: false },
+  );
+  const release = (event: PointerEvent) => {
+    if (!drag || event.pointerId !== drag.pointer) return;
+    drag = null;
+    body.classList.remove('scrubbing');
+    body.releasePointerCapture?.(event.pointerId);
+  };
+  body.addEventListener('pointerup', release);
+  body.addEventListener('pointercancel', release);
 
   /** Follows the workspace in view while the section is expanded, and nothing while it is collapsed. */
   function follow(): void {
@@ -142,6 +219,7 @@ export function createActivitySection({ send }: ActivitySectionOptions): Activit
       workspace = next;
       if (changed) {
         picked = null;
+        view = { end: null };
         follow();
       } else render();
     },

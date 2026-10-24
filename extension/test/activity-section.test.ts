@@ -265,6 +265,102 @@ describe('the swimlane', () => {
   });
 });
 
+describe('a long turn', () => {
+  // Ten minutes in, still running: a call every minute, so the two-minute window holds two.
+  const long = turn('p3', 'refactor everything', {
+    startedAt: at(600),
+    endedAt: null,
+    calls: Array.from({ length: 10 }, (_, i) => call(`l${i}`, 'Edit', 590 - i * 60, 585 - i * 60)),
+  });
+
+  beforeEach(async () => {
+    await make();
+    section.setWorkspace(a);
+    section.setActivity({ type: 'activity', id: 'ws-a', items: [long], error: null });
+    // happy-dom has no layout, so give the chart a width to measure.
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({ left: 0, width: 300 } as DOMRect);
+  });
+
+  const press = (clientX: number) =>
+    nav()
+      .querySelector('.chart')!
+      .dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, clientX }));
+  const move = (clientX: number) => nav().dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX }));
+  const release = () => nav().dispatchEvent(new MouseEvent('pointerup', { bubbles: true }));
+
+  it('shows only the trailing two minutes, trailing the clock', () => {
+    expect(nav().querySelectorAll('.call').length).toBe(2);
+    expect(text('.axis')).toEqual(['8m 0s', '10m 0s']);
+    expect(nav().querySelector('.live-button')).toBeNull();
+    vi.advanceTimersByTime(60_000);
+    expect(text('.axis')).toEqual(['9m 0s', '11m 0s']);
+  });
+
+  it('is dragged back through the turn, and held there while the clock runs', () => {
+    press(100);
+    // 300px is two minutes, so 150px back is a minute.
+    move(250);
+    release();
+    expect(text('.axis')).toEqual(['7m 0s', '9m 0s']);
+    expect(nav().querySelector('.live-button')).not.toBeNull();
+    vi.advanceTimersByTime(30_000);
+    expect(text('.axis')).toEqual(['7m 0s', '9m 0s']);
+  });
+
+  it('widens and narrows the window with the wheel, around the pointer, and keeps the width when dragged', () => {
+    const wheel = (deltaY: number, clientX: number) => {
+      // happy-dom's WheelEvent drops the pointer position, so a mouse event carries both.
+      const event = new MouseEvent('wheel', { bubbles: true, cancelable: true, clientX });
+      Object.defineProperty(event, 'deltaY', { value: deltaY });
+      nav().querySelector('.chart')!.dispatchEvent(event);
+    };
+    // Out at the right edge: the window grows backwards from now. 120s * 1.25 = 150s.
+    wheel(100, 300);
+    expect(text('.axis')).toEqual(['7m 30s', '10m 0s']);
+    expect(nav().querySelector('.live-button')).toBeNull();
+    // In at the left edge keeps the left edge where it was: 150s / 1.25 = 120s.
+    wheel(-100, 0);
+    expect(text('.axis')).toEqual(['7m 30s', '9m 30s']);
+    expect(nav().querySelector('.live-button')).not.toBeNull();
+    // Dragging keeps the width.
+    press(100);
+    move(100);
+    release();
+    expect(text('.axis')).toEqual(['7m 30s', '9m 30s']);
+    // It stops at ten seconds, and at the whole turn.
+    for (let i = 0; i < 30; i++) wheel(-100, 0);
+    expect(text('.axis')).toEqual(['7m 30s', '7m 40s']);
+    for (let i = 0; i < 30; i++) wheel(100, 0);
+    expect(text('.axis')).toEqual(['0s', '10m 0s']);
+  });
+
+  it('goes back to live when a new turn starts while scrubbed back', () => {
+    press(100);
+    move(250);
+    release();
+    expect(nav().querySelector('.live-button')).not.toBeNull();
+    const next = turn('p4', 'and another', { startedAt: at(300), endedAt: null, calls: [] });
+    section.setActivity({ type: 'activity', id: 'ws-a', items: [long, next], error: null });
+    expect(text('.turn-prompt')).toEqual(['and another']);
+    expect(nav().querySelector('.live-button')).toBeNull();
+    expect(text('.axis')).toEqual(['3m 0s', '5m 0s']);
+  });
+
+  it('stops at the start of the turn, and goes back to live from the button or by dragging forward', () => {
+    press(0);
+    move(10_000);
+    release();
+    expect(text('.axis')).toEqual(['0s', '2m 0s']);
+    nav().querySelector<HTMLElement>('.live-button')!.click();
+    expect(text('.axis')).toEqual(['8m 0s', '10m 0s']);
+    press(0);
+    move(300);
+    move(0);
+    release();
+    expect(nav().querySelector('.live-button')).toBeNull();
+  });
+});
+
 describe('a helper that has not restarted', () => {
   it('draws turns sent without their calls as empty lanes instead of failing', async () => {
     await make();
