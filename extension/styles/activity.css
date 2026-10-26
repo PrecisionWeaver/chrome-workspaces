@@ -183,7 +183,7 @@
 }
 
 .chart .skill-flag,
-.swatch.skill {
+.chart-legend .swatch.skill {
   fill: var(--g-purple);
 }
 
@@ -222,33 +222,33 @@
   gap: 4px;
 }
 
-.swatch {
+.chart-legend .swatch {
   width: 8px;
   height: 8px;
   border-radius: 2px;
 }
 
-.swatch.k-read {
+.chart-legend .swatch.k-read {
   background: var(--g-blue);
 }
 
-.swatch.k-edit {
+.chart-legend .swatch.k-edit {
   background: var(--g-green);
 }
 
-.swatch.k-shell {
+.chart-legend .swatch.k-shell {
   background: var(--g-orange);
 }
 
-.swatch.k-web {
+.chart-legend .swatch.k-web {
   background: var(--g-cyan);
 }
 
-.swatch.k-other {
+.chart-legend .swatch.k-other {
   background: var(--g-grey);
 }
 
-.swatch.skill {
+.chart-legend .swatch.skill {
   background: var(--g-purple);
   clip-path: polygon(0 0, 100% 50%, 0 100%);
 }
