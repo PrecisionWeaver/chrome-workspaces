@@ -67,7 +67,10 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
   const detailsEl = $<HTMLDivElement>('create-details');
   const githubButton = $<HTMLButtonElement>('create-github');
   const ticketButton = $<HTMLButtonElement>('create-ticket');
-  const threadsEl = $<HTMLDivElement>('create-threads');
+  // Review comments sit last inside the details card, so every repaint of the card has to put them back.
+  const threadsEl = el('div', '', 'create-threads');
+  threadsEl.id = 'create-threads';
+  const paintDetails = (...nodes: Node[]): void => detailsEl.replaceChildren(...nodes, threadsEl);
   const templateBox = $<HTMLDivElement>('create-templates');
   const templateSelect = $<HTMLSelectElement>('create-template');
   const templateDelete = $<HTMLButtonElement>('template-delete');
@@ -223,7 +226,7 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
     section.hidden = false;
     // Opening for another review, or from scratch, starts at the top rather than wherever the last one was scrolled.
     section.scrollTop = 0;
-    githubButton.hidden = detailsEl.hidden = threadsEl.hidden = request === null;
+    githubButton.hidden = detailsEl.hidden = request === null;
     const ticket = ticketLink(request?.ticket ?? null);
     ticketButton.hidden = ticket === null;
     ticketButton.replaceChildren(...(request?.ticket ? [icon('ticket'), `${request.ticket} in Jira`] : []));
@@ -232,7 +235,7 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
     if (request) {
       title.replaceChildren(el('code', ref(request), 'ref-chip'), el('span', request.title));
       const cached = detailsCache.get(request.url);
-      detailsEl.replaceChildren(...(cached ? renderDetails(cached) : [el('div', 'Loading PR details…', 'loading')]));
+      paintDetails(...(cached ? renderDetails(cached) : [el('div', 'Loading PR details…', 'loading')]));
       detailsEl.classList.toggle('refreshing', cached !== undefined);
       send({ type: 'prDetails', url: request.url });
       send({ type: 'prThreads', url: request.url });
@@ -429,9 +432,9 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
       if (url !== review?.url) return;
       detailsEl.classList.remove('refreshing');
       const cached = detailsCache.get(url);
-      if (details) detailsEl.replaceChildren(...renderDetails(details));
-      else if (cached) detailsEl.replaceChildren(...renderDetails(cached), el('div', `Could not refresh PR details: ${error}`, 'failing'));
-      else detailsEl.replaceChildren(el('div', `Could not load PR details: ${error}`, 'failing'));
+      if (details) paintDetails(...renderDetails(details));
+      else if (cached) paintDetails(...renderDetails(cached), el('div', `Could not refresh PR details: ${error}`, 'failing'));
+      else paintDetails(el('div', `Could not load PR details: ${error}`, 'failing'));
     },
   };
 }

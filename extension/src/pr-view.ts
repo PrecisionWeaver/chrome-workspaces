@@ -102,11 +102,23 @@ export function renderDetails(pr: PrDetails): Node[] {
   return nodes;
 }
 
-/** A <details> heading led by the shared caret, in place of the browser's own triangle. */
-function disclosure(text: string): HTMLElement {
+/**
+ * A collapsed <details> section: a heading led by the shared caret in place of the browser's own triangle,
+ * then its body. Every list in the card (files, commits, review comments) is one of these.
+ */
+function fold(heading: string, body: Node, ...badges: Node[]): HTMLDetailsElement {
+  const details = el('details', '', 'glance');
   const summary = el('summary', '');
-  summary.append(caret(false), text);
-  return summary;
+  summary.append(caret(false), heading, ...badges);
+  details.append(summary, body);
+  return details;
+}
+
+/** The padded body of a fold, for content that isn't a plain list. */
+function foldBody(...children: Node[]): HTMLElement {
+  const body = el('div', '', 'glance-body');
+  body.append(...children);
+  return body;
 }
 
 /** Files and commits as collapsed counts, so the details stay brief until you open one. */
@@ -114,8 +126,6 @@ function glanceLists(pr: PrDetails): Node[] {
   const lists: Node[] = [];
 
   if (pr.files.length) {
-    const files = el('details', '', 'glance');
-    files.append(disclosure(`${pr.changedFiles} file${pr.changedFiles === 1 ? '' : 's'} changed`));
     const list = el('ul');
     for (const file of pr.files) {
       const slash = file.path.lastIndexOf('/');
@@ -131,13 +141,10 @@ function glanceLists(pr: PrDetails): Node[] {
     }
     const more = pr.changedFiles - Math.min(pr.files.length, PR_FILES_SHOWN);
     if (more > 0) list.append(el('li', `…and ${more} more`, 'glance-more'));
-    files.append(list);
-    lists.push(files);
+    lists.push(fold(`${pr.changedFiles} file${pr.changedFiles === 1 ? '' : 's'} changed`, list));
   }
 
   if (pr.commits.length) {
-    const commits = el('details', '', 'glance');
-    commits.append(disclosure(`${pr.commitCount} commit${pr.commitCount === 1 ? '' : 's'}`));
     const list = el('ul');
     for (const commit of pr.commits) {
       const row = el('li', '', 'glance-row');
@@ -147,8 +154,7 @@ function glanceLists(pr: PrDetails): Node[] {
     }
     const more = pr.commitCount - Math.min(pr.commits.length, PR_COMMITS_SHOWN);
     if (more > 0) list.append(el('li', `…and ${more} more`, 'glance-more'));
-    commits.append(list);
-    lists.push(commits);
+    lists.push(fold(`${pr.commitCount} commit${pr.commitCount === 1 ? '' : 's'}`, list));
   }
   return lists;
 }
@@ -161,13 +167,6 @@ export function renderThreads(threads: readonly PrThread[], total: number): Node
   if (threads.length === 0) return [el('div', 'No review comments.', 'threads-empty')];
   const open = threads.filter((t) => !t.resolved);
   const resolved = threads.filter((t) => t.resolved);
-  const nodes: Node[] = [];
-
-  const heading = el('h3', 'Review comments');
-  heading.append(el('span', open.length ? `${open.length} open` : 'all resolved', `thread-count${open.length ? ' open' : ''}`));
-  if (resolved.length) heading.append(el('span', `${resolved.length} resolved`, 'thread-count'));
-  nodes.push(heading);
-
   const card = (thread: PrThread): HTMLElement => {
     const box = el('div', '', `thread${thread.resolved ? ' resolved' : ''}`);
     const where = el('button', `${thread.path}${thread.line ? `:${thread.line}` : ''}`, 'thread-where');
@@ -186,13 +185,11 @@ export function renderThreads(threads: readonly PrThread[], total: number): Node
     return box;
   };
 
-  nodes.push(...open.map(card));
-  if (resolved.length) {
-    const folded = el('details', '', 'glance');
-    folded.append(disclosure(`${resolved.length} resolved thread${resolved.length === 1 ? '' : 's'}`));
-    folded.append(...resolved.map(card));
-    nodes.push(folded);
-  }
-  if (total > threads.length) nodes.push(el('div', `Showing ${threads.length} of ${total} threads.`, 'threads-empty'));
-  return nodes;
+  const body = foldBody(...open.map(card));
+  if (resolved.length) body.append(fold(`${resolved.length} resolved thread${resolved.length === 1 ? '' : 's'}`, foldBody(...resolved.map(card))));
+  if (total > threads.length) body.append(el('div', `Showing ${threads.length} of ${total} threads.`, 'threads-empty'));
+
+  const badges = [el('span', open.length ? `${open.length} open` : 'all resolved', `thread-count${open.length ? ' open' : ''}`)];
+  if (resolved.length) badges.push(el('span', `${resolved.length} resolved`, 'thread-count'));
+  return [fold('Review comments', body, ...badges)];
 }
