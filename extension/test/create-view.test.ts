@@ -116,7 +116,7 @@ describe('for a review request', () => {
     await open(review);
     expect(sent).toContainEqual({ type: 'prDetails', url: PR });
     expect(sent).toContainEqual({ type: 'prThreads', url: PR });
-    expect($('create-details').textContent).toBe('Loading PR details…');
+    expect($('create-details').textContent).toContain('Loading PR details…');
     expect($('create-threads').textContent).toBe('Loading review comments…');
     expect($('create-details').hidden).toBe(false);
     expect($('create-github').hidden).toBe(false);
@@ -175,14 +175,14 @@ describe('for a review request', () => {
       await open(review);
       view.setPrDetails('https://github.com/acme/app/pull/99', makePrDetails(), null);
       view.setPrThreads({ type: 'prThreads', url: 'other', threads: [], total: 0, error: null });
-      expect($('create-details').textContent).toBe('Loading PR details…');
+      expect($('create-details').textContent).toContain('Loading PR details…');
       expect($('create-threads').textContent).toBe('Loading review comments…');
     });
 
     it('says why details could not load', async () => {
       await open(review);
       view.setPrDetails(PR, null, 'gh failed');
-      expect($('create-details').textContent).toBe('Could not load PR details: gh failed');
+      expect($('create-details').textContent).toContain('Could not load PR details: gh failed');
       view.setPrThreads({ type: 'prThreads', url: PR, threads: [], total: 0, error: 'rate limited' });
       expect($('create-threads').textContent).toBe('Could not load review comments: rate limited');
     });

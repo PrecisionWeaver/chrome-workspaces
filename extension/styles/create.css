@@ -185,15 +185,10 @@
 
 /* Review comments */
 
-#create-threads {
-  margin-bottom: 20px;
-}
-
-#create-threads h3 {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 0 8px;
+#create-threads .threads-empty {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
 }
 
 .thread-count {
@@ -424,7 +419,8 @@
   color: var(--text);
 }
 
-#create-details .glance ul {
+#create-details .glance ul,
+#create-details .glance-body {
   list-style: none;
   margin: 6px 0 0;
   padding: 0;

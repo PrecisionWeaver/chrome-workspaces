@@ -254,8 +254,9 @@ describe('renderThreads', () => {
 
   it('shows open threads with their location, author, age and markdown body', () => {
     const host = mount(renderThreads([thread()], 1));
-    expect(host.querySelector('h3')?.firstChild?.textContent).toBe('Review comments');
-    expect(text(host, 'h3 .thread-count')).toEqual(['1 open']);
+    expect(host.querySelector('details.glance')?.hasAttribute('open')).toBe(false);
+    expect(host.querySelector('summary')?.childNodes[1]?.textContent).toBe('Review comments');
+    expect(text(host, 'summary .thread-count')).toEqual(['1 open']);
     expect(text(host, '.thread-where')).toEqual(['src/a.ts:7']);
     expect(text(host, '.thread-head .author')).toEqual(['alice']);
     expect(text(host, '.thread-when')).toEqual(['2h ago']);
@@ -289,18 +290,18 @@ describe('renderThreads', () => {
 
   it('folds resolved threads under their count, after the open ones', () => {
     const host = mount(renderThreads([thread({ resolved: true, path: 'b.ts' }), thread({ path: 'a.ts' }), thread({ resolved: true, path: 'c.ts' })], 3));
-    expect(text(host, 'h3 .thread-count')).toEqual(['1 open', '2 resolved']);
-    const folded = host.querySelector('details.glance')!;
+    expect(text(host, 'summary .thread-count')).toEqual(['1 open', '2 resolved']);
+    const folded = host.querySelector('details.glance details.glance')!;
     expect(folded.querySelector('summary')?.textContent).toBe('2 resolved threads');
     expect(text(folded, '.thread-where')).toEqual(['b.ts:7', 'c.ts:7']);
     expect(folded.querySelectorAll('.thread.resolved')).toHaveLength(2);
-    expect(text(host, ':scope > .thread .thread-where')).toEqual(['a.ts:7']);
+    expect(text(host, ':scope > details > .glance-body > .thread .thread-where')).toEqual(['a.ts:7']);
   });
 
   it('says all resolved when nothing is open, using the singular for one', () => {
     const host = mount(renderThreads([thread({ resolved: true })], 1));
-    expect(text(host, 'h3 .thread-count')).toEqual(['all resolved', '1 resolved']);
-    expect(host.querySelector('summary')?.textContent).toBe('1 resolved thread');
+    expect(text(host, 'summary .thread-count')).toEqual(['all resolved', '1 resolved']);
+    expect(host.querySelector('details details summary')?.textContent).toBe('1 resolved thread');
   });
 
   it('says how many were left out when there are more than are shown', () => {
