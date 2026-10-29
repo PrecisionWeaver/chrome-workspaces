@@ -148,6 +148,7 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
     modelSelect.value = template.model;
     if (modelSelect.value !== template.model) modelSelect.value = '';
     tabsInput.value = template.tabs;
+    tabsInput.setCustomValidity('');
     messageInput.value = template.message;
     start.select(template.message ? 'text' : 'blank');
     syncStart();
@@ -253,6 +254,7 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
     send({ type: 'listRepos' });
     // Tabs belong to one ticket, so unlike the repo and model they start empty every time, bar a review's PR.
     tabsInput.value = request?.url ?? '';
+    tabsInput.setCustomValidity('');
     void chrome.storage.local.get(['useThisWindow', 'newRepo', 'newModel']).then(({ useThisWindow, newRepo, newModel }) => {
       target.select(useThisWindow === true && windowId !== undefined ? 'here' : 'new');
       modelSelect.value = typeof newModel === 'string' ? newModel : '';
@@ -333,6 +335,8 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
   }
 
   filter.addEventListener('input', renderPrompts);
+  // A message set on a failed submit would otherwise outlive the text that caused it.
+  tabsInput.addEventListener('input', () => tabsInput.setCustomValidity(''));
   repoSelect.addEventListener('change', () => (repoPicked = true));
 
   $<HTMLButtonElement>('create-change').addEventListener('click', () => {
