@@ -461,6 +461,18 @@ describe('creating', () => {
     expect(view.isOpen).toBe(true);
   });
 
+  it('clears the tab refusal once the tabs are edited', async () => {
+    await open();
+    type('create-name', 'w');
+    type('create-tabs', 'ftp://example.com/x');
+    submit();
+    const tabs = $<HTMLTextAreaElement>('create-tabs');
+    expect(tabs.validity.valid).toBe(false);
+    tabs.value = '';
+    tabs.dispatchEvent(new Event('input'));
+    expect(tabs.validity.valid).toBe(true);
+  });
+
   it('refuses more than twenty tabs', async () => {
     await open();
     type('create-name', 'w');
