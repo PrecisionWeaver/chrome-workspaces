@@ -109,6 +109,8 @@ export function isControlToHelper(value: unknown): value is ControlToHelper {
     case 'gitBranches':
     case 'gitChecks':
     case 'gitCompare':
+    case 'gitPush':
+    case 'gitCreatePr':
       return typeof m.id === 'string';
     case 'gitStage':
       return typeof m.id === 'string' && typeof m.stage === 'boolean' && isPathList(m.paths);

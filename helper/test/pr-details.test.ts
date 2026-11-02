@@ -149,9 +149,14 @@ describe('branch checks', () => {
       statusCheckRollup: GH.statusCheckRollup,
     });
     expect(parseBranchChecks(json)).toEqual({
-      pr: { number: 12, title: 'Fix it', url: 'https://github.com/acme/web-app/pull/12', isDraft: true, reviewDecision: null },
+      pr: { number: 12, title: 'Fix it', url: 'https://github.com/acme/web-app/pull/12', isDraft: true, reviewDecision: null, state: 'OPEN' },
       checks: { passed: 2, failed: 2, pending: 2, failing: ['Pest (3)', 'codecov'] },
     });
+  });
+
+  it('carries whether the pull request is merged', () => {
+    const json = JSON.stringify({ number: 3, url: 'https://github.com/acme/web-app/pull/3', state: 'MERGED' });
+    expect(parseBranchChecks(json)?.pr).toMatchObject({ number: 3, state: 'MERGED' });
   });
 
   it('has nothing for output that is not a pull request, and counts nothing for no checks', () => {

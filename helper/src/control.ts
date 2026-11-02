@@ -34,6 +34,8 @@ export interface ControlHubOptions {
   prThreads: (parts: { owner: string; repo: string; number: string }) => Promise<string>;
   /** Raw `gh pr view` JSON for the branch checked out in a directory; rejects when it has no pull request. */
   branchPr: (cwd: string) => Promise<string>;
+  /** Opens a draft pull request for the branch checked out in a directory and resolves to its url. */
+  createPr: (cwd: string) => Promise<string>;
   repoDirs: Record<string, string>;
   repos: () => Repo[];
   git: GitService;
@@ -264,6 +266,8 @@ export class ControlHub {
       case 'gitDiscard':
       case 'gitSave':
       case 'gitSwitch':
+      case 'gitPush':
+      case 'gitCreatePr':
         this.handleGit(message, ws);
         break;
       case 'listRepos':
@@ -466,6 +470,24 @@ export class ControlHub {
       case 'gitSwitch':
         result('switch', (cwd) => git.switchBranch(cwd, message.branch));
         break;
+      case 'gitPush':
+        result('push', (cwd) => git.push(cwd));
+        break;
+      case 'gitCreatePr':
+        if (!dir) {
+          this.sendTo(ws, { type: 'gitResult', id, action: 'pr', ok: false, message: missing });
+          return;
+        }
+        dir
+          .then(async (cwd) => {
+            await git.push(cwd);
+            return this.options.createPr(cwd);
+          })
+          .then(
+            (url) => this.sendTo(ws, { type: 'gitResult', id, action: 'pr', ok: true, message: `Opened ${url}`, url }),
+            (error: unknown) => this.sendTo(ws, { type: 'gitResult', id, action: 'pr', ok: false, message: text(error) }),
+          );
+        break;
     }
   }
 
@@ -476,5 +498,19 @@ export class ControlHub {
 
 type GitRequest = Extract<
   ControlToHelper,
-  { type: 'git' | 'gitCommit' | 'gitDiff' | 'gitBranches' | 'gitChecks' | 'gitCompare' | 'gitStage' | 'gitDiscard' | 'gitSave' | 'gitSwitch' }
+  {
+    type:
+      | 'git'
+      | 'gitCommit'
+      | 'gitDiff'
+      | 'gitBranches'
+      | 'gitChecks'
+      | 'gitCompare'
+      | 'gitStage'
+      | 'gitDiscard'
+      | 'gitSave'
+      | 'gitSwitch'
+      | 'gitPush'
+      | 'gitCreatePr';
+  }
 >;

@@ -25,6 +25,8 @@ export interface GitViewOptions {
   status(id: string): WorkspaceStatus;
   /** What its claude waits on, while the status is `needs_input`. */
   waiting?(id: string): WaitingOn | null;
+  /** Archives the workspace, offered once its pull request has merged. */
+  archive?(id: string): void;
 }
 
 export interface GitView {
@@ -119,7 +121,7 @@ function iconButton(label: string, title: string, run: () => void, confirm?: str
   return button;
 }
 
-export function createGitView({ send, onToggle, status, waiting }: GitViewOptions): GitView {
+export function createGitView({ send, onToggle, status, waiting, archive }: GitViewOptions): GitView {
   const section = $<HTMLElement>('git');
   const branchEl = $<HTMLDivElement>('git-branch');
   const errorEl = $<HTMLDivElement>('git-error');
@@ -152,6 +154,10 @@ export function createGitView({ send, onToggle, status, waiting }: GitViewOption
   let pr: { pr: BranchPr; checks: { passed: number; failed: number; pending: number; failing: string[] } | null } | null = null;
   let checksAt = 0;
   let checksBranch: string | null = null;
+  // A push or pull request under way, so its button is not pressed twice.
+  let pushing = false;
+  // Archive asks twice; the first click arms it until the next redraw.
+  let archiveArmed = false;
   let branches: GitBranch[] = [];
   let noticeTimer: ReturnType<typeof setTimeout> | undefined;
   // A compare view is open: its files list, and each file's diff against the base.
@@ -220,6 +226,19 @@ export function createGitView({ send, onToggle, status, waiting }: GitViewOption
       }
       if (state.ahead) branchEl.append(el('span', `↑${state.ahead}`, 'git-sync'));
       if (state.behind) branchEl.append(el('span', `↓${state.behind}`, 'git-sync'));
+      if (state.branch && (state.upstream === null || state.ahead > 0)) {
+        const push = el('button', 'Push', 'git-chip-btn git-push');
+        push.type = 'button';
+        push.title = `Push ${state.branch} to origin`;
+        push.disabled = pushing;
+        push.addEventListener('click', () => {
+          if (!workspaceId || pushing) return;
+          pushing = true;
+          push.disabled = true;
+          send({ type: 'gitPush', id: workspaceId });
+        });
+        branchEl.append(push);
+      }
       const compare = el('button', 'vs main', 'git-chip-btn');
       compare.type = 'button';
       compare.title = 'Everything this branch changes since it forked from its main branch';
@@ -235,11 +254,46 @@ export function createGitView({ send, onToggle, status, waiting }: GitViewOption
               : checks.pending
                 ? [`● ${checks.pending} running`, 'wait']
                 : [`✓ ${checks.passed} passing`, 'good'];
-        const chip = el('button', `#${pr.pr.number}${pr.pr.isDraft ? ' draft' : ''} · ${summary[0]}`, `git-chip-btn ci ${summary[1]}`);
+        const merged = pr.pr.state === 'MERGED';
+        const chip = el(
+          'button',
+          merged ? `#${pr.pr.number} · merged` : `#${pr.pr.number}${pr.pr.isDraft ? ' draft' : ''} · ${summary[0]}`,
+          `git-chip-btn ci ${merged ? 'merged' : summary[1]}`,
+        );
         chip.type = 'button';
         chip.title = `${pr.pr.title}${checks?.failing.length ? `\nFailing: ${checks.failing.join(', ')}` : ''}\nOpen on GitHub`;
         chip.addEventListener('click', () => void chrome.tabs.create({ url: pr!.pr.url }));
         branchEl.append(chip);
+        // Merged means the work is done here; offer to put the workspace away.
+        if (merged && archive) {
+          const button = el('button', archiveArmed ? 'Archive?' : 'Archive workspace', 'git-chip-btn git-archive');
+          button.type = 'button';
+          button.title = 'The pull request has merged. Archive this workspace (its tabs stay open).';
+          button.addEventListener('click', () => {
+            if (!workspaceId) return;
+            if (!archiveArmed) {
+              archiveArmed = true;
+              button.textContent = 'Archive?';
+              return;
+            }
+            archiveArmed = false;
+            archive(workspaceId);
+          });
+          branchEl.append(button);
+        }
+      } else if (state.branch && checksBranch === state.branch) {
+        // The lookup has answered for this branch and found none, so a pull request can be made.
+        const create = el('button', 'Create PR', 'git-chip-btn git-create-pr');
+        create.type = 'button';
+        create.title = `Push ${state.branch} and open a draft pull request for it`;
+        create.disabled = pushing;
+        create.addEventListener('click', () => {
+          if (!workspaceId || pushing) return;
+          pushing = true;
+          create.disabled = true;
+          send({ type: 'gitCreatePr', id: workspaceId });
+        });
+        branchEl.append(create);
       }
     }
     const live = status(workspaceId);
@@ -502,6 +556,8 @@ export function createGitView({ send, onToggle, status, waiting }: GitViewOption
       pr = null;
       checksAt = 0;
       checksBranch = null;
+      pushing = false;
+      archiveArmed = false;
       branches = [];
       noticeEl.hidden = true;
       messageInput.value = '';
@@ -567,6 +623,11 @@ export function createGitView({ send, onToggle, status, waiting }: GitViewOption
       if (message.id !== workspaceId) return;
       showNotice(message.message, message.ok);
       if (message.ok && message.action === 'commit') messageInput.value = '';
+      if (message.action === 'push' || message.action === 'pr') {
+        pushing = false;
+        if (message.ok && message.url) void chrome.tabs.create({ url: message.url });
+        renderStatus();
+      }
       // What changed on disk shows at once, instead of at the next poll.
       if (message.ok) {
         checksAt = 0;
