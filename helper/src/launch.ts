@@ -14,6 +14,8 @@ export interface LaunchOptions {
   defaultModel?: string | null;
   /** `claudeCommand` from the config, already checked to be a bare command name. */
   command?: string;
+  /** `claudeArgs` from the config, already checked to be plain words. */
+  args?: string[];
   /** A claude settings file that adds the status hooks, from `writeHooksFile`; null leaves claude without them. */
   hooksFile?: string | null;
 }
@@ -40,14 +42,15 @@ export function shellSpec(shell: string, cwd: string): SessionSpec {
  */
 export function launchSpec(
   workspace: Workspace,
-  { shell, resumeId, cwd, defaultModel = null, command = 'claude', hooksFile = null }: LaunchOptions,
+  { shell, resumeId, cwd, defaultModel = null, command = 'claude', args: extra = [], hooksFile = null }: LaunchOptions,
 ): SessionSpec {
   const env: Record<string, string> = { CW_WORKSPACE_ID: workspace.id };
   if (workspace.ticket) env.DEVSPACE_TICKET = workspace.ticket;
 
   // The pattern keeps quotes and spaces out, so the value is safe inside single quotes.
   const model = workspace.model ?? defaultModel;
-  let args = model && MODEL_PATTERN.test(model) ? ` --model '${model}'` : '';
+  let args = extra.map((arg) => ` '${arg}'`).join('');
+  if (model && MODEL_PATTERN.test(model)) args += ` --model '${model}'`;
   let cleanup = '';
   if (resumeId && SESSION_UUID.test(resumeId)) args += ` --resume ${resumeId}`;
   else if (workspace.prompt) {

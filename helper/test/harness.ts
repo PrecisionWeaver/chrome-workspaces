@@ -123,6 +123,7 @@ export async function startHarness(): Promise<Harness> {
       repoDirs: {},
       watchRepos: [],
       claudeCommand: 'claude',
+      claudeArgs: [],
       problems: fakes.configProblems,
     },
     paths: {
