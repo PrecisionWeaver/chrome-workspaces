@@ -374,13 +374,13 @@ describe('the cards', () => {
   describe('Preferences', () => {
     it('shows the saved theme, density and notification choice', async () => {
       // happy-dom picks the wrong option when `selected` is set before appending, so the choices tested sit second in their lists.
-      fake.storage.local.prefs = { theme: 'dark', density: 'compact', notify: true };
+      fake.storage.local.prefs = { theme: 'dark', density: 'compact', notify: true, fontSize: 11 };
       loadPanelHtml();
       view = createSettingsView({ send: () => true, onToggle: () => {} });
       await flush();
       await open();
       const selects = [...card('Preferences').querySelectorAll<HTMLSelectElement>('select')];
-      expect(selects.map((select) => select.value)).toEqual(['dark', 'compact']);
+      expect(selects.map((select) => select.value)).toEqual(['dark', 'compact', '11']);
       expect(card('Preferences').querySelector<HTMLInputElement>('input[type=checkbox]')!.checked).toBe(true);
     });
 
@@ -390,12 +390,17 @@ describe('the cards', () => {
       expect(selects.map((select) => [...select.options].map((option) => option.textContent))).toEqual([
         ['System', 'Dark', 'Light'],
         ['Comfortable', 'Compact'],
+        ['10', '11', '12', '13', '14', '16', '18'],
       ]);
     });
 
     it('saves a change at once', async () => {
       await open();
-      const [theme, density] = [...card('Preferences').querySelectorAll<HTMLSelectElement>('select')] as [HTMLSelectElement, HTMLSelectElement];
+      const [theme, density, size] = [...card('Preferences').querySelectorAll<HTMLSelectElement>('select')] as [
+        HTMLSelectElement,
+        HTMLSelectElement,
+        HTMLSelectElement,
+      ];
       // Each is saved on top of what the last stored, so they are made one after another as a person would.
       theme.value = 'dark';
       theme.dispatchEvent(new Event('change'));
@@ -403,11 +408,14 @@ describe('the cards', () => {
       density.value = 'compact';
       density.dispatchEvent(new Event('change'));
       await flush();
+      size.value = '14';
+      size.dispatchEvent(new Event('change'));
+      await flush();
       const box = card('Preferences').querySelector<HTMLInputElement>('input[type=checkbox]')!;
       box.checked = true;
       box.dispatchEvent(new Event('change'));
       await flush();
-      expect(fake.storage.local.prefs).toEqual({ theme: 'dark', density: 'compact', notify: true, setupDismissed: false, usageRange: '14d' });
+      expect(fake.storage.local.prefs).toEqual({ theme: 'dark', density: 'compact', notify: true, setupDismissed: false, usageRange: '14d', fontSize: 14 });
     });
   });
 

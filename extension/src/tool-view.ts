@@ -1,4 +1,5 @@
 import { FitAddon } from '@xterm/addon-fit';
+import { WebLinksAddon } from '@xterm/addon-web-links';
 import { Terminal, type ITheme } from '@xterm/xterm';
 import { MONITOR_SESSION, SHELL_SESSION, type ClientMessage, type ServerMessage, workspaceShellSession } from '../../shared/protocol';
 import { $, wireBack } from './dom';
@@ -34,6 +35,7 @@ export interface ToolView {
   showShell(workspace: { id: string; name: string }): void;
   close(): void;
   setTheme(theme: ITheme): void;
+  setFontSize(size: number): void;
 }
 
 /**
@@ -50,6 +52,7 @@ export function createToolView({ onToggle }: ToolViewOptions): ToolView {
   const term = new Terminal({ fontFamily: 'Menlo, monospace', fontSize: 12, cursorBlink: true, theme: { background: '#1e1e1e' } });
   const fit = new FitAddon();
   term.loadAddon(fit);
+  term.loadAddon(new WebLinksAddon((_event, uri) => void chrome.tabs.create({ url: uri })));
   let opened = false;
   let current: Target | null = null;
   let socket: WebSocket | null = null;
@@ -153,6 +156,11 @@ export function createToolView({ onToggle }: ToolViewOptions): ToolView {
     close,
     setTheme(theme) {
       term.options.theme = theme;
+    },
+    setFontSize(size) {
+      if (term.options.fontSize === size) return;
+      term.options.fontSize = size;
+      resize();
     },
   };
 }

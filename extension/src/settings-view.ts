@@ -15,7 +15,7 @@ import { sparkline } from './sparkline';
 import { card, actions, row } from './settings-parts';
 import { planCard, usageCard } from './settings-usage';
 import { formatBytes, formatDuration, formatKb, formatTokens, newTokens } from './format';
-import { DENSITIES, THEMES } from '../../shared/keynav';
+import { DENSITIES, FONT_SIZES, THEMES, type FontSize } from '../../shared/keynav';
 import { formatUsd } from '../../shared/pricing';
 import { buildChecklist, remaining, type SetupItem } from '../../shared/onboarding';
 import { loadPrefs, normalizePrefs, savePrefs, type Prefs } from './prefs';
@@ -611,6 +611,11 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       choice('Density', DENSITIES, prefs.density, (density) => {
         prefs = { ...prefs, density };
         void savePrefs({ density });
+      }),
+      choice('Font size', FONT_SIZES.map(String), String(prefs.fontSize), (value) => {
+        const fontSize = Number(value) as FontSize;
+        prefs = { ...prefs, fontSize };
+        void savePrefs({ fontSize });
       }),
       checkbox(
         'Desktop notifications',

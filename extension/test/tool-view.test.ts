@@ -39,6 +39,7 @@ class FakeTerminal {
 }
 const fits = vi.fn();
 vi.mock('@xterm/xterm', () => ({ Terminal: FakeTerminal }));
+vi.mock('@xterm/addon-web-links', () => ({ WebLinksAddon: class {} }));
 vi.mock('@xterm/addon-fit', () => ({
   FitAddon: class {
     fit = fits;
