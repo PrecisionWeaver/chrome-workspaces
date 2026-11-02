@@ -1,6 +1,7 @@
 import { fillPrompt } from '../../shared/prompts';
 import { MAX_TAB_URLS, MODEL_ALIASES, WORKSPACE_COLORS } from '../../shared/protocol';
 import { parseTabUrls } from '../../shared/tab-urls';
+import { isBranchName, slugBranch } from '../../shared/branch-name';
 import { parseTemplates, removeTemplate, upsertTemplate, type Template } from '../../shared/templates';
 import type { ControlToClient, ControlToHelper, PrDetails, Prompt, Repo, ReviewRequest, Workspace, WorkspaceColor } from '../../shared/protocol';
 import { $, el, icon, promptCard, wireBack } from './dom';
@@ -76,6 +77,20 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
   const templateDelete = $<HTMLButtonElement>('template-delete');
   const templateNameRow = $<HTMLDivElement>('template-name-row');
   const templateName = $<HTMLInputElement>('template-name');
+  const worktreeBox = $<HTMLInputElement>('create-worktree');
+  const branchInput = $<HTMLInputElement>('create-branch');
+  // Whether the branch was typed since the view opened; until then it follows the name.
+  let branchEdited = false;
+  function syncBranch(): void {
+    branchInput.hidden = !worktreeBox.checked;
+    if (!branchEdited) branchInput.value = slugBranch(nameInput.value);
+  }
+  worktreeBox.addEventListener('change', syncBranch);
+  nameInput.addEventListener('input', syncBranch);
+  branchInput.addEventListener('input', () => {
+    branchEdited = true;
+    branchInput.setCustomValidity('');
+  });
 
   let isOpen = false;
   let prompts: Prompt[] = [];
@@ -154,6 +169,8 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
     syncStart();
     const { windowId } = here();
     target.select(template.window === 'here' && windowId !== undefined ? 'here' : 'new');
+    worktreeBox.checked = template.worktree;
+    syncBranch();
   }
 
   templateSelect.addEventListener('change', () => {
@@ -183,6 +200,7 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
       tabs: tabsInput.value.trim(),
       message,
       window: target.value() === 'here' ? 'here' : 'new',
+      worktree: worktreeBox.checked,
     });
     await chrome.storage.local.set({ templates: saved });
     templates = saved;
@@ -217,6 +235,10 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
     templateNameRow.hidden = true;
     void loadTemplates();
     nameInput.value = request ? ref(request) : '';
+    // A review's worktree is for the PR's branch, which git checks out from the remote.
+    branchEdited = Boolean(request?.branch);
+    branchInput.value = request?.branch ?? '';
+    branchInput.setCustomValidity('');
     filter.value = '';
     textInput.value = '';
     messageInput.value = '';
@@ -255,8 +277,10 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
     // Tabs belong to one ticket, so unlike the repo and model they start empty every time, bar a review's PR.
     tabsInput.value = request?.url ?? '';
     tabsInput.setCustomValidity('');
-    void chrome.storage.local.get(['useThisWindow', 'newRepo', 'newModel']).then(({ useThisWindow, newRepo, newModel }) => {
+    void chrome.storage.local.get(['useThisWindow', 'newRepo', 'newModel', 'newWorktree']).then(({ useThisWindow, newRepo, newModel, newWorktree }) => {
       target.select(useThisWindow === true && windowId !== undefined ? 'here' : 'new');
+      worktreeBox.checked = newWorktree === true;
+      syncBranch();
       modelSelect.value = typeof newModel === 'string' ? newModel : '';
       if (modelSelect.value !== newModel) modelSelect.value = '';
       savedRepo = typeof newRepo === 'string' ? newRepo : '';
@@ -377,11 +401,18 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
       typed.invalid.length ? `Not a web address: ${typed.invalid[0]}` : urls.length > MAX_TAB_URLS ? `At most ${MAX_TAB_URLS} tabs` : '',
     );
     if (!tabsInput.reportValidity()) return;
+    let worktree: string | undefined;
+    if (worktreeBox.checked) {
+      worktree = branchInput.value.trim() || slugBranch(name);
+      branchInput.setCustomValidity(isBranchName(worktree) ? '' : 'Not a branch name git accepts');
+      if (!branchInput.reportValidity()) return;
+    }
     const { windowId, workspace } = here();
     const useHere = target.value() === 'here' && windowId !== undefined;
     void chrome.storage.local.set({
       useThisWindow: target.value() === 'here',
       newModel: modelSelect.value,
+      newWorktree: worktreeBox.checked,
       // A review's repo and tabs belong to that PR, not to the next workspace.
       ...(review ? {} : { newRepo: repoSelect.value }),
     });
@@ -395,6 +426,7 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
       ...(modelSelect.value ? { model: modelSelect.value } : {}),
       ...(color ? { color } : {}),
       ...(repoSelect.value ? { cwd: repoSelect.value } : {}),
+      ...(worktree ? { worktree } : {}),
       ...(prompt ? { prompt } : {}),
       ...(review ? { pr: review.url } : {}),
     });

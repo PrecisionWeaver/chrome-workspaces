@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
-import { realpathSync } from 'node:fs';
-import { basename, isAbsolute, resolve } from 'node:path';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync } from 'node:fs';
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import type { GitBranch, GitCommit, GitCommitFile, GitCompare, GitFile, GitState } from '../../shared/protocol';
 
@@ -29,6 +29,11 @@ export interface GitService {
   switchBranch(cwd: string, branch: string): Promise<string>;
   /** What the current branch changes since it forked from the repository's main line. */
   compare(cwd: string): Promise<GitCompare>;
+  /**
+   * Adds a worktree for `branch` (made from HEAD when it does not exist) under the repository's `.claude/worktrees/`,
+   * where claude keeps its own, and returns its path. The folder is excluded from status.
+   */
+  addWorktree(cwd: string, branch: string): Promise<string>;
 }
 
 interface Ran {
@@ -154,6 +159,21 @@ async function locate(cwd: string): Promise<Locations> {
   const [root, gitDir, commonDir] = stdout.trim().split('\n');
   if (!root || !gitDir || !commonDir) throw new Error('not a git repository');
   return { root, gitDir, commonDir };
+}
+
+const WORKTREES_DIR = '.claude/worktrees';
+
+/** Keeps the worktrees folder out of `git status` without touching the repository's .gitignore. */
+function excludeWorktrees(commonDir: string): void {
+  const exclude = join(commonDir, 'info', 'exclude');
+  const line = `/${WORKTREES_DIR}/`;
+  try {
+    if (existsSync(exclude) && readFileSync(exclude, 'utf8').split('\n').includes(line)) return;
+    mkdirSync(dirname(exclude), { recursive: true });
+    appendFileSync(exclude, `${line}\n`);
+  } catch {
+    // The worktree works without it; status in the main tree just lists the folder.
+  }
 }
 
 const MAX_PATHS = 500;
@@ -300,6 +320,24 @@ export function createGitService(): GitService {
       if (!(await this.branches(cwd)).some((b) => b.name === branch)) throw new Error(`no branch named ${branch}`);
       await run(cwd, ['switch', '-q', branch], [0], COMMIT_TIMEOUT_MS);
       return `Switched to ${branch}.`;
+    },
+
+    async addWorktree(cwd, branch) {
+      await run(cwd, ['check-ref-format', '--branch', branch]);
+      const where = await locate(cwd);
+      // Beside the main tree's .git, so a worktree made from inside another still lands with the rest.
+      const common = real(where.commonDir);
+      const folder = join(dirname(common), WORKTREES_DIR, branch.replace(/\//g, '-'));
+      if (existsSync(folder)) throw new Error(`${folder} already exists`);
+      // A branch that exists, locally or on the remote (git makes a tracking branch for it), is checked out; any other is new.
+      const known = await Promise.all(
+        [`refs/heads/${branch}`, `refs/remotes/origin/${branch}`].map(
+          async (ref) => (await run(cwd, ['rev-parse', '--verify', '--quiet', ref], [0, 1])).code === 0,
+        ),
+      );
+      await run(cwd, known.some(Boolean) ? ['worktree', 'add', folder, branch] : ['worktree', 'add', '-b', branch, folder], [0], COMMIT_TIMEOUT_MS);
+      excludeWorktrees(common);
+      return folder;
     },
 
     async compare(cwd) {

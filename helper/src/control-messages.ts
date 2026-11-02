@@ -1,4 +1,5 @@
 import { MAX_PROMPT_LENGTH, MAX_TAB_URLS, MODEL_PATTERN, WORKSPACE_COLORS, type ControlToHelper } from '../../shared/protocol';
+import { isBranchName } from '../../shared/branch-name';
 import { isPullRequestUrl } from './pr-workspace';
 
 /** Validation of the messages an extension context sends to the helper; anything that fails is dropped. */
@@ -78,7 +79,8 @@ export function isControlToHelper(value: unknown): value is ControlToHelper {
         (m.model === undefined || (typeof m.model === 'string' && MODEL_PATTERN.test(m.model))) &&
         (m.color === undefined || (WORKSPACE_COLORS as readonly string[]).includes(m.color as string)) &&
         (m.group === undefined || typeof m.group === 'boolean') &&
-        (m.urls === undefined || (Array.isArray(m.urls) && m.urls.length <= MAX_TAB_URLS && m.urls.every(isWebUrl)))
+        (m.urls === undefined || (Array.isArray(m.urls) && m.urls.length <= MAX_TAB_URLS && m.urls.every(isWebUrl))) &&
+        (m.worktree === undefined || isBranchName(m.worktree))
       );
     case 'timeline':
       return typeof m.id === 'string';
