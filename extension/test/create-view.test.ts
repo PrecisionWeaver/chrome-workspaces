@@ -397,6 +397,55 @@ describe('creating', () => {
     });
   });
 
+  it('asks for a worktree named for the workspace, or for the branch typed, and remembers the choice', async () => {
+    await open();
+    view.setRepos([{ name: 'app', path: '/Users/me/app', root: '/Users/me' }]);
+    type('create-repo', '/Users/me/app');
+    expect($('create-branch').hidden).toBe(true);
+    ($('create-worktree') as HTMLInputElement).click();
+    expect($('create-branch').hidden).toBe(false);
+    type('create-name', 'PROJ-9 fix');
+    $('create-name').dispatchEvent(new Event('input', { bubbles: true }));
+    expect(($('create-branch') as HTMLInputElement).value).toBe('PROJ-9-fix');
+    submit();
+    expect(created()).toMatchObject({ name: 'PROJ-9 fix', cwd: '/Users/me/app', worktree: 'PROJ-9-fix' });
+    expect(fake.storage.local.newWorktree).toBe(true);
+
+    sent.length = 0;
+    await open();
+    expect(($('create-worktree') as HTMLInputElement).checked).toBe(true);
+    type('create-name', 'w');
+    type('create-branch', 'feat/mine');
+    $('create-branch').dispatchEvent(new Event('input', { bubbles: true }));
+    type('create-name', 'other');
+    $('create-name').dispatchEvent(new Event('input', { bubbles: true }));
+    expect(($('create-branch') as HTMLInputElement).value).toBe('feat/mine');
+    submit();
+    expect(created()).toMatchObject({ name: 'other', worktree: 'feat/mine' });
+  });
+
+  it("offers the PR's branch for a review's worktree", async () => {
+    await open(makeReview({ url: PR, branch: 'feat/pr-1' }));
+    choose('blank');
+    ($('create-worktree') as HTMLInputElement).click();
+    expect(($('create-branch') as HTMLInputElement).value).toBe('feat/pr-1');
+    submit();
+    expect(created()).toMatchObject({ pr: PR, worktree: 'feat/pr-1' });
+  });
+
+  it('refuses a branch name git would, and sends no worktree when the box is off', async () => {
+    await open();
+    ($('create-worktree') as HTMLInputElement).click();
+    type('create-name', 'w');
+    type('create-branch', 'bad..name');
+    submit();
+    expect(sentOfType('create')).toHaveLength(0);
+    expect(($('create-branch') as HTMLInputElement).validationMessage).toContain('branch');
+    ($('create-worktree') as HTMLInputElement).click();
+    submit();
+    expect(created()).toEqual({ type: 'create', name: 'w', windowId: null });
+  });
+
   it('sends a typed message with the same PR-URL and ticket fill-in', async () => {
     await open(makeReview({ url: PR, ticket: 'PROJ-123' }));
     choose('text');
@@ -600,6 +649,20 @@ describe('templates', () => {
     expect($('template-name-row').hidden).toBe(true);
     expect($<HTMLSelectElement>('create-template').selectedOptions[0]?.textContent).toBe('Mine');
     expect($('template-delete').hidden).toBe(false);
+  });
+
+  it('keeps whether a template starts in a worktree', async () => {
+    fake.storage.local.templates = [{ ...template, id: 't2', name: 'Tree', worktree: true }];
+    await open();
+    type('create-template', 't2');
+    $('create-template').dispatchEvent(new Event('change'));
+    expect(($('create-worktree') as HTMLInputElement).checked).toBe(true);
+    expect($('create-branch').hidden).toBe(false);
+    click('#template-save');
+    type('template-name', 'Tree');
+    click('#template-confirm');
+    await flush();
+    expect((fake.storage.local.templates as { worktree: boolean }[])[0]).toMatchObject({ name: 'Tree', worktree: true });
   });
 
   it('saves a picked prompt as it was edited, and no message for a blank start', async () => {

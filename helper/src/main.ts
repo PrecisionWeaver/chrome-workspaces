@@ -160,6 +160,8 @@ const prThreads = async ({ owner, repo, number }: { owner: string; repo: string;
     })
   ).stdout;
 
+const git = createGitService();
+
 const control = new ControlHub({
   store,
   sessions,
@@ -173,7 +175,7 @@ const control = new ControlHub({
   branchPr,
   repoDirs: config.repoDirs,
   repos: () => listRepos(config.repoRoots),
-  git: createGitService(),
+  git,
   admin,
   history,
   resumeId: (id) => sessionState.get(id)?.claudeSessionId ?? store.get(id)?.resume ?? null,
@@ -202,7 +204,7 @@ const server = await startServer({
   sessions,
   control,
   uploadDir: join(DATA_DIR, 'uploads'),
-  api: createApi({ auth, store, control, sessions, defaultCwd: config.defaultCwd, statuses, reviews, repoDirs: config.repoDirs }),
+  api: createApi({ auth, store, control, sessions, defaultCwd: config.defaultCwd, statuses, reviews, repoDirs: config.repoDirs, git }),
   onUnknownSession: (id) => {
     if (id === MONITOR_SESSION) return sessions.create(monitorSpec(shell, homedir()));
     if (id === SHELL_SESSION) return sessions.create(shellSpec(shell, config.defaultCwd));

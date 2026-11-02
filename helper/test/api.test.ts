@@ -1,6 +1,7 @@
+import { realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { connectControl, opened, ORIGIN, startHarness, TOKEN, type Harness } from './harness';
+import { connectControl, gitRepo, opened, ORIGIN, startHarness, TOKEN, type Harness } from './harness';
 import { waitFor } from './wait-for';
 
 let h: Harness;
@@ -47,6 +48,20 @@ describe('HTTP API', () => {
     const list = (await (await call('/workspaces')).json()) as { workspaces: { id: string }[] };
     expect(list.workspaces.map((w) => w.id)).toEqual([body.workspace.id]);
     ws.close();
+  });
+
+  it('creates a workspace in a fresh worktree, and reports a worktree it could not make', async () => {
+    const repoDir = gitRepo();
+    const res = await call('/workspaces', { method: 'POST', body: { ticket: 'PROJ-2', cwd: repoDir, worktree: 'PROJ-2' } });
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as { workspace: { cwd: string } };
+    expect(body.workspace.cwd).toBe(realpathSync(join(repoDir, '.claude', 'worktrees', 'PROJ-2')));
+
+    const bad = await call('/workspaces', { method: 'POST', body: { ticket: 'PROJ-3', cwd: h.defaultCwd, worktree: 'PROJ-3' } });
+    expect(bad.status).toBe(400);
+    expect(await bad.text()).toContain('worktree');
+    const invalid = await call('/workspaces', { method: 'POST', body: { ticket: 'PROJ-4', cwd: repoDir, worktree: '-bad' } });
+    expect(invalid.status).toBe(400);
   });
 
   it('focuses the existing workspace for a ticket instead of creating a duplicate', async () => {

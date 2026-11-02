@@ -1,10 +1,10 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { ControlToClient, ReviewRequest } from '../../shared/protocol';
-import { connectControl, opened, startHarness, type Harness } from './harness';
+import { connectControl, gitRepo, opened, startHarness, type Harness } from './harness';
 import { waitFor } from './wait-for';
 
 let h: Harness;
@@ -149,6 +149,21 @@ describe('control channel', () => {
     ws.send(JSON.stringify({ type: 'create', name: 'web-app#482', windowId: null, pr: PR, prompt: `  /code-review ${PR}  ` }));
     await waitFor(() => messages.some((m) => m.type === 'open'));
     expect(h.store.list()[0]).toMatchObject({ name: 'web-app#482', ticket: 'PROJ-9', cwd: repoDir, url: PR, pr: PR, prompt: `/code-review ${PR}` });
+    ws.close();
+  });
+
+  it('starts a workspace in a fresh worktree when asked, or says why it could not', async () => {
+    const repoDir = gitRepo();
+    const { ws, messages } = connectControl(h);
+    await opened(ws);
+    ws.send(JSON.stringify({ type: 'create', name: 'PROJ-7', windowId: null, cwd: repoDir, worktree: 'PROJ-7' }));
+    await waitFor(() => messages.some((m) => m.type === 'open'));
+    expect(h.store.list()[0]).toMatchObject({ name: 'PROJ-7', cwd: realpathSync(join(repoDir, '.claude', 'worktrees', 'PROJ-7')) });
+
+    ws.send(JSON.stringify({ type: 'create', name: 'again', windowId: null, cwd: h.defaultCwd, worktree: 'again' }));
+    await waitFor(() => messages.some((m) => m.type === 'createError'));
+    expect(messages.find((m) => m.type === 'createError')).toMatchObject({ name: 'again', message: expect.stringContaining('again') });
+    expect(h.store.list()).toHaveLength(1);
     ws.close();
   });
 

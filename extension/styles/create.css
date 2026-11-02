@@ -637,6 +637,28 @@
   font-weight: 600;
 }
 
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.check-row input {
+  margin: 0;
+}
+
+#create-branch {
+  padding: 5px 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-family: Menlo, monospace;
+  font-size: 12px;
+  outline: none;
+}
+
 .template-row {
   display: flex;
   gap: 6px;

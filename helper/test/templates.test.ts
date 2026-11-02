@@ -9,13 +9,14 @@ const t = (id: string, name: string, extra: Partial<Template> = {}): Template =>
   tabs: '',
   message: '',
   window: 'new',
+  worktree: false,
   ...extra,
 });
 
 describe('parseTemplates', () => {
   it('keeps well-formed templates, fills defaults, and drops anything else', () => {
     const stored = [
-      { id: 'a', name: ' PR review ', repo: '/code/app', model: 'opus', tabs: 'a.example', message: 'go', window: 'here' },
+      { id: 'a', name: ' PR review ', repo: '/code/app', model: 'opus', tabs: 'a.example', message: 'go', window: 'here', worktree: true },
       { id: 'b', name: 'Minimal' },
       { name: 'no id' },
       { id: 'c', name: '  ' },
@@ -24,8 +25,8 @@ describe('parseTemplates', () => {
       7,
     ];
     expect(parseTemplates(stored)).toEqual([
-      { id: 'a', name: 'PR review', repo: '/code/app', model: 'opus', tabs: 'a.example', message: 'go', window: 'here' },
-      { id: 'b', name: 'Minimal', repo: '', model: '', tabs: '', message: '', window: 'new' },
+      { id: 'a', name: 'PR review', repo: '/code/app', model: 'opus', tabs: 'a.example', message: 'go', window: 'here', worktree: true },
+      { id: 'b', name: 'Minimal', repo: '', model: '', tabs: '', message: '', window: 'new', worktree: false },
     ]);
     expect(parseTemplates(undefined)).toEqual([]);
     expect(parseTemplates({ not: 'a list' })).toEqual([]);

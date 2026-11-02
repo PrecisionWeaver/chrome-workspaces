@@ -1,10 +1,12 @@
 import { timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { isAbsolute } from 'node:path';
+import { isBranchName } from '../../shared/branch-name';
 import { MAX_PROMPT_LENGTH, type WorkspaceStatus } from '../../shared/protocol';
 import type { AuthPolicy } from './auth';
 import { isDirectory } from './config';
 import type { ControlHub, ReviewSource } from './control';
+import type { GitService } from './git';
 import { isPullRequestUrl, prWorkspace } from './pr-workspace';
 import type { SessionManager } from './session';
 import type { WorkspaceStore } from './workspace-store';
@@ -18,6 +20,7 @@ export interface ApiOptions {
   statuses: () => Record<string, WorkspaceStatus>;
   reviews: Pick<ReviewSource, 'state'>;
   repoDirs: Record<string, string>;
+  git: Pick<GitService, 'addWorktree'>;
 }
 
 type Handler = (req: IncomingMessage, res: ServerResponse) => void;
@@ -59,7 +62,14 @@ async function handle(req: IncomingMessage, options: ApiOptions): Promise<{ stat
   }
 
   if (pathname === '/workspaces' && req.method === 'POST') {
-    const input = parseCreate(await readJson(req), options);
+    const { worktree, ...input } = parseCreate(await readJson(req), options);
+    if (worktree) {
+      try {
+        input.cwd = await options.git.addWorktree(input.cwd, worktree);
+      } catch (error) {
+        throw new HttpError(400, `could not make a worktree for ${worktree}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
     // A PR workspace is matched by PR only: a review of a ticket's PR is separate from working on the ticket.
     const existing = input.pr ? store.findByPr(input.pr) : input.ticket ? store.findByTicket(input.ticket) : undefined;
     if (existing) {
@@ -99,14 +109,16 @@ function hasBearer(req: IncomingMessage, token: string): boolean {
 
 function parseCreate(body: unknown, { defaultCwd, repoDirs, reviews }: ApiOptions) {
   if (typeof body !== 'object' || body === null) throw new HttpError(400, 'expected a JSON object');
-  const { name, ticket, cwd, url, pr, prompt } = body as Record<string, unknown>;
+  const { name, ticket, cwd, url, pr, prompt, worktree } = body as Record<string, unknown>;
+  const worktreeValue = optionalString(worktree, 'worktree', 100);
+  if (worktreeValue !== undefined && worktreeValue !== null && !isBranchName(worktreeValue)) throw new HttpError(400, 'worktree must be a branch name');
   const promptValue = optionalString(prompt, 'prompt', MAX_PROMPT_LENGTH);
 
   const prValue = optionalString(pr, 'pr', 2048);
   if (prValue) {
     if (!isPullRequestUrl(prValue)) throw new HttpError(400, 'pr must be a GitHub pull request url');
     const base = prWorkspace(prValue, { reviews: reviews.state().items, repoDirs, defaultCwd });
-    return { ...base, name: optionalString(name, 'name', 80) ?? base.name, prompt: promptValue };
+    return { ...base, name: optionalString(name, 'name', 80) ?? base.name, prompt: promptValue, worktree: worktreeValue };
   }
 
   const ticketValue = optionalString(ticket, 'ticket', 64);
@@ -119,7 +131,7 @@ function parseCreate(body: unknown, { defaultCwd, repoDirs, reviews }: ApiOption
   const urlValue = optionalString(url, 'url', 2048);
   if (urlValue && !/^https?:\/\//i.test(urlValue)) throw new HttpError(400, 'url must be http(s)');
 
-  return { name: nameValue, ticket: ticketValue, cwd: cwdValue, url: urlValue, pr: null, prompt: promptValue };
+  return { name: nameValue, ticket: ticketValue, cwd: cwdValue, url: urlValue, pr: null, prompt: promptValue, worktree: worktreeValue };
 }
 
 function optionalString(value: unknown, field: string, max: number): string | null {
