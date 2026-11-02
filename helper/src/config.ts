@@ -42,6 +42,8 @@ export interface HelperConfig {
   promptsFiles: string[];
   /** A JSON list of templates shared with the team, offered read-only beside the saved ones. */
   templatesFile: string | null;
+  /** Arguments every workspace's claude starts with, e.g. `--permission-mode acceptEdits`; each a plain word. */
+  claudeArgs: string[];
   /** Config entries that were ignored, and why, so Settings and the log can say so. */
   problems: string[];
 }
@@ -62,11 +64,14 @@ const KNOWN_KEYS = new Set([
   'claudeCommand',
   'promptsFiles',
   'templatesFile',
+  'claudeArgs',
 ]);
 // Repo names reach a `gh` command line, so only plain `owner/name` is accepted.
 const REPO_NAME = /^[\w.-]+\/[\w.-]+$/;
 // The command is interpolated into the launch line, so it must be a bare command name.
 const COMMAND_NAME = /^[\w.+-]{1,64}$/;
+// Each argument is single-quoted on the launch line; the pattern keeps quotes, spaces and expansions out.
+const CLAUDE_ARG = /^[\w.+=:,/@~-]{1,256}$/;
 
 export function loadConfig(): HelperConfig {
   const file = join(DATA_DIR, 'config.json');
@@ -146,6 +151,7 @@ export function parseConfig(text: string, file: string): HelperConfig {
     claudeCommand: claudeCommand && COMMAND_NAME.test(claudeCommand) ? claudeCommand : 'claude',
     promptsFiles: (stringList('promptsFiles') ?? []).map(expandHome),
     templatesFile: templatesFile ? expandHome(templatesFile) : null,
+    claudeArgs: (stringList('claudeArgs', (arg) => CLAUDE_ARG.test(arg)) ?? []).map(expandHome),
     problems,
   };
 }

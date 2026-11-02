@@ -41,6 +41,14 @@ describe('launchSpec', () => {
     expect(spec.args[3]).toBe("if command -v wrap >/dev/null 2>&1; then wrap --model 'opus'; else claude --model 'opus'; fi; exec /bin/zsh -l -i");
   });
 
+  it('puts the configured arguments first, quoted, for claude and for a wrapper alike', () => {
+    const args = ['--permission-mode', 'acceptEdits', '--add-dir', '/Users/me/shared'];
+    const spec = launchSpec({ ...workspace, model: 'opus' }, { shell: '/bin/zsh', resumeId: null, args });
+    expect(spec.args[3]).toBe(`${start(" '--permission-mode' 'acceptEdits' '--add-dir' '/Users/me/shared' --model 'opus'")}; exec /bin/zsh -l -i`);
+    const wrapped = launchSpec(workspace, { shell: '/bin/zsh', resumeId: null, command: 'wrap', args: ['--verbose'] });
+    expect(wrapped.args[3]).toBe("if command -v wrap >/dev/null 2>&1; then wrap '--verbose'; else claude '--verbose'; fi; exec /bin/zsh -l -i");
+  });
+
   it('adds the status hooks through the environment, so the path is never parsed as shell syntax', () => {
     const spec = launchSpec(workspace, { shell: '/bin/zsh', resumeId: RESUME, hooksFile: '/Users/me/.chrome-workspaces/hooks.json' });
     expect(spec.args[3]).toBe(`${start(` --resume ${RESUME} --settings "$CW_HOOKS"`)}; exec /bin/zsh -l -i`);
