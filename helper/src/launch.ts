@@ -30,8 +30,8 @@ export function monitorSpec(shell: string, cwd: string): SessionSpec {
  * A plain login shell. It has no workspace id, so a `claude` typed into it is not tracked, and it stays running
  * when the panel stops looking, so a dev server started in it keeps going; exiting the shell ends the session.
  */
-export function shellSpec(shell: string, cwd: string): SessionSpec {
-  return { id: SHELL_SESSION, command: shell, args: ['-l', '-i'], cwd };
+export function shellSpec(shell: string, cwd: string, id = SHELL_SESSION): SessionSpec {
+  return { id, command: shell, args: ['-l', '-i'], cwd };
 }
 
 /**

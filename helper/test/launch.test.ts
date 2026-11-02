@@ -105,6 +105,7 @@ describe('shellSpec', () => {
   it('is a plain login shell with no workspace in its environment, so a claude typed in it is not tracked', () => {
     const spec = shellSpec('/bin/zsh', '/Users/me/code');
     expect(spec).toEqual({ id: 'shell', command: '/bin/zsh', args: ['-l', '-i'], cwd: '/Users/me/code' });
+    expect(shellSpec('/bin/zsh', '/Users/me/code/app', 'shell-ws-0123abcd')).toMatchObject({ id: 'shell-ws-0123abcd', cwd: '/Users/me/code/app' });
     expect(spec).not.toHaveProperty('env');
   });
 });

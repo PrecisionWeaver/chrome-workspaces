@@ -94,6 +94,7 @@ describe('control channel', () => {
   it('removes a workspace and ends its terminal session', async () => {
     const a = h.store.create({ name: 'a', cwd: h.defaultCwd });
     const session = h.sessions.create({ id: a.id, command: '/bin/cat', args: [], cwd: h.defaultCwd });
+    const shell = h.sessions.create({ id: `shell-${a.id}`, command: '/bin/cat', args: [], cwd: h.defaultCwd });
     const { ws } = connectControl(h);
     await opened(ws);
     ws.send(JSON.stringify({ type: 'remove', id: a.id }));
@@ -101,6 +102,8 @@ describe('control channel', () => {
     await waitFor(() => session.exited);
     expect(h.sessions.get(a.id)).toBeUndefined();
     ws.close();
+    await waitFor(() => shell.exited);
+    expect(h.sessions.get(`shell-${a.id}`)).toBeUndefined();
   });
 
   it('renames a workspace, trimming the name and ignoring blank or overlong ones', async () => {

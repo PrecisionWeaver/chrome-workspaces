@@ -25,6 +25,9 @@ export const MONITOR_SESSION = 'monitor';
 
 /** The id of the helper session that runs a plain login shell, for a command line that belongs to no workspace. */
 export const SHELL_SESSION = 'shell';
+/** A shell of a workspace's own, started in its directory: `shell-<workspace id>`. */
+export const WORKSPACE_SHELL_PREFIX = 'shell-';
+export const workspaceShellSession = (workspaceId: string): string => `${WORKSPACE_SHELL_PREFIX}${workspaceId}`;
 
 export type ClientMessage =
   | { type: 'input'; data: string }

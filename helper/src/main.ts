@@ -4,13 +4,13 @@ import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { PLAN_USAGE_FILE } from '../../shared/plan-usage';
-import { MONITOR_SESSION, SHELL_SESSION, type WaitingOn, type WorkspaceStatus } from '../../shared/protocol';
+import { MONITOR_SESSION, SHELL_SESSION, WORKSPACE_SHELL_PREFIX, type WaitingOn, type WorkspaceStatus } from '../../shared/protocol';
 import { SAMPLE_INTERVAL_MS } from './resource-history';
 import { launchDirectory } from './launch-dir';
 import { activityFile, readActivity } from './activity';
 import { createAdmin, defaultIsManaged, defaultRunShell, defaultSpawnDetached } from './admin';
 import { createApi } from './api';
-import { DATA_DIR, HOST, LEGACY_SESSIONS_DIR, loadConfig, SESSIONS_DIR, PORT, SCROLLBACK_LIMIT } from './config';
+import { isDirectory, DATA_DIR, HOST, LEGACY_SESSIONS_DIR, loadConfig, SESSIONS_DIR, PORT, SCROLLBACK_LIMIT } from './config';
 import { ControlHub } from './control';
 import { launchSpec, monitorSpec, shellSpec } from './launch';
 import {
@@ -241,6 +241,11 @@ const server = await startServer({
   onUnknownSession: (id) => {
     if (id === MONITOR_SESSION) return sessions.create(monitorSpec(shell, homedir()));
     if (id === SHELL_SESSION) return sessions.create(shellSpec(shell, config.defaultCwd));
+    // A workspace's own shell starts in its directory, a worktree included, and has no workspace id, so a claude typed into it is not tracked.
+    if (id.startsWith(WORKSPACE_SHELL_PREFIX)) {
+      const owner = store.get(id.slice(WORKSPACE_SHELL_PREFIX.length));
+      return owner ? sessions.create(shellSpec(shell, isDirectory(owner.cwd) ? owner.cwd : config.defaultCwd, id)) : undefined;
+    }
     const workspace = store.get(id);
     if (!workspace) return undefined;
     // A restored workspace has no session of its own yet, so it resumes the one it had.

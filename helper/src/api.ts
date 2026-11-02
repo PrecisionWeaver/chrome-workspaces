@@ -2,7 +2,7 @@ import { timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { isAbsolute } from 'node:path';
 import { isBranchName } from '../../shared/branch-name';
-import { MAX_PROMPT_LENGTH, type WorkspaceStatus } from '../../shared/protocol';
+import { MAX_PROMPT_LENGTH, type WorkspaceStatus, workspaceShellSession } from '../../shared/protocol';
 import type { AuthPolicy } from './auth';
 import { isDirectory } from './config';
 import { asPaste, MAX_PASTE_LENGTH } from './paste';
@@ -107,6 +107,7 @@ async function handle(req: IncomingMessage, options: ApiOptions): Promise<{ stat
   if (one && req.method === 'DELETE') {
     if (!store.get(one[1])) throw new HttpError(404, 'unknown workspace');
     options.sessions.remove(one[1]);
+    options.sessions.remove(workspaceShellSession(one[1]));
     store.remove(one[1]);
     return { status: 200, body: { ok: true } };
   }

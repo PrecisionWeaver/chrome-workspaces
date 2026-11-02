@@ -395,7 +395,14 @@ describe('archiving and the context menu', () => {
 
   it('offers pin, archive, archive and close, and rename', async () => {
     await openMenu(ws('a'));
-    expect(menuButtons().map((b) => b.textContent)).toEqual(['Pin to top', 'Archive', 'Archive & close tabs', 'Rename', 'Resume an earlier conversation…']);
+    expect(menuButtons().map((b) => b.textContent)).toEqual([
+      'Pin to top',
+      'Archive',
+      'Archive & close tabs',
+      'Rename',
+      'Open a shell here',
+      'Resume an earlier conversation…',
+    ]);
   });
 
   it('pins and unpins', async () => {
@@ -406,6 +413,15 @@ describe('archiving and the context menu', () => {
     state([ws('a', { pinned: true })]);
     rows()[0]!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
     expect(menuButtons()[0]!.textContent).toBe('Unpin');
+  });
+
+  it("opens a shell in the workspace's directory from its menu", async () => {
+    await openMenu(ws('a'));
+    menuButtons()
+      .find((b) => b.textContent === 'Open a shell here')!
+      .click();
+    expect($('tool').hidden).toBe(false);
+    expect($('tool-title').textContent).toBe('Terminal · acme/a');
   });
 
   it('asks for earlier conversations, lists them with their first words, and resumes the one picked', async () => {
@@ -991,6 +1007,7 @@ describe('the command palette', () => {
     expect(labels()).toEqual([
       'Action: New workspace',
       'Action: Terminal',
+      'Action: Shell in acme/a',
       'Action: System monitor',
       'Action: Expand activity',
       'Action: Open settings',
