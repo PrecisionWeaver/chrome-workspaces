@@ -140,6 +140,7 @@ export function makeSnapshot(overrides: Partial<SystemSnapshot> = {}): SystemSna
       pid: 42,
       uptimeSec: 3700,
       rssKb: 51_200,
+      cpu: 1.5,
       port: 4000,
       node: 'v22.18.0',
       commit: 'abc1234',
