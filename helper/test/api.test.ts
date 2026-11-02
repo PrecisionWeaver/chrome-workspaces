@@ -98,6 +98,25 @@ describe('HTTP API', () => {
     ws.close();
   });
 
+  it('pastes text into a running terminal without submitting it, and says when there is none', async () => {
+    const running = h.store.create({ name: 'running', cwd: h.defaultCwd });
+    const idle = h.store.create({ name: 'idle', cwd: h.defaultCwd });
+    const session = h.sessions.create({ id: running.id, command: '/bin/cat', args: [], cwd: h.defaultCwd });
+    let output = '';
+    session.attach(
+      (data) => (output += data),
+      () => {},
+    );
+    const ok = await call(`/workspaces/${running.id}/send`, { method: 'POST', body: { text: 'hello there' } });
+    expect(ok.status).toBe(200);
+    await waitFor(() => output.includes('hello there'));
+    expect(output).not.toContain('hello there\r');
+    expect((await call(`/workspaces/${idle.id}/send`, { method: 'POST', body: { text: 'x' } })).status).toBe(409);
+    expect((await call(`/workspaces/${running.id}/send`, { method: 'POST', body: { text: '' } })).status).toBe(400);
+    expect((await call(`/workspaces/${running.id}/send`, { method: 'POST', body: { text: 'x'.repeat(20_001) } })).status).toBe(400);
+    expect((await call('/workspaces/ws-00000000/send', { method: 'POST', body: { text: 'x' } })).status).toBe(404);
+  });
+
   it('404s unknown workspaces and paths', async () => {
     expect((await call('/workspaces/ws-00000000/focus', { method: 'POST' })).status).toBe(404);
     expect((await call('/nope')).status).toBe(404);

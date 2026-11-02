@@ -5,6 +5,7 @@ import { isBranchName } from '../../shared/branch-name';
 import { MAX_PROMPT_LENGTH, type WorkspaceStatus } from '../../shared/protocol';
 import type { AuthPolicy } from './auth';
 import { isDirectory } from './config';
+import { asPaste, MAX_PASTE_LENGTH } from './paste';
 import type { ControlHub, ReviewSource } from './control';
 import type { GitService } from './git';
 import { isPullRequestUrl, prWorkspace } from './pr-workspace';
@@ -85,6 +86,20 @@ async function handle(req: IncomingMessage, options: ApiOptions): Promise<{ stat
   if (focus && req.method === 'POST') {
     if (!store.get(focus[1])) throw new HttpError(404, 'unknown workspace');
     if (!control.send({ type: 'focus', id: focus[1] })) throw new HttpError(409, 'extension not connected');
+    return { status: 200, body: { ok: true } };
+  }
+
+  const send = pathname.match(/^\/workspaces\/(ws-[0-9a-f]{8})\/send$/);
+  if (send && req.method === 'POST') {
+    if (!store.get(send[1])) throw new HttpError(404, 'unknown workspace');
+    const body = await readJson(req);
+    const text = typeof body === 'object' && body !== null ? (body as { text?: unknown }).text : undefined;
+    if (typeof text !== 'string' || !text.trim()) throw new HttpError(400, 'text is required');
+    if (text.length > MAX_PASTE_LENGTH) throw new HttpError(400, `text is longer than ${MAX_PASTE_LENGTH} characters`);
+    const session = options.sessions.get(send[1]);
+    if (!session || session.exited) throw new HttpError(409, 'that workspace has no running terminal; open it first');
+    // Pasted, never submitted: the person decides whether to send it.
+    session.write(asPaste(text));
     return { status: 200, body: { ok: true } };
   }
 

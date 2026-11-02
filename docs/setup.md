@@ -58,6 +58,7 @@ The helper has a small HTTP API on `127.0.0.1:4178` for shell scripts and other 
 | `GET /workspaces`             | Every workspace, and its status                                                                                                                                                                                                                                                                                                                                             |
 | `POST /workspaces`            | Create one from JSON: `name` or `ticket`, and optionally `cwd`, `url` (its first tab), `prompt` (its first message), `worktree` (a branch name: the workspace starts in a new worktree of `cwd` on it, made under the repo's `.claude/worktrees/`), or `pr` (a GitHub PR URL, which fills in the rest). An existing workspace for the same ticket or PR is focused instead. |
 | `POST /workspaces/<id>/focus` | Switch Chrome to it                                                                                                                                                                                                                                                                                                                                                         |
+| `POST /workspaces/<id>/send`  | Paste JSON `text` into its terminal, never submitted; 409 when it has no running terminal                                                                                                                                                                                                                                                                                   |
 | `DELETE /workspaces/<id>`     | End its session and remove it                                                                                                                                                                                                                                                                                                                                               |
 
 ```bash
@@ -68,6 +69,18 @@ printf 'header = "Authorization: Bearer %s"\n' "$(cat ~/.chrome-workspaces/token
 ```
 
 Passing the header through `--config -` keeps the token out of the process list. A wrapper like this is a quick way to open a workspace per ticket from the terminal.
+
+The same API from a terminal, without the token dance:
+
+```bash
+npm run -s cw -- list                       # every workspace and its status
+npm run -s cw -- new PROJ-123 --cwd ~/code/app --worktree PROJ-123
+npm run -s cw -- focus PROJ-123
+npm run -s cw -- send PROJ-123 look at the failing test   # pasted, not submitted
+npm run -s cw -- rm PROJ-123
+```
+
+A workspace is named by its id, ticket or name. An alias such as `alias cw='npm --prefix ~/code/chrome-workspaces run -s cw --'` makes it `cw new PROJ-123`.
 
 ## Uninstall
 
