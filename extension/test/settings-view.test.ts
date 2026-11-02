@@ -725,7 +725,7 @@ describe('the cards', () => {
       await open(makeSnapshot({ sessions: [stopped, running] }));
       expect(card('Workspace sessions').querySelector('h3')!.textContent).toBe('Workspace sessions · 1 running · 2.0 MB · 0.1%');
       expect(text('.session-name', card('Workspace sessions'))).toEqual(['acme/app', 'acme/api']);
-      expect(text('.session-detail', card('Workspace sessions'))).toEqual(['1 process · 2.0 MB', 'not running']);
+      expect(text('.session-detail', card('Workspace sessions'))).toEqual(['1 process · 2.0 MB · 0.1%', 'not running']);
     });
 
     it('draws a memory line once a running session has been sampled a few times, in amber when it is over the limit', async () => {
@@ -808,7 +808,7 @@ describe('the cards', () => {
       expect(text('.proc .cmd', card('Workspace sessions'))).toEqual(['-zsh', 'node server.js']);
       expect(text('.proc .num', card('Workspace sessions'))).toEqual(['0.0%', '1.0 MB', '10:00', '12.3%', '50.0 MB', '09:00']);
       expect(text('.port', card('Workspace sessions'))).toEqual([':3000', ':3001']);
-      expect(card('Workspace sessions').querySelector('.session-detail')!.textContent).toBe('2 processes · 51.0 MB · :3000 :3001');
+      expect(card('Workspace sessions').querySelector('.session-detail')!.textContent).toBe('2 processes · 51.0 MB · 12.3% · :3000 :3001');
       toggle().click();
       expect(card('Workspace sessions').querySelector('.procs')).toBeNull();
     });
