@@ -1,7 +1,7 @@
 import { isAbsolute } from 'node:path';
 import type { WebSocket } from 'ws';
 import type { ActivityItem } from '../../shared/activity';
-import type { ControlToClient, ControlToHelper, Prompt, Repo, ReviewsState, WaitingOn, Workspace, WorkspaceStatus } from '../../shared/protocol';
+import type { ControlToClient, ControlToHelper, PastSession, Prompt, Repo, ReviewsState, WaitingOn, Workspace, WorkspaceStatus } from '../../shared/protocol';
 import { isDirectory } from './config';
 import { isControlToHelper } from './control-messages';
 import type { AdminService } from './admin';
@@ -43,6 +43,10 @@ export interface ControlHubOptions {
   history: HistoryStore;
   /** The claude session a workspace is on, to resume if it is restored. */
   resumeId: (id: string) => string | null;
+  /** Every claude session a workspace has had, newest first. */
+  pastSessions: (id: string) => PastSession[];
+  /** Ends the workspace's terminal so that its next start resumes `sessionId`. */
+  resumeWith: (id: string, sessionId: string) => void;
   /** The directory a workspace's claude last reported working in, if it has reported one. */
   workingDir: (id: string) => string | null;
   /** The recent turns of a workspace's claude session; null when it has no session. */
@@ -149,6 +153,15 @@ export class ControlHub {
         break;
       case 'order':
         store.reorder(message.ids);
+        break;
+      case 'listSessions':
+        if (store.get(message.id)) this.sendTo(ws, { type: 'sessions', id: message.id, sessions: this.options.pastSessions(message.id) });
+        break;
+      case 'resumeSession':
+        if (store.get(message.id)) {
+          this.options.resumeWith(message.id, message.sessionId);
+          this.send({ type: 'sessionReset', id: message.id });
+        }
         break;
       case 'sendText': {
         const { id } = message;

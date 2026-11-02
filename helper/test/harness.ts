@@ -7,6 +7,7 @@ import {
   PROTOCOL,
   TOKEN_PROTOCOL_PREFIX,
   type ControlToClient,
+  type PastSession,
   type Prompt,
   type Repo,
   type ReviewRequest,
@@ -57,6 +58,9 @@ export interface Harness {
   createdPrUrl: string | null;
   /** The claude session each workspace is on, by id, for restoring. */
   resumeIds: Record<string, string>;
+  pastSessions: Record<string, PastSession[]>;
+  /** `[workspace id, session id]` for each resume asked for. */
+  resumed: [string, string][];
   /** The claude transcript of each workspace, by id, for token counts. */
   transcripts: Record<string, string>;
   /** Event files by workspace, read as the helper reads them. */
@@ -97,6 +101,8 @@ export async function startHarness(): Promise<Harness> {
     branchPrJson: null as string | null,
     createdPrUrl: null as string | null,
     resumeIds: {} as Record<string, string>,
+    pastSessions: {} as Record<string, PastSession[]>,
+    resumed: [] as [string, string][],
     transcripts: {} as Record<string, string>,
     /** Event files by workspace, read as the helper reads them. */
     activityFiles: {} as Record<string, string>,
@@ -190,6 +196,8 @@ export async function startHarness(): Promise<Harness> {
     admin,
     history: new HistoryStore(join(dir, 'history.json')),
     resumeId: (id) => fakes.resumeIds[id] ?? null,
+    pastSessions: (id) => fakes.pastSessions[id] ?? [],
+    resumeWith: (id, sessionId) => void fakes.resumed.push([id, sessionId]),
     workingDir: (id) => fakes.workingDirs[id] ?? null,
     activity: (id) => (fakes.activityFiles[id] ? readActivity(fakes.activityFiles[id]) : null),
   });

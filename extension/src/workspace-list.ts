@@ -1,7 +1,15 @@
 import { describeWaiting, needsInputCount } from '../../shared/attention';
 import { nextIndex } from '../../shared/keynav';
 import { filterList } from '../../shared/list-filter';
-import { type ControlToHelper, type HistoryEntry, type WaitingOn, type Workspace, type WorkspaceStatus, WORKSPACE_COLORS } from '../../shared/protocol';
+import {
+  type ControlToClient,
+  type ControlToHelper,
+  type HistoryEntry,
+  type WaitingOn,
+  type Workspace,
+  type WorkspaceStatus,
+  WORKSPACE_COLORS,
+} from '../../shared/protocol';
 import { $, caret } from './dom';
 import { closeMenu, menuItem, openMenu } from './menu';
 
@@ -23,6 +31,8 @@ export interface WorkspaceListOptions {
 
 export interface WorkspaceList {
   render(): void;
+  /** The helper's answer to `listSessions`: a menu of earlier conversations to resume. */
+  showSessions(message: Extract<ControlToClient, { type: 'sessions' }>): void;
   /** Brings an archived workspace back, into this window as a tab group when it already holds one. */
   restore(entry: HistoryEntry): void;
 }
@@ -246,6 +256,23 @@ export function createWorkspaceList(options: WorkspaceListOptions): WorkspaceLis
 
   // ---- right-click menu ----
 
+  // Where the last context menu opened, so the sessions menu that answers it opens in the same place.
+  let menuAt = { x: 0, y: 0 };
+
+  function showSessions(message: Extract<ControlToClient, { type: 'sessions' }>): void {
+    const items = message.sessions.map((session) =>
+      menuItem(
+        `${new Date(session.startedAt).toLocaleString()} · ${session.firstPrompt ?? 'no prompt recorded'}${session.status ? ' (current)' : ''}`,
+        () => options.send({ type: 'resumeSession', id: message.id, sessionId: session.id }),
+        {
+          disabled: session.status !== null,
+          title: session.status ? 'The conversation this workspace is on now' : 'End the current session and resume this one',
+        },
+      ),
+    );
+    openMenu(menuAt.x, menuAt.y, items.length ? items : [menuItem('No earlier conversation is recorded', () => {}, { disabled: true })], 'ctx-menu');
+  }
+
   function showContextMenu(x: number, y: number, ws: Workspace, nameEl: HTMLElement): void {
     const ticket = options.ticketLink(ws.ticket);
     const swatches = document.createElement('div');
@@ -284,6 +311,10 @@ export function createWorkspaceList(options: WorkspaceListOptions): WorkspaceLis
         menuItem('Archive', () => options.send({ type: 'remove', id: ws.id })),
         menuItem('Archive & close tabs', () => options.send({ type: 'remove', id: ws.id, closeTabs: true })),
         menuItem('Rename', () => startRename(ws, nameEl)),
+        menuItem('Resume an earlier conversation…', () => {
+          menuAt = { x, y };
+          options.send({ type: 'listSessions', id: ws.id });
+        }),
         ...(ticket ? [menuItem(`Open ${ws.ticket}`, () => void chrome.tabs.create({ url: ticket }))] : []),
         swatches,
       ],
@@ -359,5 +390,5 @@ export function createWorkspaceList(options: WorkspaceListOptions): WorkspaceLis
   chrome.tabGroups.onUpdated.addListener(() => void loadGroupColors());
   chrome.tabGroups.onRemoved.addListener(() => void loadGroupColors());
 
-  return { render: renderList, restore: restoreWorkspace };
+  return { render: renderList, showSessions, restore: restoreWorkspace };
 }

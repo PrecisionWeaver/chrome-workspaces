@@ -471,6 +471,24 @@ describe('control channel', () => {
     ws.close();
   });
 
+  it("lists a workspace's earlier conversations, and resumes one by ending the session with a reset", async () => {
+    const workspace = h.store.create({ name: 'w', cwd: h.defaultCwd });
+    const past = { id: '169128c8-8b10-48e0-993f-a743c8fad9ef', startedAt: '2026-01-01T10:00:00Z', status: null, firstPrompt: 'fix it' };
+    h.pastSessions[workspace.id] = [past];
+    const { ws, messages } = connectControl(h);
+    await opened(ws);
+    ws.send(JSON.stringify({ type: 'listSessions', id: workspace.id }));
+    await waitFor(() => messages.some((m) => m.type === 'sessions'));
+    expect(messages.find((m) => m.type === 'sessions')).toEqual({ type: 'sessions', id: workspace.id, sessions: [past] });
+
+    ws.send(JSON.stringify({ type: 'resumeSession', id: workspace.id, sessionId: 'not-a-session' }));
+    ws.send(JSON.stringify({ type: 'resumeSession', id: workspace.id, sessionId: past.id }));
+    await waitFor(() => messages.some((m) => m.type === 'sessionReset'));
+    expect(h.resumed).toEqual([[workspace.id, past.id]]);
+    expect(messages.find((m) => m.type === 'sessionReset')).toEqual({ type: 'sessionReset', id: workspace.id });
+    ws.close();
+  });
+
   it('pushes a branch, and makes a pull request for it after pushing', async () => {
     const dir = gitRepo();
     const remote = mkdtempSync(join(tmpdir(), 'cw-remote-'));

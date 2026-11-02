@@ -99,6 +99,7 @@ const control = connectControl(
     if (message.type === 'prDetails') creator.setPrDetails(message.url, message.details, message.error);
     if (message.type === 'prThreads') creator.setPrThreads(message);
     if (message.type === 'createError') showNotice(message.message);
+    if (message.type === 'sessions') workspaceList.showSessions(message);
     if (message.type !== 'state') return;
     selectJoiners(message.workspaces);
     const shown = current();
