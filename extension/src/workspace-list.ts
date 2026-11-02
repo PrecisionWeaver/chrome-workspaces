@@ -1,14 +1,14 @@
-import { needsInputCount } from '../../shared/attention';
+import { describeWaiting, needsInputCount } from '../../shared/attention';
 import { nextIndex } from '../../shared/keynav';
 import { filterList } from '../../shared/list-filter';
-import { type ControlToHelper, type HistoryEntry, type Workspace, type WorkspaceStatus, WORKSPACE_COLORS } from '../../shared/protocol';
+import { type ControlToHelper, type HistoryEntry, type WaitingOn, type Workspace, type WorkspaceStatus, WORKSPACE_COLORS } from '../../shared/protocol';
 import { $, caret } from './dom';
 import { closeMenu, menuItem, openMenu } from './menu';
 
 export interface WorkspaceListOptions {
   send(message: ControlToHelper): void;
   /** The panel owns this data: the terminal, the picker and the palette read it too. */
-  state(): { workspaces: Workspace[]; statuses: Record<string, WorkspaceStatus>; history: HistoryEntry[] };
+  state(): { workspaces: Workspace[]; statuses: Record<string, WorkspaceStatus>; waiting: Record<string, WaitingOn>; history: HistoryEntry[] };
   /** The workspace this window is showing. */
   current(): Workspace | undefined;
   windowId(): number | undefined;
@@ -54,7 +54,7 @@ export function createWorkspaceList(options: WorkspaceListOptions): WorkspaceLis
   });
 
   function renderList(): void {
-    const { workspaces, statuses, history } = options.state();
+    const { workspaces, statuses, waiting: wanted, history } = options.state();
     const waiting = needsInputCount(
       statuses,
       workspaces.map((ws) => ws.id),
@@ -64,7 +64,7 @@ export function createWorkspaceList(options: WorkspaceListOptions): WorkspaceLis
     // A filter box earns its room once the list is long enough to need one.
     listSearch.hidden = workspaces.length < 5 && listSearch.value === '';
     const here = options.current();
-    const rows = filterList(workspaces, statuses, listSearch.value).map(({ ws, number }) => workspaceRow(ws, number, here));
+    const rows = filterList(workspaces, statuses, listSearch.value, wanted).map(({ ws, number }) => workspaceRow(ws, number, here));
     // Archived workspaces, kept so one can be brought back with its conversation.
     const closed = history.filter((entry) => !listSearch.value.trim() || entry.name.toLowerCase().includes(listSearch.value.trim().toLowerCase()));
     if (closed.length) {
@@ -180,13 +180,14 @@ export function createWorkspaceList(options: WorkspaceListOptions): WorkspaceLis
     item.dataset.id = ws.id;
     item.setAttribute('role', 'option');
     item.setAttribute('aria-selected', String(ws.id === here?.id));
-    const { statuses } = options.state();
+    const { statuses, waiting } = options.state();
     const live = statuses[ws.id];
+    const wanted = live === 'needs_input' ? describeWaiting(ws.name, waiting[ws.id]) : null;
     item.setAttribute(
       'aria-label',
-      `${ws.name}${live === 'needs_input' ? ', needs input' : live === 'working' ? ', working' : live === 'idle' ? ', idle' : ''}${ws.pinned ? ', pinned' : ''}`,
+      `${ws.name}${wanted ? (wanted.kind === 'permission' ? ', needs permission' : ', needs input') : live === 'working' ? ', working' : live === 'idle' ? ', idle' : ''}${ws.pinned ? ', pinned' : ''}`,
     );
-    item.title = `${ws.name}\n${ws.cwd}${ws.groupId === null ? '' : '\nTab group'}\nRight-click for more`;
+    item.title = `${ws.name}\n${ws.cwd}${ws.groupId === null ? '' : '\nTab group'}${wanted ? `\n${wanted.message}` : ''}\nRight-click for more`;
 
     const badge = document.createElement('span');
     badge.className = 'badge';

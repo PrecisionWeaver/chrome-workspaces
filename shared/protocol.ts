@@ -282,6 +282,12 @@ export interface Workspace {
 
 export type WorkspaceStatus = 'needs_input' | 'working' | 'idle' | null;
 
+/** What a workspace at `needs_input` waits on, from claude's Notification: its type (`permission_prompt`, `idle_prompt`, ...) and its words. */
+export interface WaitingOn {
+  type: string;
+  message: string;
+}
+
 /** One reusable prompt from the vault note, under the bold heading above it. */
 export interface Prompt {
   section: string;
@@ -484,7 +490,7 @@ export const PR_FILES_SHOWN = 10;
 export const PR_COMMITS_SHOWN = 6;
 
 export type ControlToClient =
-  | { type: 'state'; workspaces: Workspace[]; statuses: Record<string, WorkspaceStatus>; reviews: ReviewsState }
+  | { type: 'state'; workspaces: Workspace[]; statuses: Record<string, WorkspaceStatus>; waiting: Record<string, WaitingOn>; reviews: ReviewsState }
   | { type: 'open'; id: string }
   /** Make the workspace's tab group in the window it was paired with. */
   | { type: 'group'; id: string }

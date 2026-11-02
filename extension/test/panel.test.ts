@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ClientMessage, ControlToClient, ControlToHelper, HistoryEntry, ReviewsState, Workspace, WorkspaceStatus } from '../../shared/protocol';
+import type { ClientMessage, ControlToClient, ControlToHelper, HistoryEntry, ReviewsState, WaitingOn, Workspace, WorkspaceStatus } from '../../shared/protocol';
 import { installChrome } from './chrome-mock';
 import { isolateDocumentListeners, loadPanelHtml, makeHistoryEntry, makeReview, makeSnapshot, makeWorkspace } from './fixtures';
 
@@ -146,8 +146,13 @@ async function boot() {
 }
 
 /** What the helper sends on every change. */
-function state(workspaces: Workspace[], statuses: Record<string, WorkspaceStatus> = {}, reviews: ReviewsState = REVIEWS) {
-  onControlMessage({ type: 'state', workspaces, statuses, reviews });
+function state(
+  workspaces: Workspace[],
+  statuses: Record<string, WorkspaceStatus> = {},
+  reviews: ReviewsState = REVIEWS,
+  waiting: Record<string, WaitingOn> = {},
+) {
+  onControlMessage({ type: 'state', workspaces, statuses, waiting, reviews });
 }
 const ws = (id: string, overrides: Partial<Workspace> = {}) => makeWorkspace({ id, name: `acme/${id}`, windowId, ...overrides });
 
@@ -159,6 +164,18 @@ describe('the list', () => {
     expect(rows().map((row) => row.querySelector('.badge')!.textContent)).toEqual(['1', '2']);
     expect(rows().map((row) => row.querySelector<HTMLElement>('.badge')!.dataset.status)).toEqual(['working', 'needs_input']);
     expect(rows()[1]!.getAttribute('aria-label')).toBe('acme/b, needs input');
+  });
+
+  it('says what a waiting workspace is waiting on', async () => {
+    await boot();
+    state([ws('a'), ws('b')], { a: 'needs_input', b: 'needs_input' }, REVIEWS, {
+      a: { type: 'permission_prompt', message: 'Claude needs your permission to use Bash' },
+      b: { type: 'idle_prompt', message: 'Claude is waiting for your input' },
+    });
+    expect(rows()[0]!.getAttribute('aria-label')).toBe('acme/a, needs permission');
+    expect(rows()[0]!.title).toContain('Claude needs your permission to use Bash');
+    expect(rows()[1]!.getAttribute('aria-label')).toBe('acme/b, needs input');
+    expect(rows()[1]!.title).toContain('Claude is waiting for your input');
   });
 
   it('says how many are waiting in the title', async () => {

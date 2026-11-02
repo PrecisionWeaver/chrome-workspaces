@@ -30,6 +30,15 @@ describe('workspaceMatches', () => {
     expect(workspaceMatches(w, 'idle', 'email working')).toBe(false);
     expect(workspaceMatches(w, undefined, '   ')).toBe(true);
   });
+
+  it('finds a waiting workspace by what it is waiting on', () => {
+    const w = ws('a', 'Email table');
+    const permission = { type: 'permission_prompt', message: 'Claude needs your permission to use Bash' };
+    expect(workspaceMatches(w, 'needs_input', 'permission', permission)).toBe(true);
+    expect(workspaceMatches(w, 'needs_input', 'bash', permission)).toBe(true);
+    expect(workspaceMatches(w, 'needs_input', 'permission')).toBe(false);
+    expect(workspaceMatches(w, 'needs_input', 'question', { type: 'idle_prompt', message: 'Claude is waiting for your input' })).toBe(true);
+  });
 });
 
 describe('filterList', () => {

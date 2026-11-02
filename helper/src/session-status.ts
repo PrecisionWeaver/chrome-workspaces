@@ -1,10 +1,12 @@
 import { closeSync, existsSync, fstatSync, openSync, readdirSync, readFileSync, readSync, rmSync, statSync, watch, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { WorkspaceStatus } from '../../shared/protocol';
+import type { WaitingOn, WorkspaceStatus } from '../../shared/protocol';
 import type { SessionFile } from '../../shared/session-file';
 
 export interface WorkspaceSession {
   status: WorkspaceStatus;
+  /** What claude waits on while `status` is `needs_input`. */
+  waiting: WaitingOn | null;
   claudeSessionId: string;
   /** Last Claude in Chrome tool call (epoch ms). */
   browserAt: number | null;
@@ -79,8 +81,13 @@ export function readSessionStatus(dir: string, workspaceCwds: ReadonlyMap<string
   for (const [workspaceId, session] of newest) {
     const status = LIVE_STATUSES.has(session.status ?? '') ? (session.status as WorkspaceStatus) : null;
     const browserAt = session.browser_at ? Date.parse(session.browser_at) : NaN;
+    const waiting = session.waiting;
     result.set(workspaceId, {
       status,
+      waiting:
+        status === 'needs_input' && waiting && typeof waiting.type === 'string' && typeof waiting.message === 'string'
+          ? { type: waiting.type, message: waiting.message }
+          : null,
       claudeSessionId: session.session_id!,
       browserAt: Number.isNaN(browserAt) ? null : browserAt,
       cwd: session.cwd ?? null,

@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ControlToHelper, GitCommit, GitFile, GitState, WorkspaceStatus } from '../../shared/protocol';
+import type { ControlToHelper, GitCommit, GitFile, GitState, WaitingOn, WorkspaceStatus } from '../../shared/protocol';
 import { createGitView, type GitView } from '../src/git-view';
 import { closeMenu } from '../src/menu';
 import { installChrome } from './chrome-mock';
@@ -15,6 +15,7 @@ let view: GitView;
 let sent: ControlToHelper[];
 let toggled: number;
 let statuses: Record<string, WorkspaceStatus>;
+let waiting: Record<string, WaitingOn>;
 const workspace = makeWorkspace({ id: 'ws-a' });
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -67,8 +68,14 @@ beforeEach(() => {
   sent = [];
   toggled = 0;
   statuses = {};
+  waiting = {};
   closeMenu();
-  view = createGitView({ send: (message) => (sent.push(message), true), onToggle: () => void toggled++, status: (id) => statuses[id] ?? null });
+  view = createGitView({
+    send: (message) => (sent.push(message), true),
+    onToggle: () => void toggled++,
+    status: (id) => statuses[id] ?? null,
+    waiting: (id) => waiting[id] ?? null,
+  });
 });
 afterEach(() => {
   vi.useRealTimers();
@@ -217,6 +224,11 @@ describe('the branch line', () => {
     view.renderStatus();
     expect(text('.git-claude')).toEqual(['Claude needs input']);
     expect($('git-branch').querySelector<HTMLElement>('.git-claude')!.dataset.status).toBe('needs_input');
+    waiting['ws-a'] = { type: 'permission_prompt', message: 'Claude needs your permission to use Bash' };
+    view.renderStatus();
+    expect(text('.git-claude')).toEqual(['Claude needs permission']);
+    expect($('git-branch').querySelector<HTMLElement>('.git-claude')!.title).toBe('Claude needs your permission to use Bash');
+    delete waiting['ws-a'];
     statuses['ws-a'] = 'working';
     view.renderStatus();
     expect(text('.git-claude')).toEqual(['Claude is working']);

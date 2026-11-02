@@ -5,7 +5,7 @@ import { appendFileSync, mkdirSync, readFileSync, renameSync, writeFileSync } fr
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { ACTIVITY_EVENTS, type ActivityEvent, type ActivityEventName } from '../shared/activity.ts';
-import { STATUS_BY_EVENT } from '../shared/session-file.ts';
+import { notificationWaits, STATUS_BY_EVENT } from '../shared/session-file.ts';
 import type { SessionFile } from '../shared/session-file.ts';
 import { describeTool, oneLine } from '../shared/timeline.ts';
 
@@ -22,6 +22,8 @@ interface HookInput {
   tool_use_id?: string;
   prompt?: string;
   trigger?: string;
+  notification_type?: string;
+  message?: string;
 }
 
 const dir = join(process.env.CW_DATA_DIR || join(homedir(), '.chrome-workspaces'), 'sessions');
@@ -51,7 +53,8 @@ function activityLine(input: HookInput, now: string): ActivityEvent {
 try {
   const input = JSON.parse(readFileSync(0, 'utf8')) as HookInput;
   const event = input.hook_event_name;
-  const status = event ? STATUS_BY_EVENT[event] : undefined;
+  // A notification that only reports something changes nothing: claude is still doing what it was.
+  const status = event && (event !== 'Notification' || notificationWaits(input.notification_type)) ? STATUS_BY_EVENT[event] : undefined;
   // The id becomes a file name, so only a plain one is accepted.
   if (event && (status || ACTIVITY_EVENTS.has(event)) && input.session_id && /^[A-Za-z0-9_-]+$/.test(input.session_id)) {
     mkdirSync(dir, { recursive: true, mode: 0o700 });
@@ -76,6 +79,8 @@ try {
       state.cw_workspace_id ||= process.env.CW_WORKSPACE_ID || null;
       if (event === 'PostToolUse' && input.tool_name?.startsWith('mcp__claude-in-chrome__')) state.browser_at = now;
       state.status = status;
+      if (status === 'needs_input') state.waiting = { type: str(input.notification_type) ?? '', message: oneLine(str(input.message) ?? '') };
+      else delete state.waiting;
       state.status_since = now;
       state.last_event = event;
 

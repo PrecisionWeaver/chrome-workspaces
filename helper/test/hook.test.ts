@@ -56,6 +56,27 @@ describe('hooks/session-state.ts', () => {
     expect(read(data).started_at >= first).toBe(true);
   });
 
+  it('keeps what a Notification waits on, drops it once claude moves on, and ignores one that is only news', () => {
+    const data = mkdtempSync(join(tmpdir(), 'cw-hook-'));
+    fire(data, { hook_event_name: 'UserPromptSubmit', session_id: ID });
+    fire(data, {
+      hook_event_name: 'Notification',
+      session_id: ID,
+      notification_type: 'permission_prompt',
+      message: 'Claude needs your\n permission to use Bash',
+    });
+    expect(read(data)).toMatchObject({ status: 'needs_input', waiting: { type: 'permission_prompt', message: 'Claude needs your permission to use Bash' } });
+    fire(data, { hook_event_name: 'PreToolUse', session_id: ID, tool_name: 'Bash' });
+    expect(read(data).status).toBe('working');
+    expect(read(data).waiting).toBeUndefined();
+    // Signing in, or a subagent finishing, is reported the same way but asks nothing of the user.
+    fire(data, { hook_event_name: 'Notification', session_id: ID, notification_type: 'auth_success', message: 'Signed in' });
+    expect(read(data)).toMatchObject({ status: 'working', last_event: 'PreToolUse' });
+    expect(read(data).waiting).toBeUndefined();
+    fire(data, { hook_event_name: 'Notification', session_id: ID, message: 'Claude is waiting for your input' });
+    expect(read(data)).toMatchObject({ status: 'needs_input', waiting: { type: '', message: 'Claude is waiting for your input' } });
+  });
+
   it('notes a Claude in Chrome tool call, and no other tool', () => {
     const data = mkdtempSync(join(tmpdir(), 'cw-hook-'));
     fire(data, { hook_event_name: 'PostToolUse', session_id: ID, tool_name: 'Bash' });

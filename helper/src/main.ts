@@ -4,7 +4,7 @@ import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { PLAN_USAGE_FILE } from '../../shared/plan-usage';
-import { MONITOR_SESSION, SHELL_SESSION, type WorkspaceStatus } from '../../shared/protocol';
+import { MONITOR_SESSION, SHELL_SESSION, type WaitingOn, type WorkspaceStatus } from '../../shared/protocol';
 import { SAMPLE_INTERVAL_MS } from './resource-history';
 import { launchDirectory } from './launch-dir';
 import { activityFile, readActivity } from './activity';
@@ -54,6 +54,8 @@ const auth = { token: loadOrCreateToken(DATA_DIR), allowedOrigins: [`chrome-exte
 const readSessions = (): Map<string, WorkspaceSession> => readSessionStatus(SESSIONS_DIR, new Map(store.list().map((ws) => [ws.id, ws.cwd])));
 let sessionState: Map<string, WorkspaceSession> = readSessions();
 const statuses = (): Record<string, WorkspaceStatus> => Object.fromEntries(store.list().map((ws) => [ws.id, sessionState.get(ws.id)?.status ?? null]));
+const waiting = (): Record<string, WaitingOn> =>
+  Object.fromEntries(store.list().flatMap((ws) => (sessionState.get(ws.id)?.waiting ? [[ws.id, sessionState.get(ws.id)!.waiting!]] : [])));
 
 const REVIEW_POLL_MS = 5 * 60_000;
 const execFileAsync = promisify(execFile);
@@ -163,6 +165,7 @@ const control = new ControlHub({
   sessions,
   defaultCwd: config.defaultCwd,
   statuses,
+  waiting,
   reviews,
   prompts,
   prDetails,

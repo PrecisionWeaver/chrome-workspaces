@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ControlToClient, ControlToHelper, WorkspaceStatus } from '../../shared/protocol';
+import type { ControlToClient, ControlToHelper, WaitingOn, WorkspaceStatus } from '../../shared/protocol';
 import { installChrome } from './chrome-mock';
 import { makeWorkspace } from './fixtures';
 
@@ -26,8 +26,8 @@ async function boot(options: { fresh?: boolean } = {}) {
 }
 
 const settle = () => vi.advanceTimersByTimeAsync(0);
-const state = (workspaces: ReturnType<typeof makeWorkspace>[], statuses: Record<string, WorkspaceStatus> = {}) =>
-  handle({ type: 'state', workspaces, statuses, reviews: REVIEWS });
+const state = (workspaces: ReturnType<typeof makeWorkspace>[], statuses: Record<string, WorkspaceStatus> = {}, waiting: Record<string, WaitingOn> = {}) =>
+  handle({ type: 'state', workspaces, statuses, waiting, reviews: REVIEWS });
 const sentOfType = <T extends ControlToHelper['type']>(type: T) =>
   sent.filter((message): message is Extract<ControlToHelper, { type: T }> => message.type === type);
 
@@ -248,6 +248,20 @@ describe('notifications and the badge', () => {
 
     expect(fake.mock.notifications.create).toHaveBeenCalledWith('ws-ws-a', expect.objectContaining({ title: 'acme/app needs your input' }));
     expect(fake.mock.notifications.create).toHaveBeenCalledWith('ws-ws-b', expect.objectContaining({ title: 'acme/api finished' }));
+  });
+
+  it('says what a waiting workspace wants, so a permission prompt can be told from a question', async () => {
+    fake.storage.local.prefs = { notify: true };
+    await boot();
+    const list = [makeWorkspace({ id: 'ws-a', name: 'acme/app' })];
+    state(list, { 'ws-a': 'working' });
+    await settle();
+    state(list, { 'ws-a': 'needs_input' }, { 'ws-a': { type: 'permission_prompt', message: 'Claude needs your permission to use Bash' } });
+    await settle();
+    expect(fake.mock.notifications.create).toHaveBeenCalledWith(
+      'ws-ws-a',
+      expect.objectContaining({ title: 'acme/app needs your permission', message: 'Claude needs your permission to use Bash' }),
+    );
   });
 
   it('stays quiet when notifications are off, but still badges', async () => {

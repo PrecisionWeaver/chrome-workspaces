@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { attentionEvents, needsInputCount } from '../../shared/attention';
+import { attentionEvents, describeWaiting, needsInputCount } from '../../shared/attention';
 
 describe('needsInputCount', () => {
   it('counts only the workspaces asked about that are waiting', () => {
@@ -24,5 +24,26 @@ describe('attentionEvents', () => {
     expect(attentionEvents({ a: 'idle' }, { a: 'working' })).toEqual([]);
     expect(attentionEvents({ a: 'needs_input' }, { a: 'idle' })).toEqual([]);
     expect(attentionEvents({ a: null }, { a: 'idle' })).toEqual([]);
+  });
+});
+
+describe('describeWaiting', () => {
+  it("tells a permission prompt from a question, in claude's words when it gave any", () => {
+    expect(describeWaiting('acme/app', { type: 'permission_prompt', message: 'Claude needs your permission to use Bash' })).toEqual({
+      kind: 'permission',
+      title: 'acme/app needs your permission',
+      message: 'Claude needs your permission to use Bash',
+    });
+    expect(describeWaiting('acme/app', { type: 'idle_prompt', message: 'Claude is waiting for your input' })).toEqual({
+      kind: 'question',
+      title: 'acme/app needs your input',
+      message: 'Claude is waiting for your input',
+    });
+    expect(describeWaiting('acme/app', { type: 'elicitation_dialog', message: '' })).toEqual({
+      kind: 'question',
+      title: 'acme/app needs your input',
+      message: 'Claude is waiting for you.',
+    });
+    expect(describeWaiting('acme/app', undefined)).toEqual({ kind: 'question', title: 'acme/app needs your input', message: 'Claude is waiting for you.' });
   });
 });
