@@ -264,6 +264,7 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       render();
     });
     const memory = session.processes.reduce((sum, p) => sum + p.rssKb, 0);
+    const cpu = session.processes.reduce((sum, p) => sum + p.cpu, 0);
     const ports = session.processes.flatMap((p) => p.ports);
     const summary = el('span', '', 'session-summary');
     summary.append(el('span', session.name, 'session-name'));
@@ -280,7 +281,7 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       el(
         'span',
         running
-          ? `${session.processes.length} process${session.processes.length === 1 ? '' : 'es'} · ${formatKb(memory)}${ports.length ? ` · ${ports.map((p) => `:${p}`).join(' ')}` : ''}`
+          ? `${session.processes.length} process${session.processes.length === 1 ? '' : 'es'} · ${formatKb(memory)} · ${formatCpu(cpu)}${ports.length ? ` · ${ports.map((p) => `:${p}`).join(' ')}` : ''}`
           : 'not running',
         'session-detail',
       ),
