@@ -296,6 +296,7 @@ describe('the cards', () => {
         Process: 'pid 42',
         Uptime: '1h 1m',
         Memory: '50.0 MB',
+        CPU: '1.5%',
         Port: '4000',
         Node: 'v22.18.0',
         Version: 'abc1234',
@@ -722,7 +723,7 @@ describe('the cards', () => {
 
     it('lists running sessions first, with the count in the title', async () => {
       await open(makeSnapshot({ sessions: [stopped, running] }));
-      expect(card('Workspace sessions').querySelector('h3')!.textContent).toBe('Workspace sessions · 1 running · 2.0 MB');
+      expect(card('Workspace sessions').querySelector('h3')!.textContent).toBe('Workspace sessions · 1 running · 2.0 MB · 0.1%');
       expect(text('.session-name', card('Workspace sessions'))).toEqual(['acme/app', 'acme/api']);
       expect(text('.session-detail', card('Workspace sessions'))).toEqual(['1 process · 2.0 MB', 'not running']);
     });
@@ -750,10 +751,17 @@ describe('the cards', () => {
       expect(trends.querySelectorAll('.session-trend')[1]!.getAttribute('title')).toBe('CPU over the last 2m: 2.0% now, peak 2.0%');
     });
 
+    it('still renders when the helper does not report its own CPU yet', async () => {
+      const { cpu: _cpu, ...helper } = makeSnapshot().helper;
+      await open(makeSnapshot({ helper, sessions: [running] }));
+      expect(text('.memory-line:not(.memory-total) .v', card('Workspace sessions'))).toEqual(['50.0 MB · –']);
+      expect(text('.memory-total .v', card('Workspace sessions'))).toEqual(['52.0 MB · –']);
+    });
+
     it('totals the helper and every workspace', async () => {
       await open(makeSnapshot({ sessions: [running, { ...running, id: 'ws-c' }] }));
-      expect(text('.memory-line:not(.memory-total) .v', card('Workspace sessions'))).toEqual(['50.0 MB']);
-      expect(text('.memory-total .v', card('Workspace sessions'))).toEqual(['54.0 MB']);
+      expect(text('.memory-line:not(.memory-total) .v', card('Workspace sessions'))).toEqual(['50.0 MB · 1.5%']);
+      expect(text('.memory-total .v', card('Workspace sessions'))).toEqual(['54.0 MB · 1.7%']);
       expect(card('Workspace sessions').querySelector<HTMLElement>('.memory-total')!.title).toContain('Helper 50.0 MB + workspaces 4.0 MB');
     });
 
@@ -765,7 +773,7 @@ describe('the cards', () => {
     it('shows tokens and cost, once counted, with the total in the title', async () => {
       const tokens = { input: 1000, output: 500, cacheWrite: 500, cacheRead: 90_000, costUsd: 0.42, counting: false };
       await open(makeSnapshot({ sessions: [{ ...running, tokens }] }));
-      expect(card('Workspace sessions').querySelector('h3')!.textContent).toBe('Workspace sessions · 1 running · 2.0K tokens · 2.0 MB');
+      expect(card('Workspace sessions').querySelector('h3')!.textContent).toBe('Workspace sessions · 1 running · 2.0K tokens · 2.0 MB · 0.1%');
       expect(text('.session-tokens', card('Workspace sessions'))).toEqual(['2.0K tokens · ~$0.42']);
       expect(card('Workspace sessions').querySelector<HTMLElement>('.session-tokens')!.title).toContain('cache read 90,000');
     });
@@ -774,7 +782,7 @@ describe('the cards', () => {
       const tokens = { input: 1000, output: 0, cacheWrite: 0, cacheRead: 0, costUsd: 0, counting: true };
       await open(makeSnapshot({ sessions: [{ ...running, tokens }] }));
       expect(text('.session-tokens', card('Workspace sessions'))).toEqual(['counting tokens…']);
-      expect(card('Workspace sessions').querySelector('h3')!.textContent).toBe('Workspace sessions · 1 running · 2.0 MB');
+      expect(card('Workspace sessions').querySelector('h3')!.textContent).toBe('Workspace sessions · 1 running · 2.0 MB · 0.1%');
     });
 
     it('shows what claude is doing, and a missing directory', async () => {

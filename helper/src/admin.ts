@@ -270,6 +270,7 @@ export function createAdmin(options: AdminOptions): AdminService {
           pid: process.pid,
           uptimeSec: Math.round(process.uptime()),
           rssKb: Math.round(process.memoryUsage().rss / 1024),
+          cpu: procs.find((p) => p.pid === process.pid)?.cpu ?? 0,
           port: options.port,
           node: process.version,
           commit: options.commit,

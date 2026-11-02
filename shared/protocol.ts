@@ -170,6 +170,8 @@ export interface SystemSnapshot {
     pid: number;
     uptimeSec: number;
     rssKb: number;
+    /** Percent of one core, as `ps` reports it. Absent from a helper that predates it. */
+    cpu?: number;
     port: number;
     node: string;
     commit: string | null;
