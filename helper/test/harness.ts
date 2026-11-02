@@ -1,3 +1,4 @@
+import type { Template } from '../../shared/templates';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -41,6 +42,8 @@ export interface Harness {
   prompts: Prompt[];
   /** When set, reading prompts fails with this message. */
   promptsError: string | null;
+  teamTemplates: Template[];
+  templatesError: string | null;
   repoDirs: Record<string, string>;
   repos: Repo[];
   /** Where each workspace's claude reports working, by workspace id. */
@@ -91,6 +94,8 @@ export async function startHarness(): Promise<Harness> {
     reviewRefreshes: 0,
     prompts: [] as Prompt[],
     promptsError: null as string | null,
+    teamTemplates: [] as Template[],
+    templatesError: null as string | null,
     repoDirs: {} as Record<string, string>,
     repos: [] as Repo[],
     workingDirs: {} as Record<string, string>,
@@ -127,6 +132,10 @@ export async function startHarness(): Promise<Harness> {
     if (fakes.promptsError) throw new Error(fakes.promptsError);
     return fakes.prompts;
   };
+  const templates = () => {
+    if (fakes.templatesError) throw new Error(fakes.templatesError);
+    return fakes.teamTemplates;
+  };
   const statuses = () => fakes.statuses;
   const waiting = () => fakes.waiting;
   const admin = createAdmin({
@@ -144,6 +153,8 @@ export async function startHarness(): Promise<Harness> {
       repoDirs: {},
       watchRepos: [],
       claudeCommand: 'claude',
+      promptsFiles: [],
+      templatesFile: null,
       problems: fakes.configProblems,
     },
     paths: {
@@ -176,6 +187,7 @@ export async function startHarness(): Promise<Harness> {
     waiting,
     reviews,
     prompts,
+    templates,
     prDetails,
     prThreads: async (parts) => {
       fakes.prThreadRequests.push(`${parts.owner}/${parts.repo}#${parts.number}`);

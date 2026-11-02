@@ -288,6 +288,8 @@ export function createAdmin(options: AdminOptions): AdminService {
         config: {
           defaultCwd: config.defaultCwd,
           promptsFile: config.promptsFile,
+          promptsFiles: config.promptsFiles,
+          templatesFile: config.templatesFile,
           defaultModel: config.defaultModel,
           claudeCommand: config.claudeCommand,
           repoRoots: config.repoRoots,

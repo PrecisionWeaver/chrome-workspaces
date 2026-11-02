@@ -1,3 +1,4 @@
+import type { Template } from './templates';
 // Shared by the helper and the extension bundle — keep this free of Node imports.
 
 import type { GuardrailWarning } from './guardrails';
@@ -512,6 +513,8 @@ export type ControlToClient =
   | { type: 'browser'; id: string; at: number }
   /** Reply to `listPrompts`, sent only to the client that asked. */
   | { type: 'prompts'; prompts: Prompt[]; error: string | null }
+  /** The team's templates from `templatesFile`, read-only in the panel. */
+  | { type: 'templates'; templates: Template[]; error: string | null }
   /** Recently removed workspaces, newest first; sent on connect and whenever they change. */
   | { type: 'history'; entries: HistoryEntry[] }
   /** Reply to `checkUpdates`. */
@@ -593,6 +596,7 @@ export type ControlToHelper =
   /** Ends the workspace's terminal and starts it again on this earlier session. */
   | { type: 'resumeSession'; id: string; sessionId: string }
   | { type: 'listPrompts' }
+  | { type: 'listTemplates' }
   | { type: 'listRepos' }
   /** A snapshot of the helper, the workspaces' sessions and their processes. */
   | { type: 'system' }

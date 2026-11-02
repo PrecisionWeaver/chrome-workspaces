@@ -26,6 +26,8 @@ export interface CreateView {
   /** The review request being created a workspace for, if any. */
   readonly review: ReviewRequest | null;
   setPrompts(prompts: Prompt[], error: string | null): void;
+  /** The team's templates from the helper, listed read-only under their own heading. */
+  setTemplates(templates: Template[], error: string | null): void;
   setRepos(repos: Repo[]): void;
   setPrDetails(url: string, details: PrDetails | null, error: string | null): void;
   setPrThreads(message: Extract<ControlToClient, { type: 'prThreads' }>): void;
@@ -140,6 +142,7 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
   // ---- templates ----
 
   let templates: Template[] = [];
+  let teamTemplates: Template[] = [];
 
   async function loadTemplates(): Promise<void> {
     const { templates: stored } = await chrome.storage.local.get('templates');
@@ -150,9 +153,14 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
   function renderTemplates(selected = ''): void {
     const none = el('option', 'None');
     none.value = '';
-    templateSelect.replaceChildren(none, ...templates.map((t) => Object.assign(el('option', t.name), { value: t.id })));
+    const option = (t: Template) => Object.assign(el('option', t.name), { value: t.id });
+    const team = el('optgroup') as HTMLOptGroupElement;
+    team.label = 'Team';
+    team.append(...teamTemplates.map(option));
+    templateSelect.replaceChildren(none, ...templates.map(option), ...(teamTemplates.length ? [team] : []));
     templateSelect.value = selected;
-    templateDelete.hidden = !selected;
+    // A team template lives in its file, not here, so there is nothing to delete.
+    templateDelete.hidden = !selected || selected.startsWith('team:');
   }
 
   /** Fills the form from a template; the name is left alone, since each workspace has its own. */
@@ -174,8 +182,8 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
   }
 
   templateSelect.addEventListener('change', () => {
-    const chosen = templates.find((t) => t.id === templateSelect.value);
-    templateDelete.hidden = !chosen;
+    const chosen = [...templates, ...teamTemplates].find((t) => t.id === templateSelect.value);
+    templateDelete.hidden = !chosen || chosen.id.startsWith('team:');
     if (chosen) applyTemplate(chosen);
   });
 
@@ -273,6 +281,7 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
     thisWindow.title = workspace ? 'Joins this window as a tab group' : '';
 
     send({ type: 'listPrompts' });
+    send({ type: 'listTemplates' });
     send({ type: 'listRepos' });
     // Tabs belong to one ticket, so unlike the repo and model they start empty every time, bar a review's PR.
     tabsInput.value = request?.url ?? '';
@@ -450,6 +459,11 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
       errorEl.hidden = error === null;
       errorEl.textContent = error ? `Could not read prompts: ${error}` : '';
       renderPrompts();
+    },
+    setTemplates(next, error) {
+      teamTemplates = next;
+      templateBox.title = error ? `Team templates: ${error}` : '';
+      renderTemplates(templateSelect.value);
     },
     setRepos(next) {
       repos = next;

@@ -63,9 +63,9 @@ describe('opening and closing', () => {
     expect($('create-github').hidden).toBe(true);
   });
 
-  it('asks the helper for prompts and repos each time it opens', async () => {
+  it('asks the helper for prompts, team templates and repos each time it opens', async () => {
     await open();
-    expect(sent).toEqual([{ type: 'listPrompts' }, { type: 'listRepos' }]);
+    expect(sent).toEqual([{ type: 'listPrompts' }, { type: 'listTemplates' }, { type: 'listRepos' }]);
   });
 
   it('closes from the X button or Escape, but only when open, and tells the panel once', async () => {
@@ -592,7 +592,16 @@ describe('creating', () => {
 });
 
 describe('templates', () => {
-  const template = { id: 't1', name: 'Web', repo: '/Users/me/web', model: 'sonnet', tabs: 'https://example.com/', message: 'Start here', window: 'here' };
+  const template = {
+    id: 't1',
+    name: 'Web',
+    repo: '/Users/me/web',
+    model: 'sonnet',
+    tabs: 'https://example.com/',
+    message: 'Start here',
+    window: 'here' as const,
+    worktree: false,
+  };
 
   it('lists the saved templates, with None first, hiding the box for a review', async () => {
     fake.storage.local.templates = [template];
@@ -649,6 +658,25 @@ describe('templates', () => {
     expect($('template-name-row').hidden).toBe(true);
     expect($<HTMLSelectElement>('create-template').selectedOptions[0]?.textContent).toBe('Mine');
     expect($('template-delete').hidden).toBe(false);
+  });
+
+  it("lists the team's templates under their own heading, applies one, and never offers to delete it", async () => {
+    fake.storage.local.templates = [template];
+    await open();
+    expect(sentOfType('listTemplates')).toHaveLength(1);
+    view.setTemplates([{ ...template, id: 'team:0', name: 'Team review', repo: '/Users/me/team', worktree: true }], null);
+    view.setRepos([{ name: 'team', path: '/Users/me/team', root: '/Users/me' }]);
+    const select = $<HTMLSelectElement>('create-template');
+    expect([...select.options].map((option) => option.textContent)).toEqual(['None', 'Web', 'Team review']);
+    expect(select.querySelector('optgroup')!.label).toBe('Team');
+    type('create-template', 'team:0');
+    select.dispatchEvent(new Event('change'));
+    expect($<HTMLSelectElement>('create-repo').value).toBe('/Users/me/team');
+    expect(($('create-worktree') as HTMLInputElement).checked).toBe(true);
+    expect($('template-delete').hidden).toBe(true);
+    view.setTemplates([], 'cannot read /team/templates.json');
+    expect([...select.options].map((option) => option.textContent)).toEqual(['None', 'Web']);
+    expect($('create-templates').title).toContain('cannot read');
   });
 
   it('keeps whether a template starts in a worktree', async () => {

@@ -5,6 +5,7 @@ import type { ControlToClient, ControlToHelper, PastSession, Prompt, Repo, Revie
 import { isDirectory } from './config';
 import { isControlToHelper } from './control-messages';
 import type { AdminService } from './admin';
+import type { Template } from '../../shared/templates';
 import { asPaste } from './paste';
 import type { GitService } from './git';
 import type { HistoryStore } from './history';
@@ -28,6 +29,8 @@ export interface ControlHubOptions {
   reviews: ReviewSource;
   /** Throws when the prompts file cannot be read. */
   prompts: () => Prompt[];
+  /** The team's templates; throws when their file cannot be read. */
+  templates: () => Template[];
   /** Raw `gh pr view` JSON for a PR url. */
   prDetails: (url: string) => Promise<string>;
   /** Raw GraphQL JSON of a pull request's review threads. */
@@ -114,6 +117,14 @@ export class ControlHub {
   private state(): ControlToClient {
     const { store, statuses, waiting, reviews } = this.options;
     return { type: 'state', workspaces: store.list(), statuses: statuses(), waiting: waiting(), reviews: reviews.state() };
+  }
+
+  private templates(): ControlToClient {
+    try {
+      return { type: 'templates', templates: this.options.templates(), error: null };
+    } catch (error) {
+      return { type: 'templates', templates: [], error: error instanceof Error ? error.message : String(error) };
+    }
   }
 
   private prompts(): ControlToClient {
@@ -220,6 +231,9 @@ export class ControlHub {
         break;
       case 'listPrompts':
         this.sendTo(ws, this.prompts());
+        break;
+      case 'listTemplates':
+        this.sendTo(ws, this.templates());
         break;
       case 'system':
         this.options.admin.snapshot({ reviews: this.options.reviews.state(), clients: this.clients.size }).then(

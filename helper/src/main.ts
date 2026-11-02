@@ -25,7 +25,8 @@ import {
 import { writeHooksFile } from './hooks-config';
 import { readPlanUsage } from './plan-usage';
 import { GH_BRANCH_PR, GH_PR_CREATE, GH_PR_DETAILS, GH_PR_THREADS, PR_THREADS_QUERY } from './pr-details';
-import { readPrompts } from './prompts';
+import { readAllPrompts } from './prompts';
+import { readTemplatesFile } from './templates-file';
 import { createGitService } from './git';
 import { HistoryStore } from './history';
 import { listRepos } from './repos';
@@ -96,7 +97,8 @@ const reviews = new ReviewsPoller(() => Promise.all(reviewSearches.map(gh)), ghM
   // PRs you reviewed no longer match a review request, so they are looked for in the repos you have configured.
   fetchReviewed: async () => (ownRepos.length ? [await gh(ghReviewedPrs(ownRepos))] : []),
 });
-const prompts = () => readPrompts(config.promptsFile);
+const prompts = () => readAllPrompts([config.promptsFile, ...config.promptsFiles]);
+const templates = () => readTemplatesFile(config.templatesFile);
 const prDetails = async (url: string) =>
   (await execFileAsync(shell, ['-l', '-c', GH_PR_DETAILS], { env: { ...process.env, CW_PR_URL: url }, timeout: 30_000, maxBuffer: 4 * 1024 * 1024 })).stdout;
 
@@ -192,6 +194,7 @@ const control = new ControlHub({
   waiting,
   reviews,
   prompts,
+  templates,
   prDetails,
   prThreads,
   branchPr,

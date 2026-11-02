@@ -127,6 +127,7 @@ export function isControlToHelper(value: unknown): value is ControlToHelper {
     case 'gitSwitch':
       return typeof m.id === 'string' && typeof m.branch === 'string' && m.branch.length > 0 && m.branch.length <= 255;
     case 'listPrompts':
+    case 'listTemplates':
     case 'listRepos':
     case 'refreshReviews':
       return true;
