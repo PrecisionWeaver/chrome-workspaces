@@ -306,19 +306,22 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
     }
     if (open) {
       const shown = activityOpen.has(session.id);
-      const toggle = plain(
-        shown ? 'Hide activity' : 'Show activity',
-        () => {
-          if (shown) activityOpen.delete(session.id);
-          else {
-            activityOpen.add(session.id);
-            send({ type: 'timeline', id: session.id });
-          }
-          render();
-        },
-        "What this session's claude has recently done",
-      );
-      wrapper.append(actions(toggle));
+      // A quiet toggle in line with the process list and activity box it belongs to, not a button of its own.
+      const link = el('button', '', 'session-link');
+      link.type = 'button';
+      link.title = "What this session's claude has recently done";
+      link.setAttribute('aria-expanded', String(shown));
+      link.append(caret(shown), shown ? 'Hide activity' : 'Show activity');
+      link.addEventListener('click', () => {
+        if (shown) activityOpen.delete(session.id);
+        else {
+          activityOpen.add(session.id);
+          send({ type: 'timeline', id: session.id });
+        }
+        render();
+      });
+      wrapper.append(el('div', '', 'session-actions'));
+      wrapper.lastElementChild!.append(link);
       if (shown) wrapper.append(activityList(session));
     }
     return wrapper;
