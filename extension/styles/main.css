@@ -42,6 +42,30 @@
   padding: 4px;
 }
 
+#term-search {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px;
+  background: var(--raised);
+  border-bottom: 1px solid var(--border);
+}
+
+#term-search input {
+  flex: 1;
+  min-width: 0;
+  padding: 3px 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 12px;
+  outline: none;
+}
+
+#term-search input:focus {
+  border-color: var(--accent);
+}
+
 #picker {
   padding: 20px;
 }

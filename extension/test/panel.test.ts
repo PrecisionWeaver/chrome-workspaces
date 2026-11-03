@@ -11,7 +11,7 @@ const terms: FakeTerminal[] = [];
 class FakeTerminal {
   cols = 80;
   rows = 24;
-  options: { theme?: { background?: string } } = {};
+  options: { theme?: { background?: string }; fontSize?: number } = {};
   written: string[] = [];
   pasted: string[] = [];
   resets = 0;
@@ -42,6 +42,25 @@ class FakeTerminal {
   }
 }
 vi.mock('@xterm/xterm', () => ({ Terminal: FakeTerminal }));
+/** Link clicks and searches go to stand-ins that record what they were asked. */
+const linkHandlers: ((event: MouseEvent, uri: string) => void)[] = [];
+vi.mock('@xterm/addon-web-links', () => ({
+  WebLinksAddon: class {
+    constructor(handler: (event: MouseEvent, uri: string) => void) {
+      linkHandlers.push(handler);
+    }
+  },
+}));
+class FakeSearch {
+  static instances: FakeSearch[] = [];
+  findNext = vi.fn(() => true);
+  findPrevious = vi.fn(() => true);
+  clearDecorations = vi.fn();
+  constructor() {
+    FakeSearch.instances.push(this);
+  }
+}
+vi.mock('@xterm/addon-search', () => ({ SearchAddon: FakeSearch }));
 vi.mock('@xterm/addon-fit', () => ({
   FitAddon: class {
     fit() {}
@@ -967,6 +986,50 @@ describe('the terminal', () => {
   });
 });
 
+describe('links and search in the terminal', () => {
+  const press = (init: KeyboardEventInit, target: EventTarget = document) =>
+    target.dispatchEvent(new KeyboardEvent('keydown', { cancelable: true, bubbles: true, ...init }));
+  const input = () => $<HTMLInputElement>('term-search-input');
+  const key = (init: KeyboardEventInit & { key: string }) => new KeyboardEvent('keydown', init);
+
+  it('opens a link clicked in the terminal in a new tab', async () => {
+    await boot();
+    linkHandlers.at(-1)!(new MouseEvent('click'), 'https://example.com/x');
+    expect(fake.mock.tabs.create).toHaveBeenCalledWith({ url: 'https://example.com/x' });
+  });
+
+  it('finds in the terminal from ⌘F: Enter for the next match, Shift+Enter for the previous, Escape to close', async () => {
+    await boot();
+    expect($('term-search').hidden).toBe(true);
+    expect(term().keyHandler!(key({ key: 'f', metaKey: true }))).toBe(false);
+    // The box belongs to the terminal, so it only opens while one is showing.
+    press({ key: 'f', metaKey: true });
+    expect($('term-search').hidden).toBe(true);
+    $('terminal').hidden = false;
+    press({ key: 'f', metaKey: true });
+    expect($('term-search').hidden).toBe(false);
+    expect(document.activeElement).toBe(input());
+    // Each boot makes its own; the latest is this test's.
+    const search = FakeSearch.instances.at(-1)!;
+    input().value = 'error';
+    input().dispatchEvent(new Event('input'));
+    expect(search.findNext).toHaveBeenLastCalledWith('error', expect.objectContaining({ incremental: true }));
+    press({ key: 'Enter' }, input());
+    expect(search.findNext).toHaveBeenLastCalledWith('error', expect.objectContaining({ incremental: false }));
+    press({ key: 'Enter', shiftKey: true }, input());
+    expect(search.findPrevious).toHaveBeenCalledWith('error', expect.anything());
+    press({ key: 'Escape' }, input());
+    expect($('term-search').hidden).toBe(true);
+    expect(search.clearDecorations).toHaveBeenCalled();
+    // A second ⌘F with the box open just refocuses it; the palette's key is untouched.
+    press({ key: 'f', metaKey: true });
+    press({ key: 'f', metaKey: true });
+    expect($('term-search').hidden).toBe(false);
+    $('term-search-close').click();
+    expect($('term-search').hidden).toBe(true);
+  });
+});
+
 describe('the command palette', () => {
   const press = (init: KeyboardEventInit) => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', cancelable: true, ...init }));
   const labels = () =>
@@ -1240,6 +1303,14 @@ describe('connection', () => {
 });
 
 describe('appearance', () => {
+  it('applies the saved font size to both terminals', async () => {
+    fake.storage.local.prefs = { fontSize: 14 };
+    await boot();
+    expect(terms.map((t) => t.options.fontSize)).toEqual([14, 14]);
+    fake.events.storage.onChanged.emit({ prefs: { newValue: { fontSize: 16 } } }, 'local');
+    expect(terms.map((t) => t.options.fontSize)).toEqual([16, 16]);
+  });
+
   it('applies the saved theme and density to the page and the terminal', async () => {
     fake.storage.local.prefs = { theme: 'light', density: 'compact' };
     await boot();

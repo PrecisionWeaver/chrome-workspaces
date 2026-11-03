@@ -1,5 +1,7 @@
 import { waitingKind } from '../../shared/attention';
 import { FitAddon } from '@xterm/addon-fit';
+import { SearchAddon } from '@xterm/addon-search';
+import { WebLinksAddon } from '@xterm/addon-web-links';
 import { Terminal } from '@xterm/xterm';
 import { similarity } from '../../shared/pairing';
 import type { ClientMessage, HistoryEntry, ReviewRequest, ReviewsState, ServerMessage, WaitingOn, Workspace, WorkspaceStatus } from '../../shared/protocol';
@@ -12,6 +14,7 @@ import { createGitView } from './git-view';
 import { resolveTheme } from '../../shared/keynav';
 import { ticketUrl } from '../../shared/jira';
 import { loadPrefs, onPrefsChange, type Prefs } from './prefs';
+import { createTerminalSearch } from './terminal-search';
 import { createPalette, type PaletteItem } from './palette';
 import { createToolView } from './tool-view';
 import { createSettingsView } from './settings-view';
@@ -35,7 +38,12 @@ const terminalEl = $<HTMLDivElement>('terminal');
 const term = new Terminal({ fontFamily: 'Menlo, monospace', fontSize: 12, cursorBlink: true, theme: { background: '#1e1e1e' } });
 const fit = new FitAddon();
 term.loadAddon(fit);
+// A side panel cannot window.open, so links go to a tab of their own.
+term.loadAddon(new WebLinksAddon((_event, uri) => void chrome.tabs.create({ url: uri })));
+const search = new SearchAddon();
+term.loadAddon(search);
 term.open(terminalEl);
+const finder = createTerminalSearch(search, () => term.focus());
 
 const systemDark = window.matchMedia('(prefers-color-scheme: dark)');
 let appearance: Prefs | null = null;
@@ -49,6 +57,11 @@ function applyAppearance(prefs: Prefs | null = appearance): void {
   document.documentElement.dataset.density = prefs.density;
   term.options.theme = terminalTheme(theme);
   tools.setTheme(terminalTheme(theme));
+  if (term.options.fontSize !== prefs.fontSize) {
+    term.options.fontSize = prefs.fontSize;
+    fitTerminal();
+  }
+  tools.setFontSize(prefs.fontSize);
 }
 void loadPrefs().then(applyAppearance);
 onPrefsChange(applyAppearance);
@@ -465,6 +478,8 @@ term.attachCustomKeyEventHandler((event) => {
   // same keypress then reaches the page-level handler below, which opens the palette. Opening it here as
   // well would open and immediately close it, so this only declines the key.
   if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'k') return false;
+  // ⌘F / Ctrl+F likewise belongs to the find box.
+  if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'f') return false;
   if (event.key !== 'Enter' || !event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) return true;
   if (event.type === 'keydown') sendToSession({ type: 'input', data: '\x1b\r' });
   return false;
@@ -557,6 +572,10 @@ document.addEventListener('keydown', (event) => {
     event.preventDefault();
     if (palette.isOpen) palette.close();
     else palette.open();
+  }
+  if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'f' && !terminalEl.hidden) {
+    event.preventDefault();
+    finder.open();
   }
 });
 
