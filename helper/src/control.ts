@@ -133,33 +133,9 @@ export class ControlHub {
       case 'tabs':
         store.setTabs(message.windowId, message.urls, message.groupId ?? null);
         break;
-      case 'create': {
-        const existing = message.pr ? store.findByPr(message.pr) : undefined;
-        if (existing) {
-          this.send({ type: 'focus', id: existing.id });
-          break;
-        }
-        const { defaultCwd, repoDirs, reviews } = this.options;
-        const chosen = message.cwd && isAbsolute(message.cwd) && isDirectory(message.cwd) ? message.cwd : null;
-        // A PR workspace starts in its repo's configured directory unless one was picked.
-        const base = message.pr ? prWorkspace(message.pr, { reviews: reviews.state().items, repoDirs, defaultCwd }) : { cwd: defaultCwd };
-        if (chosen) base.cwd = chosen;
-        const workspace = store.create({
-          ...base,
-          name: message.name.trim(),
-          prompt: message.prompt?.trim() || null,
-          model: message.model ?? null,
-          color: message.color ?? null,
-          tabs: message.urls ?? [],
-        });
-        if (message.windowId === null) this.send({ type: 'open', id: workspace.id });
-        else {
-          store.pairWindow(workspace.id, message.windowId);
-          // A workspace joining a window another one holds gets its own tab group there.
-          if (message.group) this.send({ type: 'group', id: workspace.id });
-        }
+      case 'create':
+        void this.create(message, ws);
         break;
-      }
       case 'rename':
         if (store.get(message.id)) store.rename(message.id, message.name.trim());
         break;
@@ -331,6 +307,42 @@ export class ControlHub {
    * Where to run git for a workspace: the directory its claude reports, when that is another worktree
    * of the same repository (claude moves into worktrees on its own), else the workspace's own.
    */
+  private async create(message: Extract<ControlToHelper, { type: 'create' }>, ws: WebSocket): Promise<void> {
+    const { store, defaultCwd, repoDirs, reviews, git } = this.options;
+    const existing = message.pr ? store.findByPr(message.pr) : undefined;
+    if (existing) {
+      this.send({ type: 'focus', id: existing.id });
+      return;
+    }
+    const chosen = message.cwd && isAbsolute(message.cwd) && isDirectory(message.cwd) ? message.cwd : null;
+    // A PR workspace starts in its repo's configured directory unless one was picked.
+    const base = message.pr ? prWorkspace(message.pr, { reviews: reviews.state().items, repoDirs, defaultCwd }) : { cwd: defaultCwd };
+    if (chosen) base.cwd = chosen;
+    if (message.worktree) {
+      try {
+        base.cwd = await git.addWorktree(base.cwd, message.worktree);
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+        this.sendTo(ws, { type: 'createError', name: message.name.trim(), message: `Could not make a worktree for ${message.worktree}: ${reason}` });
+        return;
+      }
+    }
+    const workspace = store.create({
+      ...base,
+      name: message.name.trim(),
+      prompt: message.prompt?.trim() || null,
+      model: message.model ?? null,
+      color: message.color ?? null,
+      tabs: message.urls ?? [],
+    });
+    if (message.windowId === null) this.send({ type: 'open', id: workspace.id });
+    else {
+      store.pairWindow(workspace.id, message.windowId);
+      // A workspace joining a window another one holds gets its own tab group there.
+      if (message.group) this.send({ type: 'group', id: workspace.id });
+    }
+  }
+
   private async gitDirectory(workspace: Workspace): Promise<string> {
     const reported = this.options.workingDir(workspace.id);
     if (!reported || reported === workspace.cwd || !isAbsolute(reported) || !isDirectory(reported)) return workspace.cwd;

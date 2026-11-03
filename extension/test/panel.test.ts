@@ -178,6 +178,13 @@ describe('the list', () => {
     expect(rows()[1]!.title).toContain('Claude is waiting for your input');
   });
 
+  it('shows why a workspace could not be created', async () => {
+    await boot();
+    onControlMessage({ type: 'createError', name: 'PROJ-1', message: 'Could not make a worktree for PROJ-1: not a git repository' });
+    expect($('notice').hidden).toBe(false);
+    expect($('notice').textContent).toBe('Could not make a worktree for PROJ-1: not a git repository');
+  });
+
   it('says how many are waiting in the title', async () => {
     await boot();
     state([ws('a'), ws('b')], { a: 'needs_input', b: 'needs_input' });

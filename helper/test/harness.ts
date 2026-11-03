@@ -1,4 +1,5 @@
-import { mkdtempSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import WebSocket from 'ws';
@@ -157,6 +158,7 @@ export async function startHarness(): Promise<Harness> {
     spawnDetached: (command) => fakes.spawned.push(command),
     isManaged: async () => fakes.managed,
   });
+  const git = createGitService();
   const control = new ControlHub({
     store,
     sessions,
@@ -177,7 +179,7 @@ export async function startHarness(): Promise<Harness> {
     },
     repoDirs: fakes.repoDirs,
     repos: () => fakes.repos,
-    git: createGitService(),
+    git,
     admin,
     history: new HistoryStore(join(dir, 'history.json')),
     resumeId: (id) => fakes.resumeIds[id] ?? null,
@@ -191,7 +193,7 @@ export async function startHarness(): Promise<Harness> {
     auth,
     sessions,
     control,
-    api: createApi({ auth, store, control, sessions, defaultCwd, statuses, reviews, repoDirs: fakes.repoDirs }),
+    api: createApi({ auth, store, control, sessions, defaultCwd, statuses, reviews, repoDirs: fakes.repoDirs, git }),
   });
   return Object.assign(fakes, {
     server,
@@ -217,4 +219,18 @@ export function connectControl(h: Harness): { ws: WebSocket; messages: ControlTo
 
 export function opened(ws: WebSocket): Promise<void> {
   return new Promise((resolve) => ws.on('open', () => resolve()));
+}
+
+/** A small git repository with two commits on `main`, for tests that need a real one. */
+export function gitRepo(): string {
+  const dir = mkdtempSync(join(tmpdir(), 'cw-repo-'));
+  const git = (...args: string[]) =>
+    execFileSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.com', '-c', 'commit.gpgsign=false', ...args], { cwd: dir, encoding: 'utf8' });
+  git('init', '-q', '-b', 'main');
+  writeFileSync(join(dir, 'a.txt'), 'one\n');
+  git('add', '.');
+  git('commit', '-q', '-m', 'first');
+  writeFileSync(join(dir, 'a.txt'), 'one\ntwo\n');
+  git('commit', '-qam', 'second');
+  return dir;
 }

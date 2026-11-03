@@ -511,6 +511,8 @@ export type ControlToClient =
   | { type: 'activity'; id: string; items: ActivityItem[]; error: string | null }
   /** Reply to `sendText`. */
   | { type: 'sent'; id: string; ok: boolean; message: string }
+  /** A `create` that made no workspace, and why; sent to the context that asked. */
+  | { type: 'createError'; name: string; message: string }
   /** Reply to `system`, to the client that asked. */
   | { type: 'system'; snapshot: SystemSnapshot | null; error: string | null }
   | { type: 'adminResult'; action: string; ok: boolean; message: string }
@@ -553,6 +555,8 @@ export type ControlToHelper =
       color?: WorkspaceColor;
       group?: boolean;
       urls?: string[];
+      /** Start in a new git worktree of `cwd` on this branch (made if it does not exist), under the repo's `.claude/worktrees/`. */
+      worktree?: string;
     }
   /** Archives a workspace; with `closeTabs` its tab group (or window, when it has no group) closes too. */
   | { type: 'remove'; id: string; closeTabs?: boolean }

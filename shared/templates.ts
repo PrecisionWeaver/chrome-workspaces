@@ -10,6 +10,8 @@ export interface Template {
   /** The first message, or '' to start blank. */
   message: string;
   window: 'new' | 'here';
+  /** Start in a new worktree of the repo, named for the workspace. */
+  worktree: boolean;
 }
 
 export const MAX_TEMPLATES = 30;
@@ -34,6 +36,7 @@ export function parseTemplates(stored: unknown): Template[] {
       tabs: str(t.tabs, 8000),
       message: str(t.message, 8000),
       window: t.window === 'here' ? 'here' : 'new',
+      worktree: t.worktree === true,
     });
   }
   return result.slice(0, MAX_TEMPLATES);

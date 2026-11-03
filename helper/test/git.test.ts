@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -241,5 +241,35 @@ describe('git service writes', () => {
     git(dir, 'add', '.');
     git(dir, 'commit', '-qm', 'init');
     await expect(service.compare(dir)).rejects.toThrow('no main branch');
+  });
+});
+
+describe('addWorktree', () => {
+  it('makes a worktree on a new branch under .claude/worktrees, kept out of status, and reuses a branch that exists', async () => {
+    const dir = repo();
+    const service = createGitService();
+    const path = await service.addWorktree(dir, 'PROJ-7');
+    // macOS resolves the temp dir through /private.
+    expect(path).toBe(realpathSync(join(dir, '.claude', 'worktrees', 'PROJ-7')));
+    expect(git(path, 'branch', '--show-current').trim()).toBe('PROJ-7');
+    expect(readFileSync(join(path, 'a.txt'), 'utf8')).toBe('one\ntwo\n');
+    // The folder is excluded, so the main tree's status stays clean.
+    expect(git(dir, 'status', '--porcelain')).toBe('');
+    const state = await service.state(path);
+    expect(state.worktree).toBe('PROJ-7');
+
+    git(dir, 'branch', 'feat/old', 'HEAD~1');
+    const old = await service.addWorktree(path, 'feat/old');
+    expect(old).toBe(realpathSync(join(dir, '.claude', 'worktrees', 'feat-old')));
+    expect(readFileSync(join(old, 'a.txt'), 'utf8')).toBe('one\n');
+  });
+
+  it('refuses a bad branch name, a folder that exists, and a directory outside any repository', async () => {
+    const dir = repo();
+    const service = createGitService();
+    await expect(service.addWorktree(dir, 'bad..name')).rejects.toThrow();
+    await service.addWorktree(dir, 'twice');
+    await expect(service.addWorktree(dir, 'twice')).rejects.toThrow(/already exists/);
+    await expect(service.addWorktree(mkdtempSync(join(tmpdir(), 'cw-plain-')), 'x')).rejects.toThrow();
   });
 });
