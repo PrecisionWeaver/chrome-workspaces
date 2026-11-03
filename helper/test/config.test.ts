@@ -15,6 +15,7 @@ describe('parseConfig', () => {
       claudeCommand: 'claude',
       promptsFiles: [],
       templatesFile: null,
+      claudeArgs: [],
       defaultModel: null,
       problems: [],
     });
@@ -49,6 +50,18 @@ describe('parseConfig', () => {
       templatesFile: null,
       problems: ['templatesFile must be a string.', 'promptsFiles must be a list.'],
     });
+  });
+
+  it('keeps claude arguments that are plain words, expands ~ in them, and drops anything shell-like', () => {
+    const config = parse({ claudeArgs: ['--permission-mode', 'acceptEdits', '--add-dir', '~/shared', 'bad arg', '$(boom)', "it's", 7] });
+    expect(config.claudeArgs).toEqual(['--permission-mode', 'acceptEdits', '--add-dir', join(homedir(), 'shared')]);
+    expect(config.problems).toEqual([
+      'claudeArgs entry "bad arg" is ignored.',
+      'claudeArgs entry "$(boom)" is ignored.',
+      'claudeArgs entry "it\'s" is ignored.',
+      'claudeArgs entry 7 is ignored.',
+    ]);
+    expect(parse({ claudeArgs: '--verbose' })).toMatchObject({ claudeArgs: [], problems: ['claudeArgs must be a list.'] });
   });
 
   it('drops repo names that are not plain owner/name, since they reach a gh command line', () => {

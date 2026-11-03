@@ -253,7 +253,15 @@ const server = await startServer({
     resumeOverride.delete(id);
     // Resuming starts where claude was, which may be a worktree it moved into; a new conversation starts in the workspace's directory.
     const cwd = resumeId ? launchDirectory(workspace.cwd, workingDir(id)) : undefined;
-    const spec = launchSpec(workspace, { shell, resumeId, cwd, defaultModel: config.defaultModel, command: config.claudeCommand, hooksFile });
+    const spec = launchSpec(workspace, {
+      shell,
+      resumeId,
+      cwd,
+      defaultModel: config.defaultModel,
+      command: config.claudeCommand,
+      args: config.claudeArgs,
+      hooksFile,
+    });
     const session = sessions.create(spec);
     console.log(`started ${workspace.name} in ${spec.cwd}${spec.args.join(' ').includes('--resume') ? ', resuming its conversation' : ''}`);
     if (spec.env?.CW_PROMPT !== undefined) store.clearPrompt(id);

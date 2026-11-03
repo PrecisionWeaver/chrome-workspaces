@@ -155,6 +155,7 @@ export async function startHarness(): Promise<Harness> {
       claudeCommand: 'claude',
       promptsFiles: [],
       templatesFile: null,
+      claudeArgs: [],
       problems: fakes.configProblems,
     },
     paths: {
