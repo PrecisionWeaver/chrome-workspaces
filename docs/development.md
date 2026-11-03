@@ -18,7 +18,7 @@ Run `format`, `check`, `typecheck`, `test:coverage` and `build:extension` before
 
 ## Workflow
 
-- Work on a feature branch (`feat/...`, `fix/...`, `chore/...`), open a pull request, and merge it on GitHub once CI passes. Do not commit on `main`. Release branches are the exception: [releasing.md](releasing.md) fast-forwards them.
+- Work on a feature branch (`feat/...`, `fix/...`, `chore/...`), open a pull request, and merge it on GitHub once CI passes. Do not commit on `main`, and do not push to it: it takes changes only through a merged pull request, release commits included ([releasing.md](releasing.md)).
 - Commit when asked; push and merge when asked. Delete merged branches once the user agrees.
 - `.github/workflows/ci.yml` runs the Biome check, typecheck, tests with coverage and the build on every pull request and every branch push except `main`; `release.yml` runs the same checks on `main`.
 - To release, see [releasing.md](releasing.md).

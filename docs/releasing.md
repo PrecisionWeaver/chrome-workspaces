@@ -9,14 +9,23 @@ git checkout main && git pull
 npm run release -- patch      # or minor / major
 ```
 
-`scripts/release.ts` requires a clean `main` in sync with origin, runs the format check, typecheck, tests and the build, creates `release/vX.Y.Z`, bumps `version` in `package.json` and `extension/manifest.json` together, makes one commit, and rebuilds so `extension/dist` carries the new version (reload the unpacked extension to see it). Then:
+`scripts/release.ts` requires a clean `main` in sync with origin, runs the format check, typecheck, tests and the build, creates `release/vX.Y.Z`, bumps `version` in `package.json` and `extension/manifest.json` together, makes one commit, and rebuilds so `extension/dist` carries the new version (reload the unpacked extension to see it). Then the release commit goes to `main` like any other change, as a pull request:
 
 ```bash
-git checkout main && git merge --ff-only release/vX.Y.Z && git push
-git branch -d release/vX.Y.Z
+git push -u origin release/vX.Y.Z
+gh pr create --base main --title "release: vX.Y.Z" --fill
 ```
 
-Pushing to `main` triggers `.github/workflows/release.yml`. If `package.json`'s version has no tag, it installs, checks (format, types, tests), builds, zips `extension/dist`, and runs `gh release create vX.Y.Z --generate-notes` with the zip attached. A push whose version is already tagged does nothing, so ordinary commits never publish.
+Merge it on GitHub once CI passes (squash, like the rest), then update and tidy up:
+
+```bash
+git checkout main && git pull
+git branch -D release/vX.Y.Z    # a squash merge leaves the branch looking unmerged, so -d refuses it
+```
+
+`main` takes no direct pushes and no local merges, so the old fast-forward (`git merge --ff-only release/vX.Y.Z && git push`) is not available; the pull request is the only way in.
+
+Merging to `main` triggers `.github/workflows/release.yml`. If `package.json`'s version has no tag, it installs, checks (format, types, tests), builds, zips `extension/dist`, and runs `gh release create vX.Y.Z --generate-notes` with the zip attached. A push whose version is already tagged does nothing, so ordinary commits never publish.
 
 ## Choosing the bump
 

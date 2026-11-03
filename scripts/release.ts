@@ -45,5 +45,5 @@ step('git', ['commit', '-am', `release: v${version}`]);
 step('npm', ['run', 'build:extension']);
 
 console.log(
-  `\nv${current} -> v${version} on ${branch}. Next:\n  git checkout main && git merge --ff-only ${branch} && git push\nCI then tags v${version} and publishes the release.`,
+  `\nv${current} -> v${version} on ${branch}. Next:\n  git push -u origin ${branch} && gh pr create --base main --title "release: v${version}" --fill\nMerge that pull request once CI passes; merging to main then tags v${version} and publishes the release.`,
 );
