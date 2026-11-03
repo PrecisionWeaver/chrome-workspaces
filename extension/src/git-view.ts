@@ -208,6 +208,32 @@ export function createGitView({ send, onToggle, status, waiting, archive }: GitV
     onToggle();
   }
 
+  // The card listing every ref of the commit under the pointer; at most one, and gone when the list is redrawn.
+  let refCard: HTMLElement | null = null;
+
+  function hideRefCard(): void {
+    refCard?.remove();
+    refCard = null;
+  }
+
+  function showRefCard(anchor: HTMLElement, refs: readonly string[]): void {
+    hideRefCard();
+    const card = el('div', '', 'ref-card');
+    for (const ref of refs) {
+      const tone = ref.startsWith('HEAD') ? ' head' : ref.startsWith('tag:') ? ' tag' : '';
+      card.append(el('span', ref.replace('HEAD -> ', ''), `git-ref${tone}`));
+    }
+    document.body.append(card);
+    const box = anchor.getBoundingClientRect();
+    const left = Math.max(4, Math.min(box.left, window.innerWidth - card.offsetWidth - 4));
+    // Below the chips, or above them when there is no room.
+    const below = box.bottom + 4;
+    const top = below + card.offsetHeight > window.innerHeight - 4 ? Math.max(4, box.top - card.offsetHeight - 4) : below;
+    card.style.left = `${left}px`;
+    card.style.top = `${top}px`;
+    refCard = card;
+  }
+
   function renderStatus(): void {
     branchEl.replaceChildren();
     if (!workspaceId) return;
@@ -403,6 +429,7 @@ export function createGitView({ send, onToggle, status, waiting, archive }: GitV
     if (!state || state.commits.length === 0) return;
     const heading = el('h3', 'Commits');
     heading.append(el('span', String(state.commits.length), 'count'));
+    hideRefCard();
     const rows = layoutGraph(state.commits);
     const lanes = Math.max(1, ...rows.map((r) => r.width));
     commitsEl.append(
@@ -435,8 +462,11 @@ export function createGitView({ send, onToggle, status, waiting, archive }: GitV
           refs.append(first);
           if (labels.length > 1) {
             const more = el('span', `+${labels.length - 1}`, 'git-ref more');
-            more.title = labels.slice(1).join('\n');
+            more.setAttribute('aria-label', `${labels.length - 1} more: ${labels.slice(1).join(', ')}`);
             refs.append(more);
+            // Instant, and listing every ref in its own colour, which a native tooltip is neither.
+            refs.addEventListener('mouseenter', () => showRefCard(refs, commit.refs));
+            refs.addEventListener('mouseleave', hideRefCard);
           }
           text.append(refs);
         }

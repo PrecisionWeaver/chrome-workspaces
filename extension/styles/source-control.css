@@ -464,6 +464,25 @@ button.git-branch-name:hover {
 
 .git-ref.more {
   flex: none;
+  cursor: default;
+}
+
+/* Every ref of a commit, shown while its chips are hovered. It never takes the pointer, so it cannot flicker. */
+.ref-card {
+  position: fixed;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  max-width: calc(100vw - 8px);
+  padding: 6px 8px;
+  background: var(--raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+  font-size: 11px;
+  pointer-events: none;
 }
 
 .git-ref.head {
