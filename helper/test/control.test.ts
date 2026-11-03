@@ -666,6 +666,21 @@ describe('control channel', () => {
     ws.close();
   });
 
+  it('answers listTemplates with the team templates, reporting a file it cannot read', async () => {
+    const template = { id: 'team:0', name: 'Review', repo: '/code/app', model: '', tabs: '', message: '', window: 'new' as const, worktree: false };
+    h.teamTemplates.push(template);
+    const { ws, messages } = connectControl(h);
+    await opened(ws);
+    ws.send(JSON.stringify({ type: 'listTemplates' }));
+    await waitFor(() => messages.some((m) => m.type === 'templates'));
+    expect(messages.find((m) => m.type === 'templates')).toEqual({ type: 'templates', templates: [template], error: null });
+    h.templatesError = 'cannot read /team/templates.json';
+    ws.send(JSON.stringify({ type: 'listTemplates' }));
+    await waitFor(() => messages.filter((m) => m.type === 'templates').length === 2);
+    expect(messages.filter((m) => m.type === 'templates')[1]).toEqual({ type: 'templates', templates: [], error: 'cannot read /team/templates.json' });
+    ws.close();
+  });
+
   it('answers listPrompts to the asking client only, reporting read errors', async () => {
     h.prompts.push({ section: 'Reviews', text: '/code-review PR-URL' });
     const asker = connectControl(h);

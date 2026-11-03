@@ -38,6 +38,10 @@ export interface HelperConfig {
   watchRepos: string[];
   /** The command that starts claude, e.g. a wrapper that passes claude's arguments through. */
   claudeCommand: string;
+  /** More prompt notes read after `promptsFile`, e.g. one kept in a team repository. */
+  promptsFiles: string[];
+  /** A JSON list of templates shared with the team, offered read-only beside the saved ones. */
+  templatesFile: string | null;
   /** Config entries that were ignored, and why, so Settings and the log can say so. */
   problems: string[];
 }
@@ -56,6 +60,8 @@ const KNOWN_KEYS = new Set([
   'repoDirs',
   'watchRepos',
   'claudeCommand',
+  'promptsFiles',
+  'templatesFile',
 ]);
 // Repo names reach a `gh` command line, so only plain `owner/name` is accepted.
 const REPO_NAME = /^[\w.-]+\/[\w.-]+$/;
@@ -109,6 +115,7 @@ export function parseConfig(text: string, file: string): HelperConfig {
   const jiraBaseUrl = normalizeJiraBase(raw.jiraBaseUrl);
   if (raw.jiraBaseUrl !== undefined && raw.jiraBaseUrl !== null && !jiraBaseUrl) problems.push('jiraBaseUrl must be an https address, so it is ignored.');
   const claudeCommand = string('claudeCommand');
+  const templatesFile = string('templatesFile');
   if (claudeCommand && !COMMAND_NAME.test(claudeCommand)) problems.push(`claudeCommand "${claudeCommand}" must be a bare command name, so claude is used.`);
 
   const repoDirs: Record<string, string> = {};
@@ -137,6 +144,8 @@ export function parseConfig(text: string, file: string): HelperConfig {
     repoDirs,
     watchRepos: stringList('watchRepos', isRepo) ?? [],
     claudeCommand: claudeCommand && COMMAND_NAME.test(claudeCommand) ? claudeCommand : 'claude',
+    promptsFiles: (stringList('promptsFiles') ?? []).map(expandHome),
+    templatesFile: templatesFile ? expandHome(templatesFile) : null,
     problems,
   };
 }

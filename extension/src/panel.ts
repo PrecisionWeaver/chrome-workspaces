@@ -66,6 +66,7 @@ let jiraBase: string | null = null;
 const control = connectControl(
   (message) => {
     if (message.type === 'prompts') creator.setPrompts(message.prompts, message.error);
+    if (message.type === 'templates') creator.setTemplates(message.templates, message.error);
     if (message.type === 'repos') creator.setRepos(message.repos);
     if (message.type === 'history') {
       history = message.entries;

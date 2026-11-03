@@ -27,3 +27,17 @@ export function readPrompts(file: string): Prompt[] {
     throw new Error(`cannot read ${file}: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
+
+/** The own note, which must be readable, followed by every other that is; a missing extra note is skipped. */
+export function readAllPrompts(files: readonly string[]): Prompt[] {
+  const [own, ...extra] = files;
+  const prompts = own ? readPrompts(own) : [];
+  for (const file of extra) {
+    try {
+      prompts.push(...readPrompts(file));
+    } catch {
+      // A team note that is not checked out on this machine, say: the own note still works.
+    }
+  }
+  return prompts;
+}

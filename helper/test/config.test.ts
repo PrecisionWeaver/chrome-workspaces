@@ -13,6 +13,8 @@ describe('parseConfig', () => {
       repoDirs: {},
       watchRepos: [],
       claudeCommand: 'claude',
+      promptsFiles: [],
+      templatesFile: null,
       defaultModel: null,
       problems: [],
     });
@@ -33,6 +35,19 @@ describe('parseConfig', () => {
       claudeCommand: 'wrap',
       defaultModel: 'opus',
       problems: [],
+    });
+  });
+
+  it('expands ~ in the extra prompt notes and the templates file', () => {
+    expect(parse({ promptsFiles: ['~/team/prompts.md'], templatesFile: '~/team/templates.json' })).toMatchObject({
+      promptsFiles: [join(homedir(), 'team/prompts.md')],
+      templatesFile: join(homedir(), 'team/templates.json'),
+      problems: [],
+    });
+    expect(parse({ promptsFiles: '~/team/prompts.md', templatesFile: 3 })).toMatchObject({
+      promptsFiles: [],
+      templatesFile: null,
+      problems: ['templatesFile must be a string.', 'promptsFiles must be a list.'],
     });
   });
 

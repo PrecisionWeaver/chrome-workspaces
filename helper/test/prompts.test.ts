@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { fillPrompt } from '../../shared/prompts';
-import { parsePrompts, readPrompts } from '../src/prompts';
+import { parsePrompts, readAllPrompts, readPrompts } from '../src/prompts';
 
 const NOTE = [
   '- loose prompt',
@@ -65,5 +65,18 @@ describe('fillPrompt', () => {
       '/code-review - PROJ-9 - go/no-go @ https://github.com/acme/web-app/pull/482, see also https://github.com/acme/web-app/pull/12',
     );
     expect(fillPrompt(text, { prUrl: null, ticket: null })).toBe(text);
+  });
+});
+
+describe('readAllPrompts', () => {
+  it('reads the own note first and every other in order, skipping one that is missing, but needs the own one', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'cw-prompts-'));
+    writeFileSync(join(dir, 'own.md'), '**Mine**\n- one\n');
+    writeFileSync(join(dir, 'team.md'), '**Team**\n- two\n');
+    expect(readAllPrompts([join(dir, 'own.md'), join(dir, 'gone.md'), join(dir, 'team.md')])).toEqual([
+      { section: 'Mine', text: 'one' },
+      { section: 'Team', text: 'two' },
+    ]);
+    expect(() => readAllPrompts([join(dir, 'gone.md'), join(dir, 'team.md')])).toThrow('gone.md');
   });
 });
