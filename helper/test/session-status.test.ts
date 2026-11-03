@@ -2,7 +2,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { continuedInSession, importLegacySessions, lastTranscriptCwd, pruneSessions, readSessionStatus } from '../src/session-status';
+import { continuedInSession, importLegacySessions, lastTranscriptCwd, listWorkspaceSessions, pruneSessions, readSessionStatus } from '../src/session-status';
 import { existsSync, readdirSync, utimesSync } from 'node:fs';
 
 function stateDir(files: Record<string, unknown>): string {
@@ -263,5 +263,31 @@ describe('importLegacySessions', () => {
     expect(importLegacySessions(legacy, dir)).toBe(0);
     expect(readSessionStatus(dir).get('ws-1')?.status).toBe('working');
     expect(importLegacySessions(join(tmpdir(), 'cw-sessions-does-not-exist'), dir)).toBe(0);
+  });
+});
+
+describe('listWorkspaceSessions', () => {
+  const ID_OTHER = '33333333-3333-3333-3333-333333333333';
+  const ID_STRAY = '44444444-4444-4444-4444-444444444444';
+
+  it("lists a workspace's sessions newest first, each with its first prompt, leaving out other workspaces' and strays", () => {
+    const dir = stateDir({
+      [`${ID_OLD}.json`]: { session_id: ID_OLD, cw_workspace_id: 'ws-a', cwd: '/repo', status: 'ended', started_at: '2026-01-01T10:00:00Z' },
+      [`${ID_OLD}.events.jsonl`]: [
+        JSON.stringify({ at: '2026-01-01T10:00:00Z', event: 'SessionStart' }),
+        JSON.stringify({ at: '2026-01-01T10:00:05Z', event: 'UserPromptSubmit', summary: 'fix the email table' }),
+        JSON.stringify({ at: '2026-01-01T10:01:00Z', event: 'UserPromptSubmit', summary: 'and the tests' }),
+      ].join('\n'),
+      [`${ID_NEW}.json`]: { session_id: ID_NEW, cw_workspace_id: 'ws-a', cwd: '/repo/.claude/worktrees/x', status: 'idle', started_at: '2026-02-01T10:00:00Z' },
+      [`${ID_OTHER}.json`]: { session_id: ID_OTHER, cw_workspace_id: 'ws-b', cwd: '/repo', status: 'idle', started_at: '2026-03-01T10:00:00Z' },
+      [`${ID_STRAY}.json`]: { session_id: ID_STRAY, cw_workspace_id: 'ws-a', cwd: '/elsewhere', status: 'idle', started_at: '2026-03-01T10:00:00Z' },
+      'junk.json': 'not json',
+    });
+    expect(listWorkspaceSessions(dir, 'ws-a', '/repo')).toEqual([
+      { id: ID_NEW, startedAt: '2026-02-01T10:00:00Z', status: 'idle', firstPrompt: null },
+      { id: ID_OLD, startedAt: '2026-01-01T10:00:00Z', status: null, firstPrompt: 'fix the email table' },
+    ]);
+    expect(listWorkspaceSessions(dir, 'ws-c', '/repo')).toEqual([]);
+    expect(listWorkspaceSessions('/no/such/dir', 'ws-a', '/repo')).toEqual([]);
   });
 });

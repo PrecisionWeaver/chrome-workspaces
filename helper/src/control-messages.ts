@@ -4,6 +4,9 @@ import { isPullRequestUrl } from './pr-workspace';
 
 /** Validation of the messages an extension context sends to the helper; anything that fails is dropped. */
 
+// A claude session id, which reaches `claude --resume` on a shell line.
+const SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
 function isWindowId(value: unknown): value is number {
   return Number.isInteger(value);
 }
@@ -83,7 +86,10 @@ export function isControlToHelper(value: unknown): value is ControlToHelper {
         (m.worktree === undefined || isBranchName(m.worktree))
       );
     case 'timeline':
+    case 'listSessions':
       return typeof m.id === 'string';
+    case 'resumeSession':
+      return typeof m.id === 'string' && typeof m.sessionId === 'string' && SESSION_ID.test(m.sessionId);
     case 'activity':
       return m.id === null || typeof m.id === 'string';
     case 'system':

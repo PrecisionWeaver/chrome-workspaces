@@ -395,7 +395,7 @@ describe('archiving and the context menu', () => {
 
   it('offers pin, archive, archive and close, and rename', async () => {
     await openMenu(ws('a'));
-    expect(menuButtons().map((b) => b.textContent)).toEqual(['Pin to top', 'Archive', 'Archive & close tabs', 'Rename']);
+    expect(menuButtons().map((b) => b.textContent)).toEqual(['Pin to top', 'Archive', 'Archive & close tabs', 'Rename', 'Resume an earlier conversation…']);
   });
 
   it('pins and unpins', async () => {
@@ -406,6 +406,31 @@ describe('archiving and the context menu', () => {
     state([ws('a', { pinned: true })]);
     rows()[0]!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
     expect(menuButtons()[0]!.textContent).toBe('Unpin');
+  });
+
+  it('asks for earlier conversations, lists them with their first words, and resumes the one picked', async () => {
+    await openMenu(ws('a'));
+    menuButtons()
+      .find((b) => b.textContent === 'Resume an earlier conversation…')!
+      .click();
+    expect(sentOfType('listSessions')).toEqual([{ type: 'listSessions', id: 'a' }]);
+    onControlMessage({
+      type: 'sessions',
+      id: 'a',
+      sessions: [
+        { id: '22222222-2222-2222-2222-222222222222', startedAt: '2026-02-01T10:00:00Z', status: 'idle', firstPrompt: 'and the tests' },
+        { id: '11111111-1111-1111-1111-111111111111', startedAt: '2026-01-01T10:00:00Z', status: null, firstPrompt: 'fix the email table' },
+      ],
+    });
+    const labels = menuButtons().map((b) => b.textContent);
+    expect(labels[0]).toContain('and the tests');
+    expect(labels[0]).toContain('current');
+    expect(menuButtons()[0]!.disabled).toBe(true);
+    expect(labels[1]).toContain('fix the email table');
+    menuButtons()[1]!.click();
+    expect(sentOfType('resumeSession')).toEqual([{ type: 'resumeSession', id: 'a', sessionId: '11111111-1111-1111-1111-111111111111' }]);
+    onControlMessage({ type: 'sessions', id: 'a', sessions: [] });
+    expect(menuButtons().map((b) => b.textContent)).toEqual(['No earlier conversation is recorded']);
   });
 
   it('archives with or without closing the tabs', async () => {

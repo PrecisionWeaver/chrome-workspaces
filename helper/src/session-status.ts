@@ -1,6 +1,7 @@
 import { closeSync, existsSync, fstatSync, openSync, readdirSync, readFileSync, readSync, rmSync, statSync, watch, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { WaitingOn, WorkspaceStatus } from '../../shared/protocol';
+import { parseActivityLine } from '../../shared/activity';
+import type { PastSession, WaitingOn, WorkspaceStatus } from '../../shared/protocol';
 import type { SessionFile } from '../../shared/session-file';
 
 export interface WorkspaceSession {
@@ -95,6 +96,59 @@ export function readSessionStatus(dir: string, workspaceCwds: ReadonlyMap<string
     });
   }
   return result;
+}
+
+const FIRST_PROMPT_BYTES = 64 * 1024;
+
+/** The first prompt a session's event file recorded, from its head; null without one. */
+function firstPrompt(eventsPath: string): string | null {
+  let fd: number | undefined;
+  try {
+    fd = openSync(eventsPath, 'r');
+    const buffer = Buffer.alloc(FIRST_PROMPT_BYTES);
+    const read = readSync(fd, buffer, 0, FIRST_PROMPT_BYTES, 0);
+    for (const line of buffer.toString('utf8', 0, read).split('\n')) {
+      const event = parseActivityLine(line);
+      if (event?.event === 'UserPromptSubmit' && event.summary) return event.summary;
+    }
+    return null;
+  } catch {
+    return null;
+  } finally {
+    if (fd !== undefined) closeSync(fd);
+  }
+}
+
+/**
+ * Every session of one workspace, newest first, for picking an earlier conversation. The same rules as
+ * `readSessionStatus` keep out sessions started elsewhere; an ended one whose transcript is gone cannot be resumed.
+ */
+export function listWorkspaceSessions(dir: string, workspaceId: string, home: string | null): PastSession[] {
+  let names: string[];
+  try {
+    names = readdirSync(dir).filter((name) => name.endsWith('.json'));
+  } catch {
+    return [];
+  }
+  const sessions: PastSession[] = [];
+  for (const name of names) {
+    let session: SessionFile;
+    try {
+      session = JSON.parse(readFileSync(join(dir, name), 'utf8')) as SessionFile;
+    } catch {
+      continue;
+    }
+    if (session.cw_workspace_id !== workspaceId || !session.session_id || !session.started_at) continue;
+    if (home && session.cwd && !isInside(session.cwd, home)) continue;
+    if (session.status === 'ended' && session.transcript_path && !existsSync(session.transcript_path)) continue;
+    sessions.push({
+      id: session.session_id,
+      startedAt: session.started_at,
+      status: LIVE_STATUSES.has(session.status ?? '') ? (session.status as WorkspaceStatus) : null,
+      firstPrompt: firstPrompt(join(dir, `${session.session_id}.events.jsonl`)),
+    });
+  }
+  return sessions.sort((a, b) => (a.startedAt < b.startedAt ? 1 : a.startedAt > b.startedAt ? -1 : 0));
 }
 
 const TRANSCRIPT_TAIL_BYTES = 256 * 1024;

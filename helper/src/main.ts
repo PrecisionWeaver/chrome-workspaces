@@ -13,7 +13,15 @@ import { createApi } from './api';
 import { DATA_DIR, HOST, LEGACY_SESSIONS_DIR, loadConfig, SESSIONS_DIR, PORT, SCROLLBACK_LIMIT } from './config';
 import { ControlHub } from './control';
 import { launchSpec, monitorSpec, shellSpec } from './launch';
-import { importLegacySessions, readSessionStatus, lastTranscriptCwd, pruneSessions, watchSessionStatus, type WorkspaceSession } from './session-status';
+import {
+  importLegacySessions,
+  listWorkspaceSessions,
+  readSessionStatus,
+  lastTranscriptCwd,
+  pruneSessions,
+  watchSessionStatus,
+  type WorkspaceSession,
+} from './session-status';
 import { writeHooksFile } from './hooks-config';
 import { readPlanUsage } from './plan-usage';
 import { GH_BRANCH_PR, GH_PR_CREATE, GH_PR_DETAILS, GH_PR_THREADS, PR_THREADS_QUERY } from './pr-details';
@@ -174,6 +182,8 @@ const prThreads = async ({ owner, repo, number }: { owner: string; repo: string;
 
 const git = createGitService();
 
+// An earlier conversation picked for a workspace, used by its next start alone.
+const resumeOverride = new Map<string, string>();
 const control = new ControlHub({
   store,
   sessions,
@@ -192,6 +202,13 @@ const control = new ControlHub({
   admin,
   history,
   resumeId: (id) => sessionState.get(id)?.claudeSessionId ?? store.get(id)?.resume ?? null,
+  pastSessions: (id) => listWorkspaceSessions(SESSIONS_DIR, id, store.get(id)?.cwd ?? null),
+  resumeWith: (id, sessionId) => {
+    resumeOverride.set(id, sessionId);
+    // Silenced first, so a panel attached to it is not told the shell exited (which closes the panel).
+    sessions.get(id)?.silence();
+    sessions.remove(id);
+  },
   workingDir,
   activity: (id) => {
     const session = sessionState.get(id);
@@ -224,7 +241,8 @@ const server = await startServer({
     const workspace = store.get(id);
     if (!workspace) return undefined;
     // A restored workspace has no session of its own yet, so it resumes the one it had.
-    const resumeId = sessionState.get(id)?.claudeSessionId ?? workspace.resume ?? null;
+    const resumeId = resumeOverride.get(id) ?? sessionState.get(id)?.claudeSessionId ?? workspace.resume ?? null;
+    resumeOverride.delete(id);
     // Resuming starts where claude was, which may be a worktree it moved into; a new conversation starts in the workspace's directory.
     const cwd = resumeId ? launchDirectory(workspace.cwd, workingDir(id)) : undefined;
     const spec = launchSpec(workspace, { shell, resumeId, cwd, defaultModel: config.defaultModel, command: config.claudeCommand, hooksFile });

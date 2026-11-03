@@ -282,6 +282,16 @@ export interface Workspace {
 
 export type WorkspaceStatus = 'needs_input' | 'working' | 'idle' | null;
 
+/** One of a workspace's claude sessions, for picking an earlier conversation to resume. */
+export interface PastSession {
+  id: string;
+  startedAt: string;
+  /** Live status when it is the running one, else null. */
+  status: WorkspaceStatus;
+  /** The first words typed to it, when its hooks recorded them. */
+  firstPrompt: string | null;
+}
+
 /** What a workspace at `needs_input` waits on, from claude's Notification: its type (`permission_prompt`, `idle_prompt`, ...) and its words. */
 export interface WaitingOn {
   type: string;
@@ -521,6 +531,8 @@ export type ControlToClient =
   | { type: 'exportData'; json: string }
   /** The workspace's session was replaced; a panel attached to it should attach again. */
   | { type: 'sessionReset'; id: string }
+  /** A workspace's sessions, newest first, in answer to `listSessions`. */
+  | { type: 'sessions'; id: string; sessions: PastSession[] }
   /** Reply to `listRepos`, sent only to the client that asked. */
   | { type: 'repos'; repos: Repo[] }
   /** Reply to `git`, to the client that asked; `state` is null when the workspace is not in a git repository. */
@@ -577,6 +589,9 @@ export type ControlToHelper =
   | { type: 'forgetAll' }
   /** Pastes text into the workspace's terminal without submitting it; answered with `sent`. */
   | { type: 'sendText'; id: string; text: string }
+  | { type: 'listSessions'; id: string }
+  /** Ends the workspace's terminal and starts it again on this earlier session. */
+  | { type: 'resumeSession'; id: string; sessionId: string }
   | { type: 'listPrompts' }
   | { type: 'listRepos' }
   /** A snapshot of the helper, the workspaces' sessions and their processes. */
