@@ -242,23 +242,58 @@ describe('prompts', () => {
   ];
   const cards = () => [...document.querySelectorAll<HTMLElement>('#create-prompts .prompt')];
 
-  it('groups them by section with counts, splitting a leading command from the text', async () => {
+  const tabs = () => [...document.querySelectorAll<HTMLButtonElement>('#create-prompts .prompt-tabs button')];
+  const filterBy = (query: string) => {
+    type('create-filter', query);
+    $('create-filter').dispatchEvent(new Event('input'));
+  };
+
+  it('puts each section in a tab with its count, showing the first, splitting a leading command from the text', async () => {
     await open();
     view.setPrompts(prompts, null);
-    expect([...document.querySelectorAll('#create-prompts h3')].map((h) => h.firstChild?.textContent)).toEqual(['Review', 'Plan', 'Prompts']);
-    expect([...document.querySelectorAll('#create-prompts h3 .count')].map((count) => count.textContent)).toEqual(['2', '1', '1']);
+    expect(tabs().map((tab) => tab.firstChild?.textContent)).toEqual(['Review', 'Plan', 'Prompts']);
+    expect(tabs().map((tab) => tab.querySelector('.count')?.textContent)).toEqual(['2', '1', '1']);
+    expect(tabs().map((tab) => tab.classList.contains('active'))).toEqual([true, false, false]);
+    expect(document.querySelector('#create-prompts h3')).toBeNull();
+    expect(cards().map((card) => card.title)).toEqual(['/review PR-URL', 'Summarise PR-URL for PROJ-XXX']);
     expect(cards()[0]!.querySelector('code')?.textContent).toBe('/review');
-    expect(cards()[0]!.title).toBe('/review PR-URL');
+  });
+
+  it('switches tab on a click, and keeps it when the view opens again', async () => {
+    await open();
+    view.setPrompts(prompts, null);
+    tabs()[1]!.click();
+    expect(tabs().map((tab) => tab.classList.contains('active'))).toEqual([false, true, false]);
+    expect(cards().map((card) => card.title)).toEqual(['Plan the work']);
+    view.close();
+    await open();
+    view.setPrompts(prompts, null);
+    expect(cards().map((card) => card.title)).toEqual(['Plan the work']);
+  });
+
+  it('lists every match under section headings instead of tabs while filtering', async () => {
+    await open();
+    view.setPrompts(prompts, null);
+    filterBy('pr-url');
+    expect(tabs()).toEqual([]);
+    expect([...document.querySelectorAll('#create-prompts h3')].map((h) => h.firstChild?.textContent)).toEqual(['Review']);
+    filterBy('');
+    expect(tabs()).toHaveLength(3);
+  });
+
+  it('skips the tabs when there is only one section', async () => {
+    await open();
+    view.setPrompts([{ section: 'S', text: 'Do it' }], null);
+    expect(tabs()).toEqual([]);
+    expect(document.querySelector('#create-prompts h3')?.firstChild?.textContent).toBe('S');
   });
 
   it('filters on section and text', async () => {
     await open();
     view.setPrompts(prompts, null);
-    type('create-filter', 'plan');
-    $('create-filter').dispatchEvent(new Event('input'));
+    filterBy('plan');
     expect(cards().map((card) => card.title)).toEqual(['Plan the work']);
-    type('create-filter', 'nothing like it');
-    $('create-filter').dispatchEvent(new Event('input'));
+    filterBy('nothing like it');
     expect(cards()).toEqual([]);
   });
 
