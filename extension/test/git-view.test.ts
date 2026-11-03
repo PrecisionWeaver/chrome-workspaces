@@ -571,8 +571,33 @@ describe('commits and the diff view', () => {
     await ready(gitState({ commits }));
     expect(text('.git-ref', rows()[0]!)).toEqual(['main', '+2']);
     expect(rows()[0]!.querySelector<HTMLElement>('.git-ref.head')).not.toBeNull();
-    expect(rows()[0]!.querySelector<HTMLElement>('.git-ref.more')!.title).toBe('origin/main\ntag: v1');
+    expect(rows()[0]!.querySelector<HTMLElement>('.git-ref.more')!.getAttribute('aria-label')).toBe('2 more: origin/main, tag: v1');
     expect(rows()[1]!.querySelector('.git-refs')).toBeNull();
+  });
+
+  it('lists every ref of a commit in a card while its chips are hovered, and takes it away after', async () => {
+    await ready(gitState({ commits }));
+    const refs = rows()[0]!.querySelector<HTMLElement>('.git-refs')!;
+    expect(document.querySelector('.ref-card')).toBeNull();
+    refs.dispatchEvent(new MouseEvent('mouseenter'));
+    const card = document.querySelector<HTMLElement>('.ref-card')!;
+    expect(text('.git-ref', card)).toEqual(['main', 'origin/main', 'tag: v1']);
+    expect([...card.querySelectorAll('.git-ref')].map((chip) => chip.className)).toEqual(['git-ref head', 'git-ref', 'git-ref tag']);
+    // Entering again replaces the card rather than stacking another.
+    refs.dispatchEvent(new MouseEvent('mouseenter'));
+    expect(document.querySelectorAll('.ref-card')).toHaveLength(1);
+    refs.dispatchEvent(new MouseEvent('mouseleave'));
+    expect(document.querySelector('.ref-card')).toBeNull();
+  });
+
+  it('drops the card when the list is redrawn under the pointer, and for a commit with one ref', async () => {
+    await ready(gitState({ commits }));
+    rows()[0]!.querySelector<HTMLElement>('.git-refs')!.dispatchEvent(new MouseEvent('mouseenter'));
+    setState(gitState({ commits }));
+    expect(document.querySelector('.ref-card')).toBeNull();
+    await ready(gitState({ commits: [commit(1, { refs: ['origin/x'] })] }));
+    rows()[0]!.querySelector<HTMLElement>('.git-refs')!.dispatchEvent(new MouseEvent('mouseenter'));
+    expect(document.querySelector('.ref-card')).toBeNull();
   });
 
   it('tones tags and heads', async () => {
