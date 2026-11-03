@@ -16,7 +16,7 @@ import { launchSpec, monitorSpec, shellSpec } from './launch';
 import { importLegacySessions, readSessionStatus, lastTranscriptCwd, pruneSessions, watchSessionStatus, type WorkspaceSession } from './session-status';
 import { writeHooksFile } from './hooks-config';
 import { readPlanUsage } from './plan-usage';
-import { GH_BRANCH_PR, GH_PR_DETAILS, GH_PR_THREADS, PR_THREADS_QUERY } from './pr-details';
+import { GH_BRANCH_PR, GH_PR_CREATE, GH_PR_DETAILS, GH_PR_THREADS, PR_THREADS_QUERY } from './pr-details';
 import { readPrompts } from './prompts';
 import { createGitService } from './git';
 import { HistoryStore } from './history';
@@ -147,6 +147,18 @@ const branchPr = async (cwd: string) =>
     )
   ).stdout;
 
+// gh prints the new pull request's url last; anything before it is its own chatter.
+const createPr = async (cwd: string) => {
+  const { stdout } = await execFileAsync(shell, ['-l', '-c', GH_PR_CREATE], { cwd, timeout: 60_000, maxBuffer: 1024 * 1024 }).catch(
+    (error: { stderr?: string; message: string }) => {
+      throw new Error(error.stderr?.trim().split('\n').pop() || error.message);
+    },
+  );
+  const url = stdout.trim().split('\n').pop() ?? '';
+  if (!/^https:\/\/github\.com\/.+\/pull\/\d+$/.test(url)) throw new Error(`gh did not say where the pull request is: ${url || 'no output'}`);
+  return url;
+};
+
 const prThreads = async ({ owner, repo, number }: { owner: string; repo: string; number: string }) =>
   (
     await execFileAsync(shell, ['-l', '-c', GH_PR_THREADS], {
@@ -173,6 +185,7 @@ const control = new ControlHub({
   prDetails,
   prThreads,
   branchPr,
+  createPr,
   repoDirs: config.repoDirs,
   repos: () => listRepos(config.repoRoots),
   git,

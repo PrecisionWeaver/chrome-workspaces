@@ -53,6 +53,8 @@ export interface Harness {
   prThreadRequests: string[];
   /** What the fake `gh pr view` for a branch returns; null means the branch has no pull request. */
   branchPrJson: string | null;
+  /** What the fake `gh pr create` answers with; null makes it fail. */
+  createdPrUrl: string | null;
   /** The claude session each workspace is on, by id, for restoring. */
   resumeIds: Record<string, string>;
   /** The claude transcript of each workspace, by id, for token counts. */
@@ -93,6 +95,7 @@ export async function startHarness(): Promise<Harness> {
     prThreadsJson: null as string | null,
     prThreadRequests: [] as string[],
     branchPrJson: null as string | null,
+    createdPrUrl: null as string | null,
     resumeIds: {} as Record<string, string>,
     transcripts: {} as Record<string, string>,
     /** Event files by workspace, read as the helper reads them. */
@@ -176,6 +179,10 @@ export async function startHarness(): Promise<Harness> {
     branchPr: async () => {
       if (fakes.branchPrJson === null) throw new Error('no pull requests found for branch "x"');
       return fakes.branchPrJson;
+    },
+    createPr: async () => {
+      if (fakes.createdPrUrl === null) throw new Error('gh: a pull request for branch "x" already exists');
+      return fakes.createdPrUrl;
     },
     repoDirs: fakes.repoDirs,
     repos: () => fakes.repos,

@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ControlToHelper, GitCommit, GitFile, GitState, WaitingOn, WorkspaceStatus } from '../../shared/protocol';
+import type { BranchPr, ControlToHelper, GitCommit, GitFile, GitState, WaitingOn, WorkspaceStatus } from '../../shared/protocol';
 import { createGitView, type GitView } from '../src/git-view';
 import { closeMenu } from '../src/menu';
 import { installChrome } from './chrome-mock';
@@ -16,6 +16,7 @@ let sent: ControlToHelper[];
 let toggled: number;
 let statuses: Record<string, WorkspaceStatus>;
 let waiting: Record<string, WaitingOn>;
+let archived: string[];
 const workspace = makeWorkspace({ id: 'ws-a' });
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -69,12 +70,14 @@ beforeEach(() => {
   toggled = 0;
   statuses = {};
   waiting = {};
+  archived = [];
   closeMenu();
   view = createGitView({
     send: (message) => (sent.push(message), true),
     onToggle: () => void toggled++,
     status: (id) => statuses[id] ?? null,
     waiting: (id) => waiting[id] ?? null,
+    archive: (id) => archived.push(id),
   });
 });
 afterEach(() => {
@@ -211,6 +214,22 @@ describe('the branch line', () => {
     expect(text('.git-sync')).toEqual([]);
   });
 
+  it('offers to push when the branch is ahead or has no upstream, and not otherwise', async () => {
+    await ready(gitState({ ahead: 2 }));
+    const push = () => $('git-branch').querySelector<HTMLButtonElement>('.git-push');
+    expect(push()!.textContent).toBe('Push');
+    expect(push()!.title).toBe('Push main to origin');
+    push()!.click();
+    expect(sentOfType('gitPush')).toEqual([{ type: 'gitPush', id: 'ws-a' }]);
+    expect(push()!.disabled).toBe(true);
+    view.setResult({ type: 'gitResult', id: 'ws-a', action: 'push', ok: false, message: 'no remote' });
+    expect(push()!.disabled).toBe(false);
+    setState(gitState({ upstream: null }));
+    expect(push()).not.toBeNull();
+    setState(gitState());
+    expect(push()).toBeNull();
+  });
+
   it('says when Claude is in a linked worktree', async () => {
     await ready(gitState({ worktree: 'feature-a' }));
     expect(text('.git-worktree')).toEqual(['worktree · feature-a']);
@@ -238,7 +257,14 @@ describe('the branch line', () => {
   });
 
   describe('the pull request chip', () => {
-    const pr = { number: 12, title: 'Add the thing', url: 'https://github.com/acme/app/pull/12', isDraft: false, reviewDecision: null };
+    const pr: BranchPr = {
+      number: 12,
+      title: 'Add the thing',
+      url: 'https://github.com/acme/app/pull/12',
+      isDraft: false,
+      reviewDecision: null,
+      state: 'OPEN',
+    };
     const checks = (passed: number, failed: number, pending: number, failing: string[] = []) => ({ passed, failed, pending, failing });
     const chip = () => $('git-branch').querySelector<HTMLButtonElement>('.ci');
     const answer = (prValue: typeof pr | null, checksValue: ReturnType<typeof checks> | null) =>
@@ -264,6 +290,41 @@ describe('the branch line', () => {
       expect(chip()!.title).toBe('Add the thing\nFailing: lint, build\nOpen on GitHub');
       chip()!.click();
       expect(fake.mock.tabs.create).toHaveBeenCalledWith({ url: pr.url });
+    });
+
+    it('says when the PR is merged and offers to archive the workspace, asking twice', async () => {
+      await ready();
+      answer({ ...pr, state: 'MERGED' }, checks(5, 0, 0));
+      expect(chip()!.textContent).toBe('#12 · merged');
+      expect(chip()!.className).toBe('git-chip-btn ci merged');
+      const archive = $('git-branch').querySelector<HTMLButtonElement>('.git-archive')!;
+      expect(archive.textContent).toBe('Archive workspace');
+      archive.click();
+      expect(archive.textContent).toBe('Archive?');
+      expect(archived).toEqual([]);
+      archive.click();
+      expect(archived).toEqual(['ws-a']);
+    });
+
+    it('offers to create a PR when the branch has none, pushing first', async () => {
+      await ready();
+      answer(null, null);
+      const create = $('git-branch').querySelector<HTMLButtonElement>('.git-create-pr')!;
+      expect(create.textContent).toBe('Create PR');
+      create.click();
+      expect(sentOfType('gitCreatePr')).toEqual([{ type: 'gitCreatePr', id: 'ws-a' }]);
+      expect(create.disabled).toBe(true);
+      view.setResult({
+        type: 'gitResult',
+        id: 'ws-a',
+        action: 'pr',
+        ok: true,
+        message: 'Opened https://github.com/acme/app/pull/13',
+        url: 'https://github.com/acme/app/pull/13',
+      });
+      expect(fake.mock.tabs.create).toHaveBeenCalledWith({ url: 'https://github.com/acme/app/pull/13' });
+      answer(pr, null);
+      expect($('git-branch').querySelector('.git-create-pr')).toBeNull();
     });
 
     it('shows no chip when the branch has no PR, or the answer is for another workspace', async () => {

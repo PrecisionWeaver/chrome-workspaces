@@ -321,6 +321,15 @@ button.git-branch-name:hover {
   color: var(--wait);
 }
 
+.git-chip-btn.ci.merged {
+  color: var(--accent);
+}
+
+.git-chip-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .branch-menu {
   max-width: calc(100vw - 8px);
   max-height: 260px;

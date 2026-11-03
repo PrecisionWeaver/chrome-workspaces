@@ -273,3 +273,23 @@ describe('addWorktree', () => {
     await expect(service.addWorktree(mkdtempSync(join(tmpdir(), 'cw-plain-')), 'x')).rejects.toThrow();
   });
 });
+
+describe('push', () => {
+  it('pushes the branch to origin, setting its upstream the first time, and says so when there is no remote', async () => {
+    const dir = repo();
+    const service = createGitService();
+    await expect(service.push(dir)).rejects.toThrow();
+    const remote = mkdtempSync(join(tmpdir(), 'cw-remote-'));
+    git(remote, 'init', '-q', '--bare');
+    git(dir, 'remote', 'add', 'origin', remote);
+    expect(await service.push(dir)).toBe('Pushed main to origin.');
+    expect((await service.state(dir)).upstream).toBe('origin/main');
+    expect(git(remote, 'log', '--oneline', 'main').split('\n').filter(Boolean)).toHaveLength(2);
+    git(dir, 'switch', '-q', '-c', 'topic');
+    writeFileSync(join(dir, 'c.txt'), 'c\n');
+    git(dir, 'add', '.');
+    git(dir, 'commit', '-qm', 'third');
+    expect(await service.push(dir)).toBe('Pushed topic to origin.');
+    expect((await service.state(dir)).upstream).toBe('origin/topic');
+  });
+});

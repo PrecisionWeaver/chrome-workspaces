@@ -471,6 +471,38 @@ describe('control channel', () => {
     ws.close();
   });
 
+  it('pushes a branch, and makes a pull request for it after pushing', async () => {
+    const dir = gitRepo();
+    const remote = mkdtempSync(join(tmpdir(), 'cw-remote-'));
+    execFileSync('git', ['init', '-q', '--bare'], { cwd: remote });
+    execFileSync('git', ['remote', 'add', 'origin', remote], { cwd: dir });
+    const workspace = h.store.create({ name: 'w', cwd: dir });
+    const { ws, messages } = connectControl(h);
+    await opened(ws);
+    const results = () => messages.filter((m): m is Extract<ControlToClient, { type: 'gitResult' }> => m.type === 'gitResult');
+
+    ws.send(JSON.stringify({ type: 'gitPush', id: workspace.id }));
+    await waitFor(() => results().length === 1);
+    expect(results()[0]).toMatchObject({ action: 'push', ok: true, message: 'Pushed main to origin.' });
+    expect(execFileSync('git', ['log', '--oneline', 'main'], { cwd: remote, encoding: 'utf8' }).trim().split('\n')).toHaveLength(2);
+
+    ws.send(JSON.stringify({ type: 'gitCreatePr', id: workspace.id }));
+    await waitFor(() => results().length === 2);
+    expect(results()[1]).toMatchObject({ action: 'pr', ok: false, message: expect.stringContaining('already exists') });
+    h.createdPrUrl = 'https://github.com/acme/web-app/pull/7';
+    ws.send(JSON.stringify({ type: 'gitCreatePr', id: workspace.id }));
+    await waitFor(() => results().length === 3);
+    expect(results()[2]).toEqual({
+      type: 'gitResult',
+      id: workspace.id,
+      action: 'pr',
+      ok: true,
+      message: 'Opened https://github.com/acme/web-app/pull/7',
+      url: 'https://github.com/acme/web-app/pull/7',
+    });
+    ws.close();
+  });
+
   it("sends a workspace's recent activity from its transcript, and says so when there is none", async () => {
     const withTranscript = h.store.create({ name: 'busy', cwd: h.defaultCwd });
     const without = h.store.create({ name: 'new', cwd: h.defaultCwd });

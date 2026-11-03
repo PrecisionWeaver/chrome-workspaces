@@ -27,6 +27,8 @@ export interface GitService {
   branches(cwd: string): Promise<GitBranch[]>;
   /** Switches to an existing local branch. */
   switchBranch(cwd: string, branch: string): Promise<string>;
+  /** Pushes the current branch to origin, setting it as the upstream. */
+  push(cwd: string): Promise<string>;
   /** What the current branch changes since it forked from the repository's main line. */
   compare(cwd: string): Promise<GitCompare>;
   /**
@@ -338,6 +340,13 @@ export function createGitService(): GitService {
       await run(cwd, known.some(Boolean) ? ['worktree', 'add', folder, branch] : ['worktree', 'add', '-b', branch, folder], [0], COMMIT_TIMEOUT_MS);
       excludeWorktrees(common);
       return folder;
+    },
+
+    async push(cwd) {
+      const branch = (await run(cwd, ['symbolic-ref', '--short', '-q', 'HEAD'], [0, 1])).stdout.trim();
+      if (!branch) throw new Error('not on a branch');
+      await run(cwd, ['push', '-q', '-u', 'origin', branch], [0], COMMIT_TIMEOUT_MS);
+      return `Pushed ${branch} to origin.`;
     },
 
     async compare(cwd) {

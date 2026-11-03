@@ -151,6 +151,7 @@ const git = createGitView({
   send,
   status: (id) => statuses[id] ?? null,
   waiting: (id) => waiting[id] ?? null,
+  archive: (id) => send({ type: 'remove', id }),
   onToggle() {
     if (git.isOpen) {
       creator.close();

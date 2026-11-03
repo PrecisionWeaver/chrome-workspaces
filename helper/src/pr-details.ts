@@ -62,11 +62,21 @@ export function summarizeChecks(rollup: readonly GhCheck[] | null | undefined): 
 }
 
 /** Runs in a workspace's directory: the pull request for its current branch. */
-export const GH_BRANCH_PR = 'gh pr view --json number,title,url,isDraft,reviewDecision,statusCheckRollup';
+export const GH_BRANCH_PR = 'gh pr view --json number,title,url,isDraft,reviewDecision,state,statusCheckRollup';
+/** A draft, titled and described from the branch's commits; gh prints the new PR's url. */
+export const GH_PR_CREATE = 'gh pr create --draft --fill';
 
 /** Reads `gh pr view` for a branch: the PR and its checks, or null when the branch has no pull request. */
 export function parseBranchChecks(json: string): { pr: BranchPr; checks: PrDetails['checks'] } | null {
-  let parsed: { number?: number; title?: string; url?: string; isDraft?: boolean; reviewDecision?: string; statusCheckRollup?: GhCheck[] | null };
+  let parsed: {
+    number?: number;
+    title?: string;
+    url?: string;
+    isDraft?: boolean;
+    reviewDecision?: string;
+    state?: string;
+    statusCheckRollup?: GhCheck[] | null;
+  };
   try {
     parsed = JSON.parse(json);
   } catch {
@@ -74,7 +84,14 @@ export function parseBranchChecks(json: string): { pr: BranchPr; checks: PrDetai
   }
   if (typeof parsed?.number !== 'number' || typeof parsed.url !== 'string') return null;
   return {
-    pr: { number: parsed.number, title: parsed.title ?? '', url: parsed.url, isDraft: parsed.isDraft === true, reviewDecision: parsed.reviewDecision || null },
+    pr: {
+      number: parsed.number,
+      title: parsed.title ?? '',
+      url: parsed.url,
+      isDraft: parsed.isDraft === true,
+      reviewDecision: parsed.reviewDecision || null,
+      state: parsed.state === 'MERGED' || parsed.state === 'CLOSED' ? parsed.state : 'OPEN',
+    },
     checks: summarizeChecks(parsed.statusCheckRollup),
   };
 }

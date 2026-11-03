@@ -338,6 +338,7 @@ export interface BranchPr {
   url: string;
   isDraft: boolean;
   reviewDecision: string | null;
+  state: 'OPEN' | 'MERGED' | 'CLOSED';
 }
 
 export interface GitBranch {
@@ -527,7 +528,8 @@ export type ControlToClient =
   | { type: 'gitCommit'; id: string; sha: string; files: GitCommitFile[]; error: string | null }
   | { type: 'gitDiff'; id: string; path: string; sha: string | null; diff: string; truncated: boolean; error: string | null }
   /** Reply to a staging, discard, commit or branch-switch request. */
-  | { type: 'gitResult'; id: string; action: string; ok: boolean; message: string }
+  /** `url` comes with a pull request just made, for the panel to open. */
+  | { type: 'gitResult'; id: string; action: string; ok: boolean; message: string; url?: string }
   | { type: 'gitBranches'; id: string; branches: GitBranch[]; error: string | null }
   /** `pr` is null when the branch has no pull request. */
   | { type: 'gitChecks'; id: string; pr: BranchPr | null; checks: PrDetails['checks'] | null; error: string | null }
@@ -609,6 +611,10 @@ export type ControlToHelper =
   | { type: 'gitBranches'; id: string }
   | { type: 'gitChecks'; id: string }
   | { type: 'gitSwitch'; id: string; branch: string }
+  /** `git push -u origin <branch>`. */
+  | { type: 'gitPush'; id: string }
+  /** Pushes, then opens a draft pull request for the branch with `gh pr create`. */
+  | { type: 'gitCreatePr'; id: string }
   | { type: 'gitCompare'; id: string }
   | { type: 'refreshReviews' }
   | { type: 'prDetails'; url: string }
