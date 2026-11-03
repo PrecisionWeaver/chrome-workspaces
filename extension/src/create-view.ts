@@ -96,6 +96,8 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
 
   let isOpen = false;
   let prompts: Prompt[] = [];
+  // The section whose prompts show when not filtering; kept between openings, so the usual one stays picked.
+  let promptTab: string | null = null;
   let repos: Repo[] = [];
   let review: ReviewRequest | null = null;
   // Shown straight away when a PR is reopened, while its fresh details load behind it.
@@ -331,6 +333,21 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
     if (!repoPicked || repoSelect.value !== picked) selectRepo();
   }
 
+  function promptGrid(items: Prompt[]): HTMLElement {
+    const grid = el('div', '', 'prompt-grid');
+    grid.append(
+      ...items.map((prompt) => {
+        const button = el('button', '', 'prompt');
+        button.type = 'button';
+        button.title = prompt.text;
+        button.append(...promptCard(prompt.text));
+        button.addEventListener('click', () => choosePrompt(prompt));
+        return button;
+      }),
+    );
+    return grid;
+  }
+
   function renderPrompts(): void {
     const query = filter.value.trim().toLowerCase();
     const groups = new Map<string, Prompt[]>();
@@ -338,23 +355,36 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
       if (query && !`${prompt.section} ${prompt.text}`.toLowerCase().includes(query)) continue;
       groups.set(prompt.section, [...(groups.get(prompt.section) ?? []), prompt]);
     }
+    const label = (name: string) => name || 'Prompts';
+    // A filter searches every section at once, so it lists its matches under their headings rather than behind tabs.
+    if (!query && groups.size > 1) {
+      if (promptTab === null || !groups.has(promptTab)) promptTab = [...groups.keys()][0]!;
+      const tabs = el('div', '', 'segmented prompt-tabs');
+      tabs.append(
+        ...[...groups].map(([name, items]) => {
+          const tab = el('button', label(name));
+          tab.type = 'button';
+          tab.classList.toggle('active', name === promptTab);
+          tab.append(el('span', String(items.length), 'count'));
+          tab.addEventListener('click', () => {
+            promptTab = name;
+            renderPrompts();
+          });
+          return tab;
+        }),
+      );
+      // The row is rebuilt on every click, so it keeps the place it was scrolled to.
+      const scrolled = promptsEl.querySelector('.prompt-tabs')?.scrollLeft ?? 0;
+      promptsEl.replaceChildren(tabs, promptGrid(groups.get(promptTab) ?? []));
+      tabs.scrollLeft = scrolled;
+      return;
+    }
     promptsEl.replaceChildren(
       ...[...groups].map(([name, items]) => {
         const group = el('section', '', 'prompt-group');
-        const heading = el('h3', name || 'Prompts');
+        const heading = el('h3', label(name));
         heading.append(el('span', String(items.length), 'count'));
-        const grid = el('div', '', 'prompt-grid');
-        grid.append(
-          ...items.map((prompt) => {
-            const button = el('button', '', 'prompt');
-            button.type = 'button';
-            button.title = prompt.text;
-            button.append(...promptCard(prompt.text));
-            button.addEventListener('click', () => choosePrompt(prompt));
-            return button;
-          }),
-        );
-        group.append(heading, grid);
+        group.append(heading, promptGrid(items));
         return group;
       }),
     );
