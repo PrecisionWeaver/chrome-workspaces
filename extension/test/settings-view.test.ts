@@ -736,27 +736,46 @@ describe('the cards', () => {
       expect(text('.session-detail', card('Workspace sessions'))).toEqual(['1 process · 2.0 MB · 0.1%', 'not running']);
     });
 
-    it('draws a memory line once a running session has been sampled a few times, in amber when it is over the limit', async () => {
+    it('draws one chart of memory and CPU once a running session has been sampled a few times, in amber when memory is over the limit', async () => {
       const sample = (i: number, rssKb: number) => ({ t: 1_000_000 + i * 60_000, rssKb, cpu: i });
       const growing = makeSession({ id: 'ws-a', name: 'acme/app', pid: 10, history: [sample(0, 100_000), sample(1, 200_000), sample(2, 300_000)] });
       const leaking = makeSession({ id: 'ws-c', name: 'acme/web', pid: 11, history: [sample(0, 1_000_000), sample(1, 4_500_000), sample(2, 5_000_000)] });
       const fresh = makeSession({ id: 'ws-d', name: 'acme/cli', pid: 12, history: [sample(0, 100_000), sample(1, 100_000)] });
       await open(makeSnapshot({ sessions: [growing, leaking, fresh, stopped] }));
-      const lines = [...card('Workspace sessions').querySelectorAll<SVGElement>('.session-head .sparkline')];
-      expect(lines.map((l) => l.classList.contains('warn'))).toEqual([false, true]);
-      expect(lines[0]!.querySelector('polyline')!.getAttribute('points')).toBe('0.0,15.0 30.0,8.0 60.0,1.0');
-      expect(lines[0]!.closest('.session-trend')!.getAttribute('title')).toBe('Memory over the last 2m: 293.0 MB now, peak 293.0 MB');
+      const charts = [...card('Workspace sessions').querySelectorAll<SVGElement>('.session-head .resource-chart')];
+      expect(charts).toHaveLength(2);
+      expect(charts.map((c) => c.classList.contains('warn'))).toEqual([false, true]);
+      // Each line is scaled to its own range, so both are drawn in the same box.
+      expect(charts[0]!.querySelector('.mem')!.getAttribute('points')).toBe('0.0,15.0 30.0,8.0 60.0,1.0');
+      expect(charts[0]!.querySelector('.cpu')!.getAttribute('points')).toBe('0.0,15.0 30.0,8.0 60.0,1.0');
+      expect(charts[0]!.closest('.session-trend')!.getAttribute('title')).toBe(
+        'Over the last 2m\nMemory: 293.0 MB now, peak 293.0 MB\nCPU: 2.0% now, peak 2.0%',
+      );
+      expect(card('Workspace sessions').querySelectorAll('.sparkline')).toHaveLength(0);
     });
 
-    it('shows memory and CPU together when a session is expanded', async () => {
+    it('keeps the one chart in the header when a session is expanded, with no second pair of lines', async () => {
       const sample = (i: number) => ({ t: 1_000_000 + i * 60_000, rssKb: 100_000 + i * 1000, cpu: i });
       await open(makeSnapshot({ sessions: [makeSession({ id: 'ws-a', pid: 10, history: [sample(0), sample(1), sample(2)] })] }));
-      expect(card('Workspace sessions').querySelector('.session-trends')).toBeNull();
       card('Workspace sessions').querySelector<HTMLButtonElement>('.session-toggle')!.click();
       await flush();
-      const trends = card('Workspace sessions').querySelector('.session-trends')!;
-      expect(trends.querySelectorAll('.sparkline')).toHaveLength(2);
-      expect(trends.querySelectorAll('.session-trend')[1]!.getAttribute('title')).toBe('CPU over the last 2m: 2.0% now, peak 2.0%');
+      expect(card('Workspace sessions').querySelectorAll('.resource-chart')).toHaveLength(1);
+      expect(card('Workspace sessions').querySelector('.session-trends')).toBeNull();
+      expect(card('Workspace sessions').querySelector('.session-head .resource-chart')).not.toBeNull();
+    });
+
+    it('gives the process list a fixed box, and keeps where it was scrolled to across a refresh', async () => {
+      const snapshot = makeSnapshot({ sessions: [makeSession({ id: 'ws-a', pid: 10 })] });
+      await open(snapshot);
+      card('Workspace sessions').querySelector<HTMLButtonElement>('.session-toggle')!.click();
+      await flush();
+      const procs = () => card('Workspace sessions').querySelector<HTMLElement>('.procs')!;
+      expect(procs().classList.contains('fixed')).toBe(true);
+      expect(procs().dataset.session).toBe('ws-a');
+      procs().scrollTop = 40;
+      procs().dispatchEvent(new Event('scroll'));
+      view.setSystem({ type: 'system', snapshot: makeSnapshot({ sessions: [makeSession({ id: 'ws-a', pid: 10 })] }), error: null });
+      expect(procs().scrollTop).toBe(40);
     });
 
     it('still renders when the helper does not report its own CPU yet', async () => {
