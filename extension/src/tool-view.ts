@@ -1,6 +1,6 @@
 import { FitAddon } from '@xterm/addon-fit';
 import { Terminal, type ITheme } from '@xterm/xterm';
-import { MONITOR_SESSION, SHELL_SESSION, type ClientMessage, type ServerMessage } from '../../shared/protocol';
+import { MONITOR_SESSION, SHELL_SESSION, type ClientMessage, type ServerMessage, workspaceShellSession } from '../../shared/protocol';
 import { $, wireBack } from './dom';
 import { getHelper, openSocket } from './helper-client';
 
@@ -12,6 +12,13 @@ export const TOOLS = {
 
 export type Tool = keyof typeof TOOLS;
 
+/** What the view is attached to: a tool, or a workspace's own shell. */
+interface Target {
+  key: string;
+  session: string;
+  title: string;
+}
+
 export interface ToolViewOptions {
   /** Called after the view opens or closes, so the panel can hide what it covers. */
   onToggle(): void;
@@ -19,10 +26,12 @@ export interface ToolViewOptions {
 
 export interface ToolView {
   readonly isOpen: boolean;
-  /** The tool showing, or null. */
-  readonly current: Tool | null;
+  /** The tool showing (its name, or a workspace shell's session id), or null. */
+  readonly current: string | null;
   /** Opens the tool, or switches to it if the other one is showing. */
   show(tool: Tool): void;
+  /** A login shell in the workspace's directory, its own session, kept running like the plain terminal. */
+  showShell(workspace: { id: string; name: string }): void;
   close(): void;
   setTheme(theme: ITheme): void;
 }
@@ -42,7 +51,7 @@ export function createToolView({ onToggle }: ToolViewOptions): ToolView {
   const fit = new FitAddon();
   term.loadAddon(fit);
   let opened = false;
-  let current: Tool | null = null;
+  let current: Target | null = null;
   let socket: WebSocket | null = null;
   // Replayed output holds terminal queries that were already answered; xterm's replies to them are dropped.
   let replaying = false;
@@ -67,11 +76,11 @@ export function createToolView({ onToggle }: ToolViewOptions): ToolView {
     old?.close();
   }
 
-  function connect(tool: Tool): void {
+  function connect(target: Target): void {
     getHelper().then(
       (helper) => {
-        if (current !== tool) return;
-        const ws = openSocket(helper, `/attach?session=${TOOLS[tool].session}`);
+        if (current !== target) return;
+        const ws = openSocket(helper, `/attach?session=${target.session}`);
         socket = ws;
         ws.onopen = () => {
           resize();
@@ -92,21 +101,25 @@ export function createToolView({ onToggle }: ToolViewOptions): ToolView {
         ws.onclose = () => {
           if (socket !== ws) return;
           socket = null;
-          if (current === tool) term.write('\r\n\x1b[33m[disconnected from helper]\x1b[0m\r\n');
+          if (current === target) term.write('\r\n\x1b[33m[disconnected from helper]\x1b[0m\r\n');
         };
       },
       () => {
-        if (current === tool) term.write('\r\n\x1b[33m[could not reach the helper]\x1b[0m\r\n');
+        if (current === target) term.write('\r\n\x1b[33m[could not reach the helper]\x1b[0m\r\n');
       },
     );
   }
 
   function show(tool: Tool): void {
-    if (current === tool) return;
+    showTarget({ key: tool, ...TOOLS[tool] });
+  }
+
+  function showTarget(target: Target): void {
+    if (current?.key === target.key) return;
     const wasOpen = current !== null;
     detach();
-    current = tool;
-    title.textContent = TOOLS[tool].title;
+    current = target;
+    title.textContent = target.title;
     section.hidden = false;
     if (!wasOpen) onToggle();
     // xterm measures its container, so it is opened once the section is visible.
@@ -116,7 +129,7 @@ export function createToolView({ onToggle }: ToolViewOptions): ToolView {
     }
     term.reset();
     fit.fit();
-    connect(tool);
+    connect(target);
   }
 
   function close(): void {
@@ -132,9 +145,11 @@ export function createToolView({ onToggle }: ToolViewOptions): ToolView {
       return current !== null;
     },
     get current() {
-      return current;
+      return current?.key ?? null;
     },
     show,
+    showShell: (workspace) =>
+      showTarget({ key: workspaceShellSession(workspace.id), session: workspaceShellSession(workspace.id), title: `Terminal · ${workspace.name}` }),
     close,
     setTheme(theme) {
       term.options.theme = theme;

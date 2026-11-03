@@ -23,6 +23,8 @@ export interface WorkspaceListOptions {
   ticketLink(ticket: string | null): string | null;
   /** Shows a workspace: its window, its tab group, its terminal. */
   open(ws: Workspace): void;
+  /** Opens a login shell in the workspace's directory, in the tool view. */
+  openShell(ws: Workspace): void;
   /** The current workspace was clicked again: close whatever view covers its terminal. */
   onReselect(): void;
   /** A drag moved a workspace; the panel keeps the new order until the helper confirms it. */
@@ -311,6 +313,7 @@ export function createWorkspaceList(options: WorkspaceListOptions): WorkspaceLis
         menuItem('Archive', () => options.send({ type: 'remove', id: ws.id })),
         menuItem('Archive & close tabs', () => options.send({ type: 'remove', id: ws.id, closeTabs: true })),
         menuItem('Rename', () => startRename(ws, nameEl)),
+        menuItem('Open a shell here', () => options.openShell(ws)),
         menuItem('Resume an earlier conversation…', () => {
           menuAt = { x, y };
           options.send({ type: 'listSessions', id: ws.id });

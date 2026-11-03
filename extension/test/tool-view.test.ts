@@ -142,6 +142,18 @@ describe('showing', () => {
     expect(socket().path).toBe(`/attach?session=${SHELL_SESSION}`);
   });
 
+  it("opens a shell of a workspace's own, titled for it, attached to that workspace's shell session", async () => {
+    const { view } = await make();
+    view.showShell({ id: 'ws-0123abcd', name: 'acme/app' });
+    await flush();
+    expect(view.current).toBe('shell-ws-0123abcd');
+    expect($('tool-title').textContent).toBe('Terminal · acme/app');
+    expect(socket().path).toBe('/attach?session=shell-ws-0123abcd');
+    view.showShell({ id: 'ws-0123abcd', name: 'acme/app' });
+    await flush();
+    expect(FakeSocket.instances).toHaveLength(1);
+  });
+
   it('does nothing when the tool is already showing', async () => {
     const { view, onToggle } = await make();
     view.show('shell');

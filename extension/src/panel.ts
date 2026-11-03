@@ -311,6 +311,7 @@ const workspaceList = createWorkspaceList({
   windowId: () => myWindowId,
   ticketLink: (ticket) => ticketUrl(jiraBase, ticket),
   open: openWorkspace,
+  openShell: (ws) => tools.showShell(ws),
   onReselect: () => {
     creator.close();
     git.close();
@@ -488,6 +489,16 @@ function paletteItems(): PaletteItem[] {
   const items: PaletteItem[] = [
     { kind: 'Action', label: 'New workspace', hint: 'Start a workspace', run: () => creator.show() },
     { kind: 'Action', label: 'Terminal', hint: 'A plain shell, not tied to a workspace', run: () => tools.show('shell') },
+    ...(current()
+      ? [
+          {
+            kind: 'Action',
+            label: `Shell in ${current()!.name}`,
+            hint: 'A login shell in its directory, beside claude',
+            run: () => tools.showShell(current()!),
+          },
+        ]
+      : []),
     { kind: 'Action', label: 'System monitor', hint: 'btop, in the panel', run: () => tools.show('monitor') },
     { kind: 'Action', label: 'Expand activity', hint: "What this workspace's claude is doing, as a timeline", run: () => activity.expand() },
     { kind: 'Action', label: 'Open settings', hint: 'Helper, sessions, housekeeping', run: () => settings.show() },

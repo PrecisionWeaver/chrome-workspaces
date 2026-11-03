@@ -1,6 +1,7 @@
 import { isAbsolute } from 'node:path';
 import type { WebSocket } from 'ws';
 import type { ActivityItem } from '../../shared/activity';
+import { workspaceShellSession } from '../../shared/protocol';
 import type { ControlToClient, ControlToHelper, PastSession, Prompt, Repo, ReviewsState, WaitingOn, Workspace, WorkspaceStatus } from '../../shared/protocol';
 import { isDirectory } from './config';
 import { isControlToHelper } from './control-messages';
@@ -190,6 +191,7 @@ export class ControlHub {
         // Remembered before it goes, with the conversation it was on, so it can be restored.
         if (removing) this.options.history.record(removing, this.options.resumeId(message.id));
         this.options.sessions.remove(message.id);
+        this.options.sessions.remove(workspaceShellSession(message.id));
         store.remove(message.id);
         if (removing?.windowId != null && message.closeTabs) {
           // A window shared with other workspaces is theirs too: only a group can be closed out of it.
