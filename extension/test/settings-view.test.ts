@@ -903,6 +903,9 @@ describe('the cards', () => {
         await expand();
         expect(sentOfType('timeline')).toEqual([{ type: 'timeline', id: 'ws-a' }]);
         expect(card('Workspace sessions').querySelector('.activity')!.textContent).toBe('Loading…');
+        const link = card('Workspace sessions').querySelector<HTMLElement>('.session-actions .session-link')!;
+        expect(link.getAttribute('aria-expanded')).toBe('true');
+        expect(link.querySelector('.caret.open')).not.toBeNull();
         sent.length = 0;
         vi.advanceTimersByTime(3000);
         expect(sentOfType('timeline')).toEqual([{ type: 'timeline', id: 'ws-a' }]);
