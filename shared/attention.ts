@@ -1,4 +1,4 @@
-import type { WorkspaceStatus } from './protocol';
+import type { WaitingOn, WorkspaceStatus } from './protocol';
 
 export type AttentionKind = 'needs_input' | 'finished';
 
@@ -28,4 +28,27 @@ export function attentionEvents(previous: Readonly<Record<string, WorkspaceStatu
     else if (status === 'idle' && before === 'working') events.push({ id, kind: 'finished' });
   }
   return events;
+}
+
+export type WaitingKind = 'permission' | 'question';
+
+export interface WaitingDescription {
+  kind: WaitingKind;
+  /** For a notification: "<name> needs your permission" or "<name> needs your input". */
+  title: string;
+  /** Claude's own words, when the hook had them. */
+  message: string;
+}
+
+/** Whether a waiting workspace wants a permission answered or anything else (a question, a dialog). */
+export const waitingKind = (waiting: WaitingOn | null | undefined): WaitingKind => (waiting?.type === 'permission_prompt' ? 'permission' : 'question');
+
+/** What to tell the user about a workspace that is waiting. */
+export function describeWaiting(name: string, waiting: WaitingOn | null | undefined): WaitingDescription {
+  const kind = waitingKind(waiting);
+  return {
+    kind,
+    title: kind === 'permission' ? `${name} needs your permission` : `${name} needs your input`,
+    message: waiting?.message || 'Claude is waiting for you.',
+  };
 }

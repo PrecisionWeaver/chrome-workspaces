@@ -1,7 +1,8 @@
+import { waitingKind } from '../../shared/attention';
 import { FitAddon } from '@xterm/addon-fit';
 import { Terminal } from '@xterm/xterm';
 import { similarity } from '../../shared/pairing';
-import type { ClientMessage, HistoryEntry, ReviewRequest, ReviewsState, ServerMessage, Workspace, WorkspaceStatus } from '../../shared/protocol';
+import type { ClientMessage, HistoryEntry, ReviewRequest, ReviewsState, ServerMessage, WaitingOn, Workspace, WorkspaceStatus } from '../../shared/protocol';
 import { $, el } from './dom';
 import { connectControl, getHelper, isHostMissing, openSocket, startHelper } from './helper-client';
 import { createActivitySection } from './activity-section';
@@ -56,6 +57,7 @@ systemDark.addEventListener('change', () => applyAppearance());
 let myWindowId: number | undefined;
 let workspaces: Workspace[] = [];
 let statuses: Record<string, WorkspaceStatus> = {};
+let waiting: Record<string, WaitingOn> = {};
 let reviews: ReviewsState = { items: [], error: null, fetchedAt: null, refreshing: false };
 let history: HistoryEntry[] = [];
 // The Jira site from the config, learned from the system snapshot; null hides every ticket link.
@@ -102,6 +104,7 @@ const control = connectControl(
     const wasStatus = shown ? statuses[shown.id] : undefined;
     workspaces = message.workspaces;
     statuses = message.statuses;
+    waiting = message.waiting;
     // Claude starting or finishing work means files likely changed.
     if (shown && statuses[shown.id] !== wasStatus) git.refresh();
     reviews = message.reviews;
@@ -146,6 +149,7 @@ const creator = createCreateView({
 const git = createGitView({
   send,
   status: (id) => statuses[id] ?? null,
+  waiting: (id) => waiting[id] ?? null,
   onToggle() {
     if (git.isOpen) {
       creator.close();
@@ -298,7 +302,7 @@ function render(): void {
 
 const workspaceList = createWorkspaceList({
   send,
-  state: () => ({ workspaces, statuses, history }),
+  state: () => ({ workspaces, statuses, waiting, history }),
   current,
   windowId: () => myWindowId,
   ticketLink: (ticket) => ticketUrl(jiraBase, ticket),
@@ -499,7 +503,7 @@ function paletteItems(): PaletteItem[] {
       label: ws.name,
       hint: [
         ws.id === shown?.id ? 'current' : '',
-        status === 'needs_input' ? 'needs input' : status === 'working' ? 'working' : '',
+        status === 'needs_input' ? (waitingKind(waiting[ws.id]) === 'permission' ? 'needs permission' : 'needs input') : status === 'working' ? 'working' : '',
         ws.cwd.replace(/^\/Users\/[^/]+/, '~'),
       ]
         .filter(Boolean)

@@ -22,12 +22,41 @@ describe('readSessionStatus', () => {
       'a.json': { session_id: ID_OLD, cw_workspace_id: 'ws-1', status: 'idle', started_at: '2026-01-01T00:00:00Z' },
       'b.json': { session_id: ID_NEW, cw_workspace_id: 'ws-1', status: 'needs_input', started_at: '2026-01-02T00:00:00Z' },
     });
-    expect(readSessionStatus(dir).get('ws-1')).toEqual({ status: 'needs_input', claudeSessionId: ID_NEW, browserAt: null, cwd: null, transcriptPath: null });
+    expect(readSessionStatus(dir).get('ws-1')).toEqual({
+      status: 'needs_input',
+      waiting: null,
+      claudeSessionId: ID_NEW,
+      browserAt: null,
+      cwd: null,
+      transcriptPath: null,
+    });
   });
 
   it('reports no live status for ended sessions but keeps their id for resuming', () => {
     const dir = stateDir({ 'a.json': { session_id: ID_OLD, cw_workspace_id: 'ws-1', status: 'ended', started_at: '2026-01-01T00:00:00Z' } });
-    expect(readSessionStatus(dir).get('ws-1')).toEqual({ status: null, claudeSessionId: ID_OLD, browserAt: null, cwd: null, transcriptPath: null });
+    expect(readSessionStatus(dir).get('ws-1')).toEqual({
+      status: null,
+      waiting: null,
+      claudeSessionId: ID_OLD,
+      browserAt: null,
+      cwd: null,
+      transcriptPath: null,
+    });
+  });
+
+  it('reports what a waiting session is waiting on, and nothing for one that is not waiting', () => {
+    const dir = stateDir({
+      [`${ID_OLD}.json`]: {
+        session_id: ID_OLD,
+        cw_workspace_id: 'ws-a',
+        status: 'needs_input',
+        waiting: { type: 'permission_prompt', message: 'Claude needs your permission to use Bash' },
+      },
+      [`${ID_NEW}.json`]: { session_id: ID_NEW, cw_workspace_id: 'ws-b', status: 'working', waiting: { type: 'idle_prompt', message: 'stale' } },
+    });
+    const result = readSessionStatus(dir);
+    expect(result.get('ws-a')?.waiting).toEqual({ type: 'permission_prompt', message: 'Claude needs your permission to use Bash' });
+    expect(result.get('ws-b')?.waiting).toBeNull();
   });
 
   it('reports when the session last used Claude in Chrome', () => {
@@ -215,7 +244,14 @@ describe('importLegacySessions', () => {
     });
     const dir = stateDir({});
     expect(importLegacySessions(legacy, dir)).toBe(1);
-    expect(readSessionStatus(dir).get('ws-1')).toEqual({ status: null, claudeSessionId: ID_OLD, browserAt: null, cwd: '/repo', transcriptPath: transcript });
+    expect(readSessionStatus(dir).get('ws-1')).toEqual({
+      status: null,
+      waiting: null,
+      claudeSessionId: ID_OLD,
+      browserAt: null,
+      cwd: '/repo',
+      transcriptPath: transcript,
+    });
     expect(readdirSync(dir)).toEqual(['a.json']);
   });
 

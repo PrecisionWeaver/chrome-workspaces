@@ -1,3 +1,4 @@
+import { describeWaiting, waitingKind } from '../../shared/attention';
 import { layoutGraph } from '../../shared/git-graph';
 import type {
   BranchPr,
@@ -8,6 +9,7 @@ import type {
   GitCommitFile,
   GitFile,
   GitState,
+  WaitingOn,
   Workspace,
   WorkspaceStatus,
 } from '../../shared/protocol';
@@ -21,6 +23,8 @@ export interface GitViewOptions {
   onToggle(): void;
   /** What the workspace's claude is doing, from its status hooks. */
   status(id: string): WorkspaceStatus;
+  /** What its claude waits on, while the status is `needs_input`. */
+  waiting?(id: string): WaitingOn | null;
 }
 
 export interface GitView {
@@ -115,7 +119,7 @@ function iconButton(label: string, title: string, run: () => void, confirm?: str
   return button;
 }
 
-export function createGitView({ send, onToggle, status }: GitViewOptions): GitView {
+export function createGitView({ send, onToggle, status, waiting }: GitViewOptions): GitView {
   const section = $<HTMLElement>('git');
   const branchEl = $<HTMLDivElement>('git-branch');
   const errorEl = $<HTMLDivElement>('git-error');
@@ -240,8 +244,10 @@ export function createGitView({ send, onToggle, status }: GitViewOptions): GitVi
     }
     const live = status(workspaceId);
     if (live) {
-      const chip = el('span', STATUS_TEXT[live], 'git-claude');
+      const wanted = live === 'needs_input' ? (waiting?.(workspaceId) ?? null) : null;
+      const chip = el('span', wanted && waitingKind(wanted) === 'permission' ? 'Claude needs permission' : STATUS_TEXT[live], 'git-claude');
       chip.dataset.status = live;
+      if (wanted) chip.title = describeWaiting('Claude', wanted).message;
       branchEl.append(chip);
     }
   }

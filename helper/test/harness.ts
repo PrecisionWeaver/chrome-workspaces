@@ -2,7 +2,16 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import WebSocket from 'ws';
-import { PROTOCOL, TOKEN_PROTOCOL_PREFIX, type ControlToClient, type Prompt, type Repo, type ReviewRequest, type WorkspaceStatus } from '../../shared/protocol';
+import {
+  PROTOCOL,
+  TOKEN_PROTOCOL_PREFIX,
+  type ControlToClient,
+  type Prompt,
+  type Repo,
+  type ReviewRequest,
+  type WaitingOn,
+  type WorkspaceStatus,
+} from '../../shared/protocol';
 import { createApi } from '../src/api';
 import { readActivity } from '../src/activity';
 import { type AdminService, createAdmin } from '../src/admin';
@@ -70,6 +79,7 @@ export async function startHarness(): Promise<Harness> {
   const fakes = {
     configProblems: [] as string[],
     statuses: {} as Record<string, WorkspaceStatus>,
+    waiting: {} as Record<string, WaitingOn>,
     reviews: [] as ReviewRequest[],
     reviewRefreshes: 0,
     prompts: [] as Prompt[],
@@ -108,6 +118,7 @@ export async function startHarness(): Promise<Harness> {
     return fakes.prompts;
   };
   const statuses = () => fakes.statuses;
+  const waiting = () => fakes.waiting;
   const admin = createAdmin({
     sessions,
     store,
@@ -151,6 +162,7 @@ export async function startHarness(): Promise<Harness> {
     sessions,
     defaultCwd,
     statuses,
+    waiting,
     reviews,
     prompts,
     prDetails,

@@ -1,7 +1,7 @@
 import { matchGroups, matchWindows } from '../../shared/pairing';
-import { attentionEvents, needsInputCount } from '../../shared/attention';
+import { attentionEvents, describeWaiting, needsInputCount } from '../../shared/attention';
 import { listFollowingTabs, listGroupOrder, nextGroupMove } from '../../shared/tab-order';
-import type { ControlToClient, Workspace, WorkspaceStatus } from '../../shared/protocol';
+import type { ControlToClient, WaitingOn, Workspace, WorkspaceStatus } from '../../shared/protocol';
 import { placeClaudeGroups } from './claude-groups';
 import { connectControl } from './helper-client';
 import { loadSelection, onSelectionChange, select, shownIn, type Selection } from './selection';
@@ -44,7 +44,7 @@ function handle(message: ControlToClient): void {
       const reordered = previousOrder !== null && previousOrder !== orderKey(message.workspaces);
       previousOrder = orderKey(message.workspaces);
       workspaces = message.workspaces;
-      void announce(message.statuses);
+      void announce(message.statuses, message.waiting);
       void rebuildSendMenu();
       // The list was reordered, here or in a panel: put the tab groups in the same order.
       if (reordered) void tabsFollowList();
@@ -247,7 +247,7 @@ async function notificationsOn(): Promise<boolean> {
 }
 
 /** Shows how many workspaces wait on the user, and notifies when one starts waiting or finishes. */
-async function announce(statuses: Record<string, WorkspaceStatus>): Promise<void> {
+async function announce(statuses: Record<string, WorkspaceStatus>, wantedBy: Record<string, WaitingOn>): Promise<void> {
   const waiting = needsInputCount(
     statuses,
     workspaces.map((ws) => ws.id),
@@ -260,11 +260,12 @@ async function announce(statuses: Record<string, WorkspaceStatus>): Promise<void
   for (const event of events) {
     const workspace = find(event.id);
     if (!workspace) continue;
+    const wanted = describeWaiting(workspace.name, wantedBy[event.id]);
     chrome.notifications.create(`ws-${event.id}`, {
       type: 'basic',
       iconUrl: 'icons/icon-128.png',
-      title: event.kind === 'needs_input' ? `${workspace.name} needs your input` : `${workspace.name} finished`,
-      message: event.kind === 'needs_input' ? 'Claude is waiting for you.' : 'Claude is idle again.',
+      title: event.kind === 'needs_input' ? wanted.title : `${workspace.name} finished`,
+      message: event.kind === 'needs_input' ? wanted.message : 'Claude is idle again.',
       priority: 1,
     });
   }

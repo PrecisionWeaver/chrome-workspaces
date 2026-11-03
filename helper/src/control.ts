@@ -1,7 +1,7 @@
 import { isAbsolute } from 'node:path';
 import type { WebSocket } from 'ws';
 import type { ActivityItem } from '../../shared/activity';
-import type { ControlToClient, ControlToHelper, Prompt, Repo, ReviewsState, Workspace, WorkspaceStatus } from '../../shared/protocol';
+import type { ControlToClient, ControlToHelper, Prompt, Repo, ReviewsState, WaitingOn, Workspace, WorkspaceStatus } from '../../shared/protocol';
 import { isDirectory } from './config';
 import { isControlToHelper } from './control-messages';
 import type { AdminService } from './admin';
@@ -23,6 +23,8 @@ export interface ControlHubOptions {
   sessions: SessionManager;
   defaultCwd: string;
   statuses: () => Record<string, WorkspaceStatus>;
+  /** What each waiting workspace waits on; only workspaces at `needs_input` have an entry. */
+  waiting: () => Record<string, WaitingOn>;
   reviews: ReviewSource;
   /** Throws when the prompts file cannot be read. */
   prompts: () => Prompt[];
@@ -104,8 +106,8 @@ export class ControlHub {
   }
 
   private state(): ControlToClient {
-    const { store, statuses, reviews } = this.options;
-    return { type: 'state', workspaces: store.list(), statuses: statuses(), reviews: reviews.state() };
+    const { store, statuses, waiting, reviews } = this.options;
+    return { type: 'state', workspaces: store.list(), statuses: statuses(), waiting: waiting(), reviews: reviews.state() };
   }
 
   private prompts(): ControlToClient {
