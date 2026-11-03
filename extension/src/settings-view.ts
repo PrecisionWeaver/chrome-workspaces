@@ -11,7 +11,7 @@ import type {
 } from '../../shared/protocol';
 import { $, caret, el, wireBack } from './dom';
 import { type CardLayout, columnCountFor, keysOf, layoutCards, layoutFromKeys } from './settings-layout';
-import { sparkline } from './sparkline';
+import { resourceChart } from './sparkline';
 import { card, actions, row } from './settings-parts';
 import { planCard, usageCard } from './settings-usage';
 import { formatBytes, formatDuration, formatKb, formatTokens, newTokens } from './format';
@@ -76,6 +76,8 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
     if (isOpen) render();
   });
   const expanded = new Set<string>();
+  // Where each session's process list was scrolled to, put back after every redraw.
+  const procScroll = new Map<string, number>();
   // Sessions whose activity list is open, and what each last returned.
   const activityOpen = new Set<string>();
   const activity = new Map<string, { events: TimelineEvent[]; error: string | null }>();
@@ -223,29 +225,23 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
     return box;
   }
 
-  /** Memory and CPU lately, as small lines; null until a session has been sampled a few times. */
-  function trendLines(session: SystemSession, warnMb: number): { memory: HTMLElement; cpu: HTMLElement } | null {
+  /** Memory and CPU lately, as one small chart; null until a session has been sampled a few times. */
+  function trendChart(session: SystemSession, warnMb: number): HTMLElement | null {
     const { history } = session;
-    const memoryLine = sparkline(
-      history.map((h) => h.rssKb),
-      (history.at(-1)?.rssKb ?? 0) / 1024 >= warnMb ? 'warn' : '',
-    );
-    const cpuLine = sparkline(history.map((h) => h.cpu));
-    if (!memoryLine || !cpuLine) return null;
-    const minutes = Math.round((history[history.length - 1].t - history[0].t) / 60_000);
-    const span = minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
-    const wrap = (line: SVGSVGElement, label: string, now: string, peak: string): HTMLElement => {
-      const node = el('span', '', 'session-trend');
-      node.title = `${label} over the last ${span}: ${now} now, peak ${peak}`;
-      node.append(line);
-      return node;
-    };
     const rss = history.map((h) => h.rssKb);
     const cpu = history.map((h) => h.cpu);
-    return {
-      memory: wrap(memoryLine, 'Memory', formatKb(rss[rss.length - 1]), formatKb(Math.max(...rss))),
-      cpu: wrap(cpuLine, 'CPU', `${cpu[cpu.length - 1].toFixed(1)}%`, `${Math.max(...cpu).toFixed(1)}%`),
-    };
+    const chart = resourceChart(rss, cpu, (history.at(-1)?.rssKb ?? 0) / 1024 >= warnMb ? 'warn' : '');
+    if (!chart) return null;
+    const minutes = Math.round((history[history.length - 1].t - history[0].t) / 60_000);
+    const span = minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+    const node = el('span', '', 'session-trend');
+    node.title = [
+      `Over the last ${span}`,
+      `Memory: ${formatKb(rss[rss.length - 1])} now, peak ${formatKb(Math.max(...rss))}`,
+      `CPU: ${cpu[cpu.length - 1].toFixed(1)}% now, peak ${Math.max(...cpu).toFixed(1)}%`,
+    ].join('\n');
+    node.append(chart);
+    return node;
   }
 
   function sessionRow(session: SystemSession, warnMb: number): HTMLElement {
@@ -287,8 +283,8 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       ),
     );
     summary.title = session.cwd;
-    const trends = running ? trendLines(session, warnMb) : null;
-    if (trends) summary.append(trends.memory);
+    const trend = running ? trendChart(session, warnMb) : null;
+    if (trend) summary.append(trend);
     head.append(
       toggle,
       summary,
@@ -299,18 +295,14 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
     wrapper.append(head);
 
     if (open) {
-      const list = el('div', '', 'procs');
+      // A fixed box, so processes starting and stopping do not move what is below; a long list scrolls inside it.
+      const list = el('div', '', 'procs fixed');
+      list.dataset.session = session.id;
+      list.addEventListener('scroll', () => procScroll.set(session.id, list.scrollTop));
       session.processes.forEach((proc, index) => {
         list.append(processRow(session, proc, index === 0));
       });
       wrapper.append(list);
-      // Fresh lines: a node can sit in one place, and the row's own memory line is already in the header.
-      const both = trends ? trendLines(session, warnMb) : null;
-      if (both) {
-        const line = el('div', '', 'session-trends');
-        line.append(el('span', 'Memory', 'k'), both.memory, el('span', 'CPU', 'k'), both.cpu);
-        wrapper.append(line);
-      }
     }
     if (open) {
       const shown = activityOpen.has(session.id);
@@ -702,6 +694,7 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       placement = null;
     }
     body.scrollTop = scroll;
+    for (const list of grid.querySelectorAll<HTMLElement>('.procs[data-session]')) list.scrollTop = procScroll.get(list.dataset.session as string) ?? 0;
   }
 
   // Widening the panel adds a column, so the cards are dealt again when that changes, and not for every pixel.
