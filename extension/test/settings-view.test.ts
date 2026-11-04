@@ -549,7 +549,7 @@ describe('the cards', () => {
     it('draws a bar a day, scaled to the busiest, with a sliver for any use and nothing for none', async () => {
       await open(makeSnapshot({ usage: usage() }));
       expect(bars().map((bar) => bar.querySelector<HTMLElement>('.usage-fill')!.style.height)).toEqual(['100%', '4%', '0%']);
-      expect(bars()[0]!.title).toBe('2026-03-09\n1.0M tokens · ~$3.00');
+      expect(bars()[0]!.dataset.tip).toBe('2026-03-09\n1.0M tokens · ~$3.00');
     });
 
     it('splits the range by workspace, folding the smallest into one line, and leaves it out for a single workspace', async () => {
@@ -591,7 +591,7 @@ describe('the cards', () => {
       await open(makeSnapshot({ usage: usage({ daily: sixty(), hourly }) }));
       await pick('Today');
       expect(bars()).toHaveLength(24);
-      expect(bars()[9]!.title).toBe('09:00\n400 tokens · ~$4.00');
+      expect(bars()[9]!.dataset.tip).toBe('09:00\n400 tokens · ~$4.00');
       expect(bars()[9]!.querySelector<HTMLElement>('.usage-fill')!.style.height).toBe('100%');
       expect(bars()[11]!.querySelector<HTMLElement>('.usage-fill')!.style.height).toBe('25%');
       expect(bars()[3]!.querySelector<HTMLElement>('.usage-fill')!.style.height).toBe('0%');

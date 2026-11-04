@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest';
-import { el, icon, promptCard } from '../src/dom';
+import { el, hoverTip, icon, installHoverTips, promptCard } from '../src/dom';
+import { isolateDocumentListeners } from './fixtures';
 
 describe('el', () => {
   it('makes an element with text and classes, as text rather than markup', () => {
@@ -50,5 +51,26 @@ describe('icon', () => {
     expect(svg.namespaceURI).toBe('http://www.w3.org/2000/svg');
     expect(svg.getAttribute('class')).toBe('icon');
     expect(svg.querySelector('use')?.getAttribute('href')).toBe('#i-github');
+  });
+});
+
+describe('hover tips', () => {
+  isolateDocumentListeners();
+
+  it('shows the tip of the element under the pointer at once, and drops it on leaving', () => {
+    installHoverTips();
+    const bar = el('div');
+    const inner = el('span');
+    bar.append(inner);
+    hoverTip(bar, '2026-03-09\n1.0M tokens');
+    const plain = el('div');
+    document.body.append(bar, plain);
+    inner.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+    expect(document.querySelectorAll('.hover-tip')).toHaveLength(1);
+    expect(document.querySelector('.hover-tip')!.textContent).toBe('2026-03-09\n1.0M tokens');
+    plain.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+    expect(document.querySelector('.hover-tip')).toBeNull();
+    bar.remove();
+    plain.remove();
   });
 });

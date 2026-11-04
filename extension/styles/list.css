@@ -7,6 +7,8 @@
   flex-direction: column;
   background: var(--list-bg);
   border-right: 1px solid var(--border);
+  /* Lets the header react to the list's width, which the user drags. */
+  container: list / inline-size;
 }
 
 /* The header of the workspace list and of each accordion section: a title between small icon buttons. */
@@ -19,6 +21,111 @@
 
 .section-title {
   flex: 1;
+}
+
+/* A narrow list wraps its header's buttons, together and kept to the right, onto a second line rather than cutting them off. */
+#list-header {
+  flex-wrap: wrap;
+  row-gap: 2px;
+}
+
+#list-actions {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+/* Memory and CPU of the helper and every workspace, before the waiting count. */
+#list-usage {
+  flex: none;
+  display: flex;
+  gap: 6px;
+  margin-left: 2px;
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+#list-title {
+  display: flex;
+  min-width: max-content;
+  margin-left: 4px;
+}
+
+/* The waiting count, tinted like the review requests' badges. */
+#list-title .waiting {
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--needs-input) 16%, transparent);
+  color: var(--needs-input);
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+/* A little short of room for "2 waiting" beside the buttons: the count alone keeps the header on one line. */
+@container list (min-width: 245px) and (max-width: 289px) {
+  #list-title .word {
+    display: none;
+  }
+}
+
+/*
+ * Too narrow for one line: a full-width spacer splits the header in two, the arrow and the buttons above, any
+ * waiting badge and the usage (pushed right) below. The rail is left alone, since its header's parts sit in the
+ * rail itself and the spacer would too.
+ */
+@container list (max-width: 244px) {
+  body:not(.collapsed) #list-header:has(.waiting)::before {
+    content: '';
+    order: 2;
+    flex-basis: 100%;
+  }
+
+  body:not(.collapsed) #list-header:has(.waiting) #list-actions {
+    order: 1;
+  }
+
+  body:not(.collapsed) #list-header:has(.waiting) #list-title {
+    order: 3;
+  }
+
+  body:not(.collapsed) #list-header:has(.waiting) #list-usage {
+    order: 4;
+    margin-left: auto;
+  }
+}
+
+/* With nothing waiting the one line is shorter, so it holds out longer. */
+@container list (max-width: 224px) {
+  body:not(.collapsed) #list-header::before {
+    content: '';
+    order: 2;
+    flex-basis: 100%;
+  }
+
+  body:not(.collapsed) #list-actions {
+    order: 1;
+  }
+
+  body:not(.collapsed) #list-title {
+    order: 3;
+  }
+
+  body:not(.collapsed) #list-usage {
+    order: 4;
+    margin-left: auto;
+  }
+}
+
+/* Too narrow even for "2 waiting" beside the usage on the second line: the count alone. */
+@container list (max-width: 179px) {
+  #list-title .word {
+    display: none;
+  }
 }
 
 /* A bare glyph button, as in every section header and the new-workspace button. */
@@ -587,6 +694,7 @@ body.collapsed #list {
 }
 
 body.collapsed #list-title,
+body.collapsed #list-usage,
 body.collapsed .ws .name,
 body.collapsed .ws .remove,
 body.collapsed #git,
@@ -620,7 +728,8 @@ body.collapsed #new {
 }
 
 /* The header's buttons join the rail itself, so the expand arrow stays at the top and the terminal, monitor and settings sit at the bottom, below + , rather than being hidden. */
-body.collapsed #list-header {
+body.collapsed #list-header,
+body.collapsed #list-actions {
   display: contents;
 }
 

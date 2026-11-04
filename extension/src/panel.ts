@@ -4,8 +4,19 @@ import { SearchAddon } from '@xterm/addon-search';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { Terminal } from '@xterm/xterm';
 import { similarity } from '../../shared/pairing';
-import type { ClientMessage, HistoryEntry, ReviewRequest, ReviewsState, ServerMessage, WaitingOn, Workspace, WorkspaceStatus } from '../../shared/protocol';
-import { $, el } from './dom';
+import type {
+  ClientMessage,
+  HistoryEntry,
+  ReviewRequest,
+  ReviewsState,
+  ServerMessage,
+  SystemSnapshot,
+  WaitingOn,
+  Workspace,
+  WorkspaceStatus,
+} from '../../shared/protocol';
+import { $, el, installHoverTips } from './dom';
+import { formatCpu, formatKb, formatUsageShort, resourceTitle, resourceTotal } from './format';
 import { connectControl, getHelper, isHostMissing, openSocket, startHelper } from './helper-client';
 import { createActivitySection } from './activity-section';
 import { createCreateView } from './create-view';
@@ -94,6 +105,7 @@ const control = connectControl(
       const attention = settings.warningCount + settings.setupRemaining;
       $<HTMLButtonElement>('settings-open').classList.toggle('has-warning', attention > 0);
       $<HTMLButtonElement>('settings-open').title = attention ? `Settings · ${attention} to look at` : 'Settings';
+      showUsage(message.snapshot);
     }
     if (message.type === 'adminResult') settings.setResult(message);
     if (message.type === 'systemLog') settings.setLog(message.text);
@@ -176,6 +188,8 @@ const git = createGitView({
     render();
   },
 });
+installHoverTips();
+
 const settings = createSettingsView({
   send,
   onToggle() {
@@ -493,11 +507,21 @@ function fitTerminal(): void {
 
 new ResizeObserver(fitTerminal).observe(terminalEl);
 
-// Resource warnings are checked once a minute while the panel is open, so the gear can say so; Settings
-// itself polls faster while it is showing.
+/** The helper's and every workspace's memory and CPU, rolled up in the list header; the same total as Settings. */
+function showUsage(snapshot: SystemSnapshot | null): void {
+  const usage = $<HTMLSpanElement>('list-usage');
+  usage.hidden = !snapshot;
+  if (!snapshot) return;
+  const { kb, cpu } = resourceTotal(snapshot);
+  usage.replaceChildren(...formatUsageShort(kb, cpu).map((text) => el('span', text)));
+  usage.title = `${formatKb(kb)} · ${formatCpu(cpu)}\n${resourceTitle(snapshot)}`;
+}
+
+// Usage and resource warnings are checked every 15 seconds while the panel is open, so the header and the
+// gear stay current; Settings itself polls faster while it is showing.
 setInterval(() => {
   if (document.visibilityState === 'visible' && !settings.isOpen) send({ type: 'system' });
-}, 60_000);
+}, 15_000);
 send({ type: 'system' });
 
 function paletteItems(): PaletteItem[] {
