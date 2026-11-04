@@ -35,7 +35,6 @@ export interface ToolView {
   showShell(workspace: { id: string; name: string }): void;
   close(): void;
   setTheme(theme: ITheme): void;
-  setFontSize(size: number): void;
 }
 
 /**
@@ -156,11 +155,6 @@ export function createToolView({ onToggle }: ToolViewOptions): ToolView {
     close,
     setTheme(theme) {
       term.options.theme = theme;
-    },
-    setFontSize(size) {
-      if (term.options.fontSize === size) return;
-      term.options.fontSize = size;
-      resize();
     },
   };
 }

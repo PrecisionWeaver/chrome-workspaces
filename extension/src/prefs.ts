@@ -1,4 +1,4 @@
-import { DEFAULT_FONT_SIZE, DENSITIES, FONT_SIZES, THEMES, type Density, type FontSize, type Theme } from '../../shared/keynav';
+import { DENSITIES, THEMES, type Density, type Theme } from '../../shared/keynav';
 import { DEFAULT_USAGE_RANGE, USAGE_RANGES, type UsageRangeId } from '../../shared/usage';
 
 export interface Prefs {
@@ -10,8 +10,6 @@ export interface Prefs {
   setupDismissed: boolean;
   /** How far back the usage chart and its figures in Settings go. */
   usageRange: UsageRangeId;
-  /** The terminals' font size in px. */
-  fontSize: FontSize;
 }
 
 const DEFAULTS: Prefs = {
@@ -20,7 +18,6 @@ const DEFAULTS: Prefs = {
   density: 'comfortable',
   setupDismissed: false,
   usageRange: DEFAULT_USAGE_RANGE,
-  fontSize: DEFAULT_FONT_SIZE,
 };
 
 /** Stored preferences with anything missing or invalid replaced by its default, since storage can hold anything. */
@@ -32,7 +29,6 @@ export function normalizePrefs(stored: unknown): Prefs {
     density: DENSITIES.includes(p.density as Density) ? (p.density as Density) : DEFAULTS.density,
     setupDismissed: p.setupDismissed === true,
     usageRange: USAGE_RANGES.some((range) => range.id === p.usageRange) ? (p.usageRange as UsageRangeId) : DEFAULT_USAGE_RANGE,
-    fontSize: (FONT_SIZES as readonly number[]).includes(p.fontSize as number) ? (p.fontSize as FontSize) : DEFAULT_FONT_SIZE,
   };
 }
 
