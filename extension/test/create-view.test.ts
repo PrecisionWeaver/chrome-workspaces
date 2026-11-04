@@ -332,15 +332,16 @@ describe('prompts', () => {
 describe('the first message', () => {
   it('shows the prompt picker, the message box or nothing, as chosen', async () => {
     await open();
-    expect([$('create-prompt').hidden, $('create-message').hidden]).toEqual([true, true]);
-    choose('prompt');
+    // From prompt is the default.
     expect([$('create-prompt').hidden, $('create-message').hidden]).toEqual([false, true]);
-    expect(document.activeElement).toBe($('create-filter'));
     choose('text');
     expect([$('create-prompt').hidden, $('create-message').hidden]).toEqual([true, false]);
     expect(document.activeElement).toBe($('create-message-text'));
     choose('blank');
     expect([$('create-prompt').hidden, $('create-message').hidden]).toEqual([true, true]);
+    choose('prompt');
+    expect([$('create-prompt').hidden, $('create-message').hidden]).toEqual([false, true]);
+    expect(document.activeElement).toBe($('create-filter'));
   });
 });
 
@@ -500,17 +501,21 @@ describe('creating', () => {
     expect(created()).toMatchObject({ prompt: 'Do it, but better' });
   });
 
-  it('will not create with a prompt or message chosen but empty, and focuses the empty box', async () => {
+  it('will not create with the message box chosen but empty, and focuses it', async () => {
     await open();
     type('create-name', 'w');
     choose('text');
     submit();
     expect(sentOfType('create')).toEqual([]);
     expect(document.activeElement).toBe($('create-message-text'));
-    choose('prompt');
+  });
+
+  it('starts From prompt, and creates with no first message when none is picked', async () => {
+    await open();
+    expect($('create-start').querySelector('.active')!.getAttribute('data-value')).toBe('prompt');
+    type('create-name', 'w');
     submit();
-    expect(sentOfType('create')).toEqual([]);
-    expect(document.activeElement).toBe($('create-filter'));
+    expect(created()).toEqual({ type: 'create', name: 'w', windowId: null });
   });
 
   it('prefills a review workspace with its PR, and sends what is left in the box', async () => {
