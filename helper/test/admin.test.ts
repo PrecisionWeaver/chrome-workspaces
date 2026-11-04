@@ -1,11 +1,11 @@
 import { execFileSync, spawn } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { ControlToClient } from '../../shared/protocol';
 import { readProcesses, subtree } from '../src/system';
-import { emptyDay, usageByHour, usageTrend } from '../src/admin';
+import { emptyDay, mergeWorkspaces, usageByHour, usageTrend } from '../src/admin';
 import { localDay } from '../../shared/usage';
 import { connectControl, opened, startHarness, type Harness } from './harness';
 import { waitFor } from './wait-for';
@@ -235,6 +235,103 @@ describe('usage and cost', () => {
       await new Promise((resolve) => setTimeout(resolve, 20));
     }
     throw new Error('the transcripts were never counted');
+  });
+
+  describe('the usage ledger', () => {
+    const hour = 60 * 60 * 1000;
+    let dir: string;
+    beforeEach(() => {
+      dir = mkdtempSync(join(tmpdir(), 'cw-adm-ledger-'));
+    });
+    /** A transcript of million-token messages, each written at `at` epoch milliseconds. */
+    const transcript = (name: string, messages: [id: string, at: number][]) => {
+      const file = join(dir, name);
+      const line = ([id, at]: [string, number]) =>
+        JSON.stringify({
+          type: 'assistant',
+          timestamp: new Date(at).toISOString(),
+          message: {
+            id,
+            model: 'claude-opus-5-5',
+            usage: { input_tokens: 1_000_000, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
+          },
+        });
+      writeFileSync(file, `${messages.map(line).join('\n')}\n`);
+      return file;
+    };
+    /** Lets the minute timer bring the ledger up to date, then reads the usage card's figures. */
+    const usage = async () => {
+      await h.admin.sample();
+      const { ws, reply } = await ask({ type: 'system' }, 'system');
+      ws.close();
+      if (reply.type !== 'system' || !reply.snapshot) throw new Error('no snapshot');
+      const { daily, workspaces } = reply.snapshot.usage;
+      const total = (days: { tokens: number }[]) => days.reduce((sum, d) => sum + d.tokens, 0);
+      return { tokens: total(daily), workspaces: workspaces.map((w) => [w.name, total(w.daily)]) };
+    };
+
+    it("keeps an archived workspace's usage once its transcript and its place under Archived are gone", async () => {
+      const gone = transcript('gone.jsonl', [['m1', Date.now() - hour]]);
+      h.archived = [{ id: 'w-gone', name: 'acme/app', transcript: gone }];
+      expect(await usage()).toEqual({ tokens: 1_000_000, workspaces: [['acme/app', 1_000_000]] });
+      rmSync(gone);
+      h.archived = [];
+      expect(await usage()).toEqual({ tokens: 1_000_000, workspaces: [['acme/app', 1_000_000]] });
+      expect(existsSync(join(h.dataDir, 'usage.json'))).toBe(true);
+    });
+
+    it('counts the session before a /clear under the same workspace, and a resumed transcript once', async () => {
+      const workspace = h.store.create({ name: 'acme/app', cwd: h.defaultCwd });
+      const before = transcript('before.jsonl', [['m1', Date.now() - 2 * hour]]);
+      h.transcripts[workspace.id] = before;
+      expect(await usage()).toEqual({ tokens: 1_000_000, workspaces: [['acme/app', 1_000_000]] });
+      h.transcripts[workspace.id] = transcript('after.jsonl', [['m2', Date.now() - hour]]);
+      expect(await usage()).toEqual({ tokens: 2_000_000, workspaces: [['acme/app', 2_000_000]] });
+      // Resumed onto the first transcript again, which goes on growing.
+      h.transcripts[workspace.id] = before;
+      writeFileSync(before, `${readFileSync(before, 'utf8')}${readFileSync(transcript('more.jsonl', [['m3', Date.now()]]), 'utf8')}`);
+      expect(await usage()).toEqual({ tokens: 3_000_000, workspaces: [['acme/app', 3_000_000]] });
+    });
+
+    it('leaves out the conversation a fork copied from the session before it', async () => {
+      const workspace = h.store.create({ name: 'acme/app', cwd: h.defaultCwd });
+      const copiedAt = Date.now() - hour;
+      h.transcripts[workspace.id] = transcript('first.jsonl', [['m1', copiedAt]]);
+      await usage();
+      // The fork's file is created now, holding the earlier message with its own date, then a new one.
+      h.transcripts[workspace.id] = transcript('fork.jsonl', [
+        ['m1', copiedAt],
+        ['m2', Date.now() + 60_000],
+      ]);
+      expect(await usage()).toEqual({ tokens: 2_000_000, workspaces: [['acme/app', 2_000_000]] });
+    });
+  });
+
+  it('merges the days of one workspace counted from several transcripts', () => {
+    expect(
+      mergeWorkspaces([
+        { id: 'w-1', name: 'acme/app', daily: [{ day: '2026-10-08', tokens: 1, costUsd: 1 }] },
+        { id: 'w-2', name: 'other', daily: [{ day: '2026-10-08', tokens: 5, costUsd: 5 }] },
+        {
+          id: 'w-1',
+          name: 'old name',
+          daily: [
+            { day: '2026-10-07', tokens: 2, costUsd: 2 },
+            { day: '2026-10-08', tokens: 4, costUsd: 4 },
+          ],
+        },
+      ]),
+    ).toEqual([
+      {
+        id: 'w-1',
+        name: 'acme/app',
+        daily: [
+          { day: '2026-10-07', tokens: 2, costUsd: 2 },
+          { day: '2026-10-08', tokens: 5, costUsd: 5 },
+        ],
+      },
+      { id: 'w-2', name: 'other', daily: [{ day: '2026-10-08', tokens: 5, costUsd: 5 }] },
+    ]);
   });
 
   it("builds a 60-day series ending today, and sums every day's cost", () => {

@@ -51,6 +51,7 @@ describe('usageFromLine', () => {
       model: 'claude-opus-5-5',
       day: '2026-10-08',
       hour: 10,
+      at: Date.parse('2026-10-08T14:22:01.000Z'),
     });
     expect(usageFromLine(line('m2', use(1, 1), { timestamp: 'garbage' }))).toMatchObject({ day: '', hour: null });
     expect(usageFromLine(JSON.stringify({ type: 'user', message: { content: 'hi' } }))).toBeNull();
@@ -176,5 +177,39 @@ describe('TranscriptTokens', () => {
     await first;
     tokens.keepOnly([]);
     expect(tokens.peek(file)).toBeNull();
+  });
+});
+
+describe('TranscriptTokens copies', () => {
+  // The file is created as the test runs, so these are dated well before it, as a fork's copied lines are.
+  const copied = (id: string) => line(id, use(1, 10), { timestamp: '2026-10-08T10:00:00Z' });
+  const own = (id: string) => line(id, use(1, 100), { timestamp: new Date(Date.now() + 60_000).toISOString() });
+
+  it('leaves out messages dated by the end of the earlier conversation and before the file existed', async () => {
+    const tokens = new TranscriptTokens();
+    const file = transcript([copied('a'), copied('b'), own('c')]);
+    await tokens.refresh(file, Date.parse('2026-10-08T10:00:00Z'));
+    expect(tokens.peek(file)?.totals).toMatchObject({ input: 1, output: 100 });
+  });
+
+  it('counts every message when there is no earlier conversation, as for a file restored from a backup', async () => {
+    const tokens = new TranscriptTokens();
+    const file = transcript([copied('a'), copied('b'), own('c')]);
+    await tokens.refresh(file);
+    expect(tokens.peek(file)?.totals.output).toBe(120);
+  });
+
+  it('counts messages written after the earlier conversation ended, even when dated before the file', async () => {
+    const tokens = new TranscriptTokens();
+    const file = transcript([copied('a'), line('b', use(1, 20), { timestamp: '2026-10-08T11:00:00Z' })]);
+    await tokens.refresh(file, Date.parse('2026-10-08T10:30:00Z'));
+    expect(tokens.peek(file)?.totals.output).toBe(20);
+  });
+
+  it('remembers when its newest counted message was written', async () => {
+    const tokens = new TranscriptTokens();
+    const file = transcript([line('a', use(1, 1), { timestamp: '2026-10-08T11:00:00Z' }), line('b', use(1, 1), { timestamp: '2026-10-08T10:00:00Z' })]);
+    await tokens.refresh(file);
+    expect(tokens.peek(file)?.lastAt).toBe(Date.parse('2026-10-08T11:00:00Z'));
   });
 });

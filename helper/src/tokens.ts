@@ -4,6 +4,8 @@ import type { TokenTotals } from '../../shared/protocol';
 import { localDayAndHour } from '../../shared/usage';
 
 const CHUNK_BYTES = 4 * 1024 * 1024;
+/** How long before its file was created a message can be and still be the transcript's own, for clocks that disagree a little. */
+const COPY_GRACE_MS = 2000;
 
 /** One assistant message's usage, with the model that produced it and the day and hour it was written, in the local time zone. */
 interface Counted {
@@ -24,6 +26,13 @@ export interface UsageBucket {
 
 interface Tracked {
   offset: number;
+  /** Messages dated before this were copied in from another transcript; null to count them all. */
+  copiesBefore: number | null;
+  /** When the newest counted message was written, as epoch milliseconds. */
+  lastAt: number | null;
+  /** The file's creation and modification times at the last scan. */
+  createdMs: number;
+  mtimeMs: number;
   carry: string;
   decoder: StringDecoder;
   /** Each assistant message's usage once: claude writes a message several times as it streams. */
@@ -63,7 +72,7 @@ interface UsageLine {
 }
 
 /** The usage a transcript line carries, with the id of the message it belongs to; null for any other line. */
-export function usageFromLine(line: string): { id: string; usage: TokenTotals; model: string; day: string; hour: number | null } | null {
+export function usageFromLine(line: string): { id: string; usage: TokenTotals; model: string; day: string; hour: number | null; at: number | null } | null {
   // Most lines carry none, and parsing every line of a large transcript is the cost to avoid.
   if (!line.includes('"usage"')) return null;
   let parsed: UsageLine;
@@ -86,12 +95,18 @@ export function usageFromLine(line: string): { id: string; usage: TokenTotals; m
     },
     model: typeof model === 'string' ? model : '',
     ...(when ? { day: when.day, hour: when.hour } : { day: '', hour: null }),
+    at: when && typeof parsed.timestamp === 'string' ? Date.parse(parsed.timestamp) || null : null,
   };
 }
 
 /**
  * Adds up the tokens a claude session has used, from its transcript. A transcript is read once and then
  * only its new end, in the background, so asking is always quick: `peek` gives what is counted so far.
+ *
+ * A fork, or a session claude carries on in a new file, starts by copying the earlier conversation, with its dates,
+ * which the earlier transcript already counts. Given when that earlier conversation ended, `refresh` leaves out a message
+ * dated by then and before its own file was created. Both are needed: a file restored from a backup is created after
+ * every message in it, and a conversation picked up again after a fork goes on past the fork's start.
  */
 export class TranscriptTokens {
   private readonly tracked = new Map<string, Tracked>();
@@ -99,22 +114,38 @@ export class TranscriptTokens {
   constructor(private readonly chunkBytes = CHUNK_BYTES) {}
 
   /** What has been counted so far, and whether the first full read is still running; null if the file was never asked about. */
-  peek(path: string): { totals: TokenTotals; scanning: boolean; buckets: UsageBucket[] } | null {
+  peek(path: string): { totals: TokenTotals; scanning: boolean; buckets: UsageBucket[]; createdMs: number; mtimeMs: number; lastAt: number | null } | null {
     const t = this.tracked.get(path);
     // A transcript that cannot be read, and has never been counted, has no figure to show.
     if (!t || (t.failed && t.byMessage.size === 0)) return null;
-    return { totals: { ...t.totals }, scanning: !t.counted, buckets: bucketsOf(t.byMessage) };
+    return { totals: { ...t.totals }, scanning: !t.counted, buckets: bucketsOf(t.byMessage), createdMs: t.createdMs, mtimeMs: t.mtimeMs, lastAt: t.lastAt };
   }
 
-  /** Counts what was appended since the last scan; resolves when it is up to date. */
-  refresh(path: string): Promise<void> {
+  /**
+   * Counts what was appended since the last scan; resolves when it is up to date. `earlierEnded` is when the
+   * conversation this one may have been copied from last wrote; it is read when the file is first counted.
+   */
+  refresh(path: string, earlierEnded: number | null = null): Promise<void> {
     let t = this.tracked.get(path);
     if (!t) {
-      t = { offset: 0, carry: '', decoder: new StringDecoder('utf8'), byMessage: new Map(), totals: zero(), counted: false, failed: false, scanning: null };
+      t = {
+        offset: 0,
+        copiesBefore: null,
+        lastAt: null,
+        createdMs: 0,
+        mtimeMs: 0,
+        carry: '',
+        decoder: new StringDecoder('utf8'),
+        byMessage: new Map(),
+        totals: zero(),
+        counted: false,
+        failed: false,
+        scanning: null,
+      };
       this.tracked.set(path, t);
     }
     const current = t;
-    current.scanning ??= this.scan(path, current)
+    current.scanning ??= this.scan(path, current, earlierEnded)
       .then(
         () => {
           current.failed = false;
@@ -137,15 +168,19 @@ export class TranscriptTokens {
     for (const path of this.tracked.keys()) if (!keep.has(path)) this.tracked.delete(path);
   }
 
-  private async scan(path: string, t: Tracked): Promise<void> {
-    const { size } = await stat(path);
+  private async scan(path: string, t: Tracked, earlierEnded: number | null): Promise<void> {
+    const { size, birthtimeMs, mtimeMs } = await stat(path);
     if (size < t.offset) {
       // Rewritten, so start over.
       t.offset = 0;
       t.carry = '';
       t.decoder = new StringDecoder('utf8');
       t.byMessage.clear();
+      t.lastAt = null;
     }
+    if (t.offset === 0) t.copiesBefore = earlierEnded === null ? null : Math.min(birthtimeMs - COPY_GRACE_MS, earlierEnded + 1);
+    t.createdMs = birthtimeMs;
+    t.mtimeMs = mtimeMs;
     if (size === t.offset) return;
     const file = await open(path, 'r');
     try {
@@ -159,6 +194,8 @@ export class TranscriptTokens {
         for (const line of lines) {
           const found = usageFromLine(line);
           if (!found) continue;
+          if (t.copiesBefore !== null && found.at !== null && found.at < t.copiesBefore) continue;
+          if (found.at !== null && (t.lastAt === null || found.at > t.lastAt)) t.lastAt = found.at;
           const seen = t.byMessage.get(found.id);
           // A message repeated while streaming grows; the largest of each figure is its final usage.
           t.byMessage.set(found.id, {
