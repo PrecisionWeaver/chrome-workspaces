@@ -254,7 +254,7 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
     messageInput.value = '';
     choose.hidden = false;
     chosen.hidden = true;
-    start.select(request ? 'prompt' : 'blank');
+    start.select('prompt');
     syncStart();
     section.hidden = false;
     // Opening for another review, or from scratch, starts at the top rather than wherever the last one was scrolled.
@@ -430,8 +430,9 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
     // Typed text gets the same PR-URL and ticket fill-in as a saved prompt, so a review can refer to its PR.
     const message = fillPrompt(messageInput.value.trim(), { prUrl: review?.url ?? null, ticket: review?.ticket ?? null });
     const prompt = mode === 'prompt' ? textInput.value.trim() : mode === 'text' ? message : '';
-    if (mode !== 'blank' && !prompt) {
-      (mode === 'prompt' ? filter : messageInput).focus();
+    // From prompt is the default, so leaving it unpicked starts the workspace blank; typed text must be there.
+    if (mode === 'text' && !prompt) {
+      messageInput.focus();
       return;
     }
     const typed = parseTabUrls(tabsInput.value);
