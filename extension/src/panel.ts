@@ -1,3 +1,4 @@
+import { followTabZoom } from './zoom';
 import { waitingKind } from '../../shared/attention';
 import { FitAddon } from '@xterm/addon-fit';
 import { SearchAddon } from '@xterm/addon-search';
@@ -68,11 +69,6 @@ function applyAppearance(prefs: Prefs | null = appearance): void {
   document.documentElement.dataset.density = prefs.density;
   term.options.theme = terminalTheme(theme);
   tools.setTheme(terminalTheme(theme));
-  if (term.options.fontSize !== prefs.fontSize) {
-    term.options.fontSize = prefs.fontSize;
-    fitTerminal();
-  }
-  tools.setFontSize(prefs.fontSize);
 }
 void loadPrefs().then(applyAppearance);
 onPrefsChange(applyAppearance);
@@ -607,5 +603,6 @@ makeSectionsResizable(fitTerminal);
 
 void chrome.windows.getCurrent().then((win) => {
   myWindowId = win.id;
+  if (win.id !== undefined) followTabZoom(win.id);
   render();
 });

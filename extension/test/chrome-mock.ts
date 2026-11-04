@@ -82,6 +82,7 @@ export function installChrome() {
       onUpdated: event<[number, chrome.tabs.OnUpdatedInfo, chrome.tabs.Tab]>(),
       onRemoved: event<[number, chrome.tabs.OnRemovedInfo]>(),
       onAttached: event<[number, chrome.tabs.OnAttachedInfo]>(),
+      onZoomChange: event<[chrome.tabs.OnZoomChangeInfo]>(),
     },
     tabGroups: {
       onCreated: event<[chrome.tabGroups.TabGroup]>(),
@@ -112,6 +113,7 @@ export function installChrome() {
           )
           .map(asTab),
       ),
+      getZoom: vi.fn(async () => 1),
       get: vi.fn(async (id: number) => (tabs.has(id) ? asTab(tabs.get(id)!) : missing('tab', id))),
       create: vi.fn(async (info: { windowId?: number; url?: string; active?: boolean }) => {
         // Without a window, Chrome uses the focused one; the fake's first window plays that part.

@@ -3,18 +3,17 @@ import { normalizePrefs } from '../../extension/src/prefs';
 
 describe('normalizePrefs', () => {
   it('fills defaults for nothing, and for anything that is not an object', () => {
-    const defaults = { notify: false, theme: 'system', density: 'comfortable', setupDismissed: false, usageRange: '14d', fontSize: 12 };
+    const defaults = { notify: false, theme: 'system', density: 'comfortable', setupDismissed: false, usageRange: '14d' };
     for (const stored of [undefined, null, 'dark', 7, []]) expect(normalizePrefs(stored)).toEqual(defaults);
   });
 
   it('keeps valid values and replaces invalid ones with their defaults, field by field', () => {
-    expect(normalizePrefs({ notify: true, theme: 'light', density: 'compact', setupDismissed: true, usageRange: '30d', fontSize: 14 })).toEqual({
+    expect(normalizePrefs({ notify: true, theme: 'light', density: 'compact', setupDismissed: true, usageRange: '30d' })).toEqual({
       notify: true,
       theme: 'light',
       density: 'compact',
       setupDismissed: true,
       usageRange: '30d',
-      fontSize: 14,
     });
     expect(normalizePrefs({ notify: 'yes', theme: 'neon', density: 'tiny', usageRange: '90d' })).toEqual({
       notify: false,
@@ -22,7 +21,6 @@ describe('normalizePrefs', () => {
       density: 'comfortable',
       setupDismissed: false,
       usageRange: '14d',
-      fontSize: 12,
     });
     expect(normalizePrefs({ theme: 'dark' })).toEqual({
       notify: false,
@@ -30,14 +28,6 @@ describe('normalizePrefs', () => {
       density: 'comfortable',
       setupDismissed: false,
       usageRange: '14d',
-      fontSize: 12,
     });
-  });
-});
-
-describe('normalizePrefs font size', () => {
-  it('keeps one of the offered sizes and falls back to 12 for anything else', () => {
-    expect(normalizePrefs({ fontSize: 14 }).fontSize).toBe(14);
-    for (const bad of [7, 40, '14', null]) expect(normalizePrefs({ fontSize: bad }).fontSize).toBe(12);
   });
 });

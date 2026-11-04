@@ -11,7 +11,7 @@ const terms: FakeTerminal[] = [];
 class FakeTerminal {
   cols = 80;
   rows = 24;
-  options: { theme?: { background?: string }; fontSize?: number } = {};
+  options: { theme?: { background?: string } } = {};
   written: string[] = [];
   pasted: string[] = [];
   resets = 0;
@@ -1322,14 +1322,6 @@ describe('connection', () => {
 });
 
 describe('appearance', () => {
-  it('applies the saved font size to both terminals', async () => {
-    fake.storage.local.prefs = { fontSize: 14 };
-    await boot();
-    expect(terms.map((t) => t.options.fontSize)).toEqual([14, 14]);
-    fake.events.storage.onChanged.emit({ prefs: { newValue: { fontSize: 16 } } }, 'local');
-    expect(terms.map((t) => t.options.fontSize)).toEqual([16, 16]);
-  });
-
   it('applies the saved theme and density to the page and the terminal', async () => {
     fake.storage.local.prefs = { theme: 'light', density: 'compact' };
     await boot();
