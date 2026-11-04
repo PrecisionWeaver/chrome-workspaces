@@ -207,9 +207,10 @@ describe('the list', () => {
   it('says how many are waiting in the title', async () => {
     await boot();
     state([ws('a'), ws('b')], { a: 'needs_input', b: 'needs_input' });
-    expect($('list-title').textContent).toBe('Workspaces · 2 waiting');
+    expect($('list-title').textContent).toBe('2 waiting');
+    expect($('list-title').querySelector('.count')!.textContent).toBe('2');
     state([ws('a')], {});
-    expect($('list-title').textContent).toBe('Workspaces');
+    expect($('list-title').textContent).toBe('');
   });
 
   it('marks the current workspace, pinned ones, and the colour it was given', async () => {
@@ -1235,14 +1236,32 @@ describe('the other views', () => {
     onControlMessage({ type: 'system', snapshot: { ...snapshot, setup: { ...snapshot.setup, promptsFileExists: true } }, error: null });
   });
 
-  it('asks for system status when it starts, and once a minute while settings is closed', async () => {
+  it('rolls the helper and every workspace up into memory and CPU in the list header', async () => {
+    await boot();
+    expect($('list-usage').hidden).toBe(true);
+    const snapshot = makeSnapshot();
+    const session = snapshot.sessions[0]!;
+    onControlMessage({
+      type: 'system',
+      snapshot: { ...snapshot, sessions: [session, { ...session, processes: [{ ...session.processes[0]!, cpu: 3, rssKb: 1024 * 1024 }] }] },
+      error: null,
+    });
+    // Helper 50 MB + 2 MB + 1 GB, and 1.5% + 0.1% + 3%.
+    expect($('list-usage').hidden).toBe(false);
+    expect($('list-usage').textContent).toBe('1.1 GB5%');
+    expect($('list-usage').title).toContain('Helper 50.0 MB + workspaces 1.00 GB');
+    onControlMessage({ type: 'system', snapshot: null, error: 'timeout' });
+    expect($('list-usage').hidden).toBe(true);
+  });
+
+  it('asks for system status when it starts, and every 15 seconds while settings is closed', async () => {
     await boot();
     expect(sentOfType('system')).toHaveLength(1);
-    vi.advanceTimersByTime(60_000);
+    vi.advanceTimersByTime(15_000);
     expect(sentOfType('system')).toHaveLength(2);
     $('settings-open').click();
     sent.length = 0;
-    vi.advanceTimersByTime(60_000);
+    vi.advanceTimersByTime(15_000);
     // Settings polls faster itself while it is showing.
     expect(sentOfType('system').length).toBeGreaterThan(0);
   });

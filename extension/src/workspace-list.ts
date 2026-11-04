@@ -10,7 +10,7 @@ import {
   type WorkspaceStatus,
   WORKSPACE_COLORS,
 } from '../../shared/protocol';
-import { $, caret } from './dom';
+import { $, caret, el } from './dom';
 import { closeMenu, menuItem, openMenu } from './menu';
 
 export interface WorkspaceListOptions {
@@ -71,7 +71,12 @@ export function createWorkspaceList(options: WorkspaceListOptions): WorkspaceLis
       statuses,
       workspaces.map((ws) => ws.id),
     );
-    $<HTMLSpanElement>('list-title').textContent = waiting ? `Workspaces · ${waiting} waiting` : 'Workspaces';
+    // The count and the word are apart so a narrow list can show the count alone.
+    const title = $<HTMLSpanElement>('list-title');
+    const badge = el('span', '', 'waiting');
+    badge.append(el('span', String(waiting), 'count'), el('span', ' waiting', 'word'));
+    title.replaceChildren(...(waiting ? [badge] : []));
+    title.title = waiting ? `${waiting} waiting` : '';
     if (editing || dragged) return;
     // A filter box earns its room once the list is long enough to need one.
     listSearch.hidden = workspaces.length < 5 && listSearch.value === '';

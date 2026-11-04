@@ -47,16 +47,19 @@
         <button type="button" id="collapse" class="icon-btn" title="Collapse list" aria-label="Collapse list">
           <svg class="icon"><use href="#i-chevron-left" /></svg>
         </button>
-        <span id="list-title" class="section-title">Workspaces</span>
-        <button type="button" id="shell-open" class="icon-btn" title="Terminal" aria-label="Terminal">
-          <svg class="icon"><use href="#i-terminal" /></svg>
-        </button>
-        <button type="button" id="monitor-open" class="icon-btn" title="System monitor" aria-label="System monitor">
-          <svg class="icon"><use href="#i-activity" /></svg>
-        </button>
-        <button type="button" id="settings-open" class="icon-btn" title="Settings" aria-label="Settings">
-          <svg class="icon"><use href="#i-gear" /></svg>
-        </button>
+        <span id="list-usage" hidden></span>
+        <span id="list-title" class="section-title"></span>
+        <div id="list-actions">
+          <button type="button" id="shell-open" class="icon-btn" title="Terminal" aria-label="Terminal">
+            <svg class="icon"><use href="#i-terminal" /></svg>
+          </button>
+          <button type="button" id="monitor-open" class="icon-btn" title="System monitor" aria-label="System monitor">
+            <svg class="icon"><use href="#i-activity" /></svg>
+          </button>
+          <button type="button" id="settings-open" class="icon-btn" title="Settings" aria-label="Settings">
+            <svg class="icon"><use href="#i-gear" /></svg>
+          </button>
+        </div>
       </div>
       <input id="list-search" type="search" placeholder="Filter workspaces" aria-label="Filter workspaces" autocomplete="off" hidden />
       <ul id="workspaces"></ul>

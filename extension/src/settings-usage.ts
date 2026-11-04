@@ -2,7 +2,7 @@ import type { SystemSnapshot } from '../../shared/protocol';
 import { hitLabel, planPace, resetLabel } from '../../shared/plan-usage';
 import { formatUsd } from '../../shared/pricing';
 import { previousLabel, shortDay, summarizeUsage, summarizeWorkspaces, USAGE_RANGES, usageChange } from '../../shared/usage';
-import { el } from './dom';
+import { el, hoverTip } from './dom';
 import { formatTokens } from './format';
 import type { Prefs } from './prefs';
 import { card, row } from './settings-parts';
@@ -66,7 +66,7 @@ export function planCard(s: SystemSnapshot): HTMLElement {
     if (pace) {
       const tick = el('span', '', 'plan-meter-pace');
       tick.style.left = `${pace.expectedPercent}%`;
-      tick.title = `Even pace: ${Math.round(pace.expectedPercent)}% by now`;
+      hoverTip(tick, `Even pace: ${Math.round(pace.expectedPercent)}% by now`);
       tick.setAttribute('aria-hidden', 'true');
       bar.append(tick);
     }
@@ -112,7 +112,7 @@ function workspaceSplit(s: SystemSnapshot, days: number): HTMLElement | null {
     const share = total > 0 ? weight(w) / total : 0;
     const line = el('div', '', 'usage-split-row');
     line.setAttribute('role', 'listitem');
-    line.title = `${w.label}\n${dayFigures(w.tokens, w.costUsd)}`;
+    hoverTip(line, `${w.label}\n${dayFigures(w.tokens, w.costUsd)}`);
     const track = el('div', '', 'usage-split-track');
     const fill = el('span', '', 'usage-split-fill');
     fill.style.width = `${weight(w) > 0 ? Math.max(2, share * 100) : 0}%`;
@@ -154,7 +154,8 @@ export function usageCard(s: SystemSnapshot, usageRange: UsageRangeId, onRange: 
     const fill = el('span', '', 'usage-fill');
     // An hour or day with any use shows a sliver, so it is not mistaken for a quiet one.
     fill.style.height = `${tokens > 0 ? Math.max(4, (tokens / peak) * 100) : 0}%`;
-    bar.title = `${label}\n${dayFigures(tokens, costUsd)}`;
+    hoverTip(bar, `${label}\n${dayFigures(tokens, costUsd)}`);
+    bar.setAttribute('aria-label', `${label}: ${dayFigures(tokens, costUsd)}`);
     bar.append(fill);
     chart.append(bar);
   }

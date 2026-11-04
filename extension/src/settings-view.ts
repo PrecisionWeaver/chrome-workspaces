@@ -14,7 +14,7 @@ import { type CardLayout, columnCountFor, keysOf, layoutCards, layoutFromKeys } 
 import { resourceChart } from './sparkline';
 import { card, actions, row } from './settings-parts';
 import { planCard, usageCard } from './settings-usage';
-import { formatBytes, formatDuration, formatKb, formatTokens, newTokens } from './format';
+import { formatBytes, formatCpu, formatDuration, formatKb, formatTokens, newTokens, resourceTitle, resourceTotal } from './format';
 import { DENSITIES, FONT_SIZES, THEMES, type FontSize } from '../../shared/keynav';
 import { formatUsd } from '../../shared/pricing';
 import { buildChecklist, remaining, type SetupItem } from '../../shared/onboarding';
@@ -331,8 +331,7 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
     const running = s.sessions.filter((x) => x.pid !== null).length;
     const counted = s.sessions.flatMap((x) => (x.tokens && !x.tokens.counting ? [x.tokens] : []));
     const total = counted.reduce((sum, t) => sum + newTokens(t), 0);
-    const workspaceKb = s.sessions.reduce((sum, x) => sum + x.processes.reduce((n, p) => n + p.rssKb, 0), 0);
-    const workspaceCpu = s.sessions.reduce((sum, x) => sum + x.processes.reduce((n, p) => n + p.cpu, 0), 0);
+    const { workspaceKb, workspaceCpu } = resourceTotal(s);
     const list = el('div', '', 'sessions');
     // Running workspaces first, since those are the ones using the machine.
     list.append(...[...s.sessions].sort((a, b) => Number(b.pid !== null) - Number(a.pid !== null)).map((x) => sessionRow(x, s.config.limits.memoryWarnMb)));
@@ -346,12 +345,9 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       ),
       list,
       memoryLine('Helper', s.helper.rssKb, s.helper.cpu, 'The helper process that runs these sessions'),
-      memoryTotal(s.helper.rssKb, workspaceKb, s.helper.cpu, workspaceCpu),
+      memoryTotal(s),
     );
   }
-
-  /** An older helper does not report its own CPU, so this takes undefined rather than failing the whole render. */
-  const formatCpu = (cpu: number | undefined): string => (cpu === undefined ? '–' : `${cpu.toFixed(1)}%`);
 
   function memoryLine(label: string, kb: number, cpu: number | undefined, title: string): HTMLElement {
     const line = el('div', '', 'memory-line');
@@ -361,13 +357,11 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
   }
 
   /** Helper plus every workspace's processes. RSS counts shared pages once per process, so it runs a little high. */
-  function memoryTotal(helperKb: number, workspaceKb: number, helperCpu: number | undefined, workspaceCpu: number): HTMLElement {
+  function memoryTotal(s: SystemSnapshot): HTMLElement {
+    const { kb, cpu } = resourceTotal(s);
     const line = el('div', '', 'memory-line memory-total');
-    line.append(
-      el('span', 'Total', 'k'),
-      el('span', `${formatKb(helperKb + workspaceKb)} · ${formatCpu(helperCpu === undefined ? undefined : helperCpu + workspaceCpu)}`, 'v'),
-    );
-    line.title = `Helper ${formatKb(helperKb)} + workspaces ${formatKb(workspaceKb)}\nMemory shared between processes is counted once per process, so this is slightly high.\nCPU is a percentage of one core, so it can pass 100 across several cores.`;
+    line.append(el('span', 'Total', 'k'), el('span', `${formatKb(kb)} · ${formatCpu(cpu)}`, 'v'));
+    line.title = resourceTitle(s);
     return line;
   }
 
