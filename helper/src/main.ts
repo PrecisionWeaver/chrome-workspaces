@@ -132,7 +132,7 @@ const admin = createAdmin({
   })(),
   status: (id) => ({ status: sessionState.get(id)?.status ?? null, claudeSessionId: sessionState.get(id)?.claudeSessionId ?? null }),
   transcript: (id) => sessionState.get(id)?.transcriptPath ?? null,
-  // Session files outlast their workspace by a month, so an archived workspace's use stays in the totals for that long.
+  // An archived workspace's transcript, for counting into the usage ledger if it was never counted while live.
   archived: () =>
     history.list().flatMap((entry) => {
       const transcript = entry.workspaceId ? sessionState.get(entry.workspaceId)?.transcriptPath : null;

@@ -1,8 +1,16 @@
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { continuedInSession, importLegacySessions, lastTranscriptCwd, listWorkspaceSessions, pruneSessions, readSessionStatus } from '../src/session-status';
+import {
+  continuedInSession,
+  importLegacySessions,
+  lastTranscriptCwd,
+  listWorkspaceSessions,
+  locateTranscript,
+  pruneSessions,
+  readSessionStatus,
+} from '../src/session-status';
 import { existsSync, readdirSync, utimesSync } from 'node:fs';
 
 function stateDir(files: Record<string, unknown>): string {
@@ -15,6 +23,7 @@ function stateDir(files: Record<string, unknown>): string {
 
 const ID_OLD = '11111111-1111-1111-1111-111111111111';
 const ID_NEW = '22222222-2222-2222-2222-222222222222';
+const ID_GONE = '33333333-3333-3333-3333-333333333333';
 
 describe('readSessionStatus', () => {
   it('uses the most recently started session per workspace', () => {
@@ -289,5 +298,59 @@ describe('listWorkspaceSessions', () => {
     ]);
     expect(listWorkspaceSessions(dir, 'ws-c', '/repo')).toEqual([]);
     expect(listWorkspaceSessions('/no/such/dir', 'ws-a', '/repo')).toEqual([]);
+  });
+});
+
+describe('a transcript filed under another project folder than the one recorded', () => {
+  /** A claude projects folder with one project folder per directory, as claude keeps them. */
+  function projects() {
+    const root = mkdtempSync(join(tmpdir(), 'cw-projects-'));
+    const folder = (name: string, files: Record<string, string> = {}) => {
+      mkdirSync(join(root, name));
+      for (const [file, body] of Object.entries(files)) writeFileSync(join(root, name, file), body);
+      return join(root, name);
+    };
+    return { root, folder };
+  }
+
+  it('finds the conversation where claude moved it, so an ended session still resumes', () => {
+    const { root, folder } = projects();
+    folder('-acme-app');
+    folder('-acme-app--worktrees-feat-PROJ-123-thing', { [`${ID_OLD}.jsonl`]: '{"type":"user"}\n' });
+    // The hook recorded the folder of the directory the session started in, which holds nothing.
+    const recorded = join(root, '-acme-app', `${ID_OLD}.jsonl`);
+    const dir = stateDir({
+      'a.json': {
+        session_id: ID_OLD,
+        cw_workspace_id: 'ws-1',
+        status: 'ended',
+        started_at: '2026-01-01T00:00:00Z',
+        cwd: '/acme/app',
+        transcript_path: recorded,
+      },
+    });
+    const found = join(root, '-acme-app--worktrees-feat-PROJ-123-thing', `${ID_OLD}.jsonl`);
+    expect(readSessionStatus(dir, new Map([['ws-1', '/acme/app']])).get('ws-1')).toMatchObject({ claudeSessionId: ID_OLD, transcriptPath: found });
+    expect(listWorkspaceSessions(dir, 'ws-1', '/acme/app').map((x) => x.id)).toEqual([ID_OLD]);
+  });
+
+  it('still skips an ended session whose transcript is nowhere, and remembers the miss for a minute', () => {
+    const { root, folder } = projects();
+    const recorded = join(root, '-acme-app', `${ID_GONE}.jsonl`);
+    folder('-acme-app');
+    const session = { session_id: ID_GONE, transcript_path: recorded };
+    expect(locateTranscript(session, 1_000)).toBeNull();
+    // It appears, but the miss is still fresh: no second look through the folders.
+    writeFileSync(join(folder('-acme-other'), `${ID_GONE}.jsonl`), '');
+    expect(locateTranscript(session, 30_000)).toBeNull();
+    expect(locateTranscript(session, 70_000)).toBe(join(root, '-acme-other', `${ID_GONE}.jsonl`));
+  });
+
+  it('keeps the recorded path when it exists, ignores a session id that is not safe in a path, and has no path for no record', () => {
+    const { root, folder } = projects();
+    const own = join(folder('-acme-app', { [`${ID_NEW}.jsonl`]: '' }), `${ID_NEW}.jsonl`);
+    expect(locateTranscript({ session_id: ID_NEW, transcript_path: own })).toBe(own);
+    expect(locateTranscript({ session_id: '../x', transcript_path: join(root, '-acme-app', 'gone.jsonl') })).toBeNull();
+    expect(locateTranscript({ session_id: ID_NEW, transcript_path: undefined })).toBeNull();
   });
 });

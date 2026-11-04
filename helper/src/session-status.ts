@@ -1,5 +1,5 @@
 import { closeSync, existsSync, fstatSync, openSync, readdirSync, readFileSync, readSync, rmSync, statSync, watch, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { parseActivityLine } from '../../shared/activity';
 import type { PastSession, WaitingOn, WorkspaceStatus } from '../../shared/protocol';
 import type { SessionFile } from '../../shared/session-file';
@@ -21,13 +21,52 @@ function isInside(path: string, directory: string): boolean {
   return path === directory || path.startsWith(directory.endsWith('/') ? directory : `${directory}/`);
 }
 
+const SESSION_ID = /^[A-Za-z0-9_-]+$/;
+const MISS_MS = 60_000;
+const located = new Map<string, { path: string | null; at: number }>();
+
+/**
+ * Where a session's transcript is. The hook records the folder of the directory claude started in, but claude files
+ * the conversation under the directory it is in, so a session that moved into a worktree (a quest does) or started
+ * in one and was resumed elsewhere has its transcript in another project folder than the one recorded, and the recorded
+ * path is missing while the conversation is there. Falls back to `<session id>.jsonl` in the other project folders, and
+ * to null when it is nowhere, as for a transcript claude has deleted. A miss is remembered for a minute, because every
+ * old session whose transcript is gone would otherwise look through every folder on each refresh.
+ */
+export function locateTranscript(session: Pick<SessionFile, 'session_id' | 'transcript_path'>, now = Date.now()): string | null {
+  const recorded = session.transcript_path;
+  if (!recorded) return null;
+  if (existsSync(recorded)) return recorded;
+  const id = session.session_id;
+  if (!id || !SESSION_ID.test(id)) return null;
+  const seen = located.get(id);
+  if (seen && (seen.path ? existsSync(seen.path) : now - seen.at < MISS_MS)) return seen.path;
+  let found: string | null = null;
+  const projects = dirname(dirname(recorded));
+  try {
+    for (const folder of readdirSync(projects)) {
+      const candidate = join(projects, folder, `${id}.jsonl`);
+      if (existsSync(candidate)) {
+        found = candidate;
+        break;
+      }
+    }
+  } catch {
+    // No projects folder to look in.
+  }
+  located.set(id, { path: found, at: now });
+  return found;
+}
+
 const MAX_CONTINUATIONS = 5;
 
 /** Follows "continued in" links from a workspace's session to a newer session that was kept out for its id or directory. */
 function followContinuations(session: SessionFile, strays: ReadonlyMap<string, SessionFile>): SessionFile {
   let current = session;
-  for (let hop = 0; hop < MAX_CONTINUATIONS && current.transcript_path; hop++) {
-    const nextId = continuedInSession(current.transcript_path);
+  for (let hop = 0; hop < MAX_CONTINUATIONS; hop++) {
+    const transcript = locateTranscript(current);
+    if (!transcript) break;
+    const nextId = continuedInSession(transcript);
     const next = nextId ? strays.get(nextId) : undefined;
     if (!next || (next.started_at ?? '') <= (current.started_at ?? '')) break;
     current = next;
@@ -64,7 +103,7 @@ export function readSessionStatus(dir: string, workspaceCwds: ReadonlyMap<string
     const workspaceId = session.cw_workspace_id;
     if (!workspaceId || !session.session_id) continue;
     const home = workspaceCwds.get(workspaceId);
-    if (session.status === 'ended' && session.transcript_path && !existsSync(session.transcript_path)) continue;
+    if (session.status === 'ended' && session.transcript_path && !locateTranscript(session)) continue;
     if (home && session.cwd && !isInside(session.cwd, home)) {
       strays.set(session.session_id, session);
       continue;
@@ -92,7 +131,7 @@ export function readSessionStatus(dir: string, workspaceCwds: ReadonlyMap<string
       claudeSessionId: session.session_id!,
       browserAt: Number.isNaN(browserAt) ? null : browserAt,
       cwd: session.cwd ?? null,
-      transcriptPath: session.transcript_path ?? null,
+      transcriptPath: locateTranscript(session) ?? session.transcript_path ?? null,
     });
   }
   return result;
@@ -140,7 +179,7 @@ export function listWorkspaceSessions(dir: string, workspaceId: string, home: st
     }
     if (session.cw_workspace_id !== workspaceId || !session.session_id || !session.started_at) continue;
     if (home && session.cwd && !isInside(session.cwd, home)) continue;
-    if (session.status === 'ended' && session.transcript_path && !existsSync(session.transcript_path)) continue;
+    if (session.status === 'ended' && session.transcript_path && !locateTranscript(session)) continue;
     sessions.push({
       id: session.session_id,
       startedAt: session.started_at,

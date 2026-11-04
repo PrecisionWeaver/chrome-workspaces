@@ -1,5 +1,5 @@
 import { execFile, spawn } from 'node:child_process';
-import { closeSync, existsSync, fstatSync, openSync, readdirSync, readSync, rmSync, truncateSync } from 'node:fs';
+import { closeSync, existsSync, fstatSync, openSync, readdirSync, readSync, rmSync, statSync, truncateSync } from 'node:fs';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { findWarnings } from '../../shared/guardrails';
@@ -21,13 +21,16 @@ import type { SessionManager } from './session';
 import { ResourceHistory } from './resource-history';
 import { readTimeline } from './timeline';
 import { applyUpdate, checkUpdates } from './updates';
-import { TranscriptTokens } from './tokens';
+import { TranscriptTokens, type UsageBucket } from './tokens';
+import { UsageLedger } from './usage-ledger';
 import { pathBytes, readListening, readProcesses, subtree, toSystemProcess, type Proc } from './system';
 import type { WorkspaceStore } from './workspace-store';
 
 const execFileAsync = promisify(execFile);
 
 const LOG_TAIL_BYTES = 64 * 1024;
+
+export const USAGE_LEDGER_FILE = 'usage.json';
 
 export interface AdminOptions {
   sessions: SessionManager;
@@ -43,7 +46,7 @@ export interface AdminOptions {
   status: (id: string) => { status: WorkspaceStatus; claudeSessionId: string | null };
   /** The transcript of the workspace's current claude session, for counting its tokens. */
   transcript: (id: string) => string | null;
-  /** Archived workspaces whose session files are still kept, so what they used stays in the totals. */
+  /** Archived workspaces whose session files are still kept, so a transcript the ledger has not yet counted is counted into it. */
   archived?: () => { id: string; name: string; transcript: string }[];
   /** Runs a command line in a login shell, resolving with its output and whether it exited cleanly. */
   runShell: (command: string) => Promise<{ output: string; ok: boolean }>;
@@ -130,11 +133,108 @@ export function usageByHour(hourTotals: ReadonlyMap<number, { tokens: number; co
   return Array.from({ length: 24 }, (_, hour) => ({ hour, ...(hourTotals.get(hour) ?? { tokens: 0, costUsd: 0 }) }));
 }
 
+/** One row per workspace: a workspace with several transcripts (before and after a `/clear`) has its days added together. */
+export function mergeWorkspaces(rows: readonly UsageWorkspace[]): UsageWorkspace[] {
+  const merged = new Map<string, { name: string; days: Map<string, { tokens: number; costUsd: number }> }>();
+  for (const { id, name, daily } of rows) {
+    const into = merged.get(id) ?? { name, days: new Map() };
+    for (const { day, tokens, costUsd } of daily) {
+      const seen = into.days.get(day) ?? { tokens: 0, costUsd: 0 };
+      seen.tokens += tokens;
+      seen.costUsd += costUsd;
+      into.days.set(day, seen);
+    }
+    merged.set(id, into);
+  }
+  return [...merged].map(([id, { name, days }]) => ({
+    id,
+    name,
+    daily: [...days].map(([day, used]) => ({ day, ...used })).sort((a, b) => a.day.localeCompare(b.day)),
+  }));
+}
+
 export function createAdmin(options: AdminOptions): AdminService {
   const { sessions, store, config, paths } = options;
   const readProcs = options.processes ?? readProcesses;
+  // Live transcripts only: anything else is counted once into the ledger and then read from there.
   const tokens = new TranscriptTokens();
+  const ledger = new UsageLedger(join(paths.dataDir, USAGE_LEDGER_FILE));
   const history = new ResourceHistory();
+
+  /** Each workspace's current transcript, by path. */
+  const liveTranscripts = () => {
+    const live = new Map<string, { id: string; name: string }>();
+    for (const ws of store.list()) {
+      const transcript = options.transcript(ws.id);
+      if (transcript) live.set(transcript, { id: ws.id, name: ws.name });
+    }
+    return live;
+  };
+
+  const save = (transcript: string, owner: { id: string; name: string }, counted: NonNullable<ReturnType<TranscriptTokens['peek']>>) => {
+    const { createdMs, mtimeMs, lastAt, buckets } = counted;
+    ledger.record({ transcript, workspaceId: owner.id, name: owner.name, createdMs, mtimeMs, lastAt, buckets });
+  };
+  /** Puts a live transcript's figures in the ledger once it has been read to the end, so they outlast its session. */
+  const recordLive = (transcript: string, owner: { id: string; name: string }) => {
+    const counted = tokens.peek(transcript);
+    if (!counted || counted.scanning) return;
+    save(transcript, owner, counted);
+  };
+  /** When the conversations a transcript may have copied from ended, from the ledger; null when it cannot be read. */
+  const earlierEnded = (transcript: string, workspaceId: string) => {
+    try {
+      return ledger.earlierEnded(workspaceId, statSync(transcript).birthtimeMs);
+    } catch {
+      return null;
+    }
+  };
+  const refreshLive = (transcript: string, owner: { id: string }) => tokens.refresh(transcript, earlierEnded(transcript, owner.id));
+
+  let settling: Promise<void> | null = null;
+  /**
+   * Counts into the ledger every transcript that is no longer live and has been written to since it was last counted:
+   * an archived workspace's, or one left behind by `/clear`, a restart or a fork. Each is read once by a counter of its
+   * own, so none stays in memory. Then old days are dropped and the file is written.
+   */
+  const settle = (): Promise<void> => {
+    settling ??= (async () => {
+      const live = liveTranscripts();
+      const pending = new Map<string, { id: string; name: string }>();
+      for (const entry of ledger.list()) {
+        if (live.has(entry.transcript)) continue;
+        try {
+          if (statSync(entry.transcript).mtimeMs > entry.mtimeMs) pending.set(entry.transcript, { id: entry.workspaceId, name: entry.name });
+        } catch {
+          // Claude deleted it; the figures it left stay.
+        }
+      }
+      for (const a of options.archived?.() ?? []) {
+        if (!live.has(a.transcript) && !ledger.get(a.transcript)) pending.set(a.transcript, { id: a.id, name: a.name });
+      }
+      // Oldest first, so a fork is counted after the conversation it copied.
+      const created = (path: string) => {
+        try {
+          return statSync(path).birthtimeMs;
+        } catch {
+          return 0;
+        }
+      };
+      for (const [transcript, owner] of [...pending].sort(([a], [b]) => created(a) - created(b))) {
+        const once = new TranscriptTokens();
+        await once.refresh(transcript, earlierEnded(transcript, owner.id));
+        const counted = once.peek(transcript);
+        if (counted) save(transcript, owner, counted);
+      }
+      for (const [transcript, owner] of live) recordLive(transcript, owner);
+      const now = new Date();
+      ledger.prune(localDayBack(now, USAGE_HISTORY_DAYS - 1), localDay(now));
+      ledger.save();
+    })().finally(() => {
+      settling = null;
+    });
+    return settling;
+  };
 
   const launchctl = (verb: 'kickstart -k' | 'bootout') => `sleep 1; launchctl ${verb} gui/${process.getuid?.() ?? 0}/${AGENT_LABEL}`;
 
@@ -187,10 +287,10 @@ export function createAdmin(options: AdminOptions): AdminService {
     async snapshot({ reviews, clients }) {
       const [procs, listening, managed] = await Promise.all([readProcs(), readListening(), options.isManaged()]);
       const snapshotSessions = store.list();
-      // An archived workspace is no longer listed, but what it used still counts. A transcript a live workspace is on is not counted twice.
-      const liveTranscripts = new Set(snapshotSessions.flatMap((ws) => options.transcript(ws.id) ?? []));
-      const archived = (options.archived?.() ?? []).filter((a) => !liveTranscripts.has(a.transcript));
-      tokens.keepOnly([...liveTranscripts, ...archived.map((a) => a.transcript)]);
+      // A live transcript is counted as it grows; every other one comes from the ledger, so none is counted twice.
+      const live = liveTranscripts();
+      tokens.keepOnly(live.keys());
+      void settle().catch(() => {});
       // Every counted transcript's usage by model and day, for the trend across workspaces.
       const dayTotals = new Map<string, DayTotals>();
       const today = localDay(new Date());
@@ -198,14 +298,11 @@ export function createAdmin(options: AdminOptions): AdminService {
       const workspaceUsage: UsageWorkspace[] = [];
       let counting = false;
       const unpriced = new Set<string>();
-      /** Adds a transcript's usage to the trend and to its workspace's row; returns what was counted and what it cost. */
-      const countUsage = (id: string, name: string, transcript: string | null) => {
-        // Counting a large transcript the first time takes a while, so it runs behind the answer.
-        if (transcript) void tokens.refresh(transcript);
-        const counted = transcript ? tokens.peek(transcript) : null;
+      /** Adds usage to the trend and to its workspace's row; returns what it cost. */
+      const addUsage = (id: string, name: string, buckets: readonly UsageBucket[]) => {
         let costUsd = 0;
         const ownDays = new Map<string, { tokens: number; costUsd: number }>();
-        for (const bucket of counted?.buckets ?? []) {
+        for (const bucket of buckets) {
           const cost = costOf(bucket.usage, bucket.model, config.pricing);
           if (isRealModel(bucket.model) && !rateFor(bucket.model, config.pricing)) unpriced.add(bucket.model);
           costUsd += cost;
@@ -236,12 +333,23 @@ export function createAdmin(options: AdminOptions): AdminService {
             }
           }
         }
-        if (counted?.scanning) counting = true;
         if (ownDays.size) {
           const daily = [...ownDays].map(([day, used]) => ({ day, ...used })).sort((a, b) => a.day.localeCompare(b.day));
           workspaceUsage.push({ id, name, daily });
         }
-        return { counted, costUsd };
+        return costUsd;
+      };
+      /** A live transcript's usage, from the ledger until a first count after a restart has caught up with it. */
+      const countUsage = (id: string, name: string, transcript: string | null) => {
+        if (!transcript) return { counted: null, costUsd: 0 };
+        // Counting a large transcript the first time takes a while, so it runs behind the answer.
+        void refreshLive(transcript, { id });
+        const counted = tokens.peek(transcript);
+        recordLive(transcript, { id, name });
+        const saved = ledger.get(transcript);
+        if ((!counted || counted.scanning) && saved) return { counted, costUsd: addUsage(id, name, saved.buckets) };
+        if (counted?.scanning) counting = true;
+        return { counted, costUsd: addUsage(id, name, counted?.buckets ?? []) };
       };
       const sessionRows = snapshotSessions.map((ws) => {
         const pid = sessions.get(ws.id)?.pid ?? null;
@@ -260,10 +368,16 @@ export function createAdmin(options: AdminOptions): AdminService {
           history: pid === null ? [] : history.get(ws.id),
         };
       });
-      for (const a of archived) countUsage(a.id, a.name, a.transcript);
+      // Everything else the ledger holds: archived workspaces, and earlier sessions of live ones.
+      const names = new Map(snapshotSessions.map((ws) => [ws.id, ws.name]));
+      for (const entry of ledger.list()) {
+        if (!live.has(entry.transcript)) addUsage(entry.workspaceId, names.get(entry.workspaceId) ?? entry.name, entry.buckets);
+      }
       const trend = usageTrend(dayTotals, counting, [...unpriced].sort());
       const since = trend.daily[0].day;
-      const workspaces = workspaceUsage.map((w) => ({ ...w, daily: w.daily.filter((d) => d.day >= since) })).filter((w) => w.daily.length);
+      const workspaces = mergeWorkspaces(workspaceUsage)
+        .map((w) => ({ ...w, daily: w.daily.filter((d) => d.day >= since) }))
+        .filter((w) => w.daily.length);
       return {
         takenAt: new Date().toISOString(),
         helper: {
@@ -410,6 +524,11 @@ export function createAdmin(options: AdminOptions): AdminService {
         history.record(ws.id, { t: now, rssKb: tree.reduce((sum, p) => sum + p.rssKb, 0), cpu: tree.reduce((sum, p) => sum + p.cpu, 0) });
       }
       history.keepOnly(running);
+      // The same timer keeps the ledger current, whether or not Settings is open.
+      const live = liveTranscripts();
+      tokens.keepOnly(live.keys());
+      await Promise.all([...live].map(([transcript, owner]) => refreshLive(transcript, owner)));
+      await settle();
     },
   };
 }
