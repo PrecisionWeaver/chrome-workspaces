@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -49,6 +49,36 @@ describe('WorkspaceStore', () => {
 
     store.pairWindow(c.id, 7, 100);
     expect(store.list().map((x) => x.groupId)).toEqual([null, null, 100]);
+  });
+
+  it('remembers a workspace was a tab group after its window is freed', () => {
+    const file = tempFile();
+    const store = new WorkspaceStore(file);
+    const a = store.create({ name: 'a', cwd: '/tmp' });
+    const b = store.create({ name: 'b', cwd: '/tmp' });
+    store.pairWindow(a.id, 7, 100);
+    store.pairWindow(b.id, 8);
+    store.unpairWindow(7);
+    store.unpairWindow(8);
+    expect(store.list().map((x) => [x.windowId, x.groupId, x.grouped])).toEqual([
+      [null, null, true],
+      [null, null, false],
+    ]);
+
+    store.pairWindow(a.id, 9);
+    expect(store.get(a.id)?.grouped).toBe(false);
+  });
+
+  it('treats a workspace saved before `grouped` existed as grouped when it had a group', () => {
+    const file = tempFile();
+    const store = new WorkspaceStore(file);
+    const a = store.create({ name: 'a', cwd: '/tmp' });
+    store.pairWindow(a.id, 7, 100);
+    const saved = JSON.parse(readFileSync(file, 'utf8'));
+    for (const ws of saved.workspaces ?? saved) delete ws.grouped;
+    writeFileSync(file, JSON.stringify(saved));
+
+    expect(new WorkspaceStore(file).get(a.id)?.grouped).toBe(true);
   });
 
   it('keeps the window when a group closes, and frees every workspace when the window closes', () => {

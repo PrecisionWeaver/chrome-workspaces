@@ -10,6 +10,7 @@ const ws = (id: string, windowId: number | null, groupId: number | null = null):
   url: null,
   windowId,
   groupId,
+  grouped: groupId !== null,
   resume: null,
   pinned: false,
   color: null,

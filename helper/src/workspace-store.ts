@@ -28,6 +28,7 @@ export class WorkspaceStore {
     this.legacyArchived = this.workspaces.filter((ws) => (ws as { archived?: boolean }).archived === true);
     this.workspaces = this.workspaces.filter((ws) => !this.legacyArchived.includes(ws));
     for (const ws of this.workspaces) delete (ws as { archived?: boolean }).archived;
+    for (const ws of this.workspaces) ws.grouped ??= ws.groupId !== null;
   }
 
   /** Passes each legacy archived workspace to `keep`, and only then drops them from the file, so a crash in between loses none. */
@@ -67,6 +68,7 @@ export class WorkspaceStore {
       url: input.url ?? null,
       windowId: null,
       groupId: null,
+      grouped: false,
       resume: input.resume ?? null,
       pinned: false,
       color: input.color ?? null,
@@ -87,10 +89,11 @@ export class WorkspaceStore {
     if (groupId !== null) for (const ws of this.workspaces) if (ws.groupId === groupId) ws.groupId = null;
     target.windowId = windowId;
     target.groupId = groupId;
+    target.grouped = groupId !== null;
     this.save();
   }
 
-  /** Frees every workspace in the window. Keeps `lastTabUrls`, which is what re-pairs a workspace when its tabs come back. */
+  /** Frees every workspace in the window. Keeps `lastTabUrls`, which is what re-pairs a workspace when its tabs come back, and `grouped`, which is how it reopens if they do not. */
   unpairWindow(windowId: number): void {
     const paired = this.workspaces.filter((w) => w.windowId === windowId);
     for (const ws of paired) {

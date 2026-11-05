@@ -268,6 +268,8 @@ export interface Workspace {
   windowId: number | null;
   /** The Chrome tab group holding its tabs, for a workspace that shares a window; null when it has none. */
   groupId: number | null;
+  /** Whether it was last open as a tab group. A Chrome restart frees its window and group, and this is what reopens it as a group in the focused window rather than in a window of its own. */
+  grouped: boolean;
   /** Kept at the top of the list. */
   pinned: boolean;
   color: WorkspaceColor | null;

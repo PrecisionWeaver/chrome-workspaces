@@ -65,7 +65,25 @@ export async function switchTo(
     if (all.some((other) => other.id !== workspace.id && other.windowId === workspace.windowId)) await showOnly(workspace.windowId, groupId);
     return workspace.windowId;
   }
-  return openWindow(workspace, send);
+  const host = workspace.grouped ? await groupHost(all) : undefined;
+  if (host === undefined) return openWindow(workspace, send);
+  send({ type: 'pair', id: workspace.id, windowId: host });
+  await createGroup({ ...workspace, windowId: host }, send);
+  return host;
+}
+
+/**
+ * Where a workspace that was a tab group goes once its window is gone, e.g. after a Chrome restart:
+ * the window another workspace already shares as groups, else the focused one.
+ */
+async function groupHost(all: readonly Workspace[]): Promise<number | undefined> {
+  for (const other of all) if (other.groupId !== null && other.windowId !== null && (await windowExists(other.windowId))) return other.windowId;
+  try {
+    const focused = await chrome.windows.getLastFocused({ windowTypes: ['normal'] });
+    return focused.id;
+  } catch {
+    return undefined;
+  }
 }
 
 /**

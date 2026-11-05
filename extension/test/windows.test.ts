@@ -193,6 +193,41 @@ describe('switchTo', () => {
     expect(fake.group(mine)?.collapsed).toBe(false);
   });
 
+  it('reopens a workspace that was a tab group as one in the window other groups share', async () => {
+    // The focused window is the first one, so landing in the second shows the shared window is preferred.
+    fake.addWindow();
+    const { windowId, tab } = fake.addWindow();
+    const theirs = fake.addGroup([tab.id]);
+    const a = workspace({ id: 'a', windowId, groupId: theirs, grouped: true });
+    const b = workspace({ id: 'b', grouped: true, lastTabUrls: ['https://b.example/'] });
+
+    const id = await switchTo(b, send, [a, b]);
+
+    expect(id).toBe(windowId);
+    expect(sent[0]).toEqual({ type: 'pair', id: 'b', windowId });
+    expect(sent[1]).toMatchObject({ type: 'pair', id: 'b', windowId, groupId: expect.any(Number) });
+    expect(fake.urls(windowId)).toContain('https://b.example/');
+    expect(fake.mock.windows.create).not.toHaveBeenCalled();
+  });
+
+  it('reopens a workspace that was a tab group in the focused window when no group is open', async () => {
+    const { windowId } = fake.addWindow();
+    const b = workspace({ id: 'b', grouped: true, lastTabUrls: ['https://b.example/'] });
+
+    const id = await switchTo(b, send, [b]);
+
+    expect(id).toBe(windowId);
+    expect(sent.at(-1)).toMatchObject({ type: 'pair', id: 'b', windowId });
+    expect(sent.at(-1)).toHaveProperty('groupId');
+    expect(fake.mock.windows.create).not.toHaveBeenCalled();
+  });
+
+  it('opens a window for a workspace that was not a tab group', async () => {
+    fake.addWindow();
+    await switchTo(workspace({ id: 'b', lastTabUrls: ['https://b.example/'] }), send, []);
+    expect(fake.mock.windows.create).toHaveBeenCalled();
+  });
+
   it('adopts the unclaimed tab group in its window that holds its tabs', async () => {
     const { windowId, tab } = fake.addWindow();
     const theirs = fake.addGroup([tab.id], { collapsed: false });

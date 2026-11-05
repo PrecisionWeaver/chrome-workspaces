@@ -13,6 +13,7 @@ export function makeWorkspace(overrides: Partial<Workspace> = {}): Workspace {
     url: null,
     windowId: null,
     groupId: null,
+    grouped: false,
     pinned: false,
     color: null,
     resume: null,

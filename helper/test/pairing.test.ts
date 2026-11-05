@@ -11,6 +11,7 @@ function ws(id: string, lastTabUrls: string[], windowId: number | null = null): 
     url: null,
     windowId,
     groupId: null,
+    grouped: false,
     resume: null,
     pinned: false,
     color: null,
