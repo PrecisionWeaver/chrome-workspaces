@@ -1,4 +1,4 @@
-import { closeSync, existsSync, fstatSync, openSync, readdirSync, readFileSync, readSync, rmSync, statSync, watch, writeFileSync } from 'node:fs';
+import { closeSync, existsSync, fstatSync, openSync, readdirSync, readFileSync, readSync, rmSync, statSync, watch } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { parseActivityLine } from '../../shared/activity';
 import type { PastSession, WaitingOn, WorkspaceStatus } from '../../shared/protocol';
@@ -272,35 +272,4 @@ export function pruneSessions(dir: string, now = Date.now()): void {
       // Gone already, or not ours to remove.
     }
   }
-}
-
-/**
- * Brings over the session ids that Claude Mission Control recorded before this app wrote its own, so a workspace
- * that was open before the upgrade still resumes its conversation. Those sessions are over, so no status comes
- * with them, and a file that already exists is left alone. Returns how many were imported.
- */
-export function importLegacySessions(legacyDir: string, dir: string, now = Date.now()): number {
-  let names: string[];
-  try {
-    names = readdirSync(legacyDir).filter((name) => name.endsWith('.json'));
-  } catch {
-    return 0;
-  }
-  let imported = 0;
-  for (const name of names) {
-    try {
-      const from = join(legacyDir, name);
-      if (existsSync(join(dir, name)) || now - statSync(from).mtimeMs > RETENTION_MS) continue;
-      const old = JSON.parse(readFileSync(from, 'utf8')) as SessionFile;
-      if (!old.cw_workspace_id || !old.session_id || !/^[A-Za-z0-9_-]+$/.test(old.session_id)) continue;
-      const { session_id, cw_workspace_id, started_at, cwd, transcript_path, browser_at } = old;
-      writeFileSync(join(dir, name), JSON.stringify({ session_id, cw_workspace_id, started_at, cwd, transcript_path, browser_at, status: 'ended' }, null, 2), {
-        mode: 0o600,
-      });
-      imported++;
-    } catch {
-      // Unreadable, or not ours to copy.
-    }
-  }
-  return imported;
 }

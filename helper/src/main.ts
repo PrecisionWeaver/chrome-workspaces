@@ -10,18 +10,10 @@ import { launchDirectory } from './launch-dir';
 import { activityFile, readActivity } from './activity';
 import { createAdmin, defaultIsManaged, defaultRunShell, defaultSpawnDetached } from './admin';
 import { createApi } from './api';
-import { isDirectory, DATA_DIR, HOST, LEGACY_SESSIONS_DIR, loadConfig, SESSIONS_DIR, PORT, SCROLLBACK_LIMIT } from './config';
+import { isDirectory, DATA_DIR, HOST, loadConfig, SESSIONS_DIR, PORT, SCROLLBACK_LIMIT } from './config';
 import { ControlHub } from './control';
 import { launchSpec, monitorSpec, shellSpec } from './launch';
-import {
-  importLegacySessions,
-  listWorkspaceSessions,
-  readSessionStatus,
-  lastTranscriptCwd,
-  pruneSessions,
-  watchSessionStatus,
-  type WorkspaceSession,
-} from './session-status';
+import { listWorkspaceSessions, readSessionStatus, lastTranscriptCwd, pruneSessions, watchSessionStatus, type WorkspaceSession } from './session-status';
 import { writeHooksFile } from './hooks-config';
 import { readPlanUsage } from './plan-usage';
 import { GH_BRANCH_PR, GH_PR_CREATE, GH_PR_DETAILS, GH_PR_THREADS, PR_THREADS_QUERY } from './pr-details';
@@ -53,7 +45,6 @@ setInterval(() => rotateLog(LOG_FILE), 60 * 60_000).unref();
 // The folder exists before the first hook runs, so its changes can be watched from the start.
 mkdirSync(SESSIONS_DIR, { recursive: true, mode: 0o700 });
 pruneSessions(SESSIONS_DIR);
-importLegacySessions(LEGACY_SESSIONS_DIR, SESSIONS_DIR);
 const hooksFile = writeHooksFile(DATA_DIR);
 if (!hooksFile) console.warn('status hooks are off: hooks/session-state.ts is missing or Node is older than 22.18');
 const store = new WorkspaceStore(join(DATA_DIR, 'workspaces.json'));
