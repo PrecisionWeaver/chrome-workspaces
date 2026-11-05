@@ -10,6 +10,7 @@ const ws = (id: string, name: string, extra: Partial<Workspace> = {}): Workspace
   url: null,
   windowId: null,
   groupId: null,
+  grouped: false,
   resume: null,
   pinned: false,
   color: null,
