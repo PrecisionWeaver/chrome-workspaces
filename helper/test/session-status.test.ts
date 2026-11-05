@@ -2,16 +2,8 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import {
-  continuedInSession,
-  importLegacySessions,
-  lastTranscriptCwd,
-  listWorkspaceSessions,
-  locateTranscript,
-  pruneSessions,
-  readSessionStatus,
-} from '../src/session-status';
-import { existsSync, readdirSync, utimesSync } from 'node:fs';
+import { continuedInSession, lastTranscriptCwd, listWorkspaceSessions, locateTranscript, pruneSessions, readSessionStatus } from '../src/session-status';
+import { existsSync, utimesSync } from 'node:fs';
 
 function stateDir(files: Record<string, unknown>): string {
   const dir = mkdtempSync(join(tmpdir(), 'cw-sessions-'));
@@ -231,47 +223,6 @@ describe('pruneSessions', () => {
 
   it('does nothing for a folder that does not exist', () => {
     expect(() => pruneSessions(join(tmpdir(), 'cw-sessions-does-not-exist'))).not.toThrow();
-  });
-});
-
-describe('importLegacySessions', () => {
-  it('brings over workspace sessions as ended, so they resume, and leaves the rest', () => {
-    const transcript = join(stateDir({ 't.jsonl': '{}' }), 't.jsonl');
-    const legacy = stateDir({
-      'a.json': {
-        session_id: ID_OLD,
-        cw_workspace_id: 'ws-1',
-        status: 'working',
-        started_at: '2026-01-01T00:00:00Z',
-        cwd: '/repo',
-        transcript_path: transcript,
-        pid: 5,
-      },
-      'plain.json': { session_id: ID_NEW, status: 'idle' },
-      'unsafe.json': { session_id: '../x', cw_workspace_id: 'ws-2' },
-      'notes.txt': 'x',
-    });
-    const dir = stateDir({});
-    expect(importLegacySessions(legacy, dir)).toBe(1);
-    expect(readSessionStatus(dir).get('ws-1')).toEqual({
-      status: null,
-      waiting: null,
-      claudeSessionId: ID_OLD,
-      browserAt: null,
-      cwd: '/repo',
-      transcriptPath: transcript,
-    });
-    expect(readdirSync(dir)).toEqual(['a.json']);
-  });
-
-  it('keeps a session the app already recorded, skips old ones, and copes with no legacy folder', () => {
-    const legacy = stateDir({ 'a.json': { session_id: ID_OLD, cw_workspace_id: 'ws-1' }, 'stale.json': { session_id: ID_NEW, cw_workspace_id: 'ws-2' } });
-    const old = Date.now() / 1000 - 31 * 24 * 60 * 60;
-    utimesSync(join(legacy, 'stale.json'), old, old);
-    const dir = stateDir({ 'a.json': { session_id: ID_OLD, cw_workspace_id: 'ws-1', status: 'working' } });
-    expect(importLegacySessions(legacy, dir)).toBe(0);
-    expect(readSessionStatus(dir).get('ws-1')?.status).toBe('working');
-    expect(importLegacySessions(join(tmpdir(), 'cw-sessions-does-not-exist'), dir)).toBe(0);
   });
 });
 

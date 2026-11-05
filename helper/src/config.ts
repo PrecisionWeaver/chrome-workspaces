@@ -13,8 +13,6 @@ export const DATA_DIR = process.env.CW_DATA_DIR ?? join(homedir(), '.chrome-work
 export const AGENT_LABEL = 'com.chrome-workspaces.helper';
 export const SCROLLBACK_LIMIT = 2_000_000;
 export const SESSIONS_DIR = join(DATA_DIR, 'sessions');
-/** Where Claude Mission Control kept session files, which earlier versions of this app read; see `importLegacySessions`. */
-export const LEGACY_SESSIONS_DIR = process.env.CMC_STATE_DIR ?? join(homedir(), '.claude-mission-control', 'sessions');
 
 export interface HelperConfig {
   extensionId: string;
