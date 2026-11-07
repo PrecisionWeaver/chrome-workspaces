@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 import { parseActivityLine } from '../../shared/activity';
 import type { PastSession, WaitingOn, WorkspaceStatus } from '../../shared/protocol';
 import type { SessionFile } from '../../shared/session-file';
+import { hasRunningSubagent } from './activity';
 
 export interface WorkspaceSession {
   status: WorkspaceStatus;
@@ -119,7 +120,9 @@ export function readSessionStatus(dir: string, workspaceCwds: ReadonlyMap<string
 
   const result = new Map<string, WorkspaceSession>();
   for (const [workspaceId, session] of newest) {
-    const status = LIVE_STATUSES.has(session.status ?? '') ? (session.status as WorkspaceStatus) : null;
+    let status = LIVE_STATUSES.has(session.status ?? '') ? (session.status as WorkspaceStatus) : null;
+    // claude is idle once it has answered, even with a subagent still running in the background.
+    if (status === 'idle' && hasRunningSubagent(join(dir, `${session.session_id}.events.jsonl`))) status = 'working';
     const browserAt = session.browser_at ? Date.parse(session.browser_at) : NaN;
     const waiting = session.waiting;
     result.set(workspaceId, {

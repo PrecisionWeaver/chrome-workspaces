@@ -77,6 +77,15 @@ describe('hooks/session-state.ts', () => {
     expect(read(data)).toMatchObject({ status: 'needs_input', waiting: { type: '', message: 'Claude is waiting for your input' } });
   });
 
+  it('does not let a subagent’s tool calls change the status', () => {
+    const data = mkdtempSync(join(tmpdir(), 'cw-hook-'));
+    fire(data, { hook_event_name: 'UserPromptSubmit', session_id: ID });
+    fire(data, { hook_event_name: 'Stop', session_id: ID });
+    // A subagent's call can arrive after claude's Stop.
+    fire(data, { hook_event_name: 'PostToolUse', session_id: ID, tool_name: 'Read', agent_id: 'a1', agent_type: 'Explore' });
+    expect(read(data)).toMatchObject({ status: 'idle', last_event: 'Stop' });
+  });
+
   it('notes a Claude in Chrome tool call, and no other tool', () => {
     const data = mkdtempSync(join(tmpdir(), 'cw-hook-'));
     fire(data, { hook_event_name: 'PostToolUse', session_id: ID, tool_name: 'Bash' });
