@@ -18,6 +18,27 @@ const ID_NEW = '22222222-2222-2222-2222-222222222222';
 const ID_GONE = '33333333-3333-3333-3333-333333333333';
 
 describe('readSessionStatus', () => {
+  it('reports working while a subagent runs after claude stopped, and idle again once it ends', () => {
+    const at = new Date().toISOString();
+    const events = (...lines: object[]) => lines.map((line) => JSON.stringify(line)).join('\n');
+    const session = { session_id: ID_NEW, cw_workspace_id: 'ws-1', status: 'idle', started_at: at };
+    const running = stateDir({
+      [`${ID_NEW}.json`]: session,
+      [`${ID_NEW}.events.jsonl`]: events({ at, event: 'SubagentStart', agentId: 'a1' }, { at, event: 'Stop' }),
+    });
+    expect(readSessionStatus(running).get('ws-1')?.status).toBe('working');
+    const done = stateDir({
+      [`${ID_NEW}.json`]: session,
+      [`${ID_NEW}.events.jsonl`]: events({ at, event: 'SubagentStart', agentId: 'a1' }, { at, event: 'SubagentStop', agentId: 'a1' }),
+    });
+    expect(readSessionStatus(done).get('ws-1')?.status).toBe('idle');
+    const stale = stateDir({
+      [`${ID_NEW}.json`]: session,
+      [`${ID_NEW}.events.jsonl`]: events({ at: '2020-01-01T00:00:00Z', event: 'SubagentStart', agentId: 'a1' }),
+    });
+    expect(readSessionStatus(stale).get('ws-1')?.status).toBe('idle');
+  });
+
   it('uses the most recently started session per workspace', () => {
     const dir = stateDir({
       'a.json': { session_id: ID_OLD, cw_workspace_id: 'ws-1', status: 'idle', started_at: '2026-01-01T00:00:00Z' },

@@ -54,7 +54,11 @@ try {
   const input = JSON.parse(readFileSync(0, 'utf8')) as HookInput;
   const event = input.hook_event_name;
   // A notification that only reports something changes nothing: claude is still doing what it was.
-  const status = event && (event !== 'Notification' || notificationWaits(input.notification_type)) ? STATUS_BY_EVENT[event] : undefined;
+  // Nor does a subagent's own tool call: it can arrive after claude's Stop, and would leave an idle session working for good.
+  const status =
+    event && !(input.agent_id && event !== 'Notification') && (event !== 'Notification' || notificationWaits(input.notification_type))
+      ? STATUS_BY_EVENT[event]
+      : undefined;
   // The id becomes a file name, so only a plain one is accepted.
   if (event && (status || ACTIVITY_EVENTS.has(event)) && input.session_id && /^[A-Za-z0-9_-]+$/.test(input.session_id)) {
     mkdirSync(dir, { recursive: true, mode: 0o700 });
