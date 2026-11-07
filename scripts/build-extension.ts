@@ -8,7 +8,7 @@ rmSync(OUT, { recursive: true, force: true });
 mkdirSync(OUT, { recursive: true });
 
 await build({
-  entryPoints: ['extension/src/background.ts', 'extension/src/panel.ts'],
+  entryPoints: ['extension/src/background.ts', 'extension/src/panel.ts', 'extension/src/popout.ts'],
   bundle: true,
   format: 'esm',
   target: 'chrome120',
@@ -17,8 +17,9 @@ await build({
 
 // panel.css @imports one file per view; bundling inlines them, in order, into one stylesheet.
 await build({ entryPoints: ['extension/panel.css'], bundle: true, outfile: `${OUT}/panel.css` });
+await build({ entryPoints: ['extension/popout.css'], bundle: true, outfile: `${OUT}/popout.css` });
 
-for (const file of ['manifest.json', 'panel.html']) cpSync(`extension/${file}`, `${OUT}/${file}`);
+for (const file of ['manifest.json', 'panel.html', 'popout.html']) cpSync(`extension/${file}`, `${OUT}/${file}`);
 cpSync('node_modules/@xterm/xterm/css/xterm.css', `${OUT}/xterm.css`);
 
 // PNGs are rendered here rather than committed; small sizes use the simplified artwork.

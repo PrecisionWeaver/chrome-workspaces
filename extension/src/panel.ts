@@ -1,31 +1,18 @@
 import { followTabZoom } from './zoom';
 import { waitingKind } from '../../shared/attention';
-import { FitAddon } from '@xterm/addon-fit';
 import { SearchAddon } from '@xterm/addon-search';
-import { WebLinksAddon } from '@xterm/addon-web-links';
-import { Terminal } from '@xterm/xterm';
 import { similarity } from '../../shared/pairing';
-import type {
-  ClientMessage,
-  HistoryEntry,
-  ReviewRequest,
-  ReviewsState,
-  ServerMessage,
-  SystemSnapshot,
-  WaitingOn,
-  Workspace,
-  WorkspaceStatus,
-} from '../../shared/protocol';
+import type { ClientMessage, HistoryEntry, ReviewRequest, ReviewsState, SystemSnapshot, WaitingOn, Workspace, WorkspaceStatus } from '../../shared/protocol';
 import { $, el, installHoverTips } from './dom';
 import { formatCpu, formatKb, formatUsageShort, resourceTitle, resourceTotal } from './format';
-import { connectControl, getHelper, isHostMissing, openSocket, startHelper } from './helper-client';
+import { connectControl, getHelper, isHostMissing, startHelper } from './helper-client';
 import { createActivitySection } from './activity-section';
 import { createCreateView } from './create-view';
 import { attachFileDrop } from './file-drop';
 import { createGitView } from './git-view';
-import { resolveTheme } from '../../shared/keynav';
 import { ticketUrl } from '../../shared/jira';
-import { loadPrefs, onPrefsChange, type Prefs } from './prefs';
+import { followAppearance } from './appearance';
+import { connectSession, createSessionTerminal, shiftEnterNewline, type SessionLink } from './terminal-session';
 import { createTerminalSearch } from './terminal-search';
 import { createPalette, type PaletteItem } from './palette';
 import { createToolView } from './tool-view';
@@ -37,6 +24,7 @@ import { createListResizer } from './list-resizer';
 import { createWorkspaceList } from './workspace-list';
 import { terminalTheme } from './terminal-theme';
 import { loadSelection, onSelectionChange, select, shownIn, type Selection } from './selection';
+import { openPopout } from './popout-window';
 import { showOnly, switchTo } from './windows';
 
 const newButton = $<HTMLButtonElement>('new');
@@ -47,32 +35,17 @@ const pickerNew = $<HTMLFormElement>('picker-new');
 const pickerName = $<HTMLInputElement>('picker-name');
 const terminalEl = $<HTMLDivElement>('terminal');
 
-const term = new Terminal({ fontFamily: 'Menlo, monospace', fontSize: 12, cursorBlink: true, theme: { background: '#1e1e1e' } });
-const fit = new FitAddon();
-term.loadAddon(fit);
-// A side panel cannot window.open, so links go to a tab of their own.
-term.loadAddon(new WebLinksAddon((_event, uri) => void chrome.tabs.create({ url: uri })));
+const terminal = createSessionTerminal((message) => sendToSession(message));
+const { term } = terminal;
 const search = new SearchAddon();
 term.loadAddon(search);
 term.open(terminalEl);
 const finder = createTerminalSearch(search, () => term.focus());
 
-const systemDark = window.matchMedia('(prefers-color-scheme: dark)');
-let appearance: Prefs | null = null;
-
-/** Applies the theme and density to the page and the terminal; `system` follows the operating system. */
-function applyAppearance(prefs: Prefs | null = appearance): void {
-  if (!prefs) return;
-  appearance = prefs;
-  const theme = resolveTheme(prefs.theme, systemDark.matches);
-  document.documentElement.dataset.theme = theme;
-  document.documentElement.dataset.density = prefs.density;
+followAppearance((theme) => {
   term.options.theme = terminalTheme(theme);
   tools.setTheme(terminalTheme(theme));
-}
-void loadPrefs().then(applyAppearance);
-onPrefsChange(applyAppearance);
-systemDark.addEventListener('change', () => applyAppearance());
+});
 
 let myWindowId: number | undefined;
 let workspaces: Workspace[] = [];
@@ -335,6 +308,7 @@ const workspaceList = createWorkspaceList({
   ticketLink: (ticket) => ticketUrl(jiraBase, ticket),
   open: openWorkspace,
   openShell: (ws) => tools.showShell(ws),
+  popOut: (ws) => void openPopout(ws.id),
   onReselect: () => {
     creator.close();
     git.close();
@@ -402,87 +376,58 @@ pickerNew.addEventListener('submit', (event) => {
 
 // ---- terminal ----
 
-let socket: WebSocket | null = null;
+let link: SessionLink | null = null;
 let attachedId: string | null = null;
-// Set while the token is being fetched, so a state update arriving meanwhile doesn't attach twice.
-let connecting = false;
 
 function sendToSession(message: ClientMessage): boolean {
-  if (socket?.readyState !== WebSocket.OPEN) return false;
-  socket.send(JSON.stringify(message));
-  return true;
+  return link?.send(message) ?? false;
 }
 
 function detach(): void {
-  const old = socket;
-  socket = null;
+  const old = link;
+  link = null;
   attachedId = null;
   old?.close();
 }
 
 function attach(workspace: Workspace): void {
-  if (attachedId === workspace.id && (socket || connecting)) return;
+  if (attachedId === workspace.id && link) return;
   detach();
   term.reset();
   attachedId = workspace.id;
-  connecting = true;
 
-  getHelper().then(
-    (helper) => {
-      connecting = false;
-      if (attachedId !== workspace.id) return;
-      const ws = openSocket(helper, `/attach?session=${workspace.id}`);
-      socket = ws;
-
-      ws.onopen = () => {
-        fitTerminal();
-        term.focus();
-      };
-      ws.onmessage = (event) => {
-        const message = JSON.parse(event.data as string) as ServerMessage;
-        if (message.type === 'output') {
-          if (!message.replay) term.write(message.data);
-          else {
-            replaying = true;
-            term.write(message.data, () => (replaying = false));
-          }
-        }
-        // The saved path is pasted, so a program that takes pastes (claude) treats it as an attachment.
-        else if (message.type === 'uploaded') {
-          if (message.path) term.paste(`${message.path} `);
-          else showNotice(`Could not add ${message.name}: ${message.error ?? 'unknown error'}`);
-        }
-        // The shell is gone; close the panel. Reopening it starts a fresh session.
-        else if (myWindowId !== undefined) void chrome.sidePanel.close({ windowId: myWindowId });
-        else window.close();
-      };
-      ws.onclose = () => {
-        if (socket !== ws) return;
-        socket = null;
-        term.write('\r\n\x1b[33m[disconnected from helper — reconnects when it is back]\x1b[0m\r\n');
-      };
+  link = connectSession(workspace.id, terminal, {
+    onOpen() {
+      fitTerminal();
+      term.focus();
     },
-    () => {
-      // The control connection's notice explains the outage; the next state retries the attach.
-      connecting = false;
+    onMessage(message) {
+      // The saved path is pasted, so a program that takes pastes (claude) treats it as an attachment.
+      if (message.type === 'uploaded') {
+        if (message.path) term.paste(`${message.path} `);
+        else showNotice(`Could not add ${message.name}: ${message.error ?? 'unknown error'}`);
+      }
+      // The shell is gone; close the panel. Reopening it starts a fresh session.
+      else if (myWindowId !== undefined) void chrome.sidePanel.close({ windowId: myWindowId });
+      else window.close();
+    },
+    onDisconnect() {
+      link = null;
+      term.write('\r\n\x1b[33m[disconnected from helper — reconnects when it is back]\x1b[0m\r\n');
+    },
+    // The control connection's notice explains the outage; the next state retries the attach.
+    onUnreachable() {
+      link = null;
       attachedId = null;
     },
-  );
+  });
 }
-
-// Replayed scrollback can hold terminal queries (device attributes, say); xterm answers them through onData,
-// and the shell would read each answer as typed text. Output written while a replay is parsed is dropped.
-let replaying = false;
-term.onData((data) => {
-  if (!replaying) sendToSession({ type: 'input', data });
-});
 
 attachFileDrop(terminalEl, {
   send: (name, data) => sendToSession({ type: 'file', name, data }),
   notice: showNotice,
 });
 
-// xterm sends the same \r for Enter and Shift+Enter; Claude reads ESC + \r as a newline, as iTerm can be set to send.
 term.attachCustomKeyEventHandler((event) => {
   // ⌘K / Ctrl+K is the palette's, even while the terminal has focus: the terminal ignores it, and the
   // same keypress then reaches the page-level handler below, which opens the palette. Opening it here as
@@ -490,18 +435,16 @@ term.attachCustomKeyEventHandler((event) => {
   if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'k') return false;
   // ⌘F / Ctrl+F likewise belongs to the find box.
   if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'f') return false;
-  if (event.key !== 'Enter' || !event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) return true;
-  if (event.type === 'keydown') sendToSession({ type: 'input', data: '\x1b\r' });
-  return false;
+  return shiftEnterNewline(event, sendToSession);
 });
 
 function fitTerminal(): void {
-  if (terminalEl.hidden) return;
-  fit.fit();
-  sendToSession({ type: 'resize', cols: term.cols, rows: term.rows });
+  if (!terminalEl.hidden) terminal.refit();
 }
 
 new ResizeObserver(fitTerminal).observe(terminalEl);
+// A pop-out can show the same session at another size; the last view in use sets the terminal's.
+window.addEventListener('focus', fitTerminal);
 
 /** The helper's and every workspace's memory and CPU, rolled up in the list header; the same total as Settings. */
 function showUsage(snapshot: SystemSnapshot | null): void {

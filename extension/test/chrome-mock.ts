@@ -241,6 +241,7 @@ export function installChrome() {
     runtime: {
       ...events.runtime,
       id: 'ext-id',
+      getURL: (path: string) => `chrome-extension://ext-id/${path}`,
       getManifest: vi.fn(() => ({ version: '1.2.3' })),
       reload: vi.fn(),
       sendNativeMessage: vi.fn(async (): Promise<unknown> => ({ ok: true, token: 'token', port: 4000 })),
