@@ -400,10 +400,22 @@ describe('archiving and the context menu', () => {
     expect(remove().textContent).toBe('archive?');
     expect(sentOfType('remove')).toEqual([]);
     vi.advanceTimersByTime(3000);
-    expect(remove().textContent).toBe('×');
+    expect(remove().textContent).toBe('');
+    expect(remove().querySelector('use')?.getAttribute('href')).toBe('#i-x');
     remove().click();
     remove().click();
     expect(sentOfType('remove')).toEqual([{ type: 'remove', id: 'a' }]);
+  });
+
+  it('opens a workspace in its own window from its row, without selecting it', async () => {
+    await boot();
+    state([ws('a'), ws('b')]);
+    const popOut = rows()[1]!.querySelector<HTMLButtonElement>('.pop-out')!;
+    expect(popOut.querySelector('use')?.getAttribute('href')).toBe('#i-external');
+    popOut.click();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fake.mock.windows.create).toHaveBeenCalledWith(expect.objectContaining({ type: 'popup', url: 'chrome-extension://ext-id/popout.html?ws=b' }));
+    expect(rows()[0]!.classList.contains('current')).toBe(true);
   });
 
   const menuButtons = () => [...document.querySelectorAll<HTMLButtonElement>('.ctx-menu > button')];

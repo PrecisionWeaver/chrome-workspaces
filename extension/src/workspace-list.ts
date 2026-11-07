@@ -10,7 +10,7 @@ import {
   type WorkspaceStatus,
   WORKSPACE_COLORS,
 } from '../../shared/protocol';
-import { $, caret, el } from './dom';
+import { $, caret, el, icon } from './dom';
 import { closeMenu, menuItem, openMenu } from './menu';
 
 export interface WorkspaceListOptions {
@@ -25,6 +25,8 @@ export interface WorkspaceListOptions {
   open(ws: Workspace): void;
   /** Opens a login shell in the workspace's directory, in the tool view. */
   openShell(ws: Workspace): void;
+  /** Opens the workspace's terminal in a window of its own. */
+  popOut(ws: Workspace): void;
   /** The current workspace was clicked again: close whatever view covers its terminal. */
   onReselect(): void;
   /** A drag moved a workspace; the panel keeps the new order until the helper confirms it. */
@@ -181,7 +183,7 @@ export function createWorkspaceList(options: WorkspaceListOptions): WorkspaceLis
     const forget = document.createElement('button');
     forget.className = 'remove';
     forget.title = 'Forget this workspace';
-    forget.textContent = '×';
+    forget.append(icon('x'));
     forget.addEventListener('click', (event) => {
       event.stopPropagation();
       options.send({ type: 'forget', historyId: entry.id });
@@ -224,10 +226,20 @@ export function createWorkspaceList(options: WorkspaceListOptions): WorkspaceLis
       startRename(ws, name);
     });
 
+    const popOut = document.createElement('button');
+    popOut.className = 'pop-out';
+    popOut.title = 'Open in its own window';
+    popOut.setAttribute('aria-label', `Open ${ws.name} in its own window`);
+    popOut.append(icon('external'));
+    popOut.addEventListener('click', (event) => {
+      event.stopPropagation();
+      options.popOut(ws);
+    });
+
     const remove = document.createElement('button');
     remove.className = 'remove';
     remove.title = 'Archive workspace';
-    remove.textContent = '×';
+    remove.append(icon('x'));
     remove.addEventListener('click', (event) => {
       event.stopPropagation();
       // Two clicks: the first arms it, so a stray click can't end a running session.
@@ -248,7 +260,7 @@ export function createWorkspaceList(options: WorkspaceListOptions): WorkspaceLis
       pin.title = 'Pinned';
       item.append(pin);
     }
-    item.append(remove);
+    item.append(popOut, remove);
     item.addEventListener('click', () => {
       if (ws.id !== here?.id) options.open(ws);
       else options.onReselect();

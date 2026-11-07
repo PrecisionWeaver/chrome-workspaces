@@ -1,0 +1,54 @@
+/* The pop-out window's styles: the shared variables, and a bar over one terminal. */
+@import './styles/base.css';
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--ui);
+  font-size: 12px;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+}
+
+#bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--list-bg);
+  border-bottom: 1px solid var(--border);
+}
+
+#name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#status {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--faint);
+}
+
+#status[data-status='working'] {
+  background: var(--working);
+}
+
+#status[data-status='needs_input'] {
+  background: var(--needs-input);
+}
+
+#terminal {
+  flex: 1;
+  min-height: 0;
+  padding: 4px;
+}

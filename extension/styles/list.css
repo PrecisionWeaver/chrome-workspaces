@@ -383,15 +383,30 @@ body.collapsed #new .label {
   color: var(--muted);
 }
 
-.ws .remove {
+.ws .remove,
+.ws .pop-out {
   visibility: hidden;
+  display: inline-flex;
+  align-items: center;
   background: none;
   border: 0;
   color: var(--muted);
   padding: 0 2px;
 }
 
-.ws:hover .remove {
+.ws .remove .icon,
+.ws .pop-out .icon {
+  width: 13px;
+  height: 13px;
+}
+
+.ws .remove:hover,
+.ws .pop-out:hover {
+  color: var(--text);
+}
+
+.ws:hover .remove,
+.ws:hover .pop-out {
   visibility: visible;
 }
 
@@ -697,6 +712,7 @@ body.collapsed #list-title,
 body.collapsed #list-usage,
 body.collapsed .ws .name,
 body.collapsed .ws .remove,
+body.collapsed .ws .pop-out,
 body.collapsed #git,
 body.collapsed #reviews,
 body.collapsed #activity,
