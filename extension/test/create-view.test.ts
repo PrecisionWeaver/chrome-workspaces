@@ -349,7 +349,7 @@ describe('model, colour and window controls', () => {
   it('offers Default and each model alias, and restores the last pick', async () => {
     fake.storage.local.newModel = 'sonnet';
     await open();
-    expect([...$<HTMLSelectElement>('create-model').options].map((option) => option.textContent)).toEqual(['Default', 'opus', 'sonnet', 'haiku']);
+    expect([...$<HTMLSelectElement>('create-model').options].map((option) => option.textContent)).toEqual(['Default', 'fable', 'opus', 'sonnet', 'haiku']);
     expect($<HTMLSelectElement>('create-model').value).toBe('sonnet');
   });
 

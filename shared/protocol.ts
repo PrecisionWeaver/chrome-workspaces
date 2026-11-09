@@ -15,7 +15,7 @@ export const MAX_PR_BODY = 6000;
 export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 /** What `--model` accepts that is safe to put in a shell command: an alias or id, optionally with a `[1m]`-style suffix. */
 export const MODEL_PATTERN = /^[A-Za-z0-9][\w.-]{0,63}(\[\w{1,8}\])?$/;
-export const MODEL_ALIASES = ['opus', 'sonnet', 'haiku'] as const;
+export const MODEL_ALIASES = ['fable', 'opus', 'sonnet', 'haiku'] as const;
 /** Colors a workspace can be marked with; the names Chrome uses for tab groups. */
 export const WORKSPACE_COLORS = ['grey', 'blue', 'red', 'yellow', 'green', 'pink', 'purple', 'cyan', 'orange'] as const;
 export type WorkspaceColor = (typeof WORKSPACE_COLORS)[number];

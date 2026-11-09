@@ -168,6 +168,11 @@ describe('readSessionStatus', () => {
       expect(result.get('ws-1')?.claudeSessionId).toBe(ID_OLD);
       expect(result.get('ws-2')?.claudeSessionId).toBe(ID_FORK);
     });
+
+    it('is followed when the workspace whose shell started it no longer exists', () => {
+      const result = readSessionStatus(stateDir(files(ID_FORK)), new Map([['ws-1', '/acme/app']]));
+      expect(result.get('ws-1')).toMatchObject({ claudeSessionId: ID_FORK, status: 'working' });
+    });
   });
 
   it('does not let an ended session that never recorded a message hide the conversation before it', () => {

@@ -105,6 +105,8 @@ export function readSessionStatus(dir: string, workspaceCwds: ReadonlyMap<string
     if (!workspaceId || !session.session_id) continue;
     const home = workspaceCwds.get(workspaceId);
     if (session.status === 'ended' && session.transcript_path && !locateTranscript(session)) continue;
+    // A session carrying the id of a workspace that has since gone is nobody's, so a conversation may continue in it.
+    if (!home) strays.set(session.session_id, session);
     if (home && session.cwd && !isInside(session.cwd, home)) {
       strays.set(session.session_id, session);
       continue;
