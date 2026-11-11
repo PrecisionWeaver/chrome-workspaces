@@ -414,8 +414,6 @@ describe('the cards', () => {
         notify: true,
         setupDismissed: false,
         usageRange: '14d',
-        usageTrend: true,
-        usageTrendWindow: 3,
       });
     });
   });
@@ -622,26 +620,6 @@ describe('the cards', () => {
       expect(card('Usage').querySelector('.usage-trend polyline')!.getAttribute('points')!.split(' ')).toHaveLength(9);
       expect(bars()[5]!.dataset.tip).toContain('3-hour average 100');
       expect(bars()[12]!.dataset.tip).not.toContain('average');
-    });
-
-    it('turns the trend line off and changes its window, and remembers both', async () => {
-      await open(makeSnapshot({ usage: usage({ daily: sixty() }) }));
-      await pick('7 days');
-      expect(button('7 days', card('Usage')).getAttribute('aria-pressed')).toBe('true');
-      await pick('14 days');
-      button('Trend line', card('Usage')).click();
-      await flush();
-      expect(card('Usage').querySelector('.usage-trend')).toBeNull();
-      expect(bars()[13]!.dataset.tip).not.toContain('average');
-      expect(fake.storage.local.prefs).toMatchObject({ usageTrend: false });
-      button('Trend line', card('Usage')).click();
-      await flush();
-      const windows = [...card('Usage').querySelectorAll<HTMLElement>('[aria-label="Trend line window"] button')];
-      expect(windows.map((b) => b.textContent)).toEqual(['3 days', '7 days', '14 days']);
-      windows[1]!.click();
-      await flush();
-      expect(fake.storage.local.prefs).toMatchObject({ usageTrend: true, usageTrendWindow: 7 });
-      expect(bars()[13]!.dataset.tip).toContain('7-day average');
     });
 
     it('draws as many bars as the range has days', async () => {

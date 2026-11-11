@@ -9,8 +9,6 @@ describe('normalizePrefs', () => {
       density: 'comfortable',
       setupDismissed: false,
       usageRange: '14d',
-      usageTrend: true,
-      usageTrendWindow: 3,
     };
     for (const stored of [undefined, null, 'dark', 7, []]) expect(normalizePrefs(stored)).toEqual(defaults);
   });
@@ -24,8 +22,6 @@ describe('normalizePrefs', () => {
       density: 'compact',
       setupDismissed: true,
       usageRange: '30d',
-      usageTrend: false,
-      usageTrendWindow: 14,
     });
     expect(normalizePrefs({ notify: 'yes', theme: 'neon', density: 'tiny', usageRange: '90d', usageTrendWindow: 5 })).toEqual({
       notify: false,
@@ -33,8 +29,6 @@ describe('normalizePrefs', () => {
       density: 'comfortable',
       setupDismissed: false,
       usageRange: '14d',
-      usageTrend: true,
-      usageTrendWindow: 3,
     });
     expect(normalizePrefs({ theme: 'dark' })).toEqual({
       notify: false,
@@ -42,8 +36,6 @@ describe('normalizePrefs', () => {
       density: 'comfortable',
       setupDismissed: false,
       usageRange: '14d',
-      usageTrend: true,
-      usageTrendWindow: 3,
     });
   });
 });

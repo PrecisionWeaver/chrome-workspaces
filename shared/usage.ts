@@ -13,11 +13,7 @@ export type UsageRangeId = (typeof USAGE_RANGES)[number]['id'];
 export const DEFAULT_USAGE_RANGE: UsageRangeId = '14d';
 
 /** How many bars the usage chart's trend line averages over (hours on the hourly chart, days on the daily one). */
-export const TREND_WINDOWS = [3, 7, 14] as const;
-
-export type TrendWindow = (typeof TREND_WINDOWS)[number];
-
-export const DEFAULT_TREND_WINDOW: TrendWindow = 3;
+export const TREND_WINDOW = 3;
 
 /** The helper sends twice the longest range, so every range can be compared with the one before it. */
 export const USAGE_HISTORY_DAYS = 60;
