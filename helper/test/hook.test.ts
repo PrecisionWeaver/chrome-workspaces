@@ -56,6 +56,19 @@ describe('hooks/session-state.ts', () => {
     expect(read(data).started_at >= first).toBe(true);
   });
 
+  it('stays idle through the idle nudge of a session that has taken no turn yet, as after /clear', () => {
+    const data = mkdtempSync(join(tmpdir(), 'cw-hook-'));
+    fire(data, { hook_event_name: 'SessionStart', session_id: ID, cwd: '/repo' });
+    fire(data, { hook_event_name: 'Notification', session_id: ID, notification_type: 'idle_prompt', message: 'Claude is waiting for your input' });
+    expect(read(data)).toMatchObject({ status: 'idle', last_event: 'SessionStart' });
+    expect(read(data).waiting).toBeUndefined();
+    // Once a turn has been taken the same nudge does mean claude waits on the user.
+    fire(data, { hook_event_name: 'UserPromptSubmit', session_id: ID });
+    fire(data, { hook_event_name: 'Stop', session_id: ID });
+    fire(data, { hook_event_name: 'Notification', session_id: ID, notification_type: 'idle_prompt', message: 'Claude is waiting for your input' });
+    expect(read(data)).toMatchObject({ status: 'needs_input', waiting: { type: 'idle_prompt' } });
+  });
+
   it('keeps what a Notification waits on, drops it once claude moves on, and ignores one that is only news', () => {
     const data = mkdtempSync(join(tmpdir(), 'cw-hook-'));
     fire(data, { hook_event_name: 'UserPromptSubmit', session_id: ID });
