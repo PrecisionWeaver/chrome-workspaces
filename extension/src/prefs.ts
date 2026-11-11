@@ -1,5 +1,5 @@
 import { DENSITIES, THEMES, type Density, type Theme } from '../../shared/keynav';
-import { DEFAULT_TREND_WINDOW, DEFAULT_USAGE_RANGE, TREND_WINDOWS, USAGE_RANGES, type TrendWindow, type UsageRangeId } from '../../shared/usage';
+import { DEFAULT_USAGE_RANGE, USAGE_RANGES, type UsageRangeId } from '../../shared/usage';
 
 export interface Prefs {
   /** Desktop notification when a workspace starts waiting for input or finishes. */
@@ -10,10 +10,6 @@ export interface Prefs {
   setupDismissed: boolean;
   /** How far back the usage chart and its figures in Settings go. */
   usageRange: UsageRangeId;
-  /** A moving-average line over the usage chart. */
-  usageTrend: boolean;
-  /** How many bars that line averages over. */
-  usageTrendWindow: TrendWindow;
 }
 
 const DEFAULTS: Prefs = {
@@ -22,8 +18,6 @@ const DEFAULTS: Prefs = {
   density: 'comfortable',
   setupDismissed: false,
   usageRange: DEFAULT_USAGE_RANGE,
-  usageTrend: true,
-  usageTrendWindow: DEFAULT_TREND_WINDOW,
 };
 
 /** Stored preferences with anything missing or invalid replaced by its default, since storage can hold anything. */
@@ -35,8 +29,6 @@ export function normalizePrefs(stored: unknown): Prefs {
     density: DENSITIES.includes(p.density as Density) ? (p.density as Density) : DEFAULTS.density,
     setupDismissed: p.setupDismissed === true,
     usageRange: USAGE_RANGES.some((range) => range.id === p.usageRange) ? (p.usageRange as UsageRangeId) : DEFAULT_USAGE_RANGE,
-    usageTrend: p.usageTrend !== false,
-    usageTrendWindow: TREND_WINDOWS.includes(p.usageTrendWindow as TrendWindow) ? (p.usageTrendWindow as TrendWindow) : DEFAULT_TREND_WINDOW,
   };
 }
 

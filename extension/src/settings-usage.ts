@@ -1,20 +1,13 @@
 import type { SystemSnapshot } from '../../shared/protocol';
 import { hitLabel, planPace, resetLabel } from '../../shared/plan-usage';
 import { formatUsd } from '../../shared/pricing';
-import { movingAverage, previousLabel, shortDay, summarizeUsage, summarizeWorkspaces, TREND_WINDOWS, USAGE_RANGES, usageChange } from '../../shared/usage';
+import { movingAverage, previousLabel, shortDay, summarizeUsage, summarizeWorkspaces, TREND_WINDOW, USAGE_RANGES, usageChange } from '../../shared/usage';
 import { el, hoverTip } from './dom';
 import { formatTokens } from './format';
 import type { Prefs } from './prefs';
 import { card, row } from './settings-parts';
 
 type UsageRangeId = Prefs['usageRange'];
-type TrendWindow = Prefs['usageTrendWindow'];
-
-/** The trend line's settings, and how to change them. */
-export interface TrendPrefs {
-  enabled: boolean;
-  window: TrendWindow;
-}
 
 /** Models listed under the usage figures before the rest are folded into a count. */
 const MODEL_ROWS = 5;
@@ -45,21 +38,6 @@ function segmented<T extends string | number>(
     picker.append(button);
   }
   return picker;
-}
-
-/** The trend line's switch and how many bars it averages over; the window is out of reach while the line is off. */
-function trendControls(trend: TrendPrefs, unit: string, onTrend: (change: Partial<Pick<Prefs, 'usageTrend' | 'usageTrendWindow'>>) => void): HTMLElement {
-  const box = el('div', '', 'usage-trend-controls');
-  const toggle = el('button', 'Trend line', `usage-trend-toggle${trend.enabled ? ' active' : ''}`);
-  toggle.type = 'button';
-  toggle.setAttribute('aria-pressed', String(trend.enabled));
-  toggle.addEventListener('click', () => onTrend({ usageTrend: !trend.enabled }));
-  const windows = TREND_WINDOWS.map((id) => ({ id, label: `${id} ${unit}` }));
-  box.append(
-    toggle,
-    segmented('Trend line window', windows, trend.window, (usageTrendWindow) => onTrend({ usageTrendWindow }), !trend.enabled),
-  );
-  return box;
 }
 
 const dayFigures = (tokens: number, costUsd: number): string => `${formatTokens(tokens)} tokens${costUsd > 0 ? ` · ~${formatUsd(costUsd)}` : ''}`;
@@ -172,13 +150,7 @@ function trendLine(average: readonly number[], bars: number, peak: number): SVGS
   return chart;
 }
 
-export function usageCard(
-  s: SystemSnapshot,
-  usageRange: UsageRangeId,
-  onRange: (id: UsageRangeId) => void,
-  trend: TrendPrefs,
-  onTrend: (change: Partial<Pick<Prefs, 'usageTrend' | 'usageTrendWindow'>>) => void,
-): HTMLElement {
+export function usageCard(s: SystemSnapshot, usageRange: UsageRangeId, onRange: (id: UsageRangeId) => void): HTMLElement {
   const range = USAGE_RANGES.find((r) => r.id === usageRange) ?? USAGE_RANGES[2];
   const summary = summarizeUsage(s.usage.daily, range.days);
   // Today is drawn by hour. An older helper sends no hours, and then one bar is no chart, so it is drawn against its week.
@@ -201,20 +173,17 @@ export function usageCard(
   const peak = Math.max(1, ...bars.map((b) => b.tokens));
   // The hours still to come hold no use yet, and averaging them in would drag the line down to nothing.
   const counted = hourly ? bars.slice(0, nowHour + 1) : bars;
-  const average = trend.enabled
-    ? movingAverage(
-        counted.map((b) => b.tokens),
-        trend.window,
-      )
-    : [];
-  const unit = hourly ? 'hours' : 'days';
+  const average = movingAverage(
+    counted.map((b) => b.tokens),
+    TREND_WINDOW,
+  );
   const chart = el('div', '', `usage-chart${bars.length > 14 ? ' dense' : ''}`);
   for (const [index, { label, tokens, costUsd, state }] of bars.entries()) {
     const bar = el('div', '', `usage-bar${state ? ` ${state}` : ''}`);
     const fill = el('span', '', 'usage-fill');
     // An hour or day with any use shows a sliver, so it is not mistaken for a quiet one.
     fill.style.height = `${tokens > 0 ? Math.max(4, (tokens / peak) * 100) : 0}%`;
-    const trendNote = average[index] === undefined ? '' : `\n${trend.window}-${hourly ? 'hour' : 'day'} average ${formatTokens(Math.round(average[index]))}`;
+    const trendNote = average[index] === undefined ? '' : `\n${TREND_WINDOW}-${hourly ? 'hour' : 'day'} average ${formatTokens(Math.round(average[index]))}`;
     // Against the fill, so the tip sits at the top of the bar rather than the top of the chart.
     hoverTip(bar, `${label}\n${dayFigures(tokens, costUsd)}${trendNote}`, '.usage-fill');
     bar.setAttribute('aria-label', `${label}: ${dayFigures(tokens, costUsd)}`);
@@ -274,7 +243,6 @@ export function usageCard(
   return card(
     'Usage',
     segmented('Usage range', USAGE_RANGES, usageRange, onRange),
-    trendControls(trend, unit, onTrend),
     headline,
     chart,
     axis,
