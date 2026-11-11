@@ -74,6 +74,8 @@ try {
       }
       // A (re)start begins a new record, so the newest session of a workspace sorts last.
       if (event === 'SessionStart') state = { started_at: now };
+      // claude's idle nudge, a minute after a fresh or just-cleared session starts, has nothing to wait on: no turn has been taken.
+      const untouched = event === 'Notification' && input.notification_type === 'idle_prompt' && state.last_event === 'SessionStart';
 
       // A session resumed before its first SessionStart reached us still gets its fields filled in.
       state.session_id = input.session_id;
@@ -88,9 +90,11 @@ try {
       state.status_since = now;
       state.last_event = event;
 
-      const tmp = `${file}.${process.pid}.tmp`;
-      writeFileSync(tmp, JSON.stringify(state, null, 2), { mode: 0o600 });
-      renameSync(tmp, file);
+      if (!untouched) {
+        const tmp = `${file}.${process.pid}.tmp`;
+        writeFileSync(tmp, JSON.stringify(state, null, 2), { mode: 0o600 });
+        renameSync(tmp, file);
+      }
     }
 
     // Appends are atomic for a line this size, so concurrent events (a subagent's and claude's own) do not interleave.
