@@ -273,7 +273,6 @@
   position: relative;
   display: flex;
   align-items: flex-end;
-  gap: 3px;
   height: 56px;
 }
 
@@ -295,8 +294,8 @@
   vector-effect: non-scaling-stroke;
 }
 
-.usage-chart.dense {
-  gap: 2px;
+.usage-chart.dense .usage-bar {
+  border-width: 0 1px;
 }
 
 .usage-bar {
@@ -306,6 +305,10 @@
   align-items: flex-end;
   background: var(--bg);
   border-radius: 3px;
+  /* The gap between bars is a transparent border, so it is still part of the bar and the pointer never leaves the chart's hover state between two. */
+  border: solid transparent;
+  border-width: 0 1.5px;
+  background-clip: padding-box;
 }
 
 .usage-bar.context .usage-fill {
@@ -330,6 +333,33 @@
 
 .usage-bar.now .usage-fill {
   background: var(--working);
+}
+
+/* Hovering a bar brings it forward, over the trend line, and greys everything else back so the one under the pointer reads clearly. */
+.usage-fill,
+.usage-trend polyline {
+  transition:
+    opacity 0.12s,
+    filter 0.12s,
+    stroke 0.12s;
+}
+
+.usage-bar:hover {
+  position: relative;
+  z-index: 1;
+}
+
+.usage-bar:hover .usage-fill {
+  filter: brightness(1.15);
+}
+
+.usage-chart:has(.usage-bar:hover) .usage-bar:not(:hover) .usage-fill {
+  opacity: 0.35;
+  filter: grayscale(1);
+}
+
+.usage-chart:has(.usage-bar:hover) .usage-trend polyline {
+  stroke: var(--faint);
 }
 
 .usage-axis {
