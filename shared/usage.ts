@@ -12,6 +12,13 @@ export type UsageRangeId = (typeof USAGE_RANGES)[number]['id'];
 
 export const DEFAULT_USAGE_RANGE: UsageRangeId = '14d';
 
+/** How many bars the usage chart's trend line averages over (hours on the hourly chart, days on the daily one). */
+export const TREND_WINDOWS = [3, 7, 14] as const;
+
+export type TrendWindow = (typeof TREND_WINDOWS)[number];
+
+export const DEFAULT_TREND_WINDOW: TrendWindow = 3;
+
 /** The helper sends twice the longest range, so every range can be compared with the one before it. */
 export const USAGE_HISTORY_DAYS = 60;
 
@@ -83,6 +90,15 @@ export function usageChange(current: Pick<UsageSummary, 'tokens' | 'costUsd'>, p
   if (then <= 0) return null;
   const percent = Math.round(((now - then) / then) * 100);
   return percent === 0 ? '≈ the same' : `${percent > 0 ? '↑' : '↓'} ${Math.abs(percent)}%`;
+}
+
+/** A trailing moving average: each point is the mean of itself and up to `window - 1` before it, so the first few average what there is. */
+export function movingAverage(values: readonly number[], window: number): number[] {
+  const size = Math.max(1, Math.floor(window));
+  return values.map((_, i) => {
+    const slice = values.slice(Math.max(0, i - size + 1), i + 1);
+    return slice.reduce((total, v) => total + v, 0) / slice.length;
+  });
 }
 
 /** What to call the range before this one: "yesterday", or "the previous 7 days". */

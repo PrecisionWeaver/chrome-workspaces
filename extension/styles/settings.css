@@ -269,11 +269,63 @@
   color: var(--muted);
 }
 
+.usage-trend-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.usage-trend-controls .usage-range {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.usage-trend-toggle {
+  padding: 3px 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.usage-trend-toggle.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.usage-range-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .usage-chart {
+  position: relative;
   display: flex;
   align-items: flex-end;
   gap: 3px;
   height: 56px;
+}
+
+.usage-trend {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.usage-trend polyline {
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
 }
 
 .usage-chart.dense {

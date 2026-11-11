@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import type { UsageDay } from '../../shared/protocol';
-import { localDay, localDayAndHour, localDayBack, previousLabel, shortDay, summarizeUsage, summarizeWorkspaces, usageChange } from '../../shared/usage';
+import {
+  localDay,
+  movingAverage,
+  localDayAndHour,
+  localDayBack,
+  previousLabel,
+  shortDay,
+  summarizeUsage,
+  summarizeWorkspaces,
+  usageChange,
+} from '../../shared/usage';
 
 process.env.TZ = 'America/New_York';
 
@@ -171,5 +181,16 @@ describe('summarizeWorkspaces', () => {
 
   it('ranks by tokens when nothing is priced', () => {
     expect(summarizeWorkspaces([ws('a', [[4, 10, 0]]), ws('b', [[4, 90, 0]])], daily, 1).map((s) => s.name)).toEqual(['b', 'a']);
+  });
+});
+
+describe('movingAverage', () => {
+  it('averages each value with the ones before it, up to the window', () => {
+    expect(movingAverage([3, 6, 9, 12], 3)).toEqual([3, 4.5, 6, 9]);
+  });
+
+  it('is the values themselves for a window of one, and empty for none', () => {
+    expect(movingAverage([1, 2], 1)).toEqual([1, 2]);
+    expect(movingAverage([], 3)).toEqual([]);
   });
 });

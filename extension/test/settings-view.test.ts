@@ -407,7 +407,15 @@ describe('the cards', () => {
       box.checked = true;
       box.dispatchEvent(new Event('change'));
       await flush();
-      expect(fake.storage.local.prefs).toEqual({ theme: 'dark', density: 'compact', notify: true, setupDismissed: false, usageRange: '14d' });
+      expect(fake.storage.local.prefs).toEqual({
+        theme: 'dark',
+        density: 'compact',
+        notify: true,
+        setupDismissed: false,
+        usageRange: '14d',
+        usageTrend: true,
+        usageTrendWindow: 3,
+      });
     });
   });
 
@@ -541,7 +549,8 @@ describe('the cards', () => {
     it('draws a bar a day, scaled to the busiest, with a sliver for any use and nothing for none', async () => {
       await open(makeSnapshot({ usage: usage() }));
       expect(bars().map((bar) => bar.querySelector<HTMLElement>('.usage-fill')!.style.height)).toEqual(['100%', '4%', '0%']);
-      expect(bars()[0]!.dataset.tip).toBe('2026-03-09\n1.0M tokens · ~$3.00');
+      expect(bars()[0]!.dataset.tip).toBe('2026-03-09\n1.0M tokens · ~$3.00\n3-day average 1.0M');
+      expect(bars()[0]!.dataset.tipTarget).toBe('.usage-fill');
     });
 
     it('splits the range by workspace, folding the smallest into one line, and leaves it out for a single workspace', async () => {
@@ -562,9 +571,45 @@ describe('the cards', () => {
 
     it('offers today, 7, 14 and 30 days, with 14 chosen to begin with', async () => {
       await open(makeSnapshot({ usage: usage() }));
-      const buttons = [...card('Usage').querySelectorAll<HTMLButtonElement>('.usage-range-btn')];
+      const buttons = [...card('Usage').querySelectorAll<HTMLButtonElement>('[aria-label="Usage range"] .usage-range-btn')];
       expect(buttons.map((b) => b.textContent)).toEqual(['Today', '7 days', '14 days', '30 days']);
       expect(buttons.map((b) => b.getAttribute('aria-pressed'))).toEqual(['false', 'false', 'true', 'false']);
+    });
+
+    it("draws a trend line over the bars, and notes each bar's average in its tip", async () => {
+      await open(makeSnapshot({ usage: usage({ daily: sixty() }) }));
+      const line = card('Usage').querySelector('.usage-trend polyline')!;
+      expect(line.getAttribute('points')!.split(' ')).toHaveLength(14);
+      expect(bars()[13]!.dataset.tip).toContain('3-day average 40');
+    });
+
+    it('averages today by the hour, stopping at the hour it is', async () => {
+      const hourly = makeUsageHours({ 5: { tokens: 300 } });
+      await open(makeSnapshot({ usage: usage({ daily: sixty(), hourly }) }));
+      await pick('Today');
+      expect(card('Usage').querySelector('.usage-trend polyline')!.getAttribute('points')!.split(' ')).toHaveLength(9);
+      expect(bars()[5]!.dataset.tip).toContain('3-hour average 100');
+      expect(bars()[12]!.dataset.tip).not.toContain('average');
+    });
+
+    it('turns the trend line off and changes its window, and remembers both', async () => {
+      await open(makeSnapshot({ usage: usage({ daily: sixty() }) }));
+      await pick('7 days');
+      expect(button('7 days', card('Usage')).getAttribute('aria-pressed')).toBe('true');
+      await pick('14 days');
+      button('Trend line', card('Usage')).click();
+      await flush();
+      expect(card('Usage').querySelector('.usage-trend')).toBeNull();
+      expect(bars()[13]!.dataset.tip).not.toContain('average');
+      expect(fake.storage.local.prefs).toMatchObject({ usageTrend: false });
+      button('Trend line', card('Usage')).click();
+      await flush();
+      const windows = [...card('Usage').querySelectorAll<HTMLElement>('[aria-label="Trend line window"] button')];
+      expect(windows.map((b) => b.textContent)).toEqual(['3 days', '7 days', '14 days']);
+      windows[1]!.click();
+      await flush();
+      expect(fake.storage.local.prefs).toMatchObject({ usageTrend: true, usageTrendWindow: 7 });
+      expect(bars()[13]!.dataset.tip).toContain('7-day average');
     });
 
     it('draws as many bars as the range has days', async () => {
@@ -583,6 +628,7 @@ describe('the cards', () => {
       await open(makeSnapshot({ usage: usage({ daily: sixty(), hourly }) }));
       await pick('Today');
       expect(bars()).toHaveLength(24);
+      // The snapshot is at 08:00, so hour 9 is still to come and is not averaged.
       expect(bars()[9]!.dataset.tip).toBe('09:00\n400 tokens · ~$4.00');
       expect(bars()[9]!.querySelector<HTMLElement>('.usage-fill')!.style.height).toBe('100%');
       expect(bars()[11]!.querySelector<HTMLElement>('.usage-fill')!.style.height).toBe('25%');
