@@ -521,7 +521,7 @@ describe('the cards', () => {
       const b = running('ws-b', 'acme/api', [sample(0, 100_000, 10), sample(1, 100_000, 10), sample(2, 100_000, 10)]);
       await open(makeSnapshot({ sessions: [a, b] }));
       const resources = card('Resources');
-      expect(text('.usage-headline span', resources)).toEqual(['195.3 MB', '4.0% CPU', 'across 2 running workspaces']);
+      expect(text('.usage-headline span', resources)).toEqual(['245.3 MB', '5.5% CPU', 'across 2 running workspaces and the helper']);
       expect(resources.querySelector('.resources-lines .mem')!.getAttribute('points')).toBe('16.67,50.00 50.00,26.00 83.33,2.00');
       expect(resources.querySelectorAll('.resources-column')).toHaveLength(3);
       expect(resources.querySelector<HTMLElement>('.resources-column')!.dataset.tip).toContain('Memory 195.3 MB\nCPU 20.0%\n2 workspaces');

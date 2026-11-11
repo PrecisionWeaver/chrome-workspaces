@@ -27,13 +27,14 @@ function line(values: readonly number[], peak: number, className: string): SVGPo
 export function resourcesCard(s: SystemSnapshot): HTMLElement {
   const running = s.sessions.filter((x) => x.pid !== null).length;
   const samples = combineHistory(s.sessions);
-  const { workspaceKb, workspaceCpu } = resourceTotal(s);
+  // The same total as the Workspace sessions card: the helper's own use plus every workspace's.
+  const { kb, cpu: totalCpu } = resourceTotal(s);
 
   const headline = el('div', '', 'usage-headline');
   headline.append(
-    el('span', formatKb(workspaceKb), 'usage-cost'),
-    el('span', `${formatCpu(workspaceCpu)} CPU`, 'usage-tokens'),
-    el('span', `across ${running} running workspace${running === 1 ? '' : 's'}`, 'usage-change'),
+    el('span', formatKb(kb), 'usage-cost'),
+    el('span', `${formatCpu(totalCpu)} CPU`, 'usage-tokens'),
+    el('span', `across ${running} running workspace${running === 1 ? '' : 's'} and the helper`, 'usage-change'),
   );
 
   const consumers = topConsumers(s.sessions, CONSUMER_ROWS).map((c) => row(c.name, `${formatKb(c.rssKb)} · ${formatCpu(c.cpu)}`));
@@ -91,7 +92,7 @@ export function resourcesCard(s: SystemSnapshot): HTMLElement {
     ...consumers,
     el(
       'p',
-      `Running workspaces added together, one sample a minute for up to two hours; each line is scaled to its own peak. It counts only what claude sessions use (the helper is ${formatKb(s.helper.rssKb)} on top), not the rest of the machine, and moves as workspaces start and stop. CPU is a percentage of one core, so it can pass 100.`,
+      `The figures above are the helper (${formatKb(s.helper.rssKb)}) plus every running workspace, as in the workspace sessions total. The chart adds up the running workspaces only, one sample a minute for up to two hours, because the helper has no history to draw; each line is scaled to its own peak. Neither counts the rest of the machine, and the chart moves as workspaces start and stop. CPU is a percentage of one core, so it can pass 100.`,
       'settings-note',
     ),
   );
