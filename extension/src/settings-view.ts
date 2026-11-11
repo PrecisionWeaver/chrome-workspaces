@@ -534,6 +534,12 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
     render();
   }
 
+  function setUsageTrend(change: Partial<Pick<Prefs, 'usageTrend' | 'usageTrendWindow'>>): void {
+    prefs = { ...prefs, ...change };
+    void savePrefs(change);
+    render();
+  }
+
   function setupCard(s: SystemSnapshot): HTMLElement | null {
     const items = checklist(s);
     const open = remaining(items);
@@ -657,7 +663,7 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
     const cards = [
       ...[setupCard(snapshot), warningsCard(snapshot)].filter((card): card is HTMLElement => card !== null),
       planCard(snapshot),
-      usageCard(snapshot, prefs.usageRange, setUsageRange),
+      usageCard(snapshot, prefs.usageRange, setUsageRange, { enabled: prefs.usageTrend, window: prefs.usageTrendWindow }, setUsageTrend),
       resourcesCard(snapshot),
       preferencesCard(),
       sessionsCard(snapshot),

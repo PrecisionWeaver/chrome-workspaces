@@ -1,13 +1,20 @@
 import type { SystemSnapshot } from '../../shared/protocol';
 import { hitLabel, planPace, resetLabel } from '../../shared/plan-usage';
 import { formatUsd } from '../../shared/pricing';
-import { previousLabel, shortDay, summarizeUsage, summarizeWorkspaces, USAGE_RANGES, usageChange } from '../../shared/usage';
+import { movingAverage, previousLabel, shortDay, summarizeUsage, summarizeWorkspaces, TREND_WINDOWS, USAGE_RANGES, usageChange } from '../../shared/usage';
 import { el, hoverTip } from './dom';
 import { formatTokens } from './format';
 import type { Prefs } from './prefs';
 import { card, row } from './settings-parts';
 
 type UsageRangeId = Prefs['usageRange'];
+type TrendWindow = Prefs['usageTrendWindow'];
+
+/** The trend line's settings, and how to change them. */
+export interface TrendPrefs {
+  enabled: boolean;
+  window: TrendWindow;
+}
 
 /** Models listed under the usage figures before the rest are folded into a count. */
 const MODEL_ROWS = 5;
@@ -15,14 +22,22 @@ const MODEL_ROWS = 5;
 /** Workspaces drawn in the split before the rest are folded into one line. */
 const WORKSPACE_ROWS = 5;
 
-function rangePicker(current: UsageRangeId, onChange: (id: UsageRangeId) => void): HTMLElement {
+/** A row of buttons joined into one control, with `current` pressed. */
+function segmented<T extends string | number>(
+  label: string,
+  options: readonly { id: T; label: string }[],
+  current: T,
+  onChange: (id: T) => void,
+  disabled = false,
+): HTMLElement {
   const picker = el('div', '', 'usage-range');
   picker.setAttribute('role', 'group');
-  picker.setAttribute('aria-label', 'Usage range');
-  for (const { id, label } of USAGE_RANGES) {
+  picker.setAttribute('aria-label', label);
+  for (const { id, label: text } of options) {
     const active = id === current;
-    const button = el('button', label, `usage-range-btn${active ? ' active' : ''}`);
+    const button = el('button', text, `usage-range-btn${active ? ' active' : ''}`);
     button.type = 'button';
+    button.disabled = disabled;
     button.setAttribute('aria-pressed', String(active));
     button.addEventListener('click', () => {
       if (id !== current) onChange(id);
@@ -30,6 +45,21 @@ function rangePicker(current: UsageRangeId, onChange: (id: UsageRangeId) => void
     picker.append(button);
   }
   return picker;
+}
+
+/** The trend line's switch and how many bars it averages over; the window is out of reach while the line is off. */
+function trendControls(trend: TrendPrefs, unit: string, onTrend: (change: Partial<Pick<Prefs, 'usageTrend' | 'usageTrendWindow'>>) => void): HTMLElement {
+  const box = el('div', '', 'usage-trend-controls');
+  const toggle = el('button', 'Trend line', `usage-trend-toggle${trend.enabled ? ' active' : ''}`);
+  toggle.type = 'button';
+  toggle.setAttribute('aria-pressed', String(trend.enabled));
+  toggle.addEventListener('click', () => onTrend({ usageTrend: !trend.enabled }));
+  const windows = TREND_WINDOWS.map((id) => ({ id, label: `${id} ${unit}` }));
+  box.append(
+    toggle,
+    segmented('Trend line window', windows, trend.window, (usageTrendWindow) => onTrend({ usageTrendWindow }), !trend.enabled),
+  );
+  return box;
 }
 
 const dayFigures = (tokens: number, costUsd: number): string => `${formatTokens(tokens)} tokens${costUsd > 0 ? ` · ~${formatUsd(costUsd)}` : ''}`;
@@ -127,7 +157,28 @@ function workspaceSplit(s: SystemSnapshot, days: number): HTMLElement | null {
   return list;
 }
 
-export function usageCard(s: SystemSnapshot, usageRange: UsageRangeId, onRange: (id: UsageRangeId) => void): HTMLElement {
+const SVG = 'http://www.w3.org/2000/svg';
+
+/** The averages as a line over the bars, one point at the middle of each, on the same scale as the bars. */
+function trendLine(average: readonly number[], bars: number, peak: number): SVGSVGElement {
+  const chart = document.createElementNS(SVG, 'svg');
+  chart.setAttribute('class', 'usage-trend');
+  chart.setAttribute('viewBox', '0 0 100 100');
+  chart.setAttribute('preserveAspectRatio', 'none');
+  chart.setAttribute('aria-hidden', 'true');
+  const line = document.createElementNS(SVG, 'polyline');
+  line.setAttribute('points', average.map((v, i) => `${(((i + 0.5) / bars) * 100).toFixed(2)},${(100 - (v / peak) * 100).toFixed(2)}`).join(' '));
+  chart.append(line);
+  return chart;
+}
+
+export function usageCard(
+  s: SystemSnapshot,
+  usageRange: UsageRangeId,
+  onRange: (id: UsageRangeId) => void,
+  trend: TrendPrefs,
+  onTrend: (change: Partial<Pick<Prefs, 'usageTrend' | 'usageTrendWindow'>>) => void,
+): HTMLElement {
   const range = USAGE_RANGES.find((r) => r.id === usageRange) ?? USAGE_RANGES[2];
   const summary = summarizeUsage(s.usage.daily, range.days);
   // Today is drawn by hour. An older helper sends no hours, and then one bar is no chart, so it is drawn against its week.
@@ -148,17 +199,29 @@ export function usageCard(s: SystemSnapshot, usageRange: UsageRangeId, onRange: 
         state: i === days.length - 1 ? 'now' : i < days.length - range.days ? 'context' : '',
       }));
   const peak = Math.max(1, ...bars.map((b) => b.tokens));
+  // The hours still to come hold no use yet, and averaging them in would drag the line down to nothing.
+  const counted = hourly ? bars.slice(0, nowHour + 1) : bars;
+  const average = trend.enabled
+    ? movingAverage(
+        counted.map((b) => b.tokens),
+        trend.window,
+      )
+    : [];
+  const unit = hourly ? 'hours' : 'days';
   const chart = el('div', '', `usage-chart${bars.length > 14 ? ' dense' : ''}`);
-  for (const { label, tokens, costUsd, state } of bars) {
+  for (const [index, { label, tokens, costUsd, state }] of bars.entries()) {
     const bar = el('div', '', `usage-bar${state ? ` ${state}` : ''}`);
     const fill = el('span', '', 'usage-fill');
     // An hour or day with any use shows a sliver, so it is not mistaken for a quiet one.
     fill.style.height = `${tokens > 0 ? Math.max(4, (tokens / peak) * 100) : 0}%`;
-    hoverTip(bar, `${label}\n${dayFigures(tokens, costUsd)}`);
+    const trendNote = average[index] === undefined ? '' : `\n${trend.window}-${hourly ? 'hour' : 'day'} average ${formatTokens(Math.round(average[index]))}`;
+    // Against the fill, so the tip sits at the top of the bar rather than the top of the chart.
+    hoverTip(bar, `${label}\n${dayFigures(tokens, costUsd)}${trendNote}`, '.usage-fill');
     bar.setAttribute('aria-label', `${label}: ${dayFigures(tokens, costUsd)}`);
     bar.append(fill);
     chart.append(bar);
   }
+  if (average.length > 1) chart.append(trendLine(average, bars.length, peak));
   const axis = el('div', '', 'usage-axis');
   axis.append(
     el('span', hourly ? '00:00' : shortDay(days[0].day)),
@@ -210,7 +273,8 @@ export function usageCard(s: SystemSnapshot, usageRange: UsageRangeId, onRange: 
     .join(', ');
   return card(
     'Usage',
-    rangePicker(usageRange, onRange),
+    segmented('Usage range', USAGE_RANGES, usageRange, onRange),
+    trendControls(trend, unit, onTrend),
     headline,
     chart,
     axis,

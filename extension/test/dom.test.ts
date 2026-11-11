@@ -73,4 +73,20 @@ describe('hover tips', () => {
     bar.remove();
     plain.remove();
   });
+
+  it('sits the tip against the target inside the element when it names one', () => {
+    installHoverTips();
+    const bar = el('div');
+    const fill = el('span', '', 'fill');
+    bar.append(fill);
+    hoverTip(bar, 'tip', '.fill');
+    document.body.append(bar);
+    bar.getBoundingClientRect = () => ({ left: 0, top: 0, bottom: 100, width: 10, height: 100 }) as DOMRect;
+    fill.getBoundingClientRect = () => ({ left: 0, top: 80, bottom: 100, width: 10, height: 20 }) as DOMRect;
+    fill.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+    // Above the fill (top 80), not the bar (top 0), which has no room above and would drop the tip below it.
+    expect(parseFloat((document.querySelector('.hover-tip') as HTMLElement).style.top)).toBeGreaterThan(0);
+    expect(parseFloat((document.querySelector('.hover-tip') as HTMLElement).style.top)).toBeLessThan(80);
+    bar.remove();
+  });
 });

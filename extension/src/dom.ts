@@ -34,9 +34,13 @@ export function icon(name: string): SVGSVGElement {
   return svg;
 }
 
-/** Text shown at once while `node` is hovered, where a native tooltip waits about a second. Needs `installHoverTips`. */
-export function hoverTip(node: HTMLElement, text: string): void {
+/**
+ * Text shown at once while `node` is hovered, where a native tooltip waits about a second. Needs `installHoverTips`.
+ * `target` is a selector for a descendant to sit the tip against instead of `node` itself, such as the filled part of a bar.
+ */
+export function hoverTip(node: HTMLElement, text: string, target?: string): void {
   node.dataset.tip = text;
+  if (target) node.dataset.tipTarget = target;
 }
 
 /**
@@ -55,7 +59,7 @@ export function installHoverTips(): void {
     if (!anchor?.dataset.tip) return;
     tip = el('div', anchor.dataset.tip, 'hover-tip');
     document.body.append(tip);
-    const box = anchor.getBoundingClientRect();
+    const box = (anchor.dataset.tipTarget ? anchor.querySelector(anchor.dataset.tipTarget) : null)?.getBoundingClientRect() ?? anchor.getBoundingClientRect();
     const left = Math.max(4, Math.min(box.left + box.width / 2 - tip.offsetWidth / 2, window.innerWidth - tip.offsetWidth - 4));
     // Above the element, or below it when there is no room.
     const above = box.top - tip.offsetHeight - 6;
