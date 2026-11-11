@@ -799,3 +799,79 @@
 .resource-chart.warn .mem {
   stroke: var(--wait);
 }
+
+.resources-chart {
+  position: relative;
+  height: 64px;
+  background: var(--bg);
+  border-radius: 3px;
+}
+
+:root[data-theme='light'] .resources-chart {
+  background: var(--raised);
+}
+
+.resources-lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.resources-lines polyline {
+  fill: none;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.resources-lines .mem {
+  stroke: var(--accent);
+}
+
+.resources-lines .cpu {
+  stroke: var(--good);
+  opacity: 0.85;
+}
+
+.resources-columns {
+  position: absolute;
+  inset: 0;
+  display: flex;
+}
+
+.resources-column {
+  flex: 1;
+}
+
+.resources-column:hover {
+  background: var(--accent-soft);
+}
+
+.resources-legend {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.resources-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 3px;
+  margin-right: 5px;
+  vertical-align: middle;
+  border-radius: 2px;
+}
+
+.resources-swatch.mem {
+  background: var(--accent);
+}
+
+.resources-swatch.cpu {
+  background: var(--good);
+}

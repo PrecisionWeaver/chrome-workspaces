@@ -279,6 +279,7 @@ describe('the cards', () => {
       'Usage',
       'Workspace sessions',
       'Plan usage',
+      'Resources',
       'Preferences',
       'Updates',
       'Helper',
@@ -499,6 +500,37 @@ describe('the cards', () => {
       expect(text('.settings-note.warn', card('Updates'))).toEqual(['Could not check: offline']);
       button('Check for updates', card('Updates')).click();
       expect(sentOfType('checkUpdates')).toHaveLength(1);
+    });
+  });
+
+  describe('Resources', () => {
+    const sample = (i: number, rssKb: number, cpu: number) => ({ t: 1_000_000 + i * 60_000, rssKb, cpu });
+    const running = (id: string, name: string, history: ReturnType<typeof sample>[]) =>
+      makeSession({ id, name, pid: 10, history, processes: [{ pid: 10, ppid: 1, command: 'claude', cpu: 2, rssKb: 100_000, elapsed: '01:00', ports: [] }] });
+
+    it('charts the running workspaces together, with memory and CPU each scaled to its own peak', async () => {
+      const a = running('ws-a', 'acme/app', [sample(0, 100_000, 10), sample(1, 200_000, 20), sample(2, 300_000, 30)]);
+      const b = running('ws-b', 'acme/api', [sample(0, 100_000, 10), sample(1, 100_000, 10), sample(2, 100_000, 10)]);
+      await open(makeSnapshot({ sessions: [a, b] }));
+      const resources = card('Resources');
+      expect(text('.usage-headline span', resources)).toEqual(['195.3 MB', '4.0% CPU', 'across 2 running workspaces']);
+      expect(resources.querySelector('.resources-lines .mem')!.getAttribute('points')).toBe('16.67,50.00 50.00,26.00 83.33,2.00');
+      expect(resources.querySelectorAll('.resources-column')).toHaveLength(3);
+      expect(resources.querySelector<HTMLElement>('.resources-column')!.dataset.tip).toContain('Memory 195.3 MB\nCPU 20.0%\n2 workspaces');
+      expect(text('.usage-axis span', resources)).toEqual(['2m ago', 'peak 390.6 MB · 40.0%', 'now']);
+    });
+
+    it('lists the three workspaces using the most memory', async () => {
+      const mk = (id: string, kb: number) =>
+        makeSession({ id, name: `acme/${id}`, pid: 10, processes: [{ pid: 10, ppid: 1, command: 'claude', cpu: 1, rssKb: kb, elapsed: '01:00', ports: [] }] });
+      await open(makeSnapshot({ sessions: [mk('one', 1000), mk('two', 4000), mk('three', 3000), mk('four', 2000)] }));
+      expect([...card('Resources').querySelectorAll('.kv .k')].map((n) => n.textContent)).toEqual(['acme/two', 'acme/three', 'acme/four']);
+    });
+
+    it('says it is collecting until there are a few samples, and has no chart to draw', async () => {
+      await open(makeSnapshot({ sessions: [running('ws-a', 'acme/app', [sample(0, 100_000, 1), sample(1, 100_000, 1)])] }));
+      expect(card('Resources').querySelector('.resources-chart')).toBeNull();
+      expect(card('Resources').textContent).toContain('Collecting samples');
     });
   });
 

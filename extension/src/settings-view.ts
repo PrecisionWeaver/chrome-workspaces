@@ -13,6 +13,7 @@ import { $, caret, el, wireBack } from './dom';
 import { type CardLayout, columnCountFor, keysOf, layoutCards, layoutFromKeys } from './settings-layout';
 import { resourceChart } from './sparkline';
 import { card, actions, row } from './settings-parts';
+import { resourcesCard } from './settings-resources';
 import { planCard, usageCard } from './settings-usage';
 import { formatBytes, formatCpu, formatDuration, formatKb, formatTokens, newTokens, resourceTitle, resourceTotal } from './format';
 import { DENSITIES, THEMES } from '../../shared/keynav';
@@ -657,6 +658,7 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       ...[setupCard(snapshot), warningsCard(snapshot)].filter((card): card is HTMLElement => card !== null),
       planCard(snapshot),
       usageCard(snapshot, prefs.usageRange, setUsageRange),
+      resourcesCard(snapshot),
       preferencesCard(),
       sessionsCard(snapshot),
       updatesCard(),
