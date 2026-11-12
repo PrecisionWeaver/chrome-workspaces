@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ResourceSample } from '../../shared/protocol';
-import { combineHistory, topConsumers } from '../../shared/resources';
+import { combineHistory } from '../../shared/resources';
 import { makeSession } from '../../extension/test/fixtures';
 
 const MIN = 60_000;
@@ -34,22 +34,5 @@ describe('combineHistory', () => {
   it('is empty when nothing has been sampled', () => {
     expect(combineHistory([])).toEqual([]);
     expect(combineHistory([makeSession({ history: [] })])).toEqual([]);
-  });
-});
-
-describe('topConsumers', () => {
-  const proc = (rssKb: number, cpu: number) => ({ pid: 1, ppid: 0, command: 'x', cpu, rssKb, elapsed: '00:01', ports: [] });
-
-  it('lists running workspaces by memory now, biggest first, up to the count, leaving out stopped ones', () => {
-    const sessions = [
-      makeSession({ id: 'a', name: 'acme/app', processes: [proc(100, 1), proc(100, 1)] }),
-      makeSession({ id: 'b', name: 'acme/api', processes: [proc(500, 2)] }),
-      makeSession({ id: 'c', name: 'acme/web', pid: null, processes: [proc(9000, 9)] }),
-      makeSession({ id: 'd', name: 'acme/cli', processes: [proc(50, 0)] }),
-    ];
-    expect(topConsumers(sessions, 2)).toEqual([
-      { id: 'b', name: 'acme/api', rssKb: 500, cpu: 2 },
-      { id: 'a', name: 'acme/app', rssKb: 200, cpu: 2 },
-    ]);
   });
 });

@@ -9,7 +9,7 @@ const card = (key: string) => {
 };
 const keys = (nodes: HTMLElement[]) => nodes.map((n) => n.dataset.key);
 
-const KEYS = ['Getting started', 'Needs attention', 'Plan usage', 'Usage', 'Preferences', 'Workspace sessions', 'Updates', 'Helper', 'Housekeeping'];
+const KEYS = ['Getting started', 'Needs attention', 'Plan usage', 'Usage', 'Preferences', 'Workspaces', 'Updates', 'Helper', 'Housekeeping'];
 
 describe('columnCountFor', () => {
   it('fits as many 340px columns as the width allows, from one to three', () => {
@@ -22,7 +22,7 @@ describe('layoutCards', () => {
     const { top, columns } = layoutCards(KEYS.map(card), 1);
     expect(top).toEqual([]);
     expect(columns.map(keys)).toEqual([
-      ['Getting started', 'Needs attention', 'Usage', 'Workspace sessions', 'Plan usage', 'Preferences', 'Updates', 'Helper', 'Housekeeping'],
+      ['Getting started', 'Needs attention', 'Usage', 'Workspaces', 'Plan usage', 'Preferences', 'Updates', 'Helper', 'Housekeeping'],
     ]);
   });
 
@@ -31,13 +31,13 @@ describe('layoutCards', () => {
     expect(keys(top)).toEqual(['Getting started', 'Needs attention']);
     expect(columns.map(keys)).toEqual([
       ['Usage', 'Plan usage', 'Updates', 'Housekeeping'],
-      ['Workspace sessions', 'Preferences', 'Helper'],
+      ['Workspaces', 'Preferences', 'Helper'],
     ]);
   });
 
   it('gives Plan usage the third column in three, and stays the same whatever the heights', () => {
     const { columns } = layoutCards(KEYS.map(card), 3);
-    expect(columns.map((c) => c[0].dataset.key)).toEqual(['Usage', 'Workspace sessions', 'Plan usage']);
+    expect(columns.map((c) => c[0].dataset.key)).toEqual(['Usage', 'Workspaces', 'Plan usage']);
     expect(columns.flat()).toHaveLength(7);
   });
 
@@ -50,7 +50,7 @@ describe('layoutCards', () => {
   it('evens the columns out by height, with Usage, the sessions and the third card still leading', () => {
     const heights: Record<string, number> = {
       Usage: 400,
-      'Workspace sessions': 700,
+      Workspaces: 700,
       'Plan usage': 150,
       Preferences: 200,
       Updates: 100,
@@ -61,7 +61,7 @@ describe('layoutCards', () => {
     };
     const cards = [...Object.keys(heights)].map(card);
     const { columns } = layoutCards(cards, 3, (c) => heights[c.dataset.key!]);
-    expect(columns.map((c) => c[0].dataset.key)).toEqual(['Usage', 'Workspace sessions', 'Plan usage']);
+    expect(columns.map((c) => c[0].dataset.key)).toEqual(['Usage', 'Workspaces', 'Plan usage']);
     const totals = columns.map((c) => c.reduce((sum, n) => sum + heights[n.dataset.key!], 0));
     // Dealt in turn the middle column would be 1300 against 780 and 430; by height, none strays far from the mean.
     expect(Math.max(...totals) - Math.min(...totals)).toBeLessThan(100);

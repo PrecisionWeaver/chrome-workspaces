@@ -12,7 +12,7 @@ export function columnCountFor(width: number): number {
 const FULL_WIDTH = ['Getting started', 'Needs attention'];
 
 /** Cards that lead the columns when there are several, in order; the rest follow in their own order. */
-const LEADING = ['Usage', 'Workspace sessions'];
+const LEADING = ['Usage', 'Workspaces'];
 
 export interface CardLayout {
   /** Cards above the columns, across the full width. */

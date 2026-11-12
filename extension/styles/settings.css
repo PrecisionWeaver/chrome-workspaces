@@ -140,6 +140,12 @@
   white-space: pre-line;
 }
 
+/* A small button after a row's value, such as Change beside the shortcut. */
+.kv > .settings-btn {
+  margin-left: auto;
+  align-self: center;
+}
+
 .kv .ok,
 .settings-card .ok {
   color: var(--good);
