@@ -221,7 +221,6 @@ export function workspacesCard(ctx: SettingsContext, state: SessionsState, s: Sy
   return card(
     `Workspaces · ${running} running${counted.length ? ` · ${formatTokens(total)} tokens` : ''}${running ? ` · ${formatKb(workspaceKb)} · ${formatCpu(workspaceCpu)}` : ''}`,
     ...resourcesChart(s),
-    el('p', 'Expand a workspace for its processes and ports.', 'settings-note'),
     list,
     memoryLine('Helper', s.helper.rssKb, s.helper.cpu, 'The helper process that runs these sessions'),
     // RSS counts shared pages once per process, so the total runs a little high.

@@ -467,9 +467,9 @@ describe('the cards', () => {
       ...overrides,
     });
 
-    it('explains itself and offers to check before anything has been checked', async () => {
+    it('offers to check before anything has been checked', async () => {
       await open();
-      expect(text('.settings-note', card('Helper'))[0]).toContain('newest release');
+      expect(text('.settings-note', card('Helper'))).toEqual([]);
       button('Check for updates', card('Helper')).click();
       expect(sentOfType('checkUpdates')).toHaveLength(1);
       expect(button('Checking…', card('Helper')).disabled).toBe(true);

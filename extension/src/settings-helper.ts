@@ -49,7 +49,7 @@ function versionParts(ctx: SettingsContext, state: HelperState, commit: string |
   if (!status) {
     return {
       rows: [row('Version', commit ?? 'unknown')],
-      notes: [el('p', 'Compares this copy with the newest release; it only ever fast-forwards.', 'settings-note')],
+      notes: [],
       buttons: [check],
     };
   }
