@@ -553,7 +553,7 @@ describe('the cards', () => {
       const b = running('ws-b', 'acme/api', [sample(0, 100_000, 10), sample(1, 100_000, 10), sample(2, 100_000, 10)]);
       await open(makeSnapshot({ sessions: [a, b] }));
       const resources = card('Workspaces');
-      expect(resources.querySelector('h3')!.textContent).toBe('Workspaces · 2 running · 195.3 MB · 4.0%');
+      expect(resources.querySelector('h3')!.textContent).toBe('Workspaces · 2 running');
       expect(text('.usage-headline span', resources)).toEqual(['245.3 MB', '5.5% CPU', 'across 2 running workspaces and the helper']);
       expect(resources.querySelector('.resources-lines .mem')!.getAttribute('points')).toBe('16.67,50.00 50.00,26.00 83.33,2.00');
       expect(resources.querySelectorAll('.resources-column')).toHaveLength(3);
@@ -736,7 +736,7 @@ describe('the cards', () => {
         Output: '64 tokens (40% of new work)',
         'Cache reads': '7.0K tokens',
         'By model': 'claude-opus-5-5 · 160 tokens · ~$16 · 100%',
-        'Since sessions began': '~$13 estimated',
+        'Since sessions began': '~$13',
       });
     });
 
@@ -764,7 +764,7 @@ describe('the cards', () => {
 
     it('notes that counting is not done, and totals the cost since the sessions began', async () => {
       await open(makeSnapshot({ usage: usage({ counting: true }) }));
-      expect(kv(card('Usage'))['Since sessions began']).toBe('~$13 estimated (still counting…)');
+      expect(kv(card('Usage'))['Since sessions began']).toBe('~$13 (still counting…)');
     });
 
     it('names the models that have no rate, singular or plural', async () => {
@@ -823,9 +823,9 @@ describe('the cards', () => {
 
     it('lists running sessions first, with the count in the title', async () => {
       await open(makeSnapshot({ sessions: [stopped, running] }));
-      expect(card('Workspaces').querySelector('h3')!.textContent).toBe('Workspaces · 1 running · 2.0 MB · 0.1%');
+      expect(card('Workspaces').querySelector('h3')!.textContent).toBe('Workspaces · 1 running');
       expect(text('.session-name', card('Workspaces'))).toEqual(['acme/app', 'acme/api']);
-      expect(text('.session-detail', card('Workspaces'))).toEqual(['1 process · 2.0 MB · 0.1%', 'not running']);
+      expect(text('.session-detail', card('Workspaces'))).toEqual(['2.0 MB · 0.1%', 'not running']);
     });
 
     it('draws one chart of memory and CPU once a running session has been sampled a few times, in amber when memory is over the limit', async () => {
@@ -892,7 +892,7 @@ describe('the cards', () => {
     it('shows tokens and cost, once counted, with the total in the title', async () => {
       const tokens = { input: 1000, output: 500, cacheWrite: 500, cacheRead: 90_000, costUsd: 0.42, counting: false };
       await open(makeSnapshot({ sessions: [{ ...running, tokens }] }));
-      expect(card('Workspaces').querySelector('h3')!.textContent).toBe('Workspaces · 1 running · 2.0K tokens · 2.0 MB · 0.1%');
+      expect(card('Workspaces').querySelector('h3')!.textContent).toBe('Workspaces · 1 running · 2.0K tokens');
       expect(text('.session-tokens', card('Workspaces'))).toEqual(['2.0K tokens · ~$0.42']);
       expect(card('Workspaces').querySelector<HTMLElement>('.session-tokens')!.title).toContain('cache read 90,000');
     });
@@ -901,7 +901,7 @@ describe('the cards', () => {
       const tokens = { input: 1000, output: 0, cacheWrite: 0, cacheRead: 0, costUsd: 0, counting: true };
       await open(makeSnapshot({ sessions: [{ ...running, tokens }] }));
       expect(text('.session-tokens', card('Workspaces'))).toEqual(['counting tokens…']);
-      expect(card('Workspaces').querySelector('h3')!.textContent).toBe('Workspaces · 1 running · 2.0 MB · 0.1%');
+      expect(card('Workspaces').querySelector('h3')!.textContent).toBe('Workspaces · 1 running');
     });
 
     it('shows what claude is doing, and a missing directory', async () => {
@@ -927,7 +927,8 @@ describe('the cards', () => {
       expect(text('.proc .cmd', card('Workspaces'))).toEqual(['-zsh', 'node server.js']);
       expect(text('.proc .num', card('Workspaces'))).toEqual(['0.0%', '1.0 MB', '10:00', '12.3%', '50.0 MB', '09:00']);
       expect(text('.port', card('Workspaces'))).toEqual([':3000', ':3001']);
-      expect(card('Workspaces').querySelector('.session-detail')!.textContent).toBe('2 processes · 51.0 MB · 12.3% · :3000 :3001');
+      expect(card('Workspaces').querySelector('.session-detail')!.textContent).toBe('51.0 MB · 12.3% · :3000 :3001');
+      expect(card('Workspaces').querySelector('.session-count')!.textContent).toBe('2 processes');
       toggle().click();
       expect(card('Workspaces').querySelector('.procs')).toBeNull();
     });
@@ -944,15 +945,16 @@ describe('the cards', () => {
       expect($('settings-result').textContent).toBe('Session id copied.');
     });
 
-    it('cannot expand or restart a session that is not running', async () => {
+    it('cannot expand a session that is not running, so there is no restart to reach', async () => {
       await open(makeSnapshot({ sessions: [stopped] }));
       expect(card('Workspaces').querySelector<HTMLButtonElement>('.session-toggle')!.disabled).toBe(true);
-      expect(button('Restart', card('Workspaces')).disabled).toBe(true);
-      expect(button('Restart', card('Workspaces')).title).toContain('starts when the workspace is opened');
+      expect([...card('Workspaces').querySelectorAll('button')].some((b) => b.textContent === 'Restart')).toBe(false);
     });
 
-    it('restarts a session after asking twice', async () => {
+    it('keeps restart under the accordion, and restarts after asking twice', async () => {
       await open(makeSnapshot({ sessions: [running] }));
+      expect([...card('Workspaces').querySelectorAll('button')].some((b) => b.textContent === 'Restart')).toBe(false);
+      card('Workspaces').querySelector<HTMLButtonElement>('.session-toggle')!.click();
       button('Restart', card('Workspaces')).click();
       button('End its shell?', card('Workspaces')).click();
       expect(requests()).toEqual([{ action: 'restartSession', id: 'ws-a' }]);
@@ -1109,9 +1111,9 @@ describe('the cards', () => {
       expect(facts['Repo directories']).toBe('none');
       expect(facts['Watched repos']).toBe('none');
       expect(facts['Default model']).toBe("claude's own");
-      expect(facts['Claude arguments']).toBe('none');
-      expect(facts['Team prompts']).toBe('none');
-      expect(facts['Team templates']).toBe('none');
+      expect(facts['Claude arguments']).toBeUndefined();
+      expect(facts['Team prompts']).toBeUndefined();
+      expect(facts['Team templates']).toBeUndefined();
     });
 
     it('shows the Jira site, and the entries the helper ignored with why', async () => {

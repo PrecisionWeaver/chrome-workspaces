@@ -19,12 +19,24 @@ export interface SessionsState {
   activity: Map<string, { events: TimelineEvent[]; error: string | null }>;
 }
 
-export const newSessionsState = (): SessionsState => ({ expanded: new Set(), procScroll: new Map(), activityOpen: new Set(), activity: new Map() });
+export const newSessionsState = (): SessionsState => ({
+  expanded: new Set(),
+  procScroll: new Map(),
+  activityOpen: new Set(),
+  activity: new Map(),
+});
 
 const tokenBreakdown = (t: TokenTotals): string =>
   `input ${t.input.toLocaleString()} · output ${t.output.toLocaleString()} · cache written ${t.cacheWrite.toLocaleString()} · cache read ${t.cacheRead.toLocaleString()}`;
 
-const clock = (iso: string): string => (iso ? new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '');
+const clock = (iso: string): string =>
+  iso
+    ? new Date(iso).toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      })
+    : '';
 const KIND_LABEL = { you: 'You', said: 'Claude', tool: '' } as const;
 
 function processRow(ctx: SettingsContext, session: SystemSession, proc: SystemProcess, isShell: boolean): HTMLElement {
@@ -50,7 +62,13 @@ function processRow(ctx: SettingsContext, session: SystemSession, proc: SystemPr
         `kill-${proc.pid}`,
         'Force',
         'Force kill (SIGKILL)?',
-        () => ctx.request({ action: 'killProcess', id: session.id, pid: proc.pid, force: true }),
+        () =>
+          ctx.request({
+            action: 'killProcess',
+            id: session.id,
+            pid: proc.pid,
+            force: true,
+          }),
         {
           danger: true,
         },
@@ -137,25 +155,17 @@ function sessionRow(ctx: SettingsContext, state: SessionsState, session: SystemS
     tokens.title = `${tokenBreakdown(session.tokens)}\nCache reads are repeats of earlier input, so they are not in the headline figure.${cost ? '\nThe dollar figure is an estimate, using the rates under "pricing" in the config.' : ''}`;
     summary.append(tokens);
   }
-  summary.append(
-    el(
-      'span',
-      running
-        ? `${session.processes.length} process${session.processes.length === 1 ? '' : 'es'} · ${formatKb(memory)} · ${formatCpu(cpu)}${ports.length ? ` · ${ports.map((p) => `:${p}`).join(' ')}` : ''}`
-        : 'not running',
-      'session-detail',
-    ),
-  );
   summary.title = session.cwd;
+  // The usage is a right-aligned column, like the amounts on a bill; the trend chart stays with the name.
   const trend = running ? trendChart(session, warnMb) : null;
   if (trend) summary.append(trend);
-  head.append(
-    toggle,
-    summary,
-    guarded(ctx, `restart-${session.id}`, 'Restart', 'End its shell?', () => ctx.request({ action: 'restartSession', id: session.id }), {
-      disabled: running ? undefined : 'No session is running; it starts when the workspace is opened.',
-    }),
+  const usage = el(
+    'span',
+    running ? `${formatKb(memory)} · ${formatCpu(cpu)}${ports.length ? ` · ${ports.map((p) => `:${p}`).join(' ')}` : ''}` : 'not running',
+    'session-detail',
   );
+  usage.classList.add('session-usage');
+  head.append(toggle, summary, usage);
   wrapper.append(head);
   if (!open) return wrapper;
 
@@ -195,6 +205,11 @@ function sessionRow(ctx: SettingsContext, state: SessionsState, session: SystemS
     });
     line.append(copy);
   }
+  // The activity and session links stay left; the process count and Restart are pushed to the far right.
+  line.append(
+    el('span', `${session.processes.length} process${session.processes.length === 1 ? '' : 'es'}`, 'session-count'),
+    guarded(ctx, `restart-${session.id}`, 'Restart', 'End its shell?', () => ctx.request({ action: 'restartSession', id: session.id })),
+  );
   wrapper.append(line);
   if (shown) wrapper.append(activityList(state, session));
   return wrapper;
@@ -212,14 +227,14 @@ export function workspacesCard(ctx: SettingsContext, state: SessionsState, s: Sy
   const running = s.sessions.filter((x) => x.pid !== null).length;
   const counted = s.sessions.flatMap((x) => (x.tokens && !x.tokens.counting ? [x.tokens] : []));
   const total = counted.reduce((sum, t) => sum + newTokens(t), 0);
-  const { kb, cpu, workspaceKb, workspaceCpu } = resourceTotal(s);
+  const { kb, cpu } = resourceTotal(s);
   const list = el('div', '', 'sessions');
   // Running workspaces first, since those are the ones using the machine.
   const warnMb = s.config.limits.memoryWarnMb;
   list.append(...[...s.sessions].sort((a, b) => Number(b.pid !== null) - Number(a.pid !== null)).map((x) => sessionRow(ctx, state, x, warnMb)));
   if (s.sessions.length === 0) list.append(el('div', 'No workspaces yet.', 'settings-empty'));
   return card(
-    `Workspaces · ${running} running${counted.length ? ` · ${formatTokens(total)} tokens` : ''}${running ? ` · ${formatKb(workspaceKb)} · ${formatCpu(workspaceCpu)}` : ''}`,
+    `Workspaces · ${running} running${counted.length ? ` · ${formatTokens(total)} tokens` : ''}`,
     ...resourcesChart(s),
     list,
     memoryLine('Helper', s.helper.rssKb, s.helper.cpu, 'The helper process that runs these sessions'),
