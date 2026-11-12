@@ -406,6 +406,7 @@ export function createAdmin(options: AdminOptions): AdminService {
           templatesFile: config.templatesFile,
           defaultModel: config.defaultModel,
           claudeCommand: config.claudeCommand,
+          claudeArgs: config.claudeArgs,
           repoRoots: config.repoRoots,
           repoDirs: config.repoDirs,
           watchRepos: config.watchRepos,

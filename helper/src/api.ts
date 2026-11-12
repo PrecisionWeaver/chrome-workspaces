@@ -2,7 +2,7 @@ import { timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { isAbsolute } from 'node:path';
 import { isBranchName } from '../../shared/branch-name';
-import { MAX_PROMPT_LENGTH, type WorkspaceStatus, workspaceShellSession } from '../../shared/protocol';
+import { MAX_PROMPT_LENGTH, type WorkspaceStatus } from '../../shared/protocol';
 import type { AuthPolicy } from './auth';
 import { isDirectory } from './config';
 import { asPaste, MAX_PASTE_LENGTH } from './paste';
@@ -64,18 +64,19 @@ async function handle(req: IncomingMessage, options: ApiOptions): Promise<{ stat
 
   if (pathname === '/workspaces' && req.method === 'POST') {
     const { worktree, ...input } = parseCreate(await readJson(req), options);
+    // A PR workspace is matched by PR only: a review of a ticket's PR is separate from working on the ticket.
+    // Found before any worktree is made, so a repeat request leaves nothing behind.
+    const existing = input.pr ? store.findByPr(input.pr) : input.ticket ? store.findByTicket(input.ticket) : undefined;
+    if (existing) {
+      const delivered = control.send({ type: 'focus', id: existing.id });
+      return { status: 200, body: { workspace: existing, created: false, delivered } };
+    }
     if (worktree) {
       try {
         input.cwd = await options.git.addWorktree(input.cwd, worktree);
       } catch (error) {
         throw new HttpError(400, `could not make a worktree for ${worktree}: ${error instanceof Error ? error.message : String(error)}`);
       }
-    }
-    // A PR workspace is matched by PR only: a review of a ticket's PR is separate from working on the ticket.
-    const existing = input.pr ? store.findByPr(input.pr) : input.ticket ? store.findByTicket(input.ticket) : undefined;
-    if (existing) {
-      const delivered = control.send({ type: 'focus', id: existing.id });
-      return { status: 200, body: { workspace: existing, created: false, delivered } };
     }
     const workspace = store.create(input);
     const delivered = control.send({ type: 'open', id: workspace.id });
@@ -106,9 +107,8 @@ async function handle(req: IncomingMessage, options: ApiOptions): Promise<{ stat
   const one = pathname.match(/^\/workspaces\/(ws-[0-9a-f]{8})$/);
   if (one && req.method === 'DELETE') {
     if (!store.get(one[1])) throw new HttpError(404, 'unknown workspace');
-    options.sessions.remove(one[1]);
-    options.sessions.remove(workspaceShellSession(one[1]));
-    store.remove(one[1]);
+    // The same archive as the panel's, so the workspace can be restored from Archived.
+    control.remove(one[1]);
     return { status: 200, body: { ok: true } };
   }
 

@@ -225,7 +225,7 @@ body.collapsed #new .label {
   display: none;
 }
 
-#create .label .optional {
+#create .field-label .optional {
   margin-left: 6px;
   color: var(--faint);
   font-weight: 400;
@@ -630,22 +630,23 @@ body.collapsed #new .label {
   white-space: nowrap;
 }
 
-.review .merge.ready {
+/* The state is a data attribute: as a class, `review` would also match the row's own `.review` rules. */
+.review .merge[data-state='ready'] {
   background: color-mix(in srgb, var(--good) 18%, transparent);
   color: var(--good);
 }
 
-.review .merge.review {
+.review .merge[data-state='review'] {
   background: var(--accent-soft);
   color: var(--accent);
 }
 
-.review .merge.draft {
+.review .merge[data-state='draft'] {
   border: 1px solid var(--border-strong);
   color: var(--muted);
 }
 
-.review .merge.blocked {
+.review .merge[data-state='blocked'] {
   background: color-mix(in srgb, var(--wait) 16%, transparent);
   color: var(--wait);
 }

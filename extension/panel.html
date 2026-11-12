@@ -153,7 +153,7 @@
         <div id="create-details" hidden></div>
         <form id="create-form">
           <div class="field" id="create-templates">
-            <span class="label">Template <span class="optional">repo, model, tabs, message and window</span></span>
+            <span class="field-label">Template <span class="optional">repo, model, tabs, message and window</span></span>
             <div class="template-row">
               <select id="create-template" aria-label="Template"></select>
               <button type="button" id="template-save" class="settings-btn">Save current…</button>
@@ -165,32 +165,32 @@
             </div>
           </div>
           <label class="field">
-            <span class="label">Name</span>
+            <span class="field-label">Name</span>
             <input id="create-name" placeholder="Name or ticket" maxlength="80" autocomplete="off" required />
           </label>
           <label class="field">
-            <span class="label">Repo</span>
+            <span class="field-label">Repo</span>
             <select id="create-repo"></select>
           </label>
           <div class="field">
-            <span class="label">Worktree <span class="optional">optional</span></span>
+            <span class="field-label">Worktree <span class="optional">optional</span></span>
             <label class="check-row"><input type="checkbox" id="create-worktree" /><span>Start in a new worktree of the repo</span></label>
             <input id="create-branch" placeholder="Branch name" maxlength="100" autocomplete="off" spellcheck="false" hidden />
           </div>
           <label class="field">
-            <span class="label">Model</span>
+            <span class="field-label">Model</span>
             <select id="create-model"></select>
           </label>
           <div class="field">
-            <span class="label">Color <span class="optional">optional</span></span>
+            <span class="field-label">Color <span class="optional">optional</span></span>
             <div id="create-color" class="create-swatches"></div>
           </div>
           <label class="field">
-            <span class="label">Tabs <span class="optional">optional, one URL per line</span></span>
+            <span class="field-label">Tabs <span class="optional">optional, one URL per line</span></span>
             <textarea id="create-tabs" rows="3" placeholder="https://" spellcheck="false" autocomplete="off"></textarea>
           </label>
           <div class="field">
-            <span class="label">Start with</span>
+            <span class="field-label">Start with</span>
             <div class="segmented" id="create-start">
               <button type="button" data-value="blank">Blank</button>
               <button type="button" data-value="prompt" class="active">From prompt</button>
@@ -212,7 +212,7 @@
             </div>
           </div>
           <div class="field">
-            <span class="label">Window</span>
+            <span class="field-label">Window</span>
             <div class="segmented" id="create-window">
               <button type="button" data-value="new" class="active">New window</button>
               <button type="button" data-value="here">This window</button>

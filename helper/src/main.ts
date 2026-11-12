@@ -34,6 +34,8 @@ import { pruneUploads } from './uploads';
 stampConsole();
 // A crash's stack trace follows unstamped, so this line says when it happened.
 process.on('uncaughtExceptionMonitor', (error) => console.error(`crashed: ${error instanceof Error ? error.message : String(error)}`));
+// A promise nobody caught would otherwise end the helper, and every terminal with it, over one failed request.
+process.on('unhandledRejection', (reason) => console.error(`unhandled: ${reason instanceof Error ? (reason.stack ?? reason.message) : String(reason)}`));
 
 const config = loadConfig();
 const shell = process.env.SHELL ?? '/bin/zsh';

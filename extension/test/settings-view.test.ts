@@ -862,12 +862,12 @@ describe('the cards', () => {
 
     it('shows what claude is doing, and a missing directory', async () => {
       await open(makeSnapshot({ sessions: [{ ...running, status: 'needs_input', cwdMissing: true }] }));
-      expect(text('.chip', card('Workspace sessions'))).toEqual(['needs input', 'directory missing']);
+      expect(text('.session-chip', card('Workspace sessions'))).toEqual(['needs input', 'directory missing']);
     });
 
     it('shows no status for a session that is not running', async () => {
       await open(makeSnapshot({ sessions: [{ ...stopped, status: 'working' }] }));
-      expect(text('.chip', card('Workspace sessions'))).toEqual([]);
+      expect(text('.session-chip', card('Workspace sessions'))).toEqual([]);
     });
 
     it('expands a running session to its processes, with ports, and collapses it again', async () => {
@@ -1063,6 +1063,26 @@ describe('the cards', () => {
       expect(facts['Repo directories']).toBe('none');
       expect(facts['Watched repos']).toBe('none');
       expect(facts['Default model']).toBe("claude's own");
+      expect(facts['Claude arguments']).toBe('none');
+      expect(facts['Team prompts']).toBe('none');
+      expect(facts['Team templates']).toBe('none');
+    });
+
+    it('shows the claude arguments and the team files', async () => {
+      const snapshot = makeSnapshot();
+      await open({
+        ...snapshot,
+        config: {
+          ...snapshot.config,
+          claudeArgs: ['--permission-mode', 'acceptEdits'],
+          promptsFiles: ['/team/a.md', '/team/b.md'],
+          templatesFile: '/team/t.json',
+        },
+      });
+      const facts = kv(card('Configuration'));
+      expect(facts['Claude arguments']).toBe('--permission-mode acceptEdits');
+      expect(facts['Team prompts']).toBe('/team/a.md\n/team/b.md');
+      expect(facts['Team templates']).toBe('/team/t.json');
     });
   });
 

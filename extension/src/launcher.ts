@@ -171,7 +171,8 @@ export function createLauncher({ send, create, closeCreate, selectedUrl, openWor
         head.append(el('code', ref(item)));
         if (item.merge !== 'unknown') {
           const blocked = item.merge === 'blocked';
-          const merge = el('span', blocked ? (item.mergeReason ?? MERGE_LABELS.blocked) : MERGE_LABELS[item.merge], `merge ${item.merge}`);
+          const merge = el('span', blocked ? (item.mergeReason ?? MERGE_LABELS.blocked) : MERGE_LABELS[item.merge], 'merge');
+          merge.dataset.state = item.merge;
           merge.title = MERGE_TITLES[item.merge] ?? `Cannot merge yet: ${item.mergeReason ?? 'blocked'}`;
           head.append(merge);
         }

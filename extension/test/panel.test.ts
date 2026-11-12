@@ -407,6 +407,18 @@ describe('archiving and the context menu', () => {
     expect(sentOfType('remove')).toEqual([{ type: 'remove', id: 'a' }]);
   });
 
+  it('keeps the archive confirmation through a state update, so the second click still lands', async () => {
+    await boot();
+    state([ws('a')]);
+    const remove = () => rows()[0]!.querySelector<HTMLButtonElement>('.remove')!;
+    remove().click();
+    // Any status change redraws the list between the two clicks.
+    state([ws('a')]);
+    expect(remove().textContent).toBe('archive?');
+    remove().click();
+    expect(sentOfType('remove')).toEqual([{ type: 'remove', id: 'a' }]);
+  });
+
   it('opens a workspace in its own window from its row, without selecting it', async () => {
     await boot();
     state([ws('a'), ws('b')]);
@@ -786,6 +798,18 @@ describe('archived workspaces', () => {
     vi.advanceTimersByTime(3000);
     expect(clear().textContent).toBe('Clear all');
     clear().click();
+    clear().click();
+    expect(sentOfType('forgetAll')).toHaveLength(1);
+  });
+
+  it('keeps Clear all armed through a redraw', async () => {
+    await boot();
+    onControlMessage({ type: 'history', entries: history });
+    toggle()!.click();
+    const clear = () => document.querySelector<HTMLButtonElement>('.archived-clear')!;
+    clear().click();
+    onControlMessage({ type: 'history', entries: history });
+    expect(clear().textContent).toBe('Forget all?');
     clear().click();
     expect(sentOfType('forgetAll')).toHaveLength(1);
   });

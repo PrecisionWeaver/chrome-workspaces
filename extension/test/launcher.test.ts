@@ -82,7 +82,7 @@ describe('the list', () => {
     expect(badges[0]!.title).toBe('Approved, checks passing, no conflicts');
     expect(badges[3]!.title).toBe('Cannot merge yet: Conflicts');
     expect(badges[4]!.title).toBe('Cannot merge yet: blocked');
-    expect(badges[0]!.className).toBe('merge ready');
+    expect(badges.map((badge) => badge?.dataset.state ?? null)).toEqual(['ready', 'review', 'draft', 'blocked', 'blocked', null]);
   });
 
   it('flags a PR that has new commits since your review, and shows its checks', async () => {

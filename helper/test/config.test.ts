@@ -39,6 +39,10 @@ describe('parseConfig', () => {
     });
   });
 
+  it('expands ~ in the default directory', () => {
+    expect(parse({ defaultCwd: '~/code' })).toMatchObject({ defaultCwd: join(homedir(), 'code') });
+  });
+
   it('expands ~ in the extra prompt notes and the templates file', () => {
     expect(parse({ promptsFiles: ['~/team/prompts.md'], templatesFile: '~/team/templates.json' })).toMatchObject({
       promptsFiles: [join(homedir(), 'team/prompts.md')],

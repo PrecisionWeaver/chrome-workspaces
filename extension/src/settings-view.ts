@@ -9,7 +9,7 @@ import type {
   TokenTotals,
   UpdateStatus,
 } from '../../shared/protocol';
-import { $, caret, el, wireBack } from './dom';
+import { $, caret, createArming, el, wireBack } from './dom';
 import { type CardLayout, columnCountFor, keysOf, layoutCards, layoutFromKeys } from './settings-layout';
 import { resourceChart } from './sparkline';
 import { card, actions, row } from './settings-parts';
@@ -82,7 +82,7 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
   // Sessions whose activity list is open, and what each last returned.
   const activityOpen = new Set<string>();
   const activity = new Map<string, { events: TimelineEvent[]; error: string | null }>();
-  const armed = new Set<string>();
+  const arming = createArming(() => render(), ARM_MS);
 
   const request = (action: AdminAction): void => {
     send({ type: 'admin', request: action });
@@ -96,7 +96,7 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
     run: () => void,
     options: { danger?: boolean; disabled?: string } = {},
   ): HTMLButtonElement {
-    const isArmed = armed.has(key);
+    const isArmed = arming.isArmed(key);
     const button = el('button', isArmed ? confirmLabel : label, `settings-btn${options.danger ? ' danger' : ''}${isArmed ? ' armed' : ''}`);
     button.type = 'button';
     if (options.disabled) {
@@ -104,16 +104,7 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       button.title = options.disabled;
     }
     button.addEventListener('click', () => {
-      if (armed.has(key)) {
-        armed.delete(key);
-        run();
-      } else {
-        armed.add(key);
-        setTimeout(() => {
-          armed.delete(key);
-          render();
-        }, ARM_MS);
-      }
+      if (arming.click(key)) run();
       render();
     });
     return button;
@@ -265,9 +256,9 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
     const ports = session.processes.flatMap((p) => p.ports);
     const summary = el('span', '', 'session-summary');
     summary.append(el('span', session.name, 'session-name'));
-    const status = session.status && running ? el('span', STATUS_LABEL[session.status], `chip ${session.status}`) : null;
+    const status = session.status && running ? el('span', STATUS_LABEL[session.status], `session-chip ${session.status}`) : null;
     if (status) summary.append(status);
-    if (session.cwdMissing) summary.append(el('span', 'directory missing', 'chip bad'));
+    if (session.cwdMissing) summary.append(el('span', 'directory missing', 'session-chip bad'));
     if (session.tokens) {
       const cost = session.tokens.costUsd > 0 ? ` · ~${formatUsd(session.tokens.costUsd)}` : '';
       const tokens = el('span', session.tokens.counting ? 'counting tokens…' : `${formatTokens(newTokens(session.tokens))} tokens${cost}`, 'session-tokens');
@@ -406,6 +397,9 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       row('Prompts file', mono(config.promptsFile)),
       row('Default model', config.defaultModel ?? "claude's own"),
       row('Command', config.claudeCommand),
+      row('Claude arguments', mono(config.claudeArgs.join(' ') || 'none')),
+      row('Team prompts', mono(config.promptsFiles.join('\n') || 'none')),
+      row('Team templates', mono(config.templatesFile ?? 'none')),
       row('Repo folders', mono(config.repoRoots.join('\n') || 'none')),
       row('Repo directories', mono(map(config.repoDirs))),
       row('Watched repos', mono(config.watchRepos.join('\n') || 'none')),

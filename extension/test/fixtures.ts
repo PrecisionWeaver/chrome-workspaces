@@ -156,8 +156,11 @@ export function makeSnapshot(overrides: Partial<SystemSnapshot> = {}): SystemSna
     config: {
       defaultCwd: '/Users/me',
       promptsFile: '/Users/me/prompts.md',
+      promptsFiles: [],
+      templatesFile: null,
       defaultModel: null,
       claudeCommand: 'claude',
+      claudeArgs: [],
       repoRoots: ['/Users/me/code'],
       repoDirs: {},
       watchRepos: [],

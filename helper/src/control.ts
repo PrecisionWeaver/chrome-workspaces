@@ -85,7 +85,13 @@ export class ControlHub {
       } catch {
         return;
       }
-      if (isControlToHelper(message)) this.handle(message, ws);
+      if (!isControlToHelper(message)) return;
+      try {
+        this.handle(message, ws);
+      } catch (error) {
+        // A failed save must not take the helper, and every terminal, down with it.
+        console.error(`control: ${message.type} failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
     });
     this.sendTo(ws, this.state());
     this.sendTo(ws, this.historyMessage());
@@ -152,7 +158,13 @@ export class ControlHub {
         store.setTabs(message.windowId, message.urls, message.groupId ?? null);
         break;
       case 'create':
-        void this.create(message, ws);
+        this.create(message, ws).catch((error: unknown) =>
+          this.sendTo(ws, {
+            type: 'createError',
+            name: message.name.trim(),
+            message: `Could not create the workspace: ${error instanceof Error ? error.message : String(error)}`,
+          }),
+        );
         break;
       case 'rename':
         if (store.get(message.id)) store.rename(message.id, message.name.trim());
@@ -186,20 +198,9 @@ export class ControlHub {
         }
         break;
       }
-      case 'remove': {
-        const removing = store.get(message.id);
-        // Remembered before it goes, with the conversation it was on, so it can be restored.
-        if (removing) this.options.history.record(removing, this.options.resumeId(message.id));
-        this.options.sessions.remove(message.id);
-        this.options.sessions.remove(workspaceShellSession(message.id));
-        store.remove(message.id);
-        if (removing?.windowId != null && message.closeTabs) {
-          // A window shared with other workspaces is theirs too: only a group can be closed out of it.
-          const shared = store.list().some((ws) => ws.windowId === removing.windowId);
-          if (removing.groupId !== null || !shared) this.send({ type: 'closeTabs', windowId: removing.windowId, groupId: removing.groupId });
-        }
+      case 'remove':
+        this.remove(message.id, message.closeTabs === true);
         break;
-      }
       case 'restore': {
         const entry = this.options.history.get(message.historyId);
         if (!entry) break;
@@ -336,10 +337,22 @@ export class ControlHub {
     }
   }
 
-  /**
-   * Where to run git for a workspace: the directory its claude reports, when that is another worktree
-   * of the same repository (claude moves into worktrees on its own), else the workspace's own.
-   */
+  /** Archives a workspace: remembers it under Archived, ends its terminals, and closes its tabs when asked to. */
+  remove(id: string, closeTabs = false): void {
+    const { store } = this.options;
+    const removing = store.get(id);
+    // Remembered before it goes, with the conversation it was on, so it can be restored.
+    if (removing) this.options.history.record(removing, this.options.resumeId(id));
+    this.options.sessions.remove(id);
+    this.options.sessions.remove(workspaceShellSession(id));
+    store.remove(id);
+    if (removing?.windowId != null && closeTabs) {
+      // A window shared with other workspaces is theirs too: only a group can be closed out of it.
+      const shared = store.list().some((ws) => ws.windowId === removing.windowId);
+      if (removing.groupId !== null || !shared) this.send({ type: 'closeTabs', windowId: removing.windowId, groupId: removing.groupId });
+    }
+  }
+
   private async create(message: Extract<ControlToHelper, { type: 'create' }>, ws: WebSocket): Promise<void> {
     const { store, defaultCwd, repoDirs, reviews, git } = this.options;
     const existing = message.pr ? store.findByPr(message.pr) : undefined;
@@ -376,6 +389,10 @@ export class ControlHub {
     }
   }
 
+  /**
+   * Where to run git for a workspace: the directory its claude reports, when that is another worktree
+   * of the same repository (claude moves into worktrees on its own), else the workspace's own.
+   */
   private async gitDirectory(workspace: Workspace): Promise<string> {
     const reported = this.options.workingDir(workspace.id);
     if (!reported || reported === workspace.cwd || !isAbsolute(reported) || !isDirectory(reported)) return workspace.cwd;

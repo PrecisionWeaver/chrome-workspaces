@@ -79,7 +79,13 @@ export class WorkspaceStore {
       createdAt: new Date().toISOString(),
     };
     this.workspaces.push(workspace);
-    this.save();
+    try {
+      this.save();
+    } catch (error) {
+      // Not kept in memory either, or it would be listed yet lost at the next restart.
+      this.workspaces.pop();
+      throw error;
+    }
     return { ...workspace };
   }
 

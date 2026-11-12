@@ -4,6 +4,7 @@
   flex: 1;
   min-height: 0;
   padding: 4px;
-  background: #1e1e1e;
+  /* The same as the terminal's own background in either theme, so the padding does not show as a frame. */
+  background: var(--bg);
   border-radius: var(--radius);
 }

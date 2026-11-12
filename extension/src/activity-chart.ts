@@ -176,13 +176,13 @@ export function legend(): HTMLElement {
   for (const kind of Object.keys(KIND_LABEL) as CallKind[]) {
     const item = document.createElement('span');
     const swatch = document.createElement('i');
-    swatch.className = `swatch k-${kind}`;
+    swatch.className = `legend-swatch k-${kind}`;
     item.append(swatch, KIND_LABEL[kind]);
     box.append(item);
   }
   const skill = document.createElement('span');
   const flag = document.createElement('i');
-  flag.className = 'swatch skill';
+  flag.className = 'legend-swatch skill';
   skill.append(flag, 'Skill');
   box.append(skill);
   return box;

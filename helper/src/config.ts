@@ -134,7 +134,7 @@ export function parseConfig(text: string, file: string): HelperConfig {
 
   return {
     extensionId: raw.extensionId,
-    defaultCwd: string('defaultCwd') ?? homedir(),
+    defaultCwd: expandHome(string('defaultCwd') ?? homedir()),
     promptsFile: expandHome(string('promptsFile') ?? DEFAULT_PROMPTS_FILE),
     defaultModel: defaultModel && MODEL_PATTERN.test(defaultModel) ? defaultModel : null,
     jiraBaseUrl,

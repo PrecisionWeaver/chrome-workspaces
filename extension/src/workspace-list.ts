@@ -10,8 +10,11 @@ import {
   type WorkspaceStatus,
   WORKSPACE_COLORS,
 } from '../../shared/protocol';
-import { $, caret, el, icon } from './dom';
+import { $, caret, createArming, el, icon } from './dom';
 import { closeMenu, menuItem, openMenu } from './menu';
+
+// An archive button asks twice; the first click disarms after this long.
+const ARM_MS = 3000;
 
 export interface WorkspaceListOptions {
   send(message: ControlToHelper): void;
@@ -57,6 +60,8 @@ export function createWorkspaceList(options: WorkspaceListOptions): WorkspaceLis
   // arrive constantly and would discard the input or the drag); it catches up when that ends.
   let editing = false;
   let dragged: Workspace | null = null;
+  // Archiving asks twice; the first click stays armed through the state updates that redraw the list.
+  const arming = createArming(() => renderList(), ARM_MS);
 
   const listSearch = $<HTMLInputElement>('list-search');
   let closedOpen = false;
@@ -151,18 +156,16 @@ export function createWorkspaceList(options: WorkspaceListOptions): WorkspaceLis
 
   /** Forgets every archived workspace. Two clicks, like removing one: it can't be undone. */
   function clearArchivedButton(): HTMLButtonElement {
-    const clear = document.createElement('button');
-    clear.className = 'archived-clear';
-    clear.textContent = 'Clear all';
+    const armed = arming.isArmed('forgetAll');
+    const clear = el('button', armed ? 'Forget all?' : 'Clear all', `archived-clear${armed ? ' confirm' : ''}`);
     clear.addEventListener('click', (event) => {
       event.stopPropagation();
-      if (!clear.classList.contains('confirm')) {
-        clear.classList.add('confirm');
-        clear.textContent = 'Forget all?';
-        setTimeout(renderList, 3000);
+      if (arming.click('forgetAll')) {
+        options.send({ type: 'forgetAll' });
         return;
       }
-      options.send({ type: 'forgetAll' });
+      clear.classList.add('confirm');
+      clear.textContent = 'Forget all?';
     });
     return clear;
   }
@@ -236,20 +239,19 @@ export function createWorkspaceList(options: WorkspaceListOptions): WorkspaceLis
       options.popOut(ws);
     });
 
-    const remove = document.createElement('button');
-    remove.className = 'remove';
+    const removeKey = `remove:${ws.id}`;
+    const remove = el('button', arming.isArmed(removeKey) ? 'archive?' : '', `remove${arming.isArmed(removeKey) ? ' confirm' : ''}`);
     remove.title = 'Archive workspace';
-    remove.append(icon('x'));
+    if (!arming.isArmed(removeKey)) remove.append(icon('x'));
     remove.addEventListener('click', (event) => {
       event.stopPropagation();
       // Two clicks: the first arms it, so a stray click can't end a running session.
-      if (!remove.classList.contains('confirm')) {
-        remove.classList.add('confirm');
-        remove.textContent = 'archive?';
-        setTimeout(renderList, 3000);
+      if (arming.click(removeKey)) {
+        options.send({ type: 'remove', id: ws.id });
         return;
       }
-      options.send({ type: 'remove', id: ws.id });
+      remove.classList.add('confirm');
+      remove.textContent = 'archive?';
     });
 
     item.append(badge, name);
