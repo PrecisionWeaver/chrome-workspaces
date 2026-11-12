@@ -4,7 +4,7 @@ import { ACTIVITY_EVENTS } from '../../shared/activity';
 import { STATUS_BY_EVENT } from '../../shared/session-file';
 
 /** Every event the hook runs on: those that set a status, and those the activity view draws. */
-export const HOOK_EVENTS: readonly string[] = [...new Set([...Object.keys(STATUS_BY_EVENT), ...ACTIVITY_EVENTS])];
+const HOOK_EVENTS: readonly string[] = [...new Set([...Object.keys(STATUS_BY_EVENT), ...ACTIVITY_EVENTS])];
 
 /** The script claude runs on session events. */
 export const HOOK_SCRIPT = resolve(import.meta.dirname, '..', '..', 'hooks', 'session-state.ts');

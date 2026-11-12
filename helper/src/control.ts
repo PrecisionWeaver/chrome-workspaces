@@ -14,6 +14,7 @@ import { parseBranchChecks, parsePrDetails, parsePrThreads, parsePrUrl } from '.
 import { prWorkspace } from './pr-workspace';
 import type { SessionManager } from './session';
 import type { WorkspaceStore } from './workspace-store';
+import { errorMessage } from '../../shared/errors';
 
 export interface ReviewSource {
   state(): ReviewsState;
@@ -68,10 +69,6 @@ export class ControlHub {
     options.history.onChange(() => this.send(this.historyMessage()));
   }
 
-  get clientCount(): number {
-    return this.clients.size;
-  }
-
   add(ws: WebSocket): void {
     this.clients.add(ws);
     ws.on('close', () => {
@@ -90,7 +87,7 @@ export class ControlHub {
         this.handle(message, ws);
       } catch (error) {
         // A failed save must not take the helper, and every terminal, down with it.
-        console.error(`control: ${message.type} failed: ${error instanceof Error ? error.message : String(error)}`);
+        console.error(`control: ${message.type} failed: ${errorMessage(error)}`);
       }
     });
     this.sendTo(ws, this.state());
@@ -126,20 +123,21 @@ export class ControlHub {
     return { type: 'state', workspaces: store.list(), statuses: statuses(), waiting: waiting(), reviews: reviews.state() };
   }
 
-  private templates(): ControlToClient {
+  /** A reply that carries what `read` returns, or an empty one naming why it could not be read. */
+  private listing<T>(read: () => T, empty: T, reply: (value: T, error: string | null) => ControlToClient): ControlToClient {
     try {
-      return { type: 'templates', templates: this.options.templates(), error: null };
+      return reply(read(), null);
     } catch (error) {
-      return { type: 'templates', templates: [], error: error instanceof Error ? error.message : String(error) };
+      return reply(empty, errorMessage(error));
     }
   }
 
-  private prompts(): ControlToClient {
-    try {
-      return { type: 'prompts', prompts: this.options.prompts(), error: null };
-    } catch (error) {
-      return { type: 'prompts', prompts: [], error: error instanceof Error ? error.message : String(error) };
-    }
+  /** Sends the asking client what `work` resolves to, in the `ok` shape, or its failure in the `fail` shape. */
+  private answer<T>(ws: WebSocket, work: Promise<T>, ok: (value: T) => ControlToClient, fail: (reason: string) => ControlToClient): void {
+    work.then(
+      (value) => this.sendTo(ws, ok(value)),
+      (error: unknown) => this.sendTo(ws, fail(errorMessage(error))),
+    );
   }
 
   private handle(message: ControlToHelper, ws: WebSocket): void {
@@ -162,7 +160,7 @@ export class ControlHub {
           this.sendTo(ws, {
             type: 'createError',
             name: message.name.trim(),
-            message: `Could not create the workspace: ${error instanceof Error ? error.message : String(error)}`,
+            message: `Could not create the workspace: ${errorMessage(error)}`,
           }),
         );
         break;
@@ -233,26 +231,35 @@ export class ControlHub {
         this.options.history.clear();
         break;
       case 'listPrompts':
-        this.sendTo(ws, this.prompts());
+        this.sendTo(
+          ws,
+          this.listing(this.options.prompts, [], (prompts, error) => ({ type: 'prompts', prompts, error })),
+        );
         break;
       case 'listTemplates':
-        this.sendTo(ws, this.templates());
+        this.sendTo(
+          ws,
+          this.listing(this.options.templates, [], (templates, error) => ({ type: 'templates', templates, error })),
+        );
         break;
       case 'system':
-        this.options.admin.snapshot({ reviews: this.options.reviews.state(), clients: this.clients.size }).then(
-          (snapshot) => this.sendTo(ws, { type: 'system', snapshot, error: null }),
-          (error: unknown) => this.sendTo(ws, { type: 'system', snapshot: null, error: error instanceof Error ? error.message : String(error) }),
+        this.answer(
+          ws,
+          this.options.admin.snapshot({ reviews: this.options.reviews.state(), clients: this.clients.size }),
+          (snapshot) => ({ type: 'system', snapshot, error: null }),
+          (error) => ({ type: 'system', snapshot: null, error }),
         );
         break;
       case 'admin': {
         const { request } = message;
-        this.options.admin.run(request).then(
+        this.answer(
+          ws,
+          this.options.admin.run(request),
           (result) => {
-            this.sendTo(ws, { type: 'adminResult', action: request.action, ok: result.ok, message: result.message });
             for (const id of result.reset ?? []) this.send({ type: 'sessionReset', id });
+            return { type: 'adminResult', action: request.action, ok: result.ok, message: result.message };
           },
-          (error: unknown) =>
-            this.sendTo(ws, { type: 'adminResult', action: request.action, ok: false, message: error instanceof Error ? error.message : String(error) }),
+          (message) => ({ type: 'adminResult', action: request.action, ok: false, message }),
         );
         break;
       }
@@ -281,9 +288,11 @@ export class ControlHub {
         this.sendTo(ws, { type: 'exportData', json: this.options.admin.exportData() });
         break;
       case 'checkUpdates':
-        this.options.admin.checkUpdates().then(
-          (status) => this.sendTo(ws, { type: 'updates', status, error: null }),
-          (error: unknown) => this.sendTo(ws, { type: 'updates', status: null, error: error instanceof Error ? error.message : String(error) }),
+        this.answer(
+          ws,
+          this.options.admin.checkUpdates(),
+          (status) => ({ type: 'updates', status, error: null }),
+          (error) => ({ type: 'updates', status: null, error }),
         );
         break;
       case 'git':
@@ -309,29 +318,22 @@ export class ControlHub {
       case 'prThreads': {
         const { url } = message;
         const parts = parsePrUrl(url);
-        const fail = (error: string) => this.sendTo(ws, { type: 'prThreads', url, threads: [], total: 0, error });
-        if (!parts) {
-          fail('not a pull request URL');
-          break;
-        }
-        this.options
-          .prThreads(parts)
-          .then(parsePrThreads)
-          .then(
-            ({ threads, total }) => this.sendTo(ws, { type: 'prThreads', url, threads, total, error: null }),
-            (error: unknown) => fail(error instanceof Error ? error.message : String(error)),
-          );
+        this.answer(
+          ws,
+          parts ? this.options.prThreads(parts).then(parsePrThreads) : Promise.reject(new Error('not a pull request URL')),
+          ({ threads, total }) => ({ type: 'prThreads', url, threads, total, error: null }),
+          (error) => ({ type: 'prThreads', url, threads: [], total: 0, error }),
+        );
         break;
       }
       case 'prDetails': {
         const { url } = message;
-        this.options
-          .prDetails(url)
-          .then(parsePrDetails)
-          .then(
-            (details) => this.sendTo(ws, { type: 'prDetails', url, details, error: null }),
-            (error: unknown) => this.sendTo(ws, { type: 'prDetails', url, details: null, error: error instanceof Error ? error.message : String(error) }),
-          );
+        this.answer(
+          ws,
+          this.options.prDetails(url).then(parsePrDetails),
+          (details) => ({ type: 'prDetails', url, details, error: null }),
+          (error) => ({ type: 'prDetails', url, details: null, error }),
+        );
         break;
       }
     }
@@ -368,7 +370,7 @@ export class ControlHub {
       try {
         base.cwd = await git.addWorktree(base.cwd, message.worktree);
       } catch (error) {
-        const reason = error instanceof Error ? error.message : String(error);
+        const reason = errorMessage(error);
         this.sendTo(ws, { type: 'createError', name: message.name.trim(), message: `Could not make a worktree for ${message.worktree}: ${reason}` });
         return;
       }
@@ -399,110 +401,76 @@ export class ControlHub {
     return (await this.options.git.sameRepository(workspace.cwd, reported)) ? reported : workspace.cwd;
   }
 
-  /** Answers a git request for a workspace's directory; the reply goes to the asking client only. */
+  /**
+   * Answers a git request for a workspace's directory; the reply goes to the asking client only. Each request
+   * has one shape for its answer and one for its failure, and `answer` fills whichever the work ends in.
+   */
   private handleGit(message: GitRequest, ws: WebSocket): void {
     const { store, git } = this.options;
     const { id } = message;
-    const text = (error: unknown) => (error instanceof Error ? error.message : String(error));
     const workspace = store.get(id);
-    const missing = 'unknown workspace';
-    const dir = workspace ? this.gitDirectory(workspace) : null;
-    const result = (action: string, work: (cwd: string) => Promise<string>) => {
-      if (!dir) {
-        this.sendTo(ws, { type: 'gitResult', id, action, ok: false, message: missing });
-        return;
-      }
-      dir.then(work).then(
-        (done) => this.sendTo(ws, { type: 'gitResult', id, action, ok: true, message: done }),
-        (error: unknown) => this.sendTo(ws, { type: 'gitResult', id, action, ok: false, message: text(error) }),
+    const dir = workspace ? this.gitDirectory(workspace) : Promise.reject(new Error('unknown workspace'));
+    const answer = <T>(work: (cwd: string) => Promise<T>, ok: (value: T) => ControlToClient, fail: (reason: string) => ControlToClient) =>
+      this.answer(ws, dir.then(work), ok, fail);
+    // A write answers with a one-line result; the work resolves to the message, or to it with a url to open.
+    const result = (action: string, work: (cwd: string) => Promise<string | { message: string; url: string }>) =>
+      answer(
+        work,
+        (done) => ({ type: 'gitResult', id, action, ok: true, ...(typeof done === 'string' ? { message: done } : done) }),
+        (reason) => ({ type: 'gitResult', id, action, ok: false, message: reason }),
       );
-    };
 
     switch (message.type) {
       case 'git':
-        if (!dir) {
-          this.sendTo(ws, { type: 'git', id, state: null, error: missing });
-          return;
-        }
-        dir
-          .then((cwd) => git.state(cwd))
-          .then(
-            (state) => this.sendTo(ws, { type: 'git', id, state, error: null }),
-            (error: unknown) => this.sendTo(ws, { type: 'git', id, state: null, error: text(error) }),
-          );
+        answer(
+          (cwd) => git.state(cwd),
+          (state) => ({ type: 'git', id, state, error: null }),
+          (error) => ({ type: 'git', id, state: null, error }),
+        );
         break;
       case 'gitCommit': {
         const { sha } = message;
-        if (!dir) {
-          this.sendTo(ws, { type: 'gitCommit', id, sha, files: [], error: missing });
-          return;
-        }
-        dir
-          .then((cwd) => git.commitFiles(cwd, sha))
-          .then(
-            (files) => this.sendTo(ws, { type: 'gitCommit', id, sha, files, error: null }),
-            (error: unknown) => this.sendTo(ws, { type: 'gitCommit', id, sha, files: [], error: text(error) }),
-          );
+        answer(
+          (cwd) => git.commitFiles(cwd, sha),
+          (files) => ({ type: 'gitCommit', id, sha, files, error: null }),
+          (error) => ({ type: 'gitCommit', id, sha, files: [], error }),
+        );
         break;
       }
       case 'gitDiff': {
         const { path } = message;
         const sha = message.sha ?? null;
-        if (!dir) {
-          this.sendTo(ws, { type: 'gitDiff', id, path, sha, diff: '', truncated: false, error: missing });
-          return;
-        }
-        dir
-          .then((cwd) => git.diff(cwd, path, sha, message.base === true))
-          .then(
-            ({ diff, truncated }) => this.sendTo(ws, { type: 'gitDiff', id, path, sha, diff, truncated, error: null }),
-            (error: unknown) => this.sendTo(ws, { type: 'gitDiff', id, path, sha, diff: '', truncated: false, error: text(error) }),
-          );
+        answer(
+          (cwd) => git.diff(cwd, path, sha, message.base === true),
+          ({ diff, truncated }) => ({ type: 'gitDiff', id, path, sha, diff, truncated, error: null }),
+          (error) => ({ type: 'gitDiff', id, path, sha, diff: '', truncated: false, error }),
+        );
         break;
       }
       case 'gitChecks':
-        if (!dir) {
-          this.sendTo(ws, { type: 'gitChecks', id, pr: null, checks: null, error: missing });
-          return;
-        }
-        dir
-          .then((cwd) => this.options.branchPr(cwd))
-          .then(
-            (json) => {
-              const found = parseBranchChecks(json);
-              this.sendTo(ws, { type: 'gitChecks', id, pr: found?.pr ?? null, checks: found?.checks ?? null, error: null });
-            },
-            // `gh` exits non-zero both for "no pull request" and for a real failure; only the first is not an error.
-            (error: unknown) => {
-              const reason = text(error);
-              const none = /no pull requests? found/i.test(reason);
-              this.sendTo(ws, { type: 'gitChecks', id, pr: null, checks: null, error: none ? null : reason.split('\n')[0] });
-            },
-          );
+        answer(
+          (cwd) => this.options.branchPr(cwd),
+          (json) => {
+            const found = parseBranchChecks(json);
+            return { type: 'gitChecks', id, pr: found?.pr ?? null, checks: found?.checks ?? null, error: null };
+          },
+          // `gh` exits non-zero both for "no pull request" and for a real failure; only the first is not an error.
+          (reason) => ({ type: 'gitChecks', id, pr: null, checks: null, error: /no pull requests? found/i.test(reason) ? null : reason.split('\n')[0] }),
+        );
         break;
       case 'gitBranches':
-        if (!dir) {
-          this.sendTo(ws, { type: 'gitBranches', id, branches: [], error: missing });
-          return;
-        }
-        dir
-          .then((cwd) => git.branches(cwd))
-          .then(
-            (branches) => this.sendTo(ws, { type: 'gitBranches', id, branches, error: null }),
-            (error: unknown) => this.sendTo(ws, { type: 'gitBranches', id, branches: [], error: text(error) }),
-          );
+        answer(
+          (cwd) => git.branches(cwd),
+          (branches) => ({ type: 'gitBranches', id, branches, error: null }),
+          (error) => ({ type: 'gitBranches', id, branches: [], error }),
+        );
         break;
       case 'gitCompare':
-        if (!dir) {
-          this.sendTo(ws, { type: 'gitCompare', id, compare: null, error: missing });
-          return;
-        }
-        dir
-          .then((cwd) => git.compare(cwd))
-          .then(
-            (compare) => this.sendTo(ws, { type: 'gitCompare', id, compare, error: null }),
-            (error: unknown) => this.sendTo(ws, { type: 'gitCompare', id, compare: null, error: text(error) }),
-          );
+        answer(
+          (cwd) => git.compare(cwd),
+          (compare) => ({ type: 'gitCompare', id, compare, error: null }),
+          (error) => ({ type: 'gitCompare', id, compare: null, error }),
+        );
         break;
       case 'gitStage':
         result(message.stage ? 'stage' : 'unstage', (cwd) => git.stage(cwd, message.paths, message.stage));
@@ -520,19 +488,11 @@ export class ControlHub {
         result('push', (cwd) => git.push(cwd));
         break;
       case 'gitCreatePr':
-        if (!dir) {
-          this.sendTo(ws, { type: 'gitResult', id, action: 'pr', ok: false, message: missing });
-          return;
-        }
-        dir
-          .then(async (cwd) => {
-            await git.push(cwd);
-            return this.options.createPr(cwd);
-          })
-          .then(
-            (url) => this.sendTo(ws, { type: 'gitResult', id, action: 'pr', ok: true, message: `Opened ${url}`, url }),
-            (error: unknown) => this.sendTo(ws, { type: 'gitResult', id, action: 'pr', ok: false, message: text(error) }),
-          );
+        result('pr', async (cwd) => {
+          await git.push(cwd);
+          const url = await this.options.createPr(cwd);
+          return { message: `Opened ${url}`, url };
+        });
         break;
     }
   }

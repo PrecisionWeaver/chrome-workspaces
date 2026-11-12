@@ -7,6 +7,7 @@ import {
   type NativeHostReply,
   type NativeStartReply,
 } from '../../shared/protocol';
+import { errorMessage } from '../../shared/errors';
 
 export interface HelperAddress {
   token: string;
@@ -21,7 +22,7 @@ export async function getHelper(): Promise<HelperAddress> {
 
 /** Whether Chrome could not find (or may not use) the native host, which only `npm run install-app` puts in place. */
 export function isHostMissing(error: unknown): boolean {
-  return /native messaging host (not found|is forbidden)/i.test(error instanceof Error ? error.message : String(error));
+  return /native messaging host (not found|is forbidden)/i.test(errorMessage(error));
 }
 
 /** Asks the native host to load the launchd agent; the control connection's retries find the helper once it listens. */

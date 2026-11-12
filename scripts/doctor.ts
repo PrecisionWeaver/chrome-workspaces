@@ -6,6 +6,7 @@ import { AGENT_LABEL, DATA_DIR, HOST, loadConfig, PORT, type HelperConfig } from
 import { extensionIdFromManifest } from './extension-id';
 import { HOOK_SCRIPT, typeStrippingSupported } from '../helper/src/hooks-config';
 import { agentFile, hostManifest, hostWrapper } from './install-paths';
+import { errorMessage } from '../shared/errors';
 
 // Checks an install from the command line, for when the panel cannot reach the helper to show its own checklist.
 const execFileAsync = promisify(execFile);
@@ -40,7 +41,7 @@ const checks: [string, () => Promise<Result> | Result][] = [
       try {
         config = loadConfig();
       } catch (error) {
-        return fail(error instanceof Error ? error.message : String(error), 'Run npm run setup, or fix the JSON by hand.');
+        return fail(errorMessage(error), 'Run npm run setup, or fix the JSON by hand.');
       }
       return config.problems.length ? fail(config.problems.join(' '), 'See docs/configuration.md.') : pass(join(DATA_DIR, 'config.json'));
     },
@@ -88,10 +89,7 @@ const checks: [string, () => Promise<Result> | Result][] = [
         const response = await fetch(`http://${HOST}:${PORT}/workspaces`, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(3000) });
         return response.ok ? pass(`${HOST}:${PORT}`) : fail(`It replied ${response.status}.`, `Check ${join(DATA_DIR, 'helper.log')}.`);
       } catch (error) {
-        return fail(
-          `Nothing at ${HOST}:${PORT} (${error instanceof Error ? error.message : String(error)}).`,
-          `Run npm run agent:restart, then check ${join(DATA_DIR, 'helper.log')}.`,
-        );
+        return fail(`Nothing at ${HOST}:${PORT} (${errorMessage(error)}).`, `Run npm run agent:restart, then check ${join(DATA_DIR, 'helper.log')}.`);
       }
     },
   ],

@@ -2,7 +2,7 @@ import { eventsFromLine, type TimelineEvent } from '../../shared/timeline';
 import { tailLines } from './tail';
 
 const TAIL_BYTES = 768 * 1024;
-export const TIMELINE_LIMIT = 80;
+const TIMELINE_LIMIT = 80;
 
 /**
  * The most recent things that happened in a claude transcript, oldest first. Only the end of the file

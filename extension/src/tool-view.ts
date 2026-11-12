@@ -4,7 +4,7 @@ import { $, wireBack } from './dom';
 import { connectSession, createSessionTerminal, type SessionLink } from './terminal-session';
 
 /** The terminals that belong to no workspace: each is a helper session of its own. */
-export const TOOLS = {
+const TOOLS = {
   monitor: { session: MONITOR_SESSION, title: 'System monitor' },
   shell: { session: SHELL_SESSION, title: 'Terminal' },
 } as const;

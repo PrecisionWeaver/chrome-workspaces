@@ -5,6 +5,7 @@ import { DEFAULT_LIMITS, type Limits } from '../../shared/guardrails';
 import { normalizeJiraBase } from '../../shared/jira';
 import { mergePricing, type Pricing } from '../../shared/pricing';
 import { MODEL_PATTERN } from '../../shared/protocol';
+import { errorMessage } from '../../shared/errors';
 
 export const HOST = '127.0.0.1';
 export const PORT = Number(process.env.CW_PORT ?? 4178);
@@ -82,7 +83,7 @@ export function parseConfig(text: string, file: string): HelperConfig {
   try {
     parsed = JSON.parse(text);
   } catch (error) {
-    throw new Error(`${file} is not valid JSON: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(`${file} is not valid JSON: ${errorMessage(error)}`);
   }
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) throw new Error(`${file} must hold a JSON object`);
   const raw = parsed as Record<string, unknown>;

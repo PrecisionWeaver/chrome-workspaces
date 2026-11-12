@@ -1,4 +1,4 @@
-import { describeWaiting, needsInputCount } from '../../shared/attention';
+import { describeWaiting, needsInputCount, statusLabel } from '../../shared/attention';
 import { nextIndex } from '../../shared/keynav';
 import { filterList } from '../../shared/list-filter';
 import {
@@ -205,10 +205,7 @@ export function createWorkspaceList(options: WorkspaceListOptions): WorkspaceLis
     const { statuses, waiting } = options.state();
     const live = statuses[ws.id];
     const wanted = live === 'needs_input' ? describeWaiting(ws.name, waiting[ws.id]) : null;
-    item.setAttribute(
-      'aria-label',
-      `${ws.name}${wanted ? (wanted.kind === 'permission' ? ', needs permission' : ', needs input') : live === 'working' ? ', working' : live === 'idle' ? ', idle' : ''}${ws.pinned ? ', pinned' : ''}`,
-    );
+    item.setAttribute('aria-label', `${ws.name}${live ? `, ${statusLabel(live, waiting[ws.id])}` : ''}${ws.pinned ? ', pinned' : ''}`);
     item.title = `${ws.name}\n${ws.cwd}${ws.groupId === null ? '' : '\nTab group'}${wanted ? `\n${wanted.message}` : ''}\nRight-click for more`;
 
     const badge = document.createElement('span');

@@ -18,6 +18,7 @@ import { planCard, usageCard } from './settings-usage';
 import { formatBytes, formatCpu, formatDuration, formatKb, formatTokens, newTokens, resourceTitle, resourceTotal } from './format';
 import { DENSITIES, THEMES } from '../../shared/keynav';
 import { formatUsd } from '../../shared/pricing';
+import { statusLabel } from '../../shared/attention';
 import { buildChecklist, remaining, type SetupItem } from '../../shared/onboarding';
 import { loadPrefs, normalizePrefs, savePrefs, type Prefs } from './prefs';
 
@@ -49,8 +50,6 @@ const ARM_MS = 4000;
 
 const tokenBreakdown = (t: TokenTotals): string =>
   `input ${t.input.toLocaleString()} · output ${t.output.toLocaleString()} · cache written ${t.cacheWrite.toLocaleString()} · cache read ${t.cacheRead.toLocaleString()}`;
-
-const STATUS_LABEL = { working: 'working', needs_input: 'needs input', idle: 'idle' } as const;
 
 export function createSettingsView({ send, onToggle }: SettingsViewOptions): SettingsView {
   const section = $<HTMLElement>('settings');
@@ -256,7 +255,7 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
     const ports = session.processes.flatMap((p) => p.ports);
     const summary = el('span', '', 'session-summary');
     summary.append(el('span', session.name, 'session-name'));
-    const status = session.status && running ? el('span', STATUS_LABEL[session.status], `session-chip ${session.status}`) : null;
+    const status = session.status && running ? el('span', statusLabel(session.status, null), `session-chip ${session.status}`) : null;
     if (status) summary.append(status);
     if (session.cwdMissing) summary.append(el('span', 'directory missing', 'session-chip bad'));
     if (session.tokens) {

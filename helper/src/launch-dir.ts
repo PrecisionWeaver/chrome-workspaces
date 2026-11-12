@@ -1,15 +1,7 @@
 import { execFileSync } from 'node:child_process';
-import { realpathSync } from 'node:fs';
-import { isAbsolute, resolve } from 'node:path';
+import { isAbsolute } from 'node:path';
 import { isDirectory } from './config';
-
-const real = (path: string): string => {
-  try {
-    return realpathSync(path);
-  } catch {
-    return resolve(path);
-  }
-};
+import { real } from './git';
 
 /** The git directory every worktree of a repository shares, or null when `dir` is not in one. */
 function commonDir(dir: string): string | null {

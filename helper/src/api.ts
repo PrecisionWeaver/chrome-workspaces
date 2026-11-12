@@ -11,6 +11,7 @@ import type { GitService } from './git';
 import { isPullRequestUrl, prWorkspace } from './pr-workspace';
 import type { SessionManager } from './session';
 import type { WorkspaceStore } from './workspace-store';
+import { errorMessage } from '../../shared/errors';
 
 export interface ApiOptions {
   auth: AuthPolicy;
@@ -44,7 +45,7 @@ export function createApi(options: ApiOptions): Handler {
       .then(({ status, body }) => send(res, status, body))
       .catch((error: unknown) => {
         if (error instanceof HttpError) send(res, error.status, { error: error.message });
-        else send(res, 500, { error: error instanceof Error ? error.message : String(error) });
+        else send(res, 500, { error: errorMessage(error) });
       });
   };
 }
@@ -75,7 +76,7 @@ async function handle(req: IncomingMessage, options: ApiOptions): Promise<{ stat
       try {
         input.cwd = await options.git.addWorktree(input.cwd, worktree);
       } catch (error) {
-        throw new HttpError(400, `could not make a worktree for ${worktree}: ${error instanceof Error ? error.message : String(error)}`);
+        throw new HttpError(400, `could not make a worktree for ${worktree}: ${errorMessage(error)}`);
       }
     }
     const workspace = store.create(input);

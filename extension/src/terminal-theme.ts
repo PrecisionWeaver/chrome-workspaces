@@ -1,6 +1,6 @@
-export const DARK_TERMINAL = { background: '#1e1e1e' };
+const DARK_TERMINAL = { background: '#1e1e1e' };
 
-export const LIGHT_TERMINAL = {
+const LIGHT_TERMINAL = {
   background: '#ffffff',
   foreground: '#1f2328',
   cursor: '#1f2328',

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { attentionEvents, describeWaiting, needsInputCount } from '../../shared/attention';
+import { attentionEvents, describeWaiting, needsInputCount, statusLabel } from '../../shared/attention';
 
 describe('needsInputCount', () => {
   it('counts only the workspaces asked about that are waiting', () => {
@@ -45,5 +45,16 @@ describe('describeWaiting', () => {
       message: 'Claude is waiting for you.',
     });
     expect(describeWaiting('acme/app', undefined)).toEqual({ kind: 'question', title: 'acme/app needs your input', message: 'Claude is waiting for you.' });
+  });
+});
+
+describe('statusLabel', () => {
+  it('names a status in a word or two, telling a permission prompt from other waits', () => {
+    expect(statusLabel('working', undefined)).toBe('working');
+    expect(statusLabel('idle', undefined)).toBe('idle');
+    expect(statusLabel('needs_input', undefined)).toBe('needs input');
+    expect(statusLabel('needs_input', { type: 'idle_prompt', message: '' })).toBe('needs input');
+    expect(statusLabel('needs_input', { type: 'permission_prompt', message: '' })).toBe('needs permission');
+    expect(statusLabel(null, undefined)).toBe('');
   });
 });

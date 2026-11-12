@@ -52,3 +52,9 @@ export function describeWaiting(name: string, waiting: WaitingOn | null | undefi
     message: waiting?.message || 'Claude is waiting for you.',
   };
 }
+
+/** A status in a word or two, for chips, labels and hints: a wait for a permission is named as such. */
+export function statusLabel(status: WorkspaceStatus | null | undefined, waiting: WaitingOn | null | undefined): string {
+  if (status === 'needs_input') return waitingKind(waiting) === 'permission' ? 'needs permission' : 'needs input';
+  return status ?? '';
+}

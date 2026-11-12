@@ -1,4 +1,4 @@
-import { describeWaiting, waitingKind } from '../../shared/attention';
+import { describeWaiting, statusLabel } from '../../shared/attention';
 import { layoutGraph } from '../../shared/git-graph';
 import type {
   BranchPr,
@@ -61,12 +61,6 @@ const MAX_DIFF_LINES = 4000;
 const LANE_COLORS = ['#6fa3ff', '#4fcf8e', '#e5b84d', '#f26d6d', '#c58af9', '#78d9ec', '#fcad70', '#ff8bcb'];
 const CELL = 12;
 const ROW = 24;
-
-const STATUS_TEXT: Record<NonNullable<WorkspaceStatus>, string> = {
-  working: 'Claude is working',
-  needs_input: 'Claude needs input',
-  idle: 'Claude is idle',
-};
 
 const LETTER_TONE: Record<string, string> = { M: 'mod', A: 'add', U: 'add', D: 'del', R: 'ren', C: 'ren', T: 'mod' };
 
@@ -311,7 +305,7 @@ export function createGitView({ send, onToggle, status, waiting, archive }: GitV
     const live = status(workspaceId);
     if (live) {
       const wanted = live === 'needs_input' ? (waiting?.(workspaceId) ?? null) : null;
-      const chip = el('span', wanted && waitingKind(wanted) === 'permission' ? 'Claude needs permission' : STATUS_TEXT[live], 'git-claude');
+      const chip = el('span', `Claude ${live === 'needs_input' ? '' : 'is '}${statusLabel(live, wanted)}`, 'git-claude');
       chip.dataset.status = live;
       if (wanted) chip.title = describeWaiting('Claude', wanted).message;
       branchEl.append(chip);

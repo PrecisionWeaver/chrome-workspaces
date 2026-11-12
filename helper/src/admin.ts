@@ -1,5 +1,6 @@
 import { execFile, spawn } from 'node:child_process';
-import { closeSync, existsSync, fstatSync, openSync, readdirSync, readSync, rmSync, statSync, truncateSync } from 'node:fs';
+import { existsSync, readdirSync, rmSync, statSync, truncateSync } from 'node:fs';
+import { tailLines } from './tail';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { findWarnings } from '../../shared/guardrails';
@@ -25,12 +26,13 @@ import { TranscriptTokens, type UsageBucket } from './tokens';
 import { UsageLedger } from './usage-ledger';
 import { pathBytes, readListening, readProcesses, subtree, toSystemProcess, type Proc } from './system';
 import type { WorkspaceStore } from './workspace-store';
+import { errorMessage } from '../../shared/errors';
 
 const execFileAsync = promisify(execFile);
 
 const LOG_TAIL_BYTES = 64 * 1024;
 
-export const USAGE_LEDGER_FILE = 'usage.json';
+const USAGE_LEDGER_FILE = 'usage.json';
 
 export interface AdminOptions {
   sessions: SessionManager;
@@ -87,7 +89,7 @@ export function defaultRunShell(shell: string) {
       return { output: `${stdout}${stderr}`.trim(), ok: true };
     } catch (error) {
       const { stdout, stderr } = error as { stdout?: string; stderr?: string };
-      return { output: `${stdout ?? ''}${stderr ?? ''}`.trim() || (error instanceof Error ? error.message : String(error)), ok: false };
+      return { output: `${stdout ?? ''}${stderr ?? ''}`.trim() || errorMessage(error), ok: false };
     }
   };
 }
@@ -106,7 +108,7 @@ export async function defaultIsManaged(): Promise<boolean> {
 }
 
 /** One day's use as it is added up, before it becomes a `UsageDay`. */
-export type DayTotals = Omit<UsageDay, 'day' | 'models'> & { models: Map<string, { tokens: number; costUsd: number }> };
+type DayTotals = Omit<UsageDay, 'day' | 'models'> & { models: Map<string, { tokens: number; costUsd: number }> };
 
 export const emptyDay = (): DayTotals => ({ tokens: 0, costUsd: 0, output: 0, cacheRead: 0, models: new Map() });
 
@@ -461,7 +463,7 @@ export function createAdmin(options: AdminOptions): AdminService {
             truncateSync(paths.logFile, 0);
             return { ok: true, message: 'Log cleared.' };
           } catch (error) {
-            return { ok: false, message: error instanceof Error ? error.message : String(error) };
+            return { ok: false, message: errorMessage(error) };
           }
         case 'pruneWorktrees':
           return pruneWorktrees();
@@ -493,21 +495,7 @@ export function createAdmin(options: AdminOptions): AdminService {
     },
 
     log() {
-      let fd: number | undefined;
-      try {
-        fd = openSync(paths.logFile, 'r');
-        const { size } = fstatSync(fd);
-        const length = Math.min(size, LOG_TAIL_BYTES);
-        const buffer = Buffer.alloc(length);
-        readSync(fd, buffer, 0, length, size - length);
-        const text = buffer.toString('utf8');
-        // A tail that starts mid-file begins with a partial line.
-        return size > length ? text.slice(text.indexOf('\n') + 1) : text;
-      } catch {
-        return '';
-      } finally {
-        if (fd !== undefined) closeSync(fd);
-      }
+      return tailLines(paths.logFile, LOG_TAIL_BYTES)?.join('\n') ?? '';
     },
 
     exportData() {

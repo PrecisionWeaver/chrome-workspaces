@@ -3,6 +3,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync } fro
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import type { GitBranch, GitCommit, GitCommitFile, GitCompare, GitFile, GitState } from '../../shared/protocol';
+import { errorMessage } from '../../shared/errors';
 
 const execFileAsync = promisify(execFile);
 
@@ -57,7 +58,7 @@ async function run(cwd: string, args: string[], acceptCodes: readonly number[] =
   } catch (error) {
     const { stdout, stderr, code } = error as { stdout?: string; stderr?: string; code?: number };
     if (typeof code === 'number' && acceptCodes.includes(code)) return { stdout: stdout ?? '', code };
-    throw new Error((stderr ?? '').trim().split('\n')[0] || (error instanceof Error ? error.message : String(error)));
+    throw new Error((stderr ?? '').trim().split('\n')[0] || errorMessage(error));
   }
 }
 
@@ -199,7 +200,8 @@ function repoPaths(paths: readonly string[]): string[] {
   return [...paths];
 }
 
-const real = (path: string): string => {
+/** A path with symlinks resolved, or as given when it does not exist. */
+export const real = (path: string): string => {
   try {
     return realpathSync(path);
   } catch {

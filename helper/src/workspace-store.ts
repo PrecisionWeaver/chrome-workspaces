@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import type { Workspace, WorkspaceColor } from '../../shared/protocol';
+import { errorMessage } from '../../shared/errors';
 
 export interface NewWorkspace {
   name: string;
@@ -204,7 +205,7 @@ export class WorkspaceStore {
         model: ws.model ?? null,
       }));
     } catch (error) {
-      throw new Error(`cannot read ${this.file}: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`cannot read ${this.file}: ${errorMessage(error)}`);
     }
   }
 
