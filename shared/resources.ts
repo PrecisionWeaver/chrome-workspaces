@@ -34,3 +34,20 @@ export function combineHistory(sessions: readonly Pick<SystemSession, 'history'>
   }
   return [...buckets.entries()].sort(([a], [b]) => a - b).map(([, sum]) => sum);
 }
+
+/** A running workspace and what its processes are using now. */
+export interface Consumer {
+  id: string;
+  name: string;
+  rssKb: number;
+  cpu: number;
+}
+
+/** The `count` running workspaces using the most memory right now, biggest first. */
+export function topConsumers(sessions: readonly SystemSession[], count: number): Consumer[] {
+  return sessions
+    .filter((s) => s.pid !== null)
+    .map((s) => ({ id: s.id, name: s.name, rssKb: s.processes.reduce((sum, p) => sum + p.rssKb, 0), cpu: s.processes.reduce((sum, p) => sum + p.cpu, 0) }))
+    .sort((a, b) => b.rssKb - a.rssKb || b.cpu - a.cpu || a.name.localeCompare(b.name))
+    .slice(0, count);
+}

@@ -554,22 +554,37 @@ describe('the cards', () => {
       await open(makeSnapshot({ sessions: [a, b] }));
       const resources = card('Workspaces');
       expect(resources.querySelector('h3')!.textContent).toBe('Workspaces · 2 running · 195.3 MB · 4.0%');
+      expect(text('.usage-headline span', resources)).toEqual(['245.3 MB', '5.5% CPU', 'across 2 running workspaces and the helper']);
       expect(resources.querySelector('.resources-lines .mem')!.getAttribute('points')).toBe('16.67,50.00 50.00,26.00 83.33,2.00');
       expect(resources.querySelectorAll('.resources-column')).toHaveLength(3);
       expect(resources.querySelector<HTMLElement>('.resources-column')!.dataset.tip).toContain('Memory 195.3 MB\nCPU 20.0%\n2 workspaces');
       expect(text('.usage-axis span', resources)).toEqual(['2m ago', 'peak 390.6 MB · 40.0%', 'now']);
     });
 
+    it('lists the three workspaces using the most memory', async () => {
+      const mk = (id: string, kb: number) =>
+        makeSession({ id, name: `acme/${id}`, pid: 10, processes: [{ pid: 10, ppid: 1, command: 'claude', cpu: 1, rssKb: kb, elapsed: '01:00', ports: [] }] });
+      await open(makeSnapshot({ sessions: [mk('one', 1000), mk('two', 4000), mk('three', 3000), mk('four', 2000)] }));
+      expect([...card('Workspaces').querySelectorAll('.resources-top .kv .k')].map((n) => n.textContent)).toEqual(['acme/two', 'acme/three', 'acme/four']);
+    });
+
+    it('explains what the figures and the chart count', async () => {
+      await open(makeSnapshot({ sessions: [running('ws-a', 'acme/app', [sample(0, 1, 1), sample(1, 1, 1), sample(2, 1, 1)])] }));
+      expect(card('Workspaces').querySelector('.resources-note')!.textContent).toContain('one sample a minute for up to two hours');
+    });
+
     it('says it is collecting until there are a few samples, and has no chart to draw', async () => {
       await open(makeSnapshot({ sessions: [running('ws-a', 'acme/app', [sample(0, 100_000, 1), sample(1, 100_000, 1)])] }));
       expect(card('Workspaces').querySelector('.resources-chart')).toBeNull();
       expect(card('Workspaces').textContent).toContain('Collecting samples');
+      expect(card('Workspaces').querySelector('.usage-headline')).not.toBeNull();
     });
 
     it('has no chart and no note when nothing is running', async () => {
       await open(makeSnapshot({ sessions: [makeSession({ pid: null, processes: [], history: [] })] }));
       expect(card('Workspaces').querySelector('.resources-chart')).toBeNull();
       expect(card('Workspaces').textContent).not.toContain('Collecting samples');
+      expect(card('Workspaces').querySelector('.usage-headline')).toBeNull();
     });
   });
 
