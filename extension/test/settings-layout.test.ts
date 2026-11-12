@@ -22,7 +22,7 @@ describe('layoutCards', () => {
     const { top, columns } = layoutCards(KEYS.map(card), 1);
     expect(top).toEqual([]);
     expect(columns.map(keys)).toEqual([
-      ['Getting started', 'Needs attention', 'Usage', 'Workspaces', 'Plan usage', 'Preferences', 'Updates', 'Helper', 'Housekeeping'],
+      ['Getting started', 'Needs attention', 'Usage', 'Plan usage', 'Workspaces', 'Preferences', 'Updates', 'Helper', 'Housekeeping'],
     ]);
   });
 
@@ -32,6 +32,15 @@ describe('layoutCards', () => {
     expect(columns.map(keys)).toEqual([
       ['Usage', 'Plan usage', 'Updates', 'Housekeeping'],
       ['Workspaces', 'Preferences', 'Helper'],
+    ]);
+  });
+
+  it('keeps Plan usage under Usage in two columns, whatever the heights', () => {
+    const heights: Record<string, number> = { Usage: 900, Workspaces: 100, 'Plan usage': 100, Preferences: 300, Helper: 300, Data: 300, Configuration: 300 };
+    const { columns } = layoutCards(Object.keys(heights).map(card), 2, (c) => heights[c.dataset.key!]);
+    expect(columns.map((c) => c.slice(0, 2).map((n) => n.dataset.key))).toEqual([
+      ['Usage', 'Plan usage'],
+      ['Workspaces', expect.any(String)],
     ]);
   });
 

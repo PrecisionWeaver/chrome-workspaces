@@ -45,11 +45,7 @@ export function resourcesChart(s: SystemSnapshot): HTMLElement[] {
   top.append(...topConsumers(s.sessions, CONSUMER_ROWS).map((c) => row(c.name, `${formatKb(c.rssKb)} · ${formatCpu(c.cpu)}`)));
 
   if (samples.length < MIN_POINTS) {
-    return [
-      headline,
-      el('p', 'Collecting samples. The chart appears after a few minutes of a workspace running; the helper samples once a minute.', 'settings-note'),
-      top,
-    ];
+    return [headline, el('p', 'Collecting samples; the chart appears in a few minutes.', 'settings-note'), top];
   }
 
   const memory = samples.map((p) => p.rssKb);
@@ -87,10 +83,7 @@ export function resourcesChart(s: SystemSnapshot): HTMLElement[] {
   };
   legend.append(key('mem', 'Memory'), key('cpu', 'CPU'));
 
-  const note = el(
-    'p',
-    `The figures above are the helper (${formatKb(s.helper.rssKb)}) plus every running workspace, as in the total below. The chart adds up the running workspaces only, one sample a minute for up to two hours, because the helper has no history to draw; each line is scaled to its own peak. Neither counts the rest of the machine, and the chart moves as workspaces start and stop. CPU is a percentage of one core, so it can pass 100.`,
-    'settings-note resources-note',
-  );
-  return [headline, chart, axis, legend, top, note];
+  legend.title = 'The running workspaces added up, one sample a minute for up to two hours; each line is scaled to its own peak.';
+
+  return [headline, chart, axis, legend, top];
 }

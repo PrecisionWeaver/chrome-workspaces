@@ -49,13 +49,7 @@ function versionParts(ctx: SettingsContext, state: HelperState, commit: string |
   if (!status) {
     return {
       rows: [row('Version', commit ?? 'unknown')],
-      notes: [
-        el(
-          'p',
-          'Check for updates compares this copy with the newest release. Updating only ever fast-forwards, never over uncommitted changes, then installs dependencies if they changed, rebuilds the extension and restarts the helper.',
-          'settings-note',
-        ),
-      ],
+      notes: [el('p', 'Compares this copy with the newest release; it only ever fast-forwards.', 'settings-note')],
       buttons: [check],
     };
   }

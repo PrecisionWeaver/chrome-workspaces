@@ -275,7 +275,7 @@ describe('result banner', () => {
 describe('the cards', () => {
   it('lists them in order, with the setup and warning cards first only when there is something to show', async () => {
     await open();
-    expect(cards().map((node) => node.dataset.key)).toEqual(['Usage', 'Workspaces', 'Plan usage', 'Preferences', 'Helper', 'Data', 'Configuration']);
+    expect(cards().map((node) => node.dataset.key)).toEqual(['Usage', 'Plan usage', 'Workspaces', 'Preferences', 'Helper', 'Data', 'Configuration']);
   });
 
   describe('Helper', () => {
@@ -568,11 +568,6 @@ describe('the cards', () => {
       expect([...card('Workspaces').querySelectorAll('.resources-top .kv .k')].map((n) => n.textContent)).toEqual(['acme/two', 'acme/three', 'acme/four']);
     });
 
-    it('explains what the figures and the chart count', async () => {
-      await open(makeSnapshot({ sessions: [running('ws-a', 'acme/app', [sample(0, 1, 1), sample(1, 1, 1), sample(2, 1, 1)])] }));
-      expect(card('Workspaces').querySelector('.resources-note')!.textContent).toContain('one sample a minute for up to two hours');
-    });
-
     it('says it is collecting until there are a few samples, and has no chart to draw', async () => {
       await open(makeSnapshot({ sessions: [running('ws-a', 'acme/app', [sample(0, 100_000, 1), sample(1, 100_000, 1)])] }));
       expect(card('Workspaces').querySelector('.resources-chart')).toBeNull();
@@ -798,7 +793,7 @@ describe('the cards', () => {
     it('is one column in a narrow panel, with Usage and the sessions still at the top', async () => {
       await widen(400);
       expect(columnKeys()).toHaveLength(1);
-      expect(columnKeys()[0]!.slice(0, 2)).toEqual(['Usage', 'Workspaces']);
+      expect(columnKeys()[0]!.slice(0, 3)).toEqual(['Usage', 'Plan usage', 'Workspaces']);
       expect(document.querySelector('.settings-top')).toBeNull();
     });
 
@@ -807,6 +802,7 @@ describe('the cards', () => {
       const columns = columnKeys();
       expect(columns).toHaveLength(2);
       expect(columns.map((c) => c[0])).toEqual(['Usage', 'Workspaces']);
+      expect(columns[0]![1]).toBe('Plan usage');
     });
 
     it('is three when it is wider still, and keeps a focused dropdown where it is across a refresh', async () => {

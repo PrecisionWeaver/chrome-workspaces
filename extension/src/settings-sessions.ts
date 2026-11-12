@@ -163,7 +163,7 @@ function sessionRow(ctx: SettingsContext, state: SessionsState, session: SystemS
   const list = el('div', '', 'procs fixed');
   list.dataset.session = session.id;
   list.addEventListener('scroll', () => state.procScroll.set(session.id, list.scrollTop));
-  session.processes.forEach((proc, index) => list.append(processRow(ctx, session, proc, index === 0)));
+  list.append(...session.processes.map((proc, index) => processRow(ctx, session, proc, index === 0)));
   wrapper.append(list);
 
   const shown = state.activityOpen.has(session.id);
@@ -188,7 +188,7 @@ function sessionRow(ctx: SettingsContext, state: SessionsState, session: SystemS
     // The id is what `claude --resume` takes, so it is a click away.
     const copy = el('button', `Session ${shortId(claudeSessionId)}`, 'session-link');
     copy.type = 'button';
-    copy.title = `${claudeSessionId}\nCopy the claude session id`;
+    copy.title = `Copy ${claudeSessionId}`;
     copy.addEventListener('click', () => {
       void navigator.clipboard.writeText(claudeSessionId);
       ctx.showResult({ ok: true, message: 'Session id copied.' });
@@ -221,11 +221,7 @@ export function workspacesCard(ctx: SettingsContext, state: SessionsState, s: Sy
   return card(
     `Workspaces · ${running} running${counted.length ? ` · ${formatTokens(total)} tokens` : ''}${running ? ` · ${formatKb(workspaceKb)} · ${formatCpu(workspaceCpu)}` : ''}`,
     ...resourcesChart(s),
-    el(
-      'p',
-      'Each runs a shell and claude, and shows the tokens that claude session has used (input, output and cache writes; hover for the breakdown). Expand one to see every process beneath it, and the ports they listen on. Stopping a process also stops its children.',
-      'settings-note',
-    ),
+    el('p', 'Expand a workspace for its processes and ports.', 'settings-note'),
     list,
     memoryLine('Helper', s.helper.rssKb, s.helper.cpu, 'The helper process that runs these sessions'),
     // RSS counts shared pages once per process, so the total runs a little high.

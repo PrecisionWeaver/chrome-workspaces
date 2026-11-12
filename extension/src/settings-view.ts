@@ -225,7 +225,7 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       () => void chrome.tabs.create({ url: 'chrome://extensions/shortcuts' }),
       "Chrome's shortcuts page, where the keys are bound",
     );
-    const shortcut = row('Switch workspaces', switchShortcut || 'not bound', 'The key that moves to the next workspace; the previous one is its mirror');
+    const shortcut = row('Switch workspaces', switchShortcut || 'not bound');
     shortcut.append(change);
     return card(
       'Preferences',
