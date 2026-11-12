@@ -140,10 +140,24 @@
   white-space: pre-line;
 }
 
-/* A small button after a row's value, such as Change beside the shortcut. */
-.kv > .settings-btn {
+/* A small button after a row's value, such as Change beside the shortcut; the value moves right to sit next to it. */
+.kv .v:has(+ .settings-btn) {
   margin-left: auto;
-  align-self: center;
+  text-align: right;
+}
+
+.kv:has(> .settings-btn) {
+  align-items: center;
+}
+
+.kv-total .k {
+  width: auto;
+  white-space: nowrap;
+}
+
+.kv-total .v {
+  margin-left: auto;
+  text-align: right;
 }
 
 .kv .ok,
@@ -377,7 +391,22 @@
 }
 
 .session-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   margin: 0 0 6px 26px;
+}
+
+.session-count {
+  margin-left: auto;
+  padding: 0 6px;
+  color: var(--faint);
+  font-size: 11px;
+}
+
+.session-actions .settings-btn {
+  padding: 1px 8px;
+  font-size: 11px;
 }
 
 .session-link {
@@ -629,9 +658,17 @@
   cursor: help;
 }
 
+.session-usage {
+  flex: none;
+  margin-left: auto;
+  text-align: right;
+}
+
+/* Same face as the name, without its weight, so the figures read as part of the row. */
 .session-detail {
-  color: var(--faint);
-  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 /* A session's status; its own name, since the Activity strip's `.chip` loads after this file. */

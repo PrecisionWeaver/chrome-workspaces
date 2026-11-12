@@ -237,6 +237,13 @@ export function usageCard(s: SystemSnapshot, usageRange: UsageRangeId, onRange: 
   const split = summary.tokens === 0 && summary.costUsd === 0 ? null : workspaceSplit(s, range.days);
   if (split) rows.push(el('div', 'By workspace', 'usage-split-title'), split);
 
+  // A total reads like the foot of a bill: its label on one line, the amount at the far end.
+  const total = (...args: Parameters<typeof row>): HTMLElement => {
+    const line = row(...args);
+    line.classList.add('kv-total');
+    return line;
+  };
+
   const rates = Object.entries(s.config.pricing)
     .map(([family, r]) => `${family} $${r.input}/$${r.output}`)
     .join(', ');
@@ -247,9 +254,9 @@ export function usageCard(s: SystemSnapshot, usageRange: UsageRangeId, onRange: 
     chart,
     axis,
     ...rows,
-    row(
+    total(
       'Since sessions began',
-      `~${formatUsd(s.usage.costUsd)} estimated${s.usage.counting ? ' (still counting…)' : ''}`,
+      `~${formatUsd(s.usage.costUsd)}${s.usage.counting ? ' (still counting…)' : ''}`,
       "Across each workspace's current claude session",
     ),
     ...(s.usage.unpriced.length
