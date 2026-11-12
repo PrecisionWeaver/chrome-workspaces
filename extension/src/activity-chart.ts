@@ -1,7 +1,7 @@
 import type { ActivityCallRecord, ActivityTurn } from '../../shared/activity';
 import { formatDuration } from './format';
 
-export type CallKind = 'read' | 'edit' | 'shell' | 'web' | 'other';
+type CallKind = 'read' | 'edit' | 'shell' | 'web' | 'other';
 
 const KINDS: Record<string, CallKind> = {
   Read: 'read',
@@ -17,7 +17,7 @@ const KINDS: Record<string, CallKind> = {
   WebSearch: 'web',
 };
 
-export const kindOf = (tool: string): CallKind => KINDS[tool] ?? 'other';
+const kindOf = (tool: string): CallKind => KINDS[tool] ?? 'other';
 
 export const KIND_LABEL: Record<CallKind, string> = { read: 'Read / search', edit: 'Edit', shell: 'Shell', web: 'Web', other: 'Other' };
 
@@ -44,8 +44,8 @@ const title = (parent: Element, text: string): void => {
 };
 
 /** How much of a turn the drawing shows at once to begin with; a longer turn trails the clock and is dragged back through. */
-export const WINDOW_MS = 120_000;
-export const MIN_WINDOW_MS = 10_000;
+const WINDOW_MS = 120_000;
+const MIN_WINDOW_MS = 10_000;
 
 /** Where the drawing is looking: the window's right edge (null trails the end of the turn) and how much it takes in. */
 export interface View {
@@ -176,13 +176,13 @@ export function legend(): HTMLElement {
   for (const kind of Object.keys(KIND_LABEL) as CallKind[]) {
     const item = document.createElement('span');
     const swatch = document.createElement('i');
-    swatch.className = `swatch k-${kind}`;
+    swatch.className = `legend-swatch k-${kind}`;
     item.append(swatch, KIND_LABEL[kind]);
     box.append(item);
   }
   const skill = document.createElement('span');
   const flag = document.createElement('i');
-  flag.className = 'swatch skill';
+  flag.className = 'legend-swatch skill';
   skill.append(flag, 'Skill');
   box.append(skill);
   return box;

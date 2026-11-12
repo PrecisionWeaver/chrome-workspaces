@@ -261,10 +261,6 @@ export function usageCard(s: SystemSnapshot, usageRange: UsageRangeId, onRange: 
           ),
         ]
       : []),
-    el(
-      'p',
-      `Dollar figures are estimates. Days are in your local time. Rates (per million tokens, input/output): ${rates}. Cache writes cost 1.25× input and cache reads 0.1×. Set "pricing" in the config to correct them.`,
-      'settings-note',
-    ),
+    el('p', `Estimated at ${rates} per million tokens, input/output. Change them under "pricing" in the config.`, 'settings-note'),
   );
 }

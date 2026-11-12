@@ -5,6 +5,7 @@ import { isAuthorized, tokenFromProtocols, type AuthPolicy } from './auth';
 import type { ControlHub } from './control';
 import type { Session, SessionManager } from './session';
 import { saveUpload } from './uploads';
+import { errorMessage } from '../../shared/errors';
 
 const SESSION_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
@@ -103,7 +104,7 @@ function handleConnection(ws: WebSocket, url: string, options: ServerOptions): v
       try {
         send({ type: 'uploaded', name: message.name, path: saveUpload(options.uploadDir, id, message.name, message.data), error: null });
       } catch (error) {
-        send({ type: 'uploaded', name: message.name, path: null, error: error instanceof Error ? error.message : String(error) });
+        send({ type: 'uploaded', name: message.name, path: null, error: errorMessage(error) });
       }
     }
   });

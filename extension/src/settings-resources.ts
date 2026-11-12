@@ -2,10 +2,10 @@ import type { SystemSnapshot } from '../../shared/protocol';
 import { combineHistory, topConsumers } from '../../shared/resources';
 import { el, hoverTip } from './dom';
 import { formatCpu, formatKb, resourceTotal } from './format';
+import { row } from './settings-parts';
 import { MIN_POINTS } from './sparkline';
-import { card, row } from './settings-parts';
 
-/** Workspaces listed under the chart before the rest are left to the sessions card. */
+/** Workspaces listed under the chart before the rest are left to the rows below. */
 const CONSUMER_ROWS = 3;
 
 const NS = 'http://www.w3.org/2000/svg';
@@ -23,11 +23,16 @@ function line(values: readonly number[], peak: number, className: string): SVGPo
   return poly;
 }
 
-/** Every running workspace's memory and CPU together over the last couple of hours, from the samples the helper already keeps. */
-export function resourcesCard(s: SystemSnapshot): HTMLElement {
+/**
+ * Every running workspace's memory and CPU together over the last couple of hours, from the samples the helper already keeps,
+ * at the top of the Workspaces card: the totals, the chart, and the three workspaces using the most memory.
+ * Nothing while no workspace runs; a note stands in for the chart until there are enough samples to draw.
+ */
+export function resourcesChart(s: SystemSnapshot): HTMLElement[] {
   const running = s.sessions.filter((x) => x.pid !== null).length;
+  if (running === 0) return [];
   const samples = combineHistory(s.sessions);
-  // The same total as the Workspace sessions card: the helper's own use plus every workspace's.
+  // The same total as the Total line below: the helper's own use plus every workspace's.
   const { kb, cpu: totalCpu } = resourceTotal(s);
 
   const headline = el('div', '', 'usage-headline');
@@ -36,16 +41,11 @@ export function resourcesCard(s: SystemSnapshot): HTMLElement {
     el('span', `${formatCpu(totalCpu)} CPU`, 'usage-tokens'),
     el('span', `across ${running} running workspace${running === 1 ? '' : 's'} and the helper`, 'usage-change'),
   );
-
-  const consumers = topConsumers(s.sessions, CONSUMER_ROWS).map((c) => row(c.name, `${formatKb(c.rssKb)} · ${formatCpu(c.cpu)}`));
+  const top = el('div', '', 'resources-top');
+  top.append(...topConsumers(s.sessions, CONSUMER_ROWS).map((c) => row(c.name, `${formatKb(c.rssKb)} · ${formatCpu(c.cpu)}`)));
 
   if (samples.length < MIN_POINTS) {
-    return card(
-      'Resources',
-      headline,
-      ...consumers,
-      el('p', 'Collecting samples. The chart appears after a few minutes of a workspace running; the helper samples once a minute.', 'settings-note'),
-    );
+    return [headline, el('p', 'Collecting samples; the chart appears in a few minutes.', 'settings-note'), top];
   }
 
   const memory = samples.map((p) => p.rssKb);
@@ -83,17 +83,7 @@ export function resourcesCard(s: SystemSnapshot): HTMLElement {
   };
   legend.append(key('mem', 'Memory'), key('cpu', 'CPU'));
 
-  return card(
-    'Resources',
-    headline,
-    chart,
-    axis,
-    legend,
-    ...consumers,
-    el(
-      'p',
-      `The figures above are the helper (${formatKb(s.helper.rssKb)}) plus every running workspace, as in the workspace sessions total. The chart adds up the running workspaces only, one sample a minute for up to two hours, because the helper has no history to draw; each line is scaled to its own peak. Neither counts the rest of the machine, and the chart moves as workspaces start and stop. CPU is a percentage of one core, so it can pass 100.`,
-      'settings-note',
-    ),
-  );
+  legend.title = 'The running workspaces added up, one sample a minute for up to two hours; each line is scaled to its own peak.';
+
+  return [headline, chart, axis, legend, top];
 }

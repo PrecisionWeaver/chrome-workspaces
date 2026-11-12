@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import type { Prompt } from '../../shared/protocol';
+import { errorMessage } from '../../shared/errors';
 
 const HEADING = /^\*\*(.+?)\*\*$/;
 const BULLET = /^\s*-\s+(.*\S)\s*$/;
@@ -24,7 +25,7 @@ export function readPrompts(file: string): Prompt[] {
   try {
     return parsePrompts(readFileSync(file, 'utf8'));
   } catch (error) {
-    throw new Error(`cannot read ${file}: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(`cannot read ${file}: ${errorMessage(error)}`);
   }
 }
 

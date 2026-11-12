@@ -1,7 +1,8 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { setTimeout as sleep } from 'node:timers/promises';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { ControlToClient, ReviewRequest } from '../../shared/protocol';
 import { connectControl, gitRepo, opened, startHarness, type Harness } from './harness';
@@ -115,6 +116,40 @@ describe('control channel', () => {
     ws.send(JSON.stringify({ type: 'rename', id: 'ws-unknown0', name: 'nope' }));
     ws.send(JSON.stringify({ type: 'rename', id: a.id, name: '  Checkout bug  ' }));
     await waitFor(() => h.store.get(a.id)?.name === 'Checkout bug');
+    ws.close();
+  });
+
+  it('answers a create the store could not save with an error, and keeps serving the channel', async () => {
+    const { ws, messages } = connectControl(h);
+    await opened(ws);
+    // A read-only data folder makes every save fail.
+    chmodSync(h.dataDir, 0o555);
+    try {
+      ws.send(JSON.stringify({ type: 'create', name: 'doomed', windowId: null }));
+      await waitFor(() => messages.some((m) => m.type === 'createError'));
+      const error = messages.find((m) => m.type === 'createError');
+      expect(error).toMatchObject({ type: 'createError', name: 'doomed' });
+    } finally {
+      chmodSync(h.dataDir, 0o755);
+    }
+    ws.send(JSON.stringify({ type: 'create', name: 'fine', windowId: null }));
+    await waitFor(() => h.store.list().length === 1);
+    ws.close();
+  });
+
+  it('survives a rename the store could not save', async () => {
+    const a = h.store.create({ name: 'a', cwd: h.defaultCwd });
+    const { ws } = connectControl(h);
+    await opened(ws);
+    chmodSync(h.dataDir, 0o555);
+    try {
+      ws.send(JSON.stringify({ type: 'rename', id: a.id, name: 'lost' }));
+      await sleep(100);
+    } finally {
+      chmodSync(h.dataDir, 0o755);
+    }
+    ws.send(JSON.stringify({ type: 'rename', id: a.id, name: 'kept' }));
+    await waitFor(() => h.store.get(a.id)?.name === 'kept');
     ws.close();
   });
 

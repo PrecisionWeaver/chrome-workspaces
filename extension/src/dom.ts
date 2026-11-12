@@ -70,6 +70,36 @@ export function installHoverTips(): void {
   document.addEventListener('scroll', hide, true);
 }
 
+export interface Arming {
+  /** Whether `key` is waiting for its second click, so a redrawn button can show its confirming label. */
+  isArmed(key: string): boolean;
+  /** Records a click on `key`: the first arms it, and this returns whether the click was the confirming one. */
+  click(key: string): boolean;
+  /** Disarms everything, e.g. when the view moves to another workspace. */
+  clear(): void;
+}
+
+/**
+ * Buttons that ask twice. The armed state is kept here by key rather than on the button, because every view
+ * redraws its buttons on each refresh, and a first click must survive that for the second one to land.
+ * `rerender` is called when a key disarms by itself after `ms`, so the button shows its plain label again.
+ */
+export function createArming(rerender: () => void, ms: number): Arming {
+  const armed = new Set<string>();
+  return {
+    isArmed: (key) => armed.has(key),
+    click(key) {
+      if (armed.delete(key)) return true;
+      armed.add(key);
+      setTimeout(() => {
+        if (armed.delete(key)) rerender();
+      }, ms);
+      return false;
+    },
+    clear: () => armed.clear(),
+  };
+}
+
 /**
  * Wires a page's Back button to `close`, and Escape too while `isOpen` says the page is showing.
  * A page that leaves Escape to its terminal passes no `isOpen`.

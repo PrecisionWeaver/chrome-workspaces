@@ -306,6 +306,18 @@ describe('the branch line', () => {
       expect(archived).toEqual(['ws-a']);
     });
 
+    it('disarms the archive button after three seconds, like every other confirmation', async () => {
+      await ready();
+      answer({ ...pr, state: 'MERGED' }, checks(5, 0, 0));
+      const archive = () => $('git-branch').querySelector<HTMLButtonElement>('.git-archive')!;
+      archive().click();
+      expect(archive().textContent).toBe('Archive?');
+      vi.advanceTimersByTime(3000);
+      expect(archive().textContent).toBe('Archive workspace');
+      archive().click();
+      expect(archived).toEqual([]);
+    });
+
     it('offers to create a PR when the branch has none, pushing first', async () => {
       await ready();
       answer(null, null);
@@ -393,16 +405,29 @@ describe('changes', () => {
 
   it('asks twice before discarding, and disarms after three seconds', async () => {
     await ready(gitState({ files: [file('b.ts', ' ', 'M')] }));
-    const discard = document.querySelector<HTMLButtonElement>('.git-act[title="Discard changes"]')!;
-    discard.click();
-    expect(discard.textContent).toBe('Discard?');
-    expect(discard.classList.contains('armed')).toBe(true);
+    const discard = () => document.querySelector<HTMLButtonElement>('.git-act[title="Discard changes"]')!;
+    discard().click();
+    expect(discard().textContent).toBe('Discard?');
+    expect(discard().classList.contains('armed')).toBe(true);
     expect(sentOfType('gitDiscard')).toEqual([]);
+    // Disarming redraws the list, so the button is looked up again.
     vi.advanceTimersByTime(3000);
-    expect(discard.textContent).toBe('↶');
-    discard.click();
+    expect(discard().textContent).toBe('↶');
+    discard().click();
     expect(sentOfType('gitDiscard')).toEqual([]);
-    discard.click();
+    discard().click();
+    expect(sentOfType('gitDiscard')).toEqual([{ type: 'gitDiscard', id: 'ws-a', paths: ['b.ts'] }]);
+  });
+
+  it('keeps a discard armed through the next poll, so the second click still lands', async () => {
+    const files = [file('b.ts', ' ', 'M')];
+    await ready(gitState({ files }));
+    const discard = () => document.querySelector<HTMLButtonElement>('.git-act[title="Discard changes"]')!;
+    discard().click();
+    // The five-second poll answers and redraws the list between the two clicks.
+    setState(gitState({ files }));
+    expect(discard().textContent).toBe('Discard?');
+    discard().click();
     expect(sentOfType('gitDiscard')).toEqual([{ type: 'gitDiscard', id: 'ws-a', paths: ['b.ts'] }]);
   });
 

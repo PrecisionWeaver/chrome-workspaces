@@ -1,6 +1,6 @@
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { WorkspaceStore } from '../src/workspace-store';
 
@@ -16,6 +16,19 @@ describe('WorkspaceStore', () => {
 
     const reloaded = new WorkspaceStore(file).get(created.id);
     expect(reloaded).toMatchObject({ name: 'PROJ-1', ticket: 'PROJ-1', cwd: '/tmp', url: 'https://jira/PROJ-1', windowId: null, lastTabUrls: [] });
+  });
+
+  it('does not keep a workspace it could not save', () => {
+    const file = tempFile();
+    const store = new WorkspaceStore(file);
+    chmodSync(dirname(file), 0o555);
+    try {
+      expect(() => store.create({ name: 'doomed', cwd: '/tmp' })).toThrow(/EACCES/);
+    } finally {
+      chmodSync(dirname(file), 0o755);
+    }
+    expect(store.list()).toEqual([]);
+    expect(new WorkspaceStore(file).list()).toEqual([]);
   });
 
   it('starts empty when the file does not exist', () => {

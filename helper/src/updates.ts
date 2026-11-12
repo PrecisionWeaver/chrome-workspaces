@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { UpdateStatus } from '../../shared/protocol';
+import { errorMessage } from '../../shared/errors';
 
 const execFileAsync = promisify(execFile);
 
@@ -15,7 +16,7 @@ async function git(repo: string, args: string[], timeoutMs = GIT_TIMEOUT_MS): Pr
     return stdout.trim();
   } catch (error) {
     const { stderr } = error as { stderr?: string };
-    throw new Error((stderr ?? '').trim().split('\n')[0] || (error instanceof Error ? error.message : String(error)));
+    throw new Error((stderr ?? '').trim().split('\n')[0] || errorMessage(error));
   }
 }
 

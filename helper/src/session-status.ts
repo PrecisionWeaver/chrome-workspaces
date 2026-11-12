@@ -1,4 +1,5 @@
-import { closeSync, existsSync, fstatSync, openSync, readdirSync, readFileSync, readSync, rmSync, statSync, watch } from 'node:fs';
+import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, rmSync, statSync, watch } from 'node:fs';
+import { tailLines } from './tail';
 import { dirname, join } from 'node:path';
 import { parseActivityLine } from '../../shared/activity';
 import type { PastSession, WaitingOn, WorkspaceStatus } from '../../shared/protocol';
@@ -198,24 +199,7 @@ export function listWorkspaceSessions(dir: string, workspaceId: string, home: st
 const TRANSCRIPT_TAIL_BYTES = 256 * 1024;
 
 /** The lines at the end of a claude transcript, oldest first. Only the end is read, since transcripts grow large. */
-function transcriptTail(path: string): string[] | null {
-  let fd: number | undefined;
-  try {
-    fd = openSync(path, 'r');
-    const { size } = fstatSync(fd);
-    const length = Math.min(size, TRANSCRIPT_TAIL_BYTES);
-    const buffer = Buffer.alloc(length);
-    readSync(fd, buffer, 0, length, size - length);
-    const lines = buffer.toString('utf8').split('\n');
-    // A tail that starts mid-file begins with a partial line.
-    if (size > length) lines.shift();
-    return lines;
-  } catch {
-    return null;
-  } finally {
-    if (fd !== undefined) closeSync(fd);
-  }
-}
+const transcriptTail = (path: string): string[] | null => tailLines(path, TRANSCRIPT_TAIL_BYTES);
 
 /** The value of `field` on the newest transcript line that has a string for it. */
 function lastTranscriptField(path: string, field: string): string | null {

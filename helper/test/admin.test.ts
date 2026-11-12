@@ -79,6 +79,11 @@ describe('system snapshot', () => {
     const { snapshot } = reply;
     expect(snapshot.helper).toMatchObject({ pid: process.pid, port: 4178, commit: 'abc1234', managed: true });
     expect(snapshot.config.defaultCwd).toBe(h.defaultCwd);
+    expect(snapshot.config).toMatchObject({
+      promptsFiles: ['/team/prompts.md'],
+      templatesFile: '/team/templates.json',
+      claudeArgs: ['--permission-mode', 'acceptEdits'],
+    });
     expect(snapshot.storage.uploadsBytes).toBe(5);
 
     const busy = snapshot.sessions.find((s) => s.id === workspace.id)!;

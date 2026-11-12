@@ -191,8 +191,12 @@ export interface SystemSnapshot {
   config: {
     defaultCwd: string;
     promptsFile: string;
+    /** The team's prompt notes and templates, when configured. */
+    promptsFiles: string[];
+    templatesFile: string | null;
     defaultModel: string | null;
     claudeCommand: string;
+    claudeArgs: string[];
     repoRoots: string[];
     repoDirs: Record<string, string>;
     watchRepos: string[];

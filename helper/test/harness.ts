@@ -34,6 +34,7 @@ export interface Harness {
   sessions: SessionManager;
   admin: AdminService;
   control: ControlHub;
+  history: HistoryStore;
   defaultCwd: string;
   statuses: Record<string, WorkspaceStatus>;
   /** What the fake review poller reports; tests push into it. */
@@ -153,9 +154,9 @@ export async function startHarness(): Promise<Harness> {
       repoDirs: {},
       watchRepos: [],
       claudeCommand: 'claude',
-      promptsFiles: [],
-      templatesFile: null,
-      claudeArgs: [],
+      promptsFiles: ['/team/prompts.md'],
+      templatesFile: '/team/templates.json',
+      claudeArgs: ['--permission-mode', 'acceptEdits'],
       problems: fakes.configProblems,
     },
     paths: {
@@ -180,6 +181,7 @@ export async function startHarness(): Promise<Harness> {
     isManaged: async () => fakes.managed,
   });
   const git = createGitService();
+  const history = new HistoryStore(join(dir, 'history.json'));
   const control = new ControlHub({
     store,
     sessions,
@@ -207,7 +209,7 @@ export async function startHarness(): Promise<Harness> {
     repos: () => fakes.repos,
     git,
     admin,
-    history: new HistoryStore(join(dir, 'history.json')),
+    history,
     resumeId: (id) => fakes.resumeIds[id] ?? null,
     pastSessions: (id) => fakes.pastSessions[id] ?? [],
     resumeWith: (id, sessionId) => void fakes.resumed.push([id, sessionId]),
@@ -229,6 +231,7 @@ export async function startHarness(): Promise<Harness> {
     sessions,
     admin,
     control,
+    history,
     defaultCwd,
     url: (path: string) => `http://127.0.0.1:${server.port}${path}`,
     close: async () => {

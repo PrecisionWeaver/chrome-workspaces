@@ -1,4 +1,4 @@
-import { realpathSync } from 'node:fs';
+import { existsSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { connectControl, gitRepo, opened, ORIGIN, startHarness, TOKEN, type Harness } from './harness';
@@ -122,10 +122,21 @@ describe('HTTP API', () => {
     expect((await call('/nope')).status).toBe(404);
   });
 
-  it('deletes a workspace', async () => {
+  it('deletes a workspace, remembering it under Archived like the panel does', async () => {
     const ws1 = h.store.create({ name: 'a', cwd: h.defaultCwd });
     expect((await call(`/workspaces/${ws1.id}`, { method: 'DELETE' })).status).toBe(200);
     expect(h.store.list()).toEqual([]);
+    expect(h.history.list().map((entry) => entry.name)).toEqual(['a']);
+  });
+
+  it('focuses the existing PR workspace without making the worktree asked for', async () => {
+    const repoDir = gitRepo();
+    const pr = 'https://github.com/acme/app/pull/7';
+    const existing = h.store.create({ name: 'app#7', pr, cwd: h.defaultCwd });
+    const res = await call('/workspaces', { method: 'POST', body: { pr, cwd: repoDir, worktree: 'PROJ-7' } });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ created: false, workspace: { id: existing.id } });
+    expect(existsSync(join(repoDir, '.claude', 'worktrees', 'PROJ-7'))).toBe(false);
   });
 
   it('creates a PR workspace with a prompt, and focuses it on a repeat', async () => {

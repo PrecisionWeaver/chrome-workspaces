@@ -1,4 +1,5 @@
 import type { CiState, MergeState, ReviewRequest, ReviewsState } from '../../shared/protocol';
+import { errorMessage } from '../../shared/errors';
 
 const GH_FIELDS = '--json number,title,url,repository,author,isDraft,updatedAt';
 export const GH_REVIEW_REQUESTS = `gh search prs --review-requested=@me --state=open ${GH_FIELDS} --limit 50`;
@@ -27,7 +28,7 @@ const RATE_LIMIT_MAX_WAIT_MS = 15 * 60_000;
 /** What gh said, or the error's own text when it said nothing: the message of a failed exec holds the whole command. */
 function failureText(error: unknown): string {
   const { stderr } = error as { stderr?: string };
-  return stderr?.trim() || (error instanceof Error ? error.message : String(error));
+  return stderr?.trim() || errorMessage(error);
 }
 
 export const isTransient = (error: unknown): boolean => TRANSIENT.test(failureText(error));
@@ -241,7 +242,7 @@ export class ReviewsPoller {
         },
         (error: unknown) => {
           if (!isRateLimited(error)) console.warn(`could not list review requests: ${describeFailure(error)}`);
-          const message = isRateLimited(error) ? this.pauseNotice() : error instanceof Error ? error.message : String(error);
+          const message = isRateLimited(error) ? this.pauseNotice() : errorMessage(error);
           this.current = { ...this.current, error: message };
         },
       )

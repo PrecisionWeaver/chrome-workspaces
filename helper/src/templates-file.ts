@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { parseTemplates, type Template } from '../../shared/templates';
+import { errorMessage } from '../../shared/errors';
 
 /**
  * Templates kept in a JSON file the team shares (a list in the shape the panel stores). Read on every request so
@@ -11,7 +12,7 @@ export function readTemplatesFile(file: string | null): Template[] {
   try {
     parsed = JSON.parse(readFileSync(file, 'utf8'));
   } catch (error) {
-    throw new Error(`cannot read ${file}: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(`cannot read ${file}: ${errorMessage(error)}`);
   }
   if (!Array.isArray(parsed)) throw new Error(`${file} must hold a list of templates`);
   return parseTemplates(parsed.map((entry, index) => (typeof entry === 'object' && entry !== null ? { id: `team:${index}`, ...entry } : entry)));

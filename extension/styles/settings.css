@@ -140,6 +140,12 @@
   white-space: pre-line;
 }
 
+/* A small button after a row's value, such as Change beside the shortcut. */
+.kv > .settings-btn {
+  margin-left: auto;
+  align-self: center;
+}
+
 .kv .ok,
 .settings-card .ok {
   color: var(--good);
@@ -628,7 +634,8 @@
   font-size: 11px;
 }
 
-.chip {
+/* A session's status; its own name, since the Activity strip's `.chip` loads after this file. */
+.session-chip {
   padding: 0 6px;
   border-radius: 8px;
   background: var(--raised);
@@ -636,12 +643,12 @@
   font-size: 10px;
 }
 
-.chip.working {
+.session-chip.working {
   color: var(--working);
 }
 
-.chip.needs_input,
-.chip.bad {
+.session-chip.needs_input,
+.session-chip.bad {
   color: var(--needs-input);
 }
 

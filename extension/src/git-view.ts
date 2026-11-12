@@ -1,4 +1,4 @@
-import { describeWaiting, waitingKind } from '../../shared/attention';
+import { describeWaiting, statusLabel } from '../../shared/attention';
 import { layoutGraph } from '../../shared/git-graph';
 import type {
   BranchPr,
@@ -13,7 +13,7 @@ import type {
   Workspace,
   WorkspaceStatus,
 } from '../../shared/protocol';
-import { $, caret, el, wireBack } from './dom';
+import { $, caret, createArming, el, wireBack } from './dom';
 import { menuItem, openMenu } from './menu';
 import { relative } from './pr-view';
 
@@ -62,12 +62,6 @@ const LANE_COLORS = ['#6fa3ff', '#4fcf8e', '#e5b84d', '#f26d6d', '#c58af9', '#78
 const CELL = 12;
 const ROW = 24;
 
-const STATUS_TEXT: Record<NonNullable<WorkspaceStatus>, string> = {
-  working: 'Claude is working',
-  needs_input: 'Claude needs input',
-  idle: 'Claude is idle',
-};
-
 const LETTER_TONE: Record<string, string> = { M: 'mod', A: 'add', U: 'add', D: 'del', R: 'ren', C: 'ren', T: 'mod' };
 
 const svg = <K extends keyof SVGElementTagNameMap>(tag: K, attrs: Record<string, string | number>) => {
@@ -100,23 +94,14 @@ function fileRow(letter: string, path: string, from: string | undefined, onClick
   return row;
 }
 
-/** A small button for a file or group; `armed` makes it ask twice, for something that cannot be undone. */
-function iconButton(label: string, title: string, run: () => void, confirm?: string): HTMLButtonElement {
-  const button = el('button', label, 'git-act');
+/** A small button for a file or group; `armed` draws it as one waiting for its confirming click. */
+function iconButton(label: string, title: string, run: () => void, armed = false): HTMLButtonElement {
+  const button = el('button', label, `git-act${armed ? ' armed' : ''}`);
   button.type = 'button';
   button.title = title;
   button.addEventListener('click', (event) => {
     event.stopPropagation();
-    if (!confirm || button.classList.contains('armed')) {
-      run();
-      return;
-    }
-    button.classList.add('armed');
-    button.textContent = confirm;
-    setTimeout(() => {
-      button.classList.remove('armed');
-      button.textContent = label;
-    }, ARM_MS);
+    run();
   });
   return button;
 }
@@ -156,8 +141,8 @@ export function createGitView({ send, onToggle, status, waiting, archive }: GitV
   let checksBranch: string | null = null;
   // A push or pull request under way, so its button is not pressed twice.
   let pushing = false;
-  // Archive asks twice; the first click arms it until the next redraw.
-  let archiveArmed = false;
+  // Discard and archive ask twice; the first click stays armed through the polls that redraw them.
+  const arming = createArming(() => render(), ARM_MS);
   let branches: GitBranch[] = [];
   let noticeTimer: ReturnType<typeof setTimeout> | undefined;
   // A compare view is open: its files list, and each file's diff against the base.
@@ -292,18 +277,13 @@ export function createGitView({ send, onToggle, status, waiting, archive }: GitV
         branchEl.append(chip);
         // Merged means the work is done here; offer to put the workspace away.
         if (merged && archive) {
-          const button = el('button', archiveArmed ? 'Archive?' : 'Archive workspace', 'git-chip-btn git-archive');
+          const button = el('button', arming.isArmed('archive') ? 'Archive?' : 'Archive workspace', 'git-chip-btn git-archive');
           button.type = 'button';
           button.title = 'The pull request has merged. Archive this workspace (its tabs stay open).';
           button.addEventListener('click', () => {
             if (!workspaceId) return;
-            if (!archiveArmed) {
-              archiveArmed = true;
-              button.textContent = 'Archive?';
-              return;
-            }
-            archiveArmed = false;
-            archive(workspaceId);
+            if (arming.click('archive')) archive(workspaceId);
+            else button.textContent = 'Archive?';
           });
           branchEl.append(button);
         }
@@ -325,7 +305,7 @@ export function createGitView({ send, onToggle, status, waiting, archive }: GitV
     const live = status(workspaceId);
     if (live) {
       const wanted = live === 'needs_input' ? (waiting?.(workspaceId) ?? null) : null;
-      const chip = el('span', wanted && waitingKind(wanted) === 'permission' ? 'Claude needs permission' : STATUS_TEXT[live], 'git-claude');
+      const chip = el('span', `Claude ${live === 'needs_input' ? '' : 'is '}${statusLabel(live, wanted)}`, 'git-claude');
       chip.dataset.status = live;
       if (wanted) chip.title = describeWaiting('Claude', wanted).message;
       branchEl.append(chip);
@@ -347,6 +327,25 @@ export function createGitView({ send, onToggle, status, waiting, archive }: GitV
       changesEl.append(heading, ...files.map((f) => fileRow(letterOf(f), f.path, f.from, () => openWorking(f.path), fresh.has(f.path), each(f))));
     };
     const stage = (paths: string[], on: boolean) => workspaceId && send({ type: 'gitStage', id: workspaceId, paths, stage: on });
+    // Discarding cannot be undone, so the button asks twice; an untracked file is deleted outright, and says so.
+    const discard = (f: GitFile) => {
+      const key = `discard:${f.path}`;
+      const ask = f.index === '?' ? 'Delete?' : 'Discard?';
+      const button = iconButton(
+        arming.isArmed(key) ? ask : '↶',
+        f.index === '?' ? 'Delete this new file' : 'Discard changes',
+        () => {
+          if (arming.click(key)) {
+            if (workspaceId) send({ type: 'gitDiscard', id: workspaceId, paths: [f.path] });
+            return;
+          }
+          button.textContent = ask;
+          button.classList.add('armed');
+        },
+        arming.isArmed(key),
+      );
+      return button;
+    };
     group(
       'Staged changes',
       staged,
@@ -359,15 +358,7 @@ export function createGitView({ send, onToggle, status, waiting, archive }: GitV
       unstaged,
       (f) => (f.index === '?' ? 'U' : f.worktree),
       [iconButton('+', 'Stage all', () => stage([], true))],
-      (f) => [
-        iconButton(
-          '↶',
-          f.index === '?' ? 'Delete this new file' : 'Discard changes',
-          () => workspaceId && send({ type: 'gitDiscard', id: workspaceId, paths: [f.path] }),
-          f.index === '?' ? 'Delete?' : 'Discard?',
-        ),
-        iconButton('+', 'Stage', () => stage([f.path], true)),
-      ],
+      (f) => [discard(f), iconButton('+', 'Stage', () => stage([f.path], true))],
     );
     if (state.files.length === 0) changesEl.append(el('div', 'Working tree clean', 'git-empty'));
     renderSave(staged.length);
@@ -587,7 +578,7 @@ export function createGitView({ send, onToggle, status, waiting, archive }: GitV
       checksAt = 0;
       checksBranch = null;
       pushing = false;
-      archiveArmed = false;
+      arming.clear();
       branches = [];
       noticeEl.hidden = true;
       messageInput.value = '';

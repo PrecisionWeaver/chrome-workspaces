@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import type { NativeHostReply, NativeHostRequest, NativeStartReply } from '../../shared/protocol';
 import { DATA_DIR, PORT } from './config';
 import { startHelper } from './start-helper';
+import { errorMessage } from '../../shared/errors';
 
 let input = Buffer.alloc(0);
 let answered = false;
@@ -13,8 +14,6 @@ function reply(message: NativeHostReply | NativeStartReply): void {
   header.writeUInt32LE(body.length);
   process.stdout.write(Buffer.concat([header, body]), () => process.exit(0));
 }
-
-const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 process.stdin.on('data', (chunk: Buffer) => {
   input = Buffer.concat([input, chunk]);
@@ -31,7 +30,7 @@ process.stdin.on('data', (chunk: Buffer) => {
   if (request.type === 'start') {
     startHelper().then(
       () => reply({ ok: true }),
-      (error) => reply({ ok: false, error: errorText(error) }),
+      (error) => reply({ ok: false, error: errorMessage(error) }),
     );
     return;
   }
@@ -40,6 +39,6 @@ process.stdin.on('data', (chunk: Buffer) => {
     const token = readFileSync(join(DATA_DIR, 'token'), 'utf8').trim();
     reply({ ok: true, token, port: PORT });
   } catch (error) {
-    reply({ ok: false, error: errorText(error) });
+    reply({ ok: false, error: errorMessage(error) });
   }
 });

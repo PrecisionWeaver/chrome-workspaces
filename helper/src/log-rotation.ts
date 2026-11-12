@@ -1,6 +1,6 @@
 import { copyFileSync, statSync, truncateSync } from 'node:fs';
 
-export const MAX_LOG_BYTES = 5 * 1024 * 1024;
+const MAX_LOG_BYTES = 5 * 1024 * 1024;
 
 /**
  * Keeps helper.log from growing for as long as the agent runs. launchd holds the file open for

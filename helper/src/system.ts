@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { existsSync, readdirSync, statSync } from 'node:fs';
+import { readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import type { SystemProcess } from '../../shared/protocol';
@@ -98,5 +98,3 @@ export function pathBytes(path: string): number {
     return 0;
   }
 }
-
-export const exists = existsSync;

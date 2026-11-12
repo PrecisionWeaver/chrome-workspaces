@@ -275,18 +275,7 @@ describe('result banner', () => {
 describe('the cards', () => {
   it('lists them in order, with the setup and warning cards first only when there is something to show', async () => {
     await open();
-    expect(cards().map((node) => node.dataset.key)).toEqual([
-      'Usage',
-      'Workspace sessions',
-      'Plan usage',
-      'Resources',
-      'Preferences',
-      'Updates',
-      'Helper',
-      'Housekeeping',
-      'Configuration',
-      'Diagnostics',
-    ]);
+    expect(cards().map((node) => node.dataset.key)).toEqual(['Usage', 'Plan usage', 'Workspaces', 'Preferences', 'Helper', 'Data', 'Configuration']);
   });
 
   describe('Helper', () => {
@@ -302,7 +291,42 @@ describe('the cards', () => {
         Node: 'v22.18.0',
         Version: 'abc1234',
         Connections: '2',
+        'Extension ID': 'Matches this extension',
+        'Review requests': expect.stringMatching(/^3 PRs, fetched /),
       });
+    });
+
+    it('says whether the helper’s extension id matches this extension', async () => {
+      const snapshot = makeSnapshot();
+      await open({ ...snapshot, helper: { ...snapshot.helper, extensionId: 'other-id' } });
+      expect(kv(card('Helper'))['Extension ID']).toBe('Does not match this extension (ext-id)');
+    });
+
+    it('says reviews are not fetched yet, or what last went wrong', async () => {
+      await open(makeSnapshot({ reviews: { fetchedAt: null, count: 0, error: null } }));
+      expect(kv(card('Helper'))['Review requests']).toBe('not fetched yet');
+      await open(makeSnapshot({ reviews: { fetchedAt: '2026-03-10T11:00:00.000Z', count: 2, error: 'gh: not logged in\nmore' } }));
+      expect(kv(card('Helper'))['Review requests']).toContain('(last error: gh: not logged in)');
+    });
+
+    it('refreshes reviews and runs the GitHub check at one click', async () => {
+      await open();
+      button('Refresh reviews', card('Helper')).click();
+      button('Check GitHub CLI', card('Helper')).click();
+      expect(sent.map((message) => message.type)).toEqual(['refreshReviews', 'admin']);
+      expect(requests()).toEqual([{ action: 'checkGh' }]);
+    });
+
+    it('copies debug info, without the config or any prompts, and says so', async () => {
+      const writeText = vi.fn(async () => {});
+      vi.stubGlobal('navigator', { clipboard: { writeText } });
+      await open();
+      button('Copy debug info', card('Helper')).click();
+      const copied = JSON.parse((writeText.mock.calls[0] as unknown as [string])[0]);
+      expect(Object.keys(copied)).toEqual(['extension', 'helper', 'storage', 'sessions']);
+      expect(copied.extension).toBe('1.2.3');
+      expect(copied.sessions).toEqual([{ id: 'ws-00000001', pid: 100, status: null, cwdMissing: false }]);
+      expect($('settings-result').textContent).toBe('Debug info copied.');
     });
 
     it('says unknown when the version is not known', async () => {
@@ -385,6 +409,16 @@ describe('the cards', () => {
       expect(card('Preferences').querySelector<HTMLInputElement>('input[type=checkbox]')!.checked).toBe(true);
     });
 
+    it('shows the switch shortcut, and opens Chrome’s shortcuts page to change it', async () => {
+      await open();
+      expect(kv(card('Preferences'))['Switch workspaces']).toBe('Ctrl+Shift+Right');
+      button('Change', card('Preferences')).click();
+      expect(fake.mock.tabs.create).toHaveBeenCalledWith({ url: 'chrome://extensions/shortcuts' });
+      fake.mock.commands.getAll.mockResolvedValue([]);
+      await open();
+      expect(kv(card('Preferences'))['Switch workspaces']).toBe('not bound');
+    });
+
     it('offers each theme and density, capitalised', async () => {
       await open();
       const selects = [...card('Preferences').querySelectorAll<HTMLSelectElement>('select')];
@@ -418,7 +452,7 @@ describe('the cards', () => {
     });
   });
 
-  describe('Updates', () => {
+  describe('Updates, in the Helper card', () => {
     const status = (overrides: Partial<UpdateStatus> = {}): UpdateStatus => ({
       current: 'abc1234',
       branch: 'main',
@@ -433,27 +467,27 @@ describe('the cards', () => {
       ...overrides,
     });
 
-    it('explains itself and offers to check before anything has been checked', async () => {
+    it('offers to check before anything has been checked', async () => {
       await open();
-      expect(text('.settings-note', card('Updates'))[0]).toContain('newest release');
-      button('Check for updates', card('Updates')).click();
+      expect(text('.settings-note', card('Helper'))).toEqual([]);
+      button('Check for updates', card('Helper')).click();
       expect(sentOfType('checkUpdates')).toHaveLength(1);
-      expect(button('Checking…', card('Updates')).disabled).toBe(true);
+      expect(button('Checking…', card('Helper')).disabled).toBe(true);
     });
 
     it('says it is up to date, with what is running and the latest release', async () => {
       await open();
       view.setUpdates({ type: 'updates', status: status(), error: null });
-      expect(kv(card('Updates'))).toEqual({ Running: 'abc1234 on main (tracks origin/main)', 'Latest release': 'v1.3.0' });
-      expect(text('.settings-note', card('Updates'))).toEqual(['Already up to date.']);
-      expect(button('Update now', card('Updates'))).toBeUndefined();
+      expect(kv(card('Helper'))).toMatchObject({ Version: 'abc1234 on main (tracks origin/main)', 'Latest release': 'v1.3.0' });
+      expect(text('.settings-note', card('Helper'))).toEqual(['Already up to date.']);
+      expect(button('Update now', card('Helper'))).toBeUndefined();
     });
 
     it('says why it is not behind when the helper gives a reason', async () => {
       await open();
       view.setUpdates({ type: 'updates', status: status({ reason: 'On a feature branch.', upstream: null, release: null }), error: null });
-      expect(text('.settings-note', card('Updates'))).toEqual(['On a feature branch.']);
-      expect(kv(card('Updates'))).toEqual({ Running: 'abc1234 on main' });
+      expect(text('.settings-note', card('Helper'))).toEqual(['On a feature branch.']);
+      expect(kv(card('Helper')).Version).toBe('abc1234 on main');
     });
 
     it('lists the commits an update brings, and how many more there are', async () => {
@@ -469,47 +503,47 @@ describe('the cards', () => {
         }),
         error: null,
       });
-      expect(kv(card('Updates')).Available).toBe('5 new commits');
-      expect(text('.update-commit', card('Updates'))).toEqual(['a1  Fix it', 'b2  Add it', '…and 3 more']);
+      expect(kv(card('Helper')).Available).toBe('5 new commits');
+      expect(text('.update-commit', card('Helper'))).toEqual(['a1  Fix it', 'b2  Add it', '…and 3 more']);
     });
 
     it('uses the singular for one commit', async () => {
       await open();
       view.setUpdates({ type: 'updates', status: status({ behind: 1, commits: [{ short: 'a1', subject: 'Fix it' }] }), error: null });
-      expect(kv(card('Updates')).Available).toBe('1 new commit');
-      expect(text('.update-commit.more', card('Updates'))).toEqual([]);
+      expect(kv(card('Helper')).Available).toBe('1 new commit');
+      expect(text('.update-commit.more', card('Helper'))).toEqual([]);
     });
 
     it('asks twice before updating, then waits for the helper and offers to reload the extension', async () => {
       await open();
       view.setUpdates({ type: 'updates', status: status({ behind: 1, commits: [{ short: 'a1', subject: 'Fix it' }] }), error: null });
-      button('Update now', card('Updates')).click();
+      button('Update now', card('Helper')).click();
       expect(requests()).toEqual([]);
-      button('Update, rebuild and restart?', card('Updates')).click();
+      button('Update, rebuild and restart?', card('Helper')).click();
       expect(requests()).toEqual([{ action: 'applyUpdate' }]);
-      expect(text('.settings-note', card('Updates'))[0]).toContain('The helper is restarting');
-      button('Reload extension', card('Updates')).click();
+      expect(text('.settings-note', card('Helper'))[0]).toContain('The helper is restarting');
+      button('Reload extension', card('Helper')).click();
       expect(fake.mock.runtime.reload).toHaveBeenCalled();
     });
 
     it('cannot update when it is not safe, and says why', async () => {
       await open();
       view.setUpdates({ type: 'updates', status: status({ behind: 2, canUpdate: false, reason: 'Uncommitted changes.', commits: [] }), error: null });
-      expect(button('Update now', card('Updates')).disabled).toBe(true);
-      expect(button('Update now', card('Updates')).title).toBe('Uncommitted changes.');
-      expect(text('.settings-note.warn', card('Updates'))).toEqual(['Uncommitted changes.']);
+      expect(button('Update now', card('Helper')).disabled).toBe(true);
+      expect(button('Update now', card('Helper')).title).toBe('Uncommitted changes.');
+      expect(text('.settings-note.warn', card('Helper'))).toEqual(['Uncommitted changes.']);
     });
 
     it('says when a check failed, and lets it be tried again', async () => {
       await open();
       view.setUpdates({ type: 'updates', status: null, error: 'offline' });
-      expect(text('.settings-note.warn', card('Updates'))).toEqual(['Could not check: offline']);
-      button('Check for updates', card('Updates')).click();
+      expect(text('.settings-note.warn', card('Helper'))).toEqual(['Could not check: offline']);
+      button('Check for updates', card('Helper')).click();
       expect(sentOfType('checkUpdates')).toHaveLength(1);
     });
   });
 
-  describe('Resources', () => {
+  describe('the resources chart at the top of Workspaces', () => {
     const sample = (i: number, rssKb: number, cpu: number) => ({ t: 1_000_000 + i * 60_000, rssKb, cpu });
     const running = (id: string, name: string, history: ReturnType<typeof sample>[]) =>
       makeSession({ id, name, pid: 10, history, processes: [{ pid: 10, ppid: 1, command: 'claude', cpu: 2, rssKb: 100_000, elapsed: '01:00', ports: [] }] });
@@ -518,7 +552,8 @@ describe('the cards', () => {
       const a = running('ws-a', 'acme/app', [sample(0, 100_000, 10), sample(1, 200_000, 20), sample(2, 300_000, 30)]);
       const b = running('ws-b', 'acme/api', [sample(0, 100_000, 10), sample(1, 100_000, 10), sample(2, 100_000, 10)]);
       await open(makeSnapshot({ sessions: [a, b] }));
-      const resources = card('Resources');
+      const resources = card('Workspaces');
+      expect(resources.querySelector('h3')!.textContent).toBe('Workspaces · 2 running · 195.3 MB · 4.0%');
       expect(text('.usage-headline span', resources)).toEqual(['245.3 MB', '5.5% CPU', 'across 2 running workspaces and the helper']);
       expect(resources.querySelector('.resources-lines .mem')!.getAttribute('points')).toBe('16.67,50.00 50.00,26.00 83.33,2.00');
       expect(resources.querySelectorAll('.resources-column')).toHaveLength(3);
@@ -530,13 +565,21 @@ describe('the cards', () => {
       const mk = (id: string, kb: number) =>
         makeSession({ id, name: `acme/${id}`, pid: 10, processes: [{ pid: 10, ppid: 1, command: 'claude', cpu: 1, rssKb: kb, elapsed: '01:00', ports: [] }] });
       await open(makeSnapshot({ sessions: [mk('one', 1000), mk('two', 4000), mk('three', 3000), mk('four', 2000)] }));
-      expect([...card('Resources').querySelectorAll('.kv .k')].map((n) => n.textContent)).toEqual(['acme/two', 'acme/three', 'acme/four']);
+      expect([...card('Workspaces').querySelectorAll('.resources-top .kv .k')].map((n) => n.textContent)).toEqual(['acme/two', 'acme/three', 'acme/four']);
     });
 
     it('says it is collecting until there are a few samples, and has no chart to draw', async () => {
       await open(makeSnapshot({ sessions: [running('ws-a', 'acme/app', [sample(0, 100_000, 1), sample(1, 100_000, 1)])] }));
-      expect(card('Resources').querySelector('.resources-chart')).toBeNull();
-      expect(card('Resources').textContent).toContain('Collecting samples');
+      expect(card('Workspaces').querySelector('.resources-chart')).toBeNull();
+      expect(card('Workspaces').textContent).toContain('Collecting samples');
+      expect(card('Workspaces').querySelector('.usage-headline')).not.toBeNull();
+    });
+
+    it('has no chart and no note when nothing is running', async () => {
+      await open(makeSnapshot({ sessions: [makeSession({ pid: null, processes: [], history: [] })] }));
+      expect(card('Workspaces').querySelector('.resources-chart')).toBeNull();
+      expect(card('Workspaces').textContent).not.toContain('Collecting samples');
+      expect(card('Workspaces').querySelector('.usage-headline')).toBeNull();
     });
   });
 
@@ -750,7 +793,7 @@ describe('the cards', () => {
     it('is one column in a narrow panel, with Usage and the sessions still at the top', async () => {
       await widen(400);
       expect(columnKeys()).toHaveLength(1);
-      expect(columnKeys()[0]!.slice(0, 2)).toEqual(['Usage', 'Workspace sessions']);
+      expect(columnKeys()[0]!.slice(0, 3)).toEqual(['Usage', 'Plan usage', 'Workspaces']);
       expect(document.querySelector('.settings-top')).toBeNull();
     });
 
@@ -758,12 +801,13 @@ describe('the cards', () => {
       await widen(800);
       const columns = columnKeys();
       expect(columns).toHaveLength(2);
-      expect(columns.map((c) => c[0])).toEqual(['Usage', 'Workspace sessions']);
+      expect(columns.map((c) => c[0])).toEqual(['Usage', 'Workspaces']);
+      expect(columns[0]![1]).toBe('Plan usage');
     });
 
     it('is three when it is wider still, and keeps a focused dropdown where it is across a refresh', async () => {
       await widen(1200);
-      expect(columnKeys().map((c) => c[0])).toEqual(['Usage', 'Workspace sessions', 'Plan usage']);
+      expect(columnKeys().map((c) => c[0])).toEqual(['Usage', 'Workspaces', 'Plan usage']);
       const select = card('Preferences').querySelector('select')!;
       select.focus();
       const before = card('Preferences');
@@ -773,15 +817,15 @@ describe('the cards', () => {
     });
   });
 
-  describe('Workspace sessions', () => {
+  describe('Workspaces', () => {
     const running = makeSession({ id: 'ws-a', name: 'acme/app', pid: 10 });
     const stopped = makeSession({ id: 'ws-b', name: 'acme/api', pid: null, processes: [] });
 
     it('lists running sessions first, with the count in the title', async () => {
       await open(makeSnapshot({ sessions: [stopped, running] }));
-      expect(card('Workspace sessions').querySelector('h3')!.textContent).toBe('Workspace sessions · 1 running · 2.0 MB · 0.1%');
-      expect(text('.session-name', card('Workspace sessions'))).toEqual(['acme/app', 'acme/api']);
-      expect(text('.session-detail', card('Workspace sessions'))).toEqual(['1 process · 2.0 MB · 0.1%', 'not running']);
+      expect(card('Workspaces').querySelector('h3')!.textContent).toBe('Workspaces · 1 running · 2.0 MB · 0.1%');
+      expect(text('.session-name', card('Workspaces'))).toEqual(['acme/app', 'acme/api']);
+      expect(text('.session-detail', card('Workspaces'))).toEqual(['1 process · 2.0 MB · 0.1%', 'not running']);
     });
 
     it('draws one chart of memory and CPU once a running session has been sampled a few times, in amber when memory is over the limit', async () => {
@@ -790,7 +834,7 @@ describe('the cards', () => {
       const leaking = makeSession({ id: 'ws-c', name: 'acme/web', pid: 11, history: [sample(0, 1_000_000), sample(1, 4_500_000), sample(2, 5_000_000)] });
       const fresh = makeSession({ id: 'ws-d', name: 'acme/cli', pid: 12, history: [sample(0, 100_000), sample(1, 100_000)] });
       await open(makeSnapshot({ sessions: [growing, leaking, fresh, stopped] }));
-      const charts = [...card('Workspace sessions').querySelectorAll<SVGElement>('.session-head .resource-chart')];
+      const charts = [...card('Workspaces').querySelectorAll<SVGElement>('.session-head .resource-chart')];
       expect(charts).toHaveLength(2);
       expect(charts.map((c) => c.classList.contains('warn'))).toEqual([false, true]);
       // Each line is scaled to its own range, so both are drawn in the same box.
@@ -799,25 +843,25 @@ describe('the cards', () => {
       expect(charts[0]!.closest('.session-trend')!.getAttribute('title')).toBe(
         'Over the last 2m\nMemory: 293.0 MB now, peak 293.0 MB\nCPU: 2.0% now, peak 2.0%',
       );
-      expect(card('Workspace sessions').querySelectorAll('.sparkline')).toHaveLength(0);
+      expect(card('Workspaces').querySelectorAll('.sparkline')).toHaveLength(0);
     });
 
     it('keeps the one chart in the header when a session is expanded, with no second pair of lines', async () => {
       const sample = (i: number) => ({ t: 1_000_000 + i * 60_000, rssKb: 100_000 + i * 1000, cpu: i });
       await open(makeSnapshot({ sessions: [makeSession({ id: 'ws-a', pid: 10, history: [sample(0), sample(1), sample(2)] })] }));
-      card('Workspace sessions').querySelector<HTMLButtonElement>('.session-toggle')!.click();
+      card('Workspaces').querySelector<HTMLButtonElement>('.session-toggle')!.click();
       await flush();
-      expect(card('Workspace sessions').querySelectorAll('.resource-chart')).toHaveLength(1);
-      expect(card('Workspace sessions').querySelector('.session-trends')).toBeNull();
-      expect(card('Workspace sessions').querySelector('.session-head .resource-chart')).not.toBeNull();
+      expect(card('Workspaces').querySelectorAll('.resource-chart')).toHaveLength(1);
+      expect(card('Workspaces').querySelector('.session-trends')).toBeNull();
+      expect(card('Workspaces').querySelector('.session-head .resource-chart')).not.toBeNull();
     });
 
     it('gives the process list a fixed box, and keeps where it was scrolled to across a refresh', async () => {
       const snapshot = makeSnapshot({ sessions: [makeSession({ id: 'ws-a', pid: 10 })] });
       await open(snapshot);
-      card('Workspace sessions').querySelector<HTMLButtonElement>('.session-toggle')!.click();
+      card('Workspaces').querySelector<HTMLButtonElement>('.session-toggle')!.click();
       await flush();
-      const procs = () => card('Workspace sessions').querySelector<HTMLElement>('.procs')!;
+      const procs = () => card('Workspaces').querySelector<HTMLElement>('.procs')!;
       expect(procs().classList.contains('fixed')).toBe(true);
       expect(procs().dataset.session).toBe('ws-a');
       procs().scrollTop = 40;
@@ -829,45 +873,45 @@ describe('the cards', () => {
     it('still renders when the helper does not report its own CPU yet', async () => {
       const { cpu: _cpu, ...helper } = makeSnapshot().helper;
       await open(makeSnapshot({ helper, sessions: [running] }));
-      expect(text('.memory-line:not(.memory-total) .v', card('Workspace sessions'))).toEqual(['50.0 MB · –']);
-      expect(text('.memory-total .v', card('Workspace sessions'))).toEqual(['52.0 MB · –']);
+      expect(text('.memory-line:not(.memory-total) .v', card('Workspaces'))).toEqual(['50.0 MB · –']);
+      expect(text('.memory-total .v', card('Workspaces'))).toEqual(['52.0 MB · –']);
     });
 
     it('totals the helper and every workspace', async () => {
       await open(makeSnapshot({ sessions: [running, { ...running, id: 'ws-c' }] }));
-      expect(text('.memory-line:not(.memory-total) .v', card('Workspace sessions'))).toEqual(['50.0 MB · 1.5%']);
-      expect(text('.memory-total .v', card('Workspace sessions'))).toEqual(['54.0 MB · 1.7%']);
-      expect(card('Workspace sessions').querySelector<HTMLElement>('.memory-total')!.title).toContain('Helper 50.0 MB + workspaces 4.0 MB');
+      expect(text('.memory-line:not(.memory-total) .v', card('Workspaces'))).toEqual(['50.0 MB · 1.5%']);
+      expect(text('.memory-total .v', card('Workspaces'))).toEqual(['54.0 MB · 1.7%']);
+      expect(card('Workspaces').querySelector<HTMLElement>('.memory-total')!.title).toContain('Helper 50.0 MB + workspaces 4.0 MB');
     });
 
     it('says when there are no workspaces', async () => {
       await open(makeSnapshot({ sessions: [] }));
-      expect(text('.settings-empty', card('Workspace sessions'))).toEqual(['No workspaces yet.']);
+      expect(text('.settings-empty', card('Workspaces'))).toEqual(['No workspaces yet.']);
     });
 
     it('shows tokens and cost, once counted, with the total in the title', async () => {
       const tokens = { input: 1000, output: 500, cacheWrite: 500, cacheRead: 90_000, costUsd: 0.42, counting: false };
       await open(makeSnapshot({ sessions: [{ ...running, tokens }] }));
-      expect(card('Workspace sessions').querySelector('h3')!.textContent).toBe('Workspace sessions · 1 running · 2.0K tokens · 2.0 MB · 0.1%');
-      expect(text('.session-tokens', card('Workspace sessions'))).toEqual(['2.0K tokens · ~$0.42']);
-      expect(card('Workspace sessions').querySelector<HTMLElement>('.session-tokens')!.title).toContain('cache read 90,000');
+      expect(card('Workspaces').querySelector('h3')!.textContent).toBe('Workspaces · 1 running · 2.0K tokens · 2.0 MB · 0.1%');
+      expect(text('.session-tokens', card('Workspaces'))).toEqual(['2.0K tokens · ~$0.42']);
+      expect(card('Workspaces').querySelector<HTMLElement>('.session-tokens')!.title).toContain('cache read 90,000');
     });
 
     it('says counting while the first read runs, and leaves it out of the total', async () => {
       const tokens = { input: 1000, output: 0, cacheWrite: 0, cacheRead: 0, costUsd: 0, counting: true };
       await open(makeSnapshot({ sessions: [{ ...running, tokens }] }));
-      expect(text('.session-tokens', card('Workspace sessions'))).toEqual(['counting tokens…']);
-      expect(card('Workspace sessions').querySelector('h3')!.textContent).toBe('Workspace sessions · 1 running · 2.0 MB · 0.1%');
+      expect(text('.session-tokens', card('Workspaces'))).toEqual(['counting tokens…']);
+      expect(card('Workspaces').querySelector('h3')!.textContent).toBe('Workspaces · 1 running · 2.0 MB · 0.1%');
     });
 
     it('shows what claude is doing, and a missing directory', async () => {
       await open(makeSnapshot({ sessions: [{ ...running, status: 'needs_input', cwdMissing: true }] }));
-      expect(text('.chip', card('Workspace sessions'))).toEqual(['needs input', 'directory missing']);
+      expect(text('.session-chip', card('Workspaces'))).toEqual(['needs input', 'directory missing']);
     });
 
     it('shows no status for a session that is not running', async () => {
       await open(makeSnapshot({ sessions: [{ ...stopped, status: 'working' }] }));
-      expect(text('.chip', card('Workspace sessions'))).toEqual([]);
+      expect(text('.session-chip', card('Workspaces'))).toEqual([]);
     });
 
     it('expands a running session to its processes, with ports, and collapses it again', async () => {
@@ -876,29 +920,41 @@ describe('the cards', () => {
         { pid: 11, ppid: 10, command: 'node server.js', cpu: 12.34, rssKb: 51_200, elapsed: '09:00', ports: [3000, 3001] },
       ];
       await open(makeSnapshot({ sessions: [{ ...running, processes }] }));
-      const toggle = () => card('Workspace sessions').querySelector<HTMLButtonElement>('.session-toggle')!;
+      const toggle = () => card('Workspaces').querySelector<HTMLButtonElement>('.session-toggle')!;
       expect(toggle().querySelector('.caret.open')).toBeNull();
       toggle().click();
       expect(toggle().querySelector('.caret.open')).not.toBeNull();
-      expect(text('.proc .cmd', card('Workspace sessions'))).toEqual(['-zsh', 'node server.js']);
-      expect(text('.proc .num', card('Workspace sessions'))).toEqual(['0.0%', '1.0 MB', '10:00', '12.3%', '50.0 MB', '09:00']);
-      expect(text('.port', card('Workspace sessions'))).toEqual([':3000', ':3001']);
-      expect(card('Workspace sessions').querySelector('.session-detail')!.textContent).toBe('2 processes · 51.0 MB · 12.3% · :3000 :3001');
+      expect(text('.proc .cmd', card('Workspaces'))).toEqual(['-zsh', 'node server.js']);
+      expect(text('.proc .num', card('Workspaces'))).toEqual(['0.0%', '1.0 MB', '10:00', '12.3%', '50.0 MB', '09:00']);
+      expect(text('.port', card('Workspaces'))).toEqual([':3000', ':3001']);
+      expect(card('Workspaces').querySelector('.session-detail')!.textContent).toBe('2 processes · 51.0 MB · 12.3% · :3000 :3001');
       toggle().click();
-      expect(card('Workspace sessions').querySelector('.procs')).toBeNull();
+      expect(card('Workspaces').querySelector('.procs')).toBeNull();
+    });
+
+    it('names the claude session when expanded, and copies its id', async () => {
+      const writeText = vi.fn(async () => {});
+      vi.stubGlobal('navigator', { clipboard: { writeText } });
+      await open(makeSnapshot({ sessions: [{ ...running, claudeSessionId: '0b7c1b4a-6f3e-4c1a-9d2e-123456789abc' }] }));
+      card('Workspaces').querySelector<HTMLButtonElement>('.session-toggle')!.click();
+      const copy = button('Session 0b7c1b4a', card('Workspaces'));
+      expect(copy.title).toContain('0b7c1b4a-6f3e-4c1a-9d2e-123456789abc');
+      copy.click();
+      expect(writeText).toHaveBeenCalledWith('0b7c1b4a-6f3e-4c1a-9d2e-123456789abc');
+      expect($('settings-result').textContent).toBe('Session id copied.');
     });
 
     it('cannot expand or restart a session that is not running', async () => {
       await open(makeSnapshot({ sessions: [stopped] }));
-      expect(card('Workspace sessions').querySelector<HTMLButtonElement>('.session-toggle')!.disabled).toBe(true);
-      expect(button('Restart', card('Workspace sessions')).disabled).toBe(true);
-      expect(button('Restart', card('Workspace sessions')).title).toContain('starts when the workspace is opened');
+      expect(card('Workspaces').querySelector<HTMLButtonElement>('.session-toggle')!.disabled).toBe(true);
+      expect(button('Restart', card('Workspaces')).disabled).toBe(true);
+      expect(button('Restart', card('Workspaces')).title).toContain('starts when the workspace is opened');
     });
 
     it('restarts a session after asking twice', async () => {
       await open(makeSnapshot({ sessions: [running] }));
-      button('Restart', card('Workspace sessions')).click();
-      button('End its shell?', card('Workspace sessions')).click();
+      button('Restart', card('Workspaces')).click();
+      button('End its shell?', card('Workspaces')).click();
       expect(requests()).toEqual([{ action: 'restartSession', id: 'ws-a' }]);
     });
 
@@ -909,17 +965,17 @@ describe('the cards', () => {
       ];
       const expand = async () => {
         await open(makeSnapshot({ sessions: [{ ...running, processes }] }));
-        card('Workspace sessions').querySelector<HTMLButtonElement>('.session-toggle')!.click();
+        card('Workspaces').querySelector<HTMLButtonElement>('.session-toggle')!.click();
       };
 
       it('stops or force kills a process after asking twice, but never the shell itself', async () => {
         await expand();
-        const rows = card('Workspace sessions').querySelectorAll('.proc');
+        const rows = card('Workspaces').querySelectorAll('.proc');
         expect(rows[0]!.querySelector('.proc-actions')).toBeNull();
         button('Stop', rows[1] as HTMLElement).click();
-        button('Stop it and its children?', card('Workspace sessions')).click();
-        button('Force', card('Workspace sessions').querySelectorAll('.proc')[1] as HTMLElement).click();
-        button('Force kill (SIGKILL)?', card('Workspace sessions')).click();
+        button('Stop it and its children?', card('Workspaces')).click();
+        button('Force', card('Workspaces').querySelectorAll('.proc')[1] as HTMLElement).click();
+        button('Force kill (SIGKILL)?', card('Workspaces')).click();
         expect(requests()).toEqual([
           { action: 'killProcess', id: 'ws-a', pid: 11 },
           { action: 'killProcess', id: 'ws-a', pid: 11, force: true },
@@ -928,7 +984,7 @@ describe('the cards', () => {
 
       it('opens a listening port in a tab', async () => {
         await expand();
-        card('Workspace sessions').querySelector<HTMLButtonElement>('.port')!.click();
+        card('Workspaces').querySelector<HTMLButtonElement>('.port')!.click();
         expect(fake.mock.tabs.create).toHaveBeenCalledWith({ url: 'http://localhost:3000' });
       });
     });
@@ -943,21 +999,21 @@ describe('the cards', () => {
       ];
       const expand = async () => {
         await open(makeSnapshot({ sessions: [running] }));
-        card('Workspace sessions').querySelector<HTMLButtonElement>('.session-toggle')!.click();
-        button('Show activity', card('Workspace sessions')).click();
+        card('Workspaces').querySelector<HTMLButtonElement>('.session-toggle')!.click();
+        button('Show activity', card('Workspaces')).click();
       };
 
       it('asks for the timeline, shows loading, and keeps it current while shown', async () => {
         await expand();
         expect(sentOfType('timeline')).toEqual([{ type: 'timeline', id: 'ws-a' }]);
-        expect(card('Workspace sessions').querySelector('.activity')!.textContent).toBe('Loading…');
-        const link = card('Workspace sessions').querySelector<HTMLElement>('.session-actions .session-link')!;
+        expect(card('Workspaces').querySelector('.activity')!.textContent).toBe('Loading…');
+        const link = card('Workspaces').querySelector<HTMLElement>('.session-actions .session-link')!;
         expect(link.getAttribute('aria-expanded')).toBe('true');
         expect(link.querySelector('.caret.open')).not.toBeNull();
         sent.length = 0;
         vi.advanceTimersByTime(3000);
         expect(sentOfType('timeline')).toEqual([{ type: 'timeline', id: 'ws-a' }]);
-        button('Hide activity', card('Workspace sessions')).click();
+        button('Hide activity', card('Workspaces')).click();
         sent.length = 0;
         vi.advanceTimersByTime(3000);
         expect(sentOfType('timeline')).toEqual([]);
@@ -966,7 +1022,7 @@ describe('the cards', () => {
       it('lists events newest first, naming who or what did each, and the files changed but not merely read', async () => {
         await expand();
         view.setTimeline({ type: 'timeline', id: 'ws-a', events, error: null });
-        const activity = card('Workspace sessions').querySelector('.activity')!;
+        const activity = card('Workspaces').querySelector('.activity')!;
         expect(text('.activity-kind', activity)).toEqual(['Claude', 'Write', 'Read', 'Edit', 'You']);
         expect(text('.activity-text', activity)).toEqual(['Done', 'Write a.ts again', 'Read b.ts', 'Edit a.ts', 'Fix the bug']);
         expect(activity.querySelector('.activity-files')!.textContent).toBe('Changed 1 file: a.ts');
@@ -985,52 +1041,40 @@ describe('the cards', () => {
             { at: '', kind: 'tool', tool: 'Edit', summary: 'y', file: '/lib/c.ts' },
           ],
         });
-        expect(card('Workspace sessions').querySelector('.activity-files')!.textContent).toBe('Changed 2 files: b.ts, c.ts');
+        expect(card('Workspaces').querySelector('.activity-files')!.textContent).toBe('Changed 2 files: b.ts, c.ts');
       });
 
       it('says when there is nothing yet, or it could not be read', async () => {
         await expand();
         view.setTimeline({ type: 'timeline', id: 'ws-a', events: [], error: null });
-        expect(card('Workspace sessions').querySelector('.activity')!.textContent).toBe('Nothing yet.');
+        expect(card('Workspaces').querySelector('.activity')!.textContent).toBe('Nothing yet.');
         view.setTimeline({ type: 'timeline', id: 'ws-a', events: [], error: 'no transcript' });
-        expect(card('Workspace sessions').querySelector('.activity')!.textContent).toBe('no transcript');
+        expect(card('Workspaces').querySelector('.activity')!.textContent).toBe('no transcript');
       });
     });
   });
 
-  describe('Housekeeping', () => {
-    it('shows the sizes and the review fetch', async () => {
+  describe('Data', () => {
+    it('shows the sizes', async () => {
       await open(makeSnapshot({ storage: { uploadsBytes: 5 * 1024 * 1024, logBytes: 2048, dataBytes: 1024 } }));
-      const facts = kv(card('Housekeeping'));
-      expect(facts.Uploads).toBe('5.0 MB');
-      expect(facts['Helper log']).toBe('2.0 KB');
-      expect(facts['Data folder']).toBe('1.0 KB');
-      expect(facts['Review requests']).toMatch(/^3 PRs, fetched /);
-    });
-
-    it('says reviews are not fetched yet, or what last went wrong', async () => {
-      await open(makeSnapshot({ reviews: { fetchedAt: null, count: 0, error: null } }));
-      expect(kv(card('Housekeeping'))['Review requests']).toBe('not fetched yet');
-      await open(makeSnapshot({ reviews: { fetchedAt: '2026-03-10T11:00:00.000Z', count: 2, error: 'gh: not logged in\nmore' } }));
-      expect(kv(card('Housekeeping'))['Review requests']).toContain('(last error: gh: not logged in)');
+      expect(kv(card('Data'))).toEqual({ Uploads: '5.0 MB', 'Helper log': '2.0 KB', 'Data folder': '1.0 KB' });
     });
 
     it('asks twice before clearing uploads or the log', async () => {
       await open();
-      button('Clear uploads', card('Housekeeping')).click();
-      button('Delete all uploads?', card('Housekeeping')).click();
-      button('Clear log', card('Housekeeping')).click();
-      button('Empty the log?', card('Housekeeping')).click();
+      button('Clear uploads', card('Data')).click();
+      button('Delete all uploads?', card('Data')).click();
+      button('Clear log', card('Data')).click();
+      button('Empty the log?', card('Data')).click();
       expect(requests()).toEqual([{ action: 'clearUploads' }, { action: 'clearLog' }]);
     });
 
-    it('prunes worktrees, refreshes reviews and exports at one click', async () => {
+    it('prunes worktrees and exports at one click', async () => {
       await open();
-      button('Prune worktrees', card('Housekeeping')).click();
-      button('Refresh reviews', card('Housekeeping')).click();
-      button('Export workspaces', card('Housekeeping')).click();
+      button('Prune worktrees', card('Data')).click();
+      button('Export workspaces', card('Data')).click();
       expect(requests()).toEqual([{ action: 'pruneWorktrees' }]);
-      expect(sent.map((message) => message.type)).toEqual(['admin', 'refreshReviews', 'exportData']);
+      expect(sent.map((message) => message.type)).toEqual(['admin', 'exportData']);
     });
   });
 
@@ -1050,6 +1094,8 @@ describe('the cards', () => {
       expect(facts['Watched repos']).toBe('acme/app');
       expect(facts.Prices).toBe('opus: $15 in / $75 out');
       expect(facts['Warn above']).toBe('4096 MB per workspace · servers idle 4 h');
+      expect(facts.Jira).toBe('none');
+      expect(facts['Ignored entries']).toBeUndefined();
       expect(text('.settings-note', card('Configuration'))[0]).toBe(
         'Read from /Users/me/.chrome-workspaces/config.json. Edit it and restart the helper to change these.',
       );
@@ -1063,34 +1109,38 @@ describe('the cards', () => {
       expect(facts['Repo directories']).toBe('none');
       expect(facts['Watched repos']).toBe('none');
       expect(facts['Default model']).toBe("claude's own");
+      expect(facts['Claude arguments']).toBe('none');
+      expect(facts['Team prompts']).toBe('none');
+      expect(facts['Team templates']).toBe('none');
     });
-  });
 
-  describe('Diagnostics', () => {
-    it('says whether the helper’s extension id matches this extension', async () => {
-      await open();
-      expect(kv(card('Diagnostics'))['Extension ID']).toBe('Matches this extension');
+    it('shows the Jira site, and the entries the helper ignored with why', async () => {
       const snapshot = makeSnapshot();
-      await open({ ...snapshot, helper: { ...snapshot.helper, extensionId: 'other-id' } });
-      expect(kv(card('Diagnostics'))['Extension ID']).toBe('Does not match this extension (ext-id)');
+      await open({
+        ...snapshot,
+        config: { ...snapshot.config, jiraBaseUrl: 'https://acme.atlassian.net' },
+        setup: { ...snapshot.setup, configProblems: ['watchRepos entry "x" is ignored.', 'defaultModel is not a model name.'] },
+      });
+      const facts = kv(card('Configuration'));
+      expect(facts.Jira).toBe('https://acme.atlassian.net');
+      expect(facts['Ignored entries']).toBe('watchRepos entry "x" is ignored.\ndefaultModel is not a model name.');
     });
 
-    it('runs the GitHub check', async () => {
-      await open();
-      button('Check GitHub CLI', card('Diagnostics')).click();
-      expect(requests()).toEqual([{ action: 'checkGh' }]);
-    });
-
-    it('copies debug info, without the config or any prompts, and says so', async () => {
-      const writeText = vi.fn(async () => {});
-      vi.stubGlobal('navigator', { clipboard: { writeText } });
-      await open();
-      button('Copy debug info', card('Diagnostics')).click();
-      const copied = JSON.parse((writeText.mock.calls[0] as unknown as [string])[0]);
-      expect(Object.keys(copied)).toEqual(['extension', 'helper', 'storage', 'sessions']);
-      expect(copied.extension).toBe('1.2.3');
-      expect(copied.sessions).toEqual([{ id: 'ws-00000001', pid: 100, status: null, cwdMissing: false }]);
-      expect($('settings-result').textContent).toBe('Debug info copied.');
+    it('shows the claude arguments and the team files', async () => {
+      const snapshot = makeSnapshot();
+      await open({
+        ...snapshot,
+        config: {
+          ...snapshot.config,
+          claudeArgs: ['--permission-mode', 'acceptEdits'],
+          promptsFiles: ['/team/a.md', '/team/b.md'],
+          templatesFile: '/team/t.json',
+        },
+      });
+      const facts = kv(card('Configuration'));
+      expect(facts['Claude arguments']).toBe('--permission-mode acceptEdits');
+      expect(facts['Team prompts']).toBe('/team/a.md\n/team/b.md');
+      expect(facts['Team templates']).toBe('/team/t.json');
     });
   });
 

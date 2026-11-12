@@ -1,5 +1,5 @@
 import { followTabZoom } from './zoom';
-import { waitingKind } from '../../shared/attention';
+import { statusLabel } from '../../shared/attention';
 import { SearchAddon } from '@xterm/addon-search';
 import { similarity } from '../../shared/pairing';
 import type { ClientMessage, HistoryEntry, ReviewRequest, ReviewsState, SystemSnapshot, WaitingOn, Workspace, WorkspaceStatus } from '../../shared/protocol';
@@ -26,6 +26,7 @@ import { terminalTheme } from './terminal-theme';
 import { loadSelection, onSelectionChange, select, shownIn, type Selection } from './selection';
 import { openPopout } from './popout-window';
 import { showOnly, switchTo } from './windows';
+import { errorMessage } from '../../shared/errors';
 
 const newButton = $<HTMLButtonElement>('new');
 const noticeEl = $<HTMLDivElement>('notice');
@@ -257,7 +258,7 @@ function showOfflineNotice(): void {
     // On success the control connection's backoff reconnects and clears this notice.
     startHelper().catch((error) => {
       if (isHostMissing(error)) return showInstallNotice();
-      message.textContent = `Could not start the helper: ${error instanceof Error ? error.message : String(error)}. Try npm run agent:start.`;
+      message.textContent = `Could not start the helper: ${errorMessage(error)}. Try npm run agent:start.`;
       start.disabled = false;
     });
   };
@@ -494,11 +495,7 @@ function paletteItems(): PaletteItem[] {
     items.push({
       kind: 'Workspace',
       label: ws.name,
-      hint: [
-        ws.id === shown?.id ? 'current' : '',
-        status === 'needs_input' ? (waitingKind(waiting[ws.id]) === 'permission' ? 'needs permission' : 'needs input') : status === 'working' ? 'working' : '',
-        ws.cwd.replace(/^\/Users\/[^/]+/, '~'),
-      ]
+      hint: [ws.id === shown?.id ? 'current' : '', status === 'idle' ? '' : statusLabel(status, waiting[ws.id]), ws.cwd.replace(/^\/Users\/[^/]+/, '~')]
         .filter(Boolean)
         .join(' · '),
       run: () => openWorkspace(ws),
