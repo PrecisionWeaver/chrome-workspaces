@@ -1,30 +1,19 @@
-import { isAbsolute } from 'node:path';
 import type { WebSocket } from 'ws';
 import type { ActivityItem } from '../../../shared/sessions/activity';
 import { workspaceShellSession } from '../../../shared/protocol/protocol';
-import type {
-  ControlToClient,
-  ControlToHelper,
-  PastSession,
-  Prompt,
-  Repo,
-  ReviewsState,
-  WaitingOn,
-  Workspace,
-  WorkspaceStatus,
-} from '../../../shared/protocol/protocol';
-import { isDirectory } from '../platform/config';
+import type { ControlToClient, ControlToHelper, PastSession, Prompt, Repo, ReviewsState, WaitingOn, WorkspaceStatus } from '../../../shared/protocol/protocol';
 import { isControlToHelper } from './messages';
 import type { AdminService } from '../admin/admin';
 import type { Template } from '../../../shared/workspaces/templates';
 import { asPaste } from '../pty/paste';
 import type { GitService } from '../git/git';
 import type { HistoryStore } from '../store/history';
-import { parseBranchChecks, parsePrDetails, parsePrThreads, parsePrUrl } from '../git/pr-details';
-import { prWorkspace } from '../git/pr-workspace';
+import { parsePrDetails, parsePrThreads, parsePrUrl } from '../git/pr-details';
 import type { SessionManager } from '../pty/session';
 import type { WorkspaceStore } from '../store/workspace-store';
 import { errorMessage } from '../../../shared/protocol/errors';
+import { handleGit, isGitRequest } from './git-handlers';
+import { handleWorkspace, isWorkspaceRequest } from './workspace-handlers';
 
 export interface ReviewSource {
   state(): ReviewsState;
@@ -68,13 +57,24 @@ export interface ControlHubOptions {
   activity: (id: string) => ActivityItem[] | null;
 }
 
+/** What a message handler outside the hub gets to work with: the hub's options and its ways of replying. */
+export interface HubContext {
+  readonly options: ControlHubOptions;
+  /** Sends every connected client a message; returns whether any received it. */
+  send(message: ControlToClient): boolean;
+  /** Sends one client a message. */
+  sendTo(ws: WebSocket, message: ControlToClient): void;
+  /** Sends the asking client what `work` resolves to, in the `ok` shape, or its failure in the `fail` shape. */
+  answer<T>(ws: WebSocket, work: Promise<T>, ok: (value: T) => ControlToClient, fail: (reason: string) => ControlToClient): void;
+}
+
 /** Keeps every connected extension context (service worker, panels) in sync with the store. */
-export class ControlHub {
+export class ControlHub implements HubContext {
   private readonly clients = new Set<WebSocket>();
   // The workspace each client is watching the activity of, if any.
   private readonly following = new Map<WebSocket, string>();
 
-  constructor(private readonly options: ControlHubOptions) {
+  constructor(readonly options: ControlHubOptions) {
     options.store.onChange(() => this.broadcastState());
     options.history.onChange(() => this.send(this.historyMessage()));
   }
@@ -110,6 +110,17 @@ export class ControlHub {
     return this.clients.size > 0;
   }
 
+  sendTo(ws: WebSocket, message: ControlToClient): void {
+    if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(message));
+  }
+
+  answer<T>(ws: WebSocket, work: Promise<T>, ok: (value: T) => ControlToClient, fail: (reason: string) => ControlToClient): void {
+    work.then(
+      (value) => this.sendTo(ws, ok(value)),
+      (error: unknown) => this.sendTo(ws, fail(errorMessage(error))),
+    );
+  }
+
   broadcastState(): void {
     this.send(this.state());
   }
@@ -117,6 +128,22 @@ export class ControlHub {
   /** Sends each following client its workspace's activity again; called when a session's events change. */
   pushActivity(): void {
     for (const [ws, id] of this.following) this.sendTo(ws, this.activityMessage(id));
+  }
+
+  /** Archives a workspace: remembers it under Archived, ends its terminals, and closes its tabs when asked to. */
+  remove(id: string, closeTabs = false): void {
+    const { store } = this.options;
+    const removing = store.get(id);
+    // Remembered before it goes, with the conversation it was on, so it can be restored.
+    if (removing) this.options.history.record(removing, this.options.resumeId(id));
+    this.options.sessions.remove(id);
+    this.options.sessions.remove(workspaceShellSession(id));
+    store.remove(id);
+    if (removing?.windowId != null && closeTabs) {
+      // A window shared with other workspaces is theirs too: only a group can be closed out of it.
+      const shared = store.list().some((ws) => ws.windowId === removing.windowId);
+      if (removing.groupId !== null || !shared) this.send({ type: 'closeTabs', windowId: removing.windowId, groupId: removing.groupId });
+    }
   }
 
   private activityMessage(id: string): ControlToClient {
@@ -142,15 +169,15 @@ export class ControlHub {
     }
   }
 
-  /** Sends the asking client what `work` resolves to, in the `ok` shape, or its failure in the `fail` shape. */
-  private answer<T>(ws: WebSocket, work: Promise<T>, ok: (value: T) => ControlToClient, fail: (reason: string) => ControlToClient): void {
-    work.then(
-      (value) => this.sendTo(ws, ok(value)),
-      (error: unknown) => this.sendTo(ws, fail(errorMessage(error))),
-    );
-  }
-
   private handle(message: ControlToHelper, ws: WebSocket): void {
+    if (isWorkspaceRequest(message)) {
+      handleWorkspace(this, message, ws);
+      return;
+    }
+    if (isGitRequest(message)) {
+      handleGit(this, message, ws);
+      return;
+    }
     const { store } = this.options;
     switch (message.type) {
       case 'pair':
@@ -164,27 +191,6 @@ export class ControlHub {
         break;
       case 'tabs':
         store.setTabs(message.windowId, message.urls, message.groupId ?? null);
-        break;
-      case 'create':
-        this.create(message, ws).catch((error: unknown) =>
-          this.sendTo(ws, {
-            type: 'createError',
-            name: message.name.trim(),
-            message: `Could not create the workspace: ${errorMessage(error)}`,
-          }),
-        );
-        break;
-      case 'rename':
-        if (store.get(message.id)) store.rename(message.id, message.name.trim());
-        break;
-      case 'move':
-        if (store.get(message.id)) store.move(message.id, message.index);
-        break;
-      case 'mark':
-        if (store.get(message.id)) store.mark(message.id, message);
-        break;
-      case 'order':
-        store.reorder(message.ids);
         break;
       case 'listSessions':
         if (store.get(message.id)) this.sendTo(ws, { type: 'sessions', id: message.id, sessions: this.options.pastSessions(message.id) });
@@ -208,37 +214,6 @@ export class ControlHub {
       }
       case 'remove':
         this.remove(message.id, message.closeTabs === true);
-        break;
-      case 'restore': {
-        const entry = this.options.history.get(message.historyId);
-        if (!entry) break;
-        // The directory may be gone, e.g. a deleted worktree; the default directory is better than none.
-        const cwd = isDirectory(entry.cwd) ? entry.cwd : this.options.defaultCwd;
-        const workspace = store.create({
-          name: entry.name,
-          ticket: entry.ticket,
-          cwd,
-          url: entry.url,
-          pr: entry.pr,
-          model: entry.model,
-          tabs: entry.tabs,
-          resume: entry.resumeId,
-        });
-        this.options.history.remove(entry.id);
-        if (entry.pinned || entry.color) store.mark(workspace.id, { pinned: entry.pinned, color: entry.color });
-        if (message.windowId === null) this.send({ type: 'open', id: workspace.id });
-        else {
-          store.pairWindow(workspace.id, message.windowId);
-          // The window already holds a workspace, so this one gets its own tab group there, with its tabs.
-          this.send({ type: 'group', id: workspace.id });
-        }
-        break;
-      }
-      case 'forget':
-        this.options.history.remove(message.historyId);
-        break;
-      case 'forgetAll':
-        this.options.history.clear();
         break;
       case 'listPrompts':
         this.sendTo(
@@ -305,20 +280,6 @@ export class ControlHub {
           (error) => ({ type: 'updates', status: null, error }),
         );
         break;
-      case 'git':
-      case 'gitCommit':
-      case 'gitDiff':
-      case 'gitBranches':
-      case 'gitChecks':
-      case 'gitCompare':
-      case 'gitStage':
-      case 'gitDiscard':
-      case 'gitSave':
-      case 'gitSwitch':
-      case 'gitPush':
-      case 'gitCreatePr':
-        this.handleGit(message, ws);
-        break;
       case 'listRepos':
         this.sendTo(ws, { type: 'repos', repos: this.options.repos() });
         break;
@@ -348,185 +309,4 @@ export class ControlHub {
       }
     }
   }
-
-  /** Archives a workspace: remembers it under Archived, ends its terminals, and closes its tabs when asked to. */
-  remove(id: string, closeTabs = false): void {
-    const { store } = this.options;
-    const removing = store.get(id);
-    // Remembered before it goes, with the conversation it was on, so it can be restored.
-    if (removing) this.options.history.record(removing, this.options.resumeId(id));
-    this.options.sessions.remove(id);
-    this.options.sessions.remove(workspaceShellSession(id));
-    store.remove(id);
-    if (removing?.windowId != null && closeTabs) {
-      // A window shared with other workspaces is theirs too: only a group can be closed out of it.
-      const shared = store.list().some((ws) => ws.windowId === removing.windowId);
-      if (removing.groupId !== null || !shared) this.send({ type: 'closeTabs', windowId: removing.windowId, groupId: removing.groupId });
-    }
-  }
-
-  private async create(message: Extract<ControlToHelper, { type: 'create' }>, ws: WebSocket): Promise<void> {
-    const { store, defaultCwd, repoDirs, reviews, git } = this.options;
-    const existing = message.pr ? store.findByPr(message.pr) : undefined;
-    if (existing) {
-      this.send({ type: 'focus', id: existing.id });
-      return;
-    }
-    const chosen = message.cwd && isAbsolute(message.cwd) && isDirectory(message.cwd) ? message.cwd : null;
-    // A PR workspace starts in its repo's configured directory unless one was picked.
-    const base = message.pr ? prWorkspace(message.pr, { reviews: reviews.state().items, repoDirs, defaultCwd }) : { cwd: defaultCwd };
-    if (chosen) base.cwd = chosen;
-    if (message.worktree) {
-      try {
-        base.cwd = await git.addWorktree(base.cwd, message.worktree);
-      } catch (error) {
-        const reason = errorMessage(error);
-        this.sendTo(ws, { type: 'createError', name: message.name.trim(), message: `Could not make a worktree for ${message.worktree}: ${reason}` });
-        return;
-      }
-    }
-    const workspace = store.create({
-      ...base,
-      name: message.name.trim(),
-      prompt: message.prompt?.trim() || null,
-      model: message.model ?? null,
-      color: message.color ?? null,
-      tabs: message.urls ?? [],
-    });
-    if (message.windowId === null) this.send({ type: 'open', id: workspace.id });
-    else {
-      store.pairWindow(workspace.id, message.windowId);
-      // A workspace joining a window another one holds gets its own tab group there.
-      if (message.group) this.send({ type: 'group', id: workspace.id });
-    }
-  }
-
-  /**
-   * Where to run git for a workspace: the directory its claude reports, when that is another worktree
-   * of the same repository (claude moves into worktrees on its own), else the workspace's own.
-   */
-  private async gitDirectory(workspace: Workspace): Promise<string> {
-    const reported = this.options.workingDir(workspace.id);
-    if (!reported || reported === workspace.cwd || !isAbsolute(reported) || !isDirectory(reported)) return workspace.cwd;
-    return (await this.options.git.sameRepository(workspace.cwd, reported)) ? reported : workspace.cwd;
-  }
-
-  /**
-   * Answers a git request for a workspace's directory; the reply goes to the asking client only. Each request
-   * has one shape for its answer and one for its failure, and `answer` fills whichever the work ends in.
-   */
-  private handleGit(message: GitRequest, ws: WebSocket): void {
-    const { store, git } = this.options;
-    const { id } = message;
-    const workspace = store.get(id);
-    const dir = workspace ? this.gitDirectory(workspace) : Promise.reject(new Error('unknown workspace'));
-    const answer = <T>(work: (cwd: string) => Promise<T>, ok: (value: T) => ControlToClient, fail: (reason: string) => ControlToClient) =>
-      this.answer(ws, dir.then(work), ok, fail);
-    // A write answers with a one-line result; the work resolves to the message, or to it with a url to open.
-    const result = (action: string, work: (cwd: string) => Promise<string | { message: string; url: string }>) =>
-      answer(
-        work,
-        (done) => ({ type: 'gitResult', id, action, ok: true, ...(typeof done === 'string' ? { message: done } : done) }),
-        (reason) => ({ type: 'gitResult', id, action, ok: false, message: reason }),
-      );
-
-    switch (message.type) {
-      case 'git':
-        answer(
-          (cwd) => git.state(cwd),
-          (state) => ({ type: 'git', id, state, error: null }),
-          (error) => ({ type: 'git', id, state: null, error }),
-        );
-        break;
-      case 'gitCommit': {
-        const { sha } = message;
-        answer(
-          (cwd) => git.commitFiles(cwd, sha),
-          (files) => ({ type: 'gitCommit', id, sha, files, error: null }),
-          (error) => ({ type: 'gitCommit', id, sha, files: [], error }),
-        );
-        break;
-      }
-      case 'gitDiff': {
-        const { path } = message;
-        const sha = message.sha ?? null;
-        answer(
-          (cwd) => git.diff(cwd, path, sha, message.base === true),
-          ({ diff, truncated }) => ({ type: 'gitDiff', id, path, sha, diff, truncated, error: null }),
-          (error) => ({ type: 'gitDiff', id, path, sha, diff: '', truncated: false, error }),
-        );
-        break;
-      }
-      case 'gitChecks':
-        answer(
-          (cwd) => this.options.branchPr(cwd),
-          (json) => {
-            const found = parseBranchChecks(json);
-            return { type: 'gitChecks', id, pr: found?.pr ?? null, checks: found?.checks ?? null, error: null };
-          },
-          // `gh` exits non-zero both for "no pull request" and for a real failure; only the first is not an error.
-          (reason) => ({ type: 'gitChecks', id, pr: null, checks: null, error: /no pull requests? found/i.test(reason) ? null : reason.split('\n')[0] }),
-        );
-        break;
-      case 'gitBranches':
-        answer(
-          (cwd) => git.branches(cwd),
-          (branches) => ({ type: 'gitBranches', id, branches, error: null }),
-          (error) => ({ type: 'gitBranches', id, branches: [], error }),
-        );
-        break;
-      case 'gitCompare':
-        answer(
-          (cwd) => git.compare(cwd),
-          (compare) => ({ type: 'gitCompare', id, compare, error: null }),
-          (error) => ({ type: 'gitCompare', id, compare: null, error }),
-        );
-        break;
-      case 'gitStage':
-        result(message.stage ? 'stage' : 'unstage', (cwd) => git.stage(cwd, message.paths, message.stage));
-        break;
-      case 'gitDiscard':
-        result('discard', (cwd) => git.discard(cwd, message.paths));
-        break;
-      case 'gitSave':
-        result('commit', (cwd) => git.save(cwd, message.message));
-        break;
-      case 'gitSwitch':
-        result('switch', (cwd) => git.switchBranch(cwd, message.branch));
-        break;
-      case 'gitPush':
-        result('push', (cwd) => git.push(cwd));
-        break;
-      case 'gitCreatePr':
-        result('pr', async (cwd) => {
-          await git.push(cwd);
-          const url = await this.options.createPr(cwd);
-          return { message: `Opened ${url}`, url };
-        });
-        break;
-    }
-  }
-
-  private sendTo(ws: WebSocket, message: ControlToClient): void {
-    if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(message));
-  }
 }
-
-type GitRequest = Extract<
-  ControlToHelper,
-  {
-    type:
-      | 'git'
-      | 'gitCommit'
-      | 'gitDiff'
-      | 'gitBranches'
-      | 'gitChecks'
-      | 'gitCompare'
-      | 'gitStage'
-      | 'gitDiscard'
-      | 'gitSave'
-      | 'gitSwitch'
-      | 'gitPush'
-      | 'gitCreatePr';
-  }
->;

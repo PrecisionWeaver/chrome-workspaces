@@ -1,11 +1,10 @@
-import { execFileSync } from 'node:child_process';
-import { chmodSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { ControlToClient, ReviewRequest } from '../../../shared/protocol/protocol';
-import { connectControl, gitRepo, opened, startHarness, type Harness } from '../../testing/harness';
+import type { ControlToClient } from '../../../shared/protocol/protocol';
+import { connectControl, opened, startHarness, type Harness } from '../../testing/harness';
 import { waitFor } from '../../testing/wait-for';
 
 let h: Harness;
@@ -24,23 +23,8 @@ function lastState(messages: ControlToClient[]) {
 }
 
 const PR = 'https://github.com/acme/web-app/pull/482';
-const review: ReviewRequest = {
-  repo: 'acme/web-app',
-  number: 482,
-  title: 'PROJ-9 - x',
-  url: PR,
-  author: 'drew',
-  isDraft: false,
-  updatedAt: '2026-10-01T00:00:00Z',
-  ticket: 'PROJ-9',
-  branch: 'feature/x',
-  merge: 'unknown',
-  mergeReason: null,
-  needsReReview: false,
-  approved: false,
-  ci: null,
-};
 
+// Workspace and git requests have their own tests beside their handlers.
 describe('control channel', () => {
   it('sends the current state on connect', async () => {
     const a = h.store.create({ name: 'a', cwd: h.defaultCwd });
@@ -75,20 +59,15 @@ describe('control channel', () => {
     ws.close();
   });
 
-  it('creates a workspace in the current window when asked from an unpaired panel', async () => {
+  it('records the tab group the extension reports, and keeps the window when the group goes', async () => {
+    const b = h.store.create({ name: 'b', cwd: h.defaultCwd });
     const { ws } = connectControl(h);
     await opened(ws);
-    ws.send(JSON.stringify({ type: 'create', name: 'scratch', windowId: 9 }));
-    await waitFor(() => h.store.list().length === 1);
-    expect(h.store.list()[0]).toMatchObject({ name: 'scratch', windowId: 9, cwd: h.defaultCwd });
-    ws.close();
-  });
-
-  it('opens a new window for a workspace created without one', async () => {
-    const { ws, messages } = connectControl(h);
-    await opened(ws);
-    ws.send(JSON.stringify({ type: 'create', name: 'scratch', windowId: null }));
-    await waitFor(() => messages.some((m) => m.type === 'open'));
+    ws.send(JSON.stringify({ type: 'pair', id: b.id, windowId: 9, groupId: 44 }));
+    await waitFor(() => h.store.get(b.id)?.groupId === 44);
+    ws.send(JSON.stringify({ type: 'unpairGroup', groupId: 44 }));
+    await waitFor(() => h.store.get(b.id)?.groupId === null);
+    expect(h.store.get(b.id)?.windowId).toBe(9);
     ws.close();
   });
 
@@ -107,37 +86,7 @@ describe('control channel', () => {
     expect(h.sessions.get(`shell-${a.id}`)).toBeUndefined();
   });
 
-  it('renames a workspace, trimming the name and ignoring blank or overlong ones', async () => {
-    const a = h.store.create({ name: 'a', cwd: h.defaultCwd });
-    const { ws } = connectControl(h);
-    await opened(ws);
-    ws.send(JSON.stringify({ type: 'rename', id: a.id, name: '   ' }));
-    ws.send(JSON.stringify({ type: 'rename', id: a.id, name: 'x'.repeat(81) }));
-    ws.send(JSON.stringify({ type: 'rename', id: 'ws-unknown0', name: 'nope' }));
-    ws.send(JSON.stringify({ type: 'rename', id: a.id, name: '  Checkout bug  ' }));
-    await waitFor(() => h.store.get(a.id)?.name === 'Checkout bug');
-    ws.close();
-  });
-
-  it('answers a create the store could not save with an error, and keeps serving the channel', async () => {
-    const { ws, messages } = connectControl(h);
-    await opened(ws);
-    // A read-only data folder makes every save fail.
-    chmodSync(h.dataDir, 0o555);
-    try {
-      ws.send(JSON.stringify({ type: 'create', name: 'doomed', windowId: null }));
-      await waitFor(() => messages.some((m) => m.type === 'createError'));
-      const error = messages.find((m) => m.type === 'createError');
-      expect(error).toMatchObject({ type: 'createError', name: 'doomed' });
-    } finally {
-      chmodSync(h.dataDir, 0o755);
-    }
-    ws.send(JSON.stringify({ type: 'create', name: 'fine', windowId: null }));
-    await waitFor(() => h.store.list().length === 1);
-    ws.close();
-  });
-
-  it('survives a rename the store could not save', async () => {
+  it('survives a request the store could not save', async () => {
     const a = h.store.create({ name: 'a', cwd: h.defaultCwd });
     const { ws } = connectControl(h);
     await opened(ws);
@@ -153,19 +102,6 @@ describe('control channel', () => {
     ws.close();
   });
 
-  it('moves a workspace, ignoring unknown ids and bad indexes', async () => {
-    const [a, b, c] = ['a', 'b', 'c'].map((name) => h.store.create({ name, cwd: h.defaultCwd }));
-    const { ws } = connectControl(h);
-    await opened(ws);
-    ws.send(JSON.stringify({ type: 'move', id: a.id, index: -1 }));
-    ws.send(JSON.stringify({ type: 'move', id: a.id, index: 1.5 }));
-    ws.send(JSON.stringify({ type: 'move', id: 'ws-unknown0', index: 0 }));
-    ws.send(JSON.stringify({ type: 'move', id: c.id, index: 0 }));
-    await waitFor(() => h.store.list()[0]?.id === c.id);
-    expect(h.store.list().map((w) => w.id)).toEqual([c.id, a.id, b.id]);
-    ws.close();
-  });
-
   it('ignores malformed messages without dropping the connection', async () => {
     const a = h.store.create({ name: 'a', cwd: h.defaultCwd });
     const { ws } = connectControl(h);
@@ -175,230 +111,6 @@ describe('control channel', () => {
     ws.send(JSON.stringify({ type: 'pair', id: 'ws-unknown0', windowId: 1 }));
     ws.send(JSON.stringify({ type: 'pair', id: a.id, windowId: 3 }));
     await waitFor(() => h.store.get(a.id)?.windowId === 3);
-    ws.close();
-  });
-
-  it('creates a PR workspace in its repo directory with the prompt, and opens it', async () => {
-    const repoDir = mkdtempSync(join(tmpdir(), 'cw-repo-'));
-    h.reviews.push(review);
-    h.repoDirs['acme/web-app'] = repoDir;
-    const { ws, messages } = connectControl(h);
-    await opened(ws);
-    ws.send(JSON.stringify({ type: 'create', name: 'web-app#482', windowId: null, pr: PR, prompt: `  /code-review ${PR}  ` }));
-    await waitFor(() => messages.some((m) => m.type === 'open'));
-    expect(h.store.list()[0]).toMatchObject({ name: 'web-app#482', ticket: 'PROJ-9', cwd: repoDir, url: PR, pr: PR, prompt: `/code-review ${PR}` });
-    ws.close();
-  });
-
-  it('starts a workspace in a fresh worktree when asked, or says why it could not', async () => {
-    const repoDir = gitRepo();
-    const { ws, messages } = connectControl(h);
-    await opened(ws);
-    ws.send(JSON.stringify({ type: 'create', name: 'PROJ-7', windowId: null, cwd: repoDir, worktree: 'PROJ-7' }));
-    await waitFor(() => messages.some((m) => m.type === 'open'));
-    expect(h.store.list()[0]).toMatchObject({ name: 'PROJ-7', cwd: realpathSync(join(repoDir, '.claude', 'worktrees', 'PROJ-7')) });
-
-    ws.send(JSON.stringify({ type: 'create', name: 'again', windowId: null, cwd: h.defaultCwd, worktree: 'again' }));
-    await waitFor(() => messages.some((m) => m.type === 'createError'));
-    expect(messages.find((m) => m.type === 'createError')).toMatchObject({ name: 'again', message: expect.stringContaining('again') });
-    expect(h.store.list()).toHaveLength(1);
-    ws.close();
-  });
-
-  it('focuses the existing workspace for a PR instead of creating another', async () => {
-    const existing = h.store.create({ name: 'mine', cwd: h.defaultCwd, pr: PR });
-    const { ws, messages } = connectControl(h);
-    await opened(ws);
-    ws.send(JSON.stringify({ type: 'create', name: 'web-app#482', windowId: null, pr: PR, prompt: 'x' }));
-    await waitFor(() => messages.some((m) => m.type === 'focus' && m.id === existing.id));
-    expect(h.store.list()).toHaveLength(1);
-    ws.close();
-  });
-
-  it('creates a prompt-only workspace in the default directory', async () => {
-    const { ws } = connectControl(h);
-    await opened(ws);
-    ws.send(JSON.stringify({ type: 'create', name: 'triage', windowId: null, prompt: 'Dig into this prod issue' }));
-    await waitFor(() => h.store.list().length === 1);
-    expect(h.store.list()[0]).toMatchObject({ name: 'triage', cwd: h.defaultCwd, pr: null, prompt: 'Dig into this prod issue' });
-    ws.close();
-  });
-
-  it('ignores a create with a non-PR url or an overlong prompt', async () => {
-    const { ws } = connectControl(h);
-    await opened(ws);
-    ws.send(JSON.stringify({ type: 'create', name: 'a', windowId: null, pr: 'https://evil.example/o/r/pull/1' }));
-    ws.send(JSON.stringify({ type: 'create', name: 'b', windowId: null, prompt: 'x'.repeat(8001) }));
-    ws.send(JSON.stringify({ type: 'create', name: 'c', windowId: null }));
-    await waitFor(() => h.store.list().length === 1);
-    expect(h.store.list()[0].name).toBe('c');
-    ws.close();
-  });
-
-  it('asks for a tab group when a workspace joins a window, and records the pairing the extension reports', async () => {
-    const { ws, messages } = connectControl(h);
-    await opened(ws);
-    ws.send(JSON.stringify({ type: 'create', name: 'a', windowId: 9 }));
-    ws.send(JSON.stringify({ type: 'create', name: 'b', windowId: 9, group: true }));
-    await waitFor(() => h.store.list().length === 2);
-    const [a, b] = h.store.list();
-    expect([a.windowId, b.windowId]).toEqual([9, 9]);
-    await waitFor(() => messages.some((m) => m.type === 'group'));
-    expect(messages.filter((m) => m.type === 'group')).toEqual([{ type: 'group', id: b.id }]);
-
-    ws.send(JSON.stringify({ type: 'pair', id: b.id, windowId: 9, groupId: 44 }));
-    await waitFor(() => h.store.get(b.id)?.groupId === 44);
-    ws.send(JSON.stringify({ type: 'unpairGroup', groupId: 44 }));
-    await waitFor(() => h.store.get(b.id)?.groupId === null);
-    expect(h.store.get(b.id)?.windowId).toBe(9);
-    ws.close();
-  });
-
-  it('starts a workspace with the tabs it was given, and ignores a request with a bad one', async () => {
-    const { ws } = connectControl(h);
-    await opened(ws);
-    ws.send(JSON.stringify({ type: 'create', name: 'bad', windowId: null, urls: ['https://a.example', 'javascript:alert(1)'] }));
-    ws.send(JSON.stringify({ type: 'create', name: 'many', windowId: null, urls: Array.from({ length: 21 }, (_, i) => `https://x.example/${i}`) }));
-    ws.send(JSON.stringify({ type: 'create', name: 'ok', windowId: null, urls: ['https://a.example', 'http://b.example/path?q=1'] }));
-    await waitFor(() => h.store.list().length >= 1);
-    expect(h.store.list().map((w) => [w.name, w.lastTabUrls])).toEqual([['ok', ['https://a.example', 'http://b.example/path?q=1']]]);
-    ws.close();
-  });
-
-  it('rejects a model that is not a plain id', async () => {
-    const { ws } = connectControl(h);
-    await opened(ws);
-    ws.send(JSON.stringify({ type: 'create', name: 'bad', windowId: null, model: "x'; rm -rf ~" }));
-    ws.send(JSON.stringify({ type: 'create', name: 'ok', windowId: null, model: 'sonnet' }));
-    await waitFor(() => h.store.list().length >= 1);
-    expect(h.store.list().map((w) => w.name)).toEqual(['ok']);
-    ws.close();
-  });
-
-  it("starts a PR workspace in the directory picked, else its repo's configured one", async () => {
-    const picked = mkdtempSync(join(tmpdir(), 'cw-pick-'));
-    const repoDir = mkdtempSync(join(tmpdir(), 'cw-repo-'));
-    h.repoDirs['acme/web-app'] = repoDir;
-    h.reviews.push(review);
-    const { ws } = connectControl(h);
-    await opened(ws);
-    ws.send(JSON.stringify({ type: 'create', name: 'web-app#482', windowId: null, pr: PR, cwd: picked }));
-    await waitFor(() => h.store.list().length === 1);
-    expect(h.store.list()[0].cwd).toBe(picked);
-    h.store.remove(h.store.list()[0].id);
-    ws.send(JSON.stringify({ type: 'create', name: 'web-app#482', windowId: null, pr: PR }));
-    await waitFor(() => h.store.list().length === 1);
-    expect(h.store.list()[0].cwd).toBe(repoDir);
-    ws.close();
-  });
-
-  it("answers git requests for a workspace's directory, to the asking client only", async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'cw-ctl-git-'));
-    const git = (...args: string[]) => execFileSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.com', ...args], { cwd: dir });
-    git('init', '-q', '-b', 'main');
-    writeFileSync(join(dir, 'f.txt'), 'x\n');
-    git('add', '.');
-    git('commit', '-qm', 'init');
-    writeFileSync(join(dir, 'f.txt'), 'x\ny\n');
-    const workspace = h.store.create({ name: 'g', cwd: dir });
-    const plain = h.store.create({ name: 'plain', cwd: mkdtempSync(join(tmpdir(), 'cw-ctl-nogit-')) });
-
-    const asker = connectControl(h);
-    const other = connectControl(h);
-    await Promise.all([opened(asker.ws), opened(other.ws)]);
-    asker.ws.send(JSON.stringify({ type: 'git', id: workspace.id }));
-    asker.ws.send(JSON.stringify({ type: 'git', id: plain.id }));
-    asker.ws.send(JSON.stringify({ type: 'git', id: 'ws-00000000' }));
-    asker.ws.send(JSON.stringify({ type: 'gitDiff', id: workspace.id, path: 'f.txt' }));
-    asker.ws.send(JSON.stringify({ type: 'gitDiff', id: workspace.id, path: '../x' }));
-    asker.ws.send(JSON.stringify({ type: 'gitCommit', id: workspace.id, sha: '--output=x' }));
-    await waitFor(() => asker.messages.filter((m) => m.type === 'git' || m.type === 'gitDiff').length === 5);
-
-    const replies = asker.messages.filter((m) => m.type === 'git' || m.type === 'gitDiff');
-    const stateReply = replies.find((m) => m.type === 'git' && m.id === workspace.id);
-    expect(stateReply).toMatchObject({ state: { branch: 'main', files: [{ path: 'f.txt', worktree: 'M' }], commits: [{ subject: 'init' }] }, error: null });
-    expect(replies.find((m) => m.type === 'git' && m.id === plain.id)).toMatchObject({ state: null, error: expect.any(String) });
-    expect(replies.find((m) => m.type === 'git' && m.id === 'ws-00000000')).toMatchObject({ state: null, error: 'unknown workspace' });
-    expect(replies.find((m) => m.type === 'gitDiff' && m.path === 'f.txt')).toMatchObject({ diff: expect.stringContaining('+y'), error: null });
-    expect(replies.find((m) => m.type === 'gitDiff' && m.path === '../x')).toMatchObject({ diff: '', error: expect.stringContaining('path') });
-    // A malformed commit id is dropped before it reaches git.
-    expect(asker.messages.some((m) => m.type === 'gitCommit')).toBe(false);
-    expect(other.messages.some((m) => m.type === 'git' || m.type === 'gitDiff')).toBe(false);
-    asker.ws.close();
-    other.ws.close();
-  });
-
-  it("shows the worktree claude has moved into, but only one of the workspace's own repository", async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'cw-wt-main-'));
-    const git = (cwd: string, ...args: string[]) => execFileSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.com', ...args], { cwd });
-    git(dir, 'init', '-q', '-b', 'main');
-    writeFileSync(join(dir, 'f.txt'), 'x\n');
-    git(dir, 'add', '.');
-    git(dir, 'commit', '-qm', 'init');
-    const tree = join(mkdtempSync(join(tmpdir(), 'cw-wt-')), 'feature-tree');
-    git(dir, 'worktree', 'add', '-q', '-b', 'feature', tree);
-    const stranger = mkdtempSync(join(tmpdir(), 'cw-other-'));
-    git(stranger, 'init', '-q', '-b', 'elsewhere');
-    const workspace = h.store.create({ name: 'w', cwd: dir });
-
-    const { ws, messages } = connectControl(h);
-    await opened(ws);
-    const branchAfter = async (n: number) => {
-      await waitFor(() => messages.filter((m) => m.type === 'git').length === n);
-      const reply = messages.filter((m) => m.type === 'git')[n - 1];
-      return reply.type === 'git' ? reply.state?.branch : undefined;
-    };
-
-    ws.send(JSON.stringify({ type: 'git', id: workspace.id }));
-    expect(await branchAfter(1)).toBe('main');
-    h.workingDirs[workspace.id] = tree;
-    ws.send(JSON.stringify({ type: 'git', id: workspace.id }));
-    expect(await branchAfter(2)).toBe('feature');
-    // A directory outside the repository, or one that does not exist, is ignored.
-    h.workingDirs[workspace.id] = stranger;
-    ws.send(JSON.stringify({ type: 'git', id: workspace.id }));
-    expect(await branchAfter(3)).toBe('main');
-    h.workingDirs[workspace.id] = '/no/such/dir';
-    ws.send(JSON.stringify({ type: 'git', id: workspace.id }));
-    expect(await branchAfter(4)).toBe('main');
-    ws.close();
-  });
-
-  it('reorders the whole list in one step, and ignores an order that is not the current workspaces', async () => {
-    const [a, b, c] = ['a', 'b', 'c'].map((name) => h.store.create({ name, cwd: h.defaultCwd }));
-    const { ws } = connectControl(h);
-    await opened(ws);
-    ws.send(JSON.stringify({ type: 'order', ids: [b.id, a.id] }));
-    ws.send(JSON.stringify({ type: 'order', ids: [c.id, a.id, b.id] }));
-    await waitFor(() => h.store.list()[0].id === c.id);
-    expect(h.store.list().map((w) => w.name)).toEqual(['c', 'a', 'b']);
-    ws.close();
-  });
-
-  it('marks a workspace, and drops a mark with a color that is not one of ours', async () => {
-    const a = h.store.create({ name: 'a', cwd: h.defaultCwd });
-    const b = h.store.create({ name: 'b', cwd: h.defaultCwd });
-    const { ws } = connectControl(h);
-    await opened(ws);
-    ws.send(JSON.stringify({ type: 'mark', id: b.id, color: 'hotpink' }));
-    ws.send(JSON.stringify({ type: 'mark', id: b.id, pinned: 'yes' }));
-    ws.send(JSON.stringify({ type: 'mark', id: b.id, pinned: true, color: 'green' }));
-    ws.send(JSON.stringify({ type: 'mark', id: a.id, archived: true }));
-    await waitFor(() => h.store.get(b.id)?.pinned === true);
-    expect(h.store.list().map((w) => [w.name, w.pinned, w.color])).toEqual([
-      ['b', true, 'green'],
-      ['a', false, null],
-    ]);
-    ws.close();
-  });
-
-  it('creates a workspace in the color asked for, and ignores one that is not ours', async () => {
-    const { ws } = connectControl(h);
-    await opened(ws);
-    ws.send(JSON.stringify({ type: 'create', name: 'tinted', windowId: null, color: 'pink' }));
-    ws.send(JSON.stringify({ type: 'create', name: 'bad', windowId: null, color: 'hotpink' }));
-    await waitFor(() => h.store.list().length >= 1);
-    expect(h.store.list().map((w) => [w.name, w.color])).toEqual([['tinted', 'pink']]);
     ws.close();
   });
 
@@ -430,85 +142,6 @@ describe('control channel', () => {
     ws.close();
   });
 
-  it('stages, commits, switches branch and compares over the channel, and drops a malformed write', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'cw-ctl-write-'));
-    const git = (...args: string[]) => execFileSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.com', ...args], { cwd: dir, encoding: 'utf8' });
-    git('init', '-q', '-b', 'main');
-    writeFileSync(join(dir, 'f.txt'), 'x\n');
-    git('add', '.');
-    git('commit', '-qm', 'init');
-    git('branch', 'topic');
-    const workspace = h.store.create({ name: 'w', cwd: dir });
-    writeFileSync(join(dir, 'f.txt'), 'x\ny\n');
-
-    const { ws, messages } = connectControl(h);
-    await opened(ws);
-    const results = () => messages.filter((m): m is Extract<ControlToClient, { type: 'gitResult' }> => m.type === 'gitResult');
-    const next = async (count: number) => {
-      await waitFor(() => results().length === count);
-      return results()[count - 1];
-    };
-
-    ws.send(JSON.stringify({ type: 'gitStage', id: workspace.id, paths: ['f.txt'], stage: true }));
-    expect(await next(1)).toMatchObject({ action: 'stage', ok: true });
-    ws.send(JSON.stringify({ type: 'gitSave', id: workspace.id, message: 'change f' }));
-    expect(await next(2)).toMatchObject({ action: 'commit', ok: true, message: expect.stringContaining('change f') });
-    ws.send(JSON.stringify({ type: 'gitSave', id: workspace.id, message: 'again' }));
-    expect(await next(3)).toMatchObject({ action: 'commit', ok: false, message: 'nothing is staged' });
-    ws.send(JSON.stringify({ type: 'gitStage', id: workspace.id, paths: ['../escape'], stage: true }));
-    expect(await next(4)).toMatchObject({ ok: false, message: expect.stringContaining('path') });
-    ws.send(JSON.stringify({ type: 'gitSwitch', id: workspace.id, branch: 'topic' }));
-    expect(await next(5)).toMatchObject({ action: 'switch', ok: true });
-    ws.send(JSON.stringify({ type: 'gitSwitch', id: 'ws-00000000', branch: 'topic' }));
-    expect(await next(6)).toMatchObject({ ok: false, message: 'unknown workspace' });
-
-    ws.send(JSON.stringify({ type: 'gitBranches', id: workspace.id }));
-    ws.send(JSON.stringify({ type: 'gitCompare', id: workspace.id }));
-    await waitFor(() => messages.some((m) => m.type === 'gitBranches') && messages.some((m) => m.type === 'gitCompare'));
-    expect(messages.find((m) => m.type === 'gitBranches')).toMatchObject({
-      branches: expect.arrayContaining([expect.objectContaining({ name: 'topic', current: true })]),
-    });
-    expect(messages.find((m) => m.type === 'gitCompare')).toMatchObject({ compare: { base: 'main', ahead: 0 }, error: null });
-
-    // Malformed writes never reach git: no reply of any kind.
-    const before = messages.length;
-    ws.send(JSON.stringify({ type: 'gitStage', id: workspace.id, paths: 'f.txt', stage: true }));
-    ws.send(JSON.stringify({ type: 'gitDiscard', id: workspace.id, paths: [''] }));
-    ws.send(JSON.stringify({ type: 'gitSave', id: workspace.id, message: 5 }));
-    ws.send(JSON.stringify({ type: 'gitSwitch', id: workspace.id, branch: '' }));
-    ws.send(JSON.stringify({ type: 'system' }));
-    await waitFor(() => messages.length > before);
-    expect(messages.slice(before).every((m) => m.type === 'system')).toBe(true);
-    ws.close();
-  });
-
-  it("reports the checks on the branch's pull request, none when it has no PR, and an error when gh fails", async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'cw-ctl-ci-'));
-    const workspace = h.store.create({ name: 'ci', cwd: dir });
-    const { ws, messages } = connectControl(h);
-    await opened(ws);
-    const checks = () => messages.filter((m): m is Extract<ControlToClient, { type: 'gitChecks' }> => m.type === 'gitChecks');
-
-    ws.send(JSON.stringify({ type: 'gitChecks', id: workspace.id }));
-    await waitFor(() => checks().length === 1);
-    expect(checks()[0]).toMatchObject({ pr: null, checks: null, error: null });
-
-    h.branchPrJson = JSON.stringify({
-      number: 5,
-      title: 'T',
-      url: 'https://github.com/acme/web-app/pull/5',
-      isDraft: false,
-      statusCheckRollup: [
-        { __typename: 'CheckRun', name: 'Pest', status: 'COMPLETED', conclusion: 'FAILURE' },
-        { __typename: 'CheckRun', name: 'Lint', status: 'COMPLETED', conclusion: 'SUCCESS' },
-      ],
-    });
-    ws.send(JSON.stringify({ type: 'gitChecks', id: workspace.id }));
-    await waitFor(() => checks().length === 2);
-    expect(checks()[1]).toMatchObject({ pr: { number: 5 }, checks: { passed: 1, failed: 1, failing: ['Pest'] }, error: null });
-    ws.close();
-  });
-
   it("lists a workspace's earlier conversations, and resumes one by ending the session with a reset", async () => {
     const workspace = h.store.create({ name: 'w', cwd: h.defaultCwd });
     const past = { id: '169128c8-8b10-48e0-993f-a743c8fad9ef', startedAt: '2026-01-01T10:00:00Z', status: null, firstPrompt: 'fix it' };
@@ -524,38 +157,6 @@ describe('control channel', () => {
     await waitFor(() => messages.some((m) => m.type === 'sessionReset'));
     expect(h.resumed).toEqual([[workspace.id, past.id]]);
     expect(messages.find((m) => m.type === 'sessionReset')).toEqual({ type: 'sessionReset', id: workspace.id });
-    ws.close();
-  });
-
-  it('pushes a branch, and makes a pull request for it after pushing', async () => {
-    const dir = gitRepo();
-    const remote = mkdtempSync(join(tmpdir(), 'cw-remote-'));
-    execFileSync('git', ['init', '-q', '--bare'], { cwd: remote });
-    execFileSync('git', ['remote', 'add', 'origin', remote], { cwd: dir });
-    const workspace = h.store.create({ name: 'w', cwd: dir });
-    const { ws, messages } = connectControl(h);
-    await opened(ws);
-    const results = () => messages.filter((m): m is Extract<ControlToClient, { type: 'gitResult' }> => m.type === 'gitResult');
-
-    ws.send(JSON.stringify({ type: 'gitPush', id: workspace.id }));
-    await waitFor(() => results().length === 1);
-    expect(results()[0]).toMatchObject({ action: 'push', ok: true, message: 'Pushed main to origin.' });
-    expect(execFileSync('git', ['log', '--oneline', 'main'], { cwd: remote, encoding: 'utf8' }).trim().split('\n')).toHaveLength(2);
-
-    ws.send(JSON.stringify({ type: 'gitCreatePr', id: workspace.id }));
-    await waitFor(() => results().length === 2);
-    expect(results()[1]).toMatchObject({ action: 'pr', ok: false, message: expect.stringContaining('already exists') });
-    h.createdPrUrl = 'https://github.com/acme/web-app/pull/7';
-    ws.send(JSON.stringify({ type: 'gitCreatePr', id: workspace.id }));
-    await waitFor(() => results().length === 3);
-    expect(results()[2]).toEqual({
-      type: 'gitResult',
-      id: workspace.id,
-      action: 'pr',
-      ok: true,
-      message: 'Opened https://github.com/acme/web-app/pull/7',
-      url: 'https://github.com/acme/web-app/pull/7',
-    });
     ws.close();
   });
 
@@ -686,22 +287,6 @@ describe('control channel', () => {
     expect(other.messages.some((m) => m.type === 'repos')).toBe(false);
     asker.ws.close();
     other.ws.close();
-  });
-
-  it('starts a workspace in the given directory, falling back to the default when it is not one', async () => {
-    const repo = mkdtempSync(join(tmpdir(), 'cw-repo-'));
-    const { ws } = connectControl(h);
-    await opened(ws);
-    ws.send(JSON.stringify({ type: 'create', name: 'here', windowId: null, cwd: repo }));
-    ws.send(JSON.stringify({ type: 'create', name: 'bad', windowId: null, cwd: '/no/such/dir' }));
-    ws.send(JSON.stringify({ type: 'create', name: 'relative', windowId: null, cwd: 'repo' }));
-    await waitFor(() => h.store.list().length === 3);
-    expect(h.store.list().map((w) => [w.name, w.cwd])).toEqual([
-      ['here', repo],
-      ['bad', h.defaultCwd],
-      ['relative', h.defaultCwd],
-    ]);
-    ws.close();
   });
 
   it('answers listTemplates with the team templates, reporting a file it cannot read', async () => {
