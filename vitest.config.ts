@@ -14,7 +14,7 @@ export default defineConfig({
       exclude: ['**/*.test.ts', '**/testing/**', 'helper/src/main.ts', 'helper/src/native-host.ts'],
       reporter: ['text-summary', 'html'],
       // A floor just under the current figures, so a regression fails CI. Raise it as coverage grows.
-      thresholds: { statements: 95, branches: 89, functions: 93, lines: 97 },
+      thresholds: { statements: 97, branches: 92, functions: 96, lines: 98 },
     },
   },
 });
