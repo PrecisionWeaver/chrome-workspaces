@@ -1,126 +1,63 @@
-import { followTabZoom } from './terminal/zoom';
-import { statusLabel } from '../../shared/workspaces/attention';
 import { SearchAddon } from '@xterm/addon-search';
-import { similarity } from '../../shared/workspaces/pairing';
-import type {
-  ClientMessage,
-  HistoryEntry,
-  ReviewRequest,
-  ReviewsState,
-  SystemSnapshot,
-  WaitingOn,
-  Workspace,
-  WorkspaceStatus,
-} from '../../shared/protocol/protocol';
-import { $, el, installHoverTips } from './ui/dom';
-import { formatCpu, formatKb, formatUsageShort, resourceTitle, resourceTotal } from './ui/format';
-import { connectControl, getHelper, isHostMissing, startHelper } from './app/helper-client';
+import { ticketUrl } from '../../shared/lib/jira';
+import type { ControlToClient, ReviewRequest, Workspace } from '../../shared/protocol/protocol';
 import { createActivitySection } from './activity/activity-section';
+import { followAppearance } from './app/appearance';
+import { connectControl } from './app/helper-client';
+import { loadSelection, onSelectionChange, select } from './background/selection';
+import { noteReviewTab, openInWorkspace } from './background/tabs';
+import { switchTo } from './background/windows';
 import { createCreateView } from './create/create-view';
 import { attachFileDrop } from './create/file-drop';
-import { createGitView } from './source-control/git-view';
-import { ticketUrl } from '../../shared/lib/jira';
-import { followAppearance } from './app/appearance';
-import { connectSession, createSessionTerminal, shiftEnterNewline, type SessionLink } from './terminal/terminal-session';
-import { createTerminalSearch } from './terminal/terminal-search';
-import { createPalette, type PaletteItem } from './ui/palette';
-import { createToolView } from './terminal/tool-view';
+import { createSessionAttachment } from './panel/attach';
+import { createMessageHandler } from './panel/messages';
+import { createNotices } from './panel/notices';
+import { createPaletteItems } from './panel/palette-items';
+import { createPicker } from './panel/picker';
+import { createPanelState } from './panel/state';
+import { openPopout } from './popout/popout-window';
 import { createSettingsView } from './settings/settings-view';
-import { makeSectionsResizable } from './ui/sections';
-import { noteReviewTab, openInWorkspace } from './background/tabs';
+import { createGitView } from './source-control/git-view';
 import { createLauncher } from './source-control/launcher';
+import { createTerminalSearch } from './terminal/terminal-search';
+import { createSessionTerminal, shiftEnterNewline } from './terminal/terminal-session';
+import { terminalTheme } from './terminal/terminal-theme';
+import { createToolView } from './terminal/tool-view';
+import { followTabZoom } from './terminal/zoom';
+import { $, installHoverTips } from './ui/dom';
+import { createPalette } from './ui/palette';
+import { makeSectionsResizable } from './ui/sections';
 import { createListResizer } from './workspace-list/list-resizer';
 import { createWorkspaceList } from './workspace-list/workspace-list';
-import { terminalTheme } from './terminal/terminal-theme';
-import { loadSelection, onSelectionChange, select, shownIn, type Selection } from './background/selection';
-import { openPopout } from './popout/popout-window';
-import { showOnly, switchTo } from './background/windows';
-import { errorMessage } from '../../shared/protocol/errors';
 
 const newButton = $<HTMLButtonElement>('new');
-const noticeEl = $<HTMLDivElement>('notice');
 const pickerEl = $<HTMLElement>('picker');
-const pickerOptions = $<HTMLUListElement>('picker-options');
-const pickerNew = $<HTMLFormElement>('picker-new');
-const pickerName = $<HTMLInputElement>('picker-name');
 const terminalEl = $<HTMLDivElement>('terminal');
 
-const terminal = createSessionTerminal((message) => sendToSession(message));
+const state = createPanelState();
+const notices = createNotices();
+
+const terminal = createSessionTerminal((message) => session.send(message));
 const { term } = terminal;
 const search = new SearchAddon();
 term.loadAddon(search);
 term.open(terminalEl);
 const finder = createTerminalSearch(search, () => term.focus());
+const session = createSessionAttachment({ terminal, terminalEl, windowId: () => state.windowId, showNotice: notices.show });
 
 followAppearance((theme) => {
   term.options.theme = terminalTheme(theme);
   tools.setTheme(terminalTheme(theme));
 });
 
-let myWindowId: number | undefined;
-let workspaces: Workspace[] = [];
-let statuses: Record<string, WorkspaceStatus> = {};
-let waiting: Record<string, WaitingOn> = {};
-let reviews: ReviewsState = { items: [], error: null, fetchedAt: null, refreshing: false };
-let history: HistoryEntry[] = [];
-// The Jira site from the config, learned from the system snapshot; null hides every ticket link.
-let jiraBase: string | null = null;
-
+// The views the handler routes to are built below, with the connection's own send.
+let handleMessage: (message: ControlToClient) => void = () => {};
 const control = connectControl(
-  (message) => {
-    if (message.type === 'prompts') creator.setPrompts(message.prompts, message.error);
-    if (message.type === 'templates') creator.setTemplates(message.templates, message.error);
-    if (message.type === 'repos') creator.setRepos(message.repos);
-    if (message.type === 'history') {
-      history = message.entries;
-      workspaceList.render();
-    }
-    if (message.type === 'timeline') settings.setTimeline(message);
-    if (message.type === 'activity') activity.setActivity(message);
-    if (message.type === 'updates') settings.setUpdates(message);
-    if (message.type === 'system') {
-      settings.setSystem(message);
-      jiraBase = message.snapshot?.config.jiraBaseUrl ?? jiraBase;
-      const attention = settings.warningCount + settings.setupRemaining;
-      $<HTMLButtonElement>('settings-open').classList.toggle('has-warning', attention > 0);
-      $<HTMLButtonElement>('settings-open').title = attention ? `Settings · ${attention} to look at` : 'Settings';
-      showUsage(message.snapshot);
-    }
-    if (message.type === 'adminResult') settings.setResult(message);
-    if (message.type === 'systemLog') settings.setLog(message.text);
-    if (message.type === 'exportData') settings.download(message.json);
-    if (message.type === 'sessionReset' && attachedId === message.id) {
-      // The helper replaced this workspace's session; attach to the new one.
-      detach();
-      render();
-    }
-    if (message.type === 'git') git.setState(message);
-    if (message.type === 'gitCommit') git.setCommit(message);
-    if (message.type === 'gitDiff') git.setDiff(message);
-    if (message.type === 'gitResult') git.setResult(message);
-    if (message.type === 'gitBranches') git.setBranches(message);
-    if (message.type === 'gitChecks') git.setChecks(message);
-    if (message.type === 'gitCompare') git.setCompare(message);
-    if (message.type === 'prDetails') creator.setPrDetails(message.url, message.details, message.error);
-    if (message.type === 'prThreads') creator.setPrThreads(message);
-    if (message.type === 'createError') showNotice(message.message);
-    if (message.type === 'sessions') workspaceList.showSessions(message);
-    if (message.type !== 'state') return;
-    selectJoiners(message.workspaces);
-    const shown = current();
-    const wasStatus = shown ? statuses[shown.id] : undefined;
-    workspaces = message.workspaces;
-    statuses = message.statuses;
-    waiting = message.waiting;
-    // Claude starting or finishing work means files likely changed.
-    if (shown && statuses[shown.id] !== wasStatus) git.refresh();
-    reviews = message.reviews;
-    render();
-  },
-  (connected) => (connected ? showNotice(null) : showOfflineNotice()),
+  (message) => handleMessage(message),
+  (connected) => (connected ? notices.show(null) : notices.showOffline()),
 );
 const send = control.send.bind(control);
-const here = () => ({ windowId: myWindowId, workspace: current() });
+const here = () => ({ windowId: state.windowId, workspace: state.current() });
 // Review requests start a workspace through the same new-workspace view as the + button.
 /** Opens the new-workspace view for a review request, and its PR in a normal tab outside the current workspace's group. */
 function startReview(review: ReviewRequest): void {
@@ -151,12 +88,12 @@ const creator = createCreateView({
     render();
   },
   here,
-  ticketLink: (ticket) => ticketUrl(jiraBase, ticket),
+  ticketLink: (ticket) => ticketUrl(state.jiraBase, ticket),
 });
 const git = createGitView({
   send,
-  status: (id) => statuses[id] ?? null,
-  waiting: (id) => waiting[id] ?? null,
+  status: (id) => state.statuses[id] ?? null,
+  waiting: (id) => state.waiting[id] ?? null,
   archive: (id) => send({ type: 'remove', id }),
   onToggle() {
     if (git.isOpen) {
@@ -199,85 +136,15 @@ for (const [id, tool] of [
 }
 $<HTMLButtonElement>('settings-open').addEventListener('click', () => (settings.isOpen ? settings.close() : settings.show()));
 
-// Which workspace this window shows when it holds several; chosen from the list, or by the tab being worked in.
-let selection: Selection = {};
 void loadSelection().then((loaded) => {
-  selection = loaded;
+  state.selection = loaded;
   render();
 });
 onSelectionChange((changed) => {
-  selection = changed;
+  state.selection = changed;
   render();
 });
-
-function current(): Workspace | undefined {
-  return shownIn(myWindowId, workspaces, selection);
-}
-
-// Where each workspace was in the previous state, to notice one arriving in this window.
-let previousWindows: Map<string, number | null> | null = null;
-
-/** A workspace that has just joined this window, by being created or paired here, is the one to show. */
-function selectJoiners(next: readonly Workspace[]): void {
-  if (previousWindows && myWindowId !== undefined) {
-    const joined = next.find((ws) => ws.windowId === myWindowId && previousWindows!.get(ws.id) !== myWindowId);
-    if (joined) void select(joined);
-  }
-  previousWindows = new Map(next.map((ws) => [ws.id, ws.windowId]));
-}
-
-/** Working in a tab that belongs to a workspace's group switches to that workspace. */
-async function followActiveTab(): Promise<void> {
-  if (myWindowId === undefined) return;
-  const [tab] = await chrome.tabs.query({ active: true, windowId: myWindowId });
-  const owner = workspaces.find((ws) => ws.windowId === myWindowId && ws.groupId !== null && ws.groupId === tab?.groupId);
-  if (!owner || owner.id === current()?.id) return;
-  void select(owner);
-  void showOnly(owner.windowId!, owner.groupId);
-}
-
-chrome.tabs.onActivated.addListener(({ windowId }) => windowId === myWindowId && void followActiveTab());
-
-function showNotice(text: string | null): void {
-  noticeEl.hidden = text === null;
-  noticeEl.textContent = text ?? '';
-}
-
-const INSTALL_COMMAND = 'npm run install-app';
-
-// Chrome finds no native host until install-app has registered it, so there is nothing for Start helper to start.
-function showInstallNotice(): void {
-  const copy = el('button', 'Copy command', 'notice-action');
-  copy.type = 'button';
-  copy.onclick = () => {
-    void navigator.clipboard.writeText(INSTALL_COMMAND);
-    copy.textContent = 'Copied';
-  };
-  noticeEl.hidden = false;
-  noticeEl.replaceChildren(el('span', `The helper is not installed. In the chrome-workspaces folder, run ${INSTALL_COMMAND}, then restart Chrome.`), copy);
-}
-
-function showOfflineNotice(): void {
-  const start = el('button', 'Start helper', 'notice-action');
-  start.type = 'button';
-  const message = el('span', 'Helper not running.');
-  start.onclick = () => {
-    start.disabled = true;
-    message.textContent = 'Starting the helper…';
-    // On success the control connection's backoff reconnects and clears this notice.
-    startHelper().catch((error) => {
-      if (isHostMissing(error)) return showInstallNotice();
-      message.textContent = `Could not start the helper: ${errorMessage(error)}. Try npm run agent:start.`;
-      start.disabled = false;
-    });
-  };
-  noticeEl.hidden = false;
-  noticeEl.replaceChildren(message, start);
-  // A helper that was never installed is not "not running"; say so up front.
-  getHelper().catch((error) => {
-    if (isHostMissing(error) && noticeEl.contains(message)) showInstallNotice();
-  });
-}
+chrome.tabs.onActivated.addListener(({ windowId }) => windowId === state.windowId && void state.followActiveTab());
 
 // ---- list ----
 
@@ -286,8 +153,8 @@ let shownId: string | undefined;
 
 function render(): void {
   workspaceList.render();
-  launcher.renderReviews(reviews, workspaces);
-  const workspace = current();
+  launcher.renderReviews(state.reviews, state.workspaces);
+  const workspace = state.current();
   // Switching workspaces returns to the terminal: the new-workspace, review and diff views are left behind.
   if (shownId !== undefined && workspace?.id !== shownId) {
     shownId = workspace?.id;
@@ -303,19 +170,19 @@ function render(): void {
   const overlay = creator.isOpen || git.isOpen || settings.isOpen || tools.isOpen;
   pickerEl.hidden = overlay || workspace !== undefined;
   terminalEl.hidden = overlay || workspace === undefined;
-  if (workspace) attach(workspace);
+  if (workspace) session.attach(workspace);
   else {
-    detach();
-    if (!overlay) void renderPicker();
+    session.detach();
+    if (!overlay) void picker.render();
   }
 }
 
 const workspaceList = createWorkspaceList({
   send,
-  state: () => ({ workspaces, statuses, waiting, history }),
-  current,
-  windowId: () => myWindowId,
-  ticketLink: (ticket) => ticketUrl(jiraBase, ticket),
+  state: () => state,
+  current: () => state.current(),
+  windowId: () => state.windowId,
+  ticketLink: (ticket) => ticketUrl(state.jiraBase, ticket),
   open: openWorkspace,
   openShell: (ws) => tools.showShell(ws),
   popOut: (ws) => void openPopout(ws.id),
@@ -324,7 +191,7 @@ const workspaceList = createWorkspaceList({
     git.close();
   },
   reorder: (next) => {
-    workspaces = next;
+    state.workspaces = next;
   },
 });
 
@@ -332,7 +199,7 @@ function openWorkspace(ws: Workspace): void {
   // Opening a panel needs a user gesture, so do it before anything awaits.
   if (ws.windowId !== null) chrome.sidePanel.open({ windowId: ws.windowId }).catch(() => {});
   void select(ws);
-  void switchTo(ws, send, workspaces);
+  void switchTo(ws, send, state.workspaces);
 }
 
 newButton.addEventListener('click', () => creator.show());
@@ -340,102 +207,26 @@ newButton.addEventListener('click', () => creator.show());
 $<HTMLButtonElement>('collapse').addEventListener('click', () => {
   const collapsed = document.body.classList.toggle('collapsed');
   void chrome.storage.local.set({ listCollapsed: collapsed });
-  fitTerminal();
+  session.fit();
 });
 
-const listResizer = createListResizer($<HTMLDivElement>('list-resizer'), fitTerminal);
+const listResizer = createListResizer($<HTMLDivElement>('list-resizer'), session.fit);
 
 void chrome.storage.local.get(['listCollapsed', 'listWidth']).then(({ listCollapsed, listWidth }) => {
   document.body.classList.toggle('collapsed', listCollapsed === true);
   if (typeof listWidth === 'number') listResizer.setWidth(listWidth);
-  fitTerminal();
+  session.fit();
 });
 
 // ---- unpaired window ----
 
-async function renderPicker(): Promise<void> {
-  if (myWindowId === undefined) return;
-  const tabs = await chrome.tabs.query({ windowId: myWindowId });
-  const urls = tabs.flatMap((tab) => (tab.url ? [tab.url] : []));
-  const ranked = [...workspaces].sort(
-    (a, b) => similarity(b.lastTabUrls, urls) - similarity(a.lastTabUrls, urls) || Number(a.windowId !== null) - Number(b.windowId !== null),
-  );
-
-  pickerOptions.replaceChildren(
-    ...ranked.map((ws) => {
-      const item = document.createElement('li');
-      const button = document.createElement('button');
-      button.textContent = ws.name;
-      const hint = document.createElement('span');
-      hint.className = 'hint';
-      hint.textContent = ws.windowId === null ? 'no window' : 'moves here from its window';
-      button.append(hint);
-      button.addEventListener('click', () => myWindowId !== undefined && send({ type: 'pair', id: ws.id, windowId: myWindowId }));
-      item.append(button);
-      return item;
-    }),
-  );
-}
-
-pickerNew.addEventListener('submit', (event) => {
-  event.preventDefault();
-  const name = pickerName.value.trim();
-  if (name && myWindowId !== undefined) send({ type: 'create', name, windowId: myWindowId });
-  pickerName.value = '';
-});
+const picker = createPicker({ state, send });
 
 // ---- terminal ----
 
-let link: SessionLink | null = null;
-let attachedId: string | null = null;
-
-function sendToSession(message: ClientMessage): boolean {
-  return link?.send(message) ?? false;
-}
-
-function detach(): void {
-  const old = link;
-  link = null;
-  attachedId = null;
-  old?.close();
-}
-
-function attach(workspace: Workspace): void {
-  if (attachedId === workspace.id && link) return;
-  detach();
-  term.reset();
-  attachedId = workspace.id;
-
-  link = connectSession(workspace.id, terminal, {
-    onOpen() {
-      fitTerminal();
-      term.focus();
-    },
-    onMessage(message) {
-      // The saved path is pasted, so a program that takes pastes (claude) treats it as an attachment.
-      if (message.type === 'uploaded') {
-        if (message.path) term.paste(`${message.path} `);
-        else showNotice(`Could not add ${message.name}: ${message.error ?? 'unknown error'}`);
-      }
-      // The shell is gone; close the panel. Reopening it starts a fresh session.
-      else if (myWindowId !== undefined) void chrome.sidePanel.close({ windowId: myWindowId });
-      else window.close();
-    },
-    onDisconnect() {
-      link = null;
-      term.write('\r\n\x1b[33m[disconnected from helper — reconnects when it is back]\x1b[0m\r\n');
-    },
-    // The control connection's notice explains the outage; the next state retries the attach.
-    onUnreachable() {
-      link = null;
-      attachedId = null;
-    },
-  });
-}
-
 attachFileDrop(terminalEl, {
-  send: (name, data) => sendToSession({ type: 'file', name, data }),
-  notice: showNotice,
+  send: (name, data) => session.send({ type: 'file', name, data }),
+  notice: notices.show,
 });
 
 term.attachCustomKeyEventHandler((event) => {
@@ -445,26 +236,20 @@ term.attachCustomKeyEventHandler((event) => {
   if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'k') return false;
   // ⌘F / Ctrl+F likewise belongs to the find box.
   if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'f') return false;
-  return shiftEnterNewline(event, sendToSession);
+  return shiftEnterNewline(event, session.send);
 });
 
-function fitTerminal(): void {
-  if (!terminalEl.hidden) terminal.refit();
-}
-
-new ResizeObserver(fitTerminal).observe(terminalEl);
+new ResizeObserver(session.fit).observe(terminalEl);
 // A pop-out can show the same session at another size; the last view in use sets the terminal's.
-window.addEventListener('focus', fitTerminal);
+window.addEventListener('focus', session.fit);
 
-/** The helper's and every workspace's memory and CPU, rolled up in the list header; the same total as Settings. */
-function showUsage(snapshot: SystemSnapshot | null): void {
-  const usage = $<HTMLSpanElement>('list-usage');
-  usage.hidden = !snapshot;
-  if (!snapshot) return;
-  const { kb, cpu } = resourceTotal(snapshot);
-  usage.replaceChildren(...formatUsageShort(kb, cpu).map((text) => el('span', text)));
-  usage.title = `${formatKb(kb)} · ${formatCpu(cpu)}\n${resourceTitle(snapshot)}`;
-}
+handleMessage = createMessageHandler({
+  state,
+  views: { creator, git, settings, activity, workspaceList },
+  session,
+  showNotice: notices.show,
+  render,
+});
 
 // Usage and resource warnings are checked every 15 seconds while the panel is open, so the header and the
 // gear stay current; Settings itself polls faster while it is showing.
@@ -473,68 +258,9 @@ setInterval(() => {
 }, 15_000);
 send({ type: 'system' });
 
-function paletteItems(): PaletteItem[] {
-  const items: PaletteItem[] = [
-    { kind: 'Action', label: 'New workspace', hint: 'Start a workspace', run: () => creator.show() },
-    { kind: 'Action', label: 'Terminal', hint: 'A plain shell, not tied to a workspace', run: () => tools.show('shell') },
-    ...(current()
-      ? [
-          {
-            kind: 'Action',
-            label: `Shell in ${current()!.name}`,
-            hint: 'A login shell in its directory, beside claude',
-            run: () => tools.showShell(current()!),
-          },
-        ]
-      : []),
-    { kind: 'Action', label: 'System monitor', hint: 'btop, in the panel', run: () => tools.show('monitor') },
-    { kind: 'Action', label: 'Expand activity', hint: "What this workspace's claude is doing, as a timeline", run: () => activity.expand() },
-    { kind: 'Action', label: 'Open settings', hint: 'Helper, sessions, housekeeping', run: () => settings.show() },
-    { kind: 'Action', label: 'Refresh review requests', run: () => send({ type: 'refreshReviews' }) },
-    { kind: 'Action', label: 'Refresh source control', run: () => git.refresh() },
-    {
-      kind: 'Action',
-      label: document.body.classList.contains('collapsed') ? 'Expand the list' : 'Collapse the list',
-      run: () => $<HTMLButtonElement>('collapse').click(),
-    },
-  ];
-  const shown = current();
-  for (const ws of workspaces) {
-    const status = statuses[ws.id];
-    items.push({
-      kind: 'Workspace',
-      label: ws.name,
-      hint: [ws.id === shown?.id ? 'current' : '', status === 'idle' ? '' : statusLabel(status, waiting[ws.id]), ws.cwd.replace(/^\/Users\/[^/]+/, '~')]
-        .filter(Boolean)
-        .join(' · '),
-      run: () => openWorkspace(ws),
-    });
-  }
-  for (const ws of workspaces) {
-    const url = ticketUrl(jiraBase, ws.ticket);
-    if (url) items.push({ kind: 'Ticket', label: `${ws.ticket} · ${ws.name}`, hint: 'Open in Jira', run: () => void chrome.tabs.create({ url }) });
-  }
-  for (const entry of history) {
-    items.push({
-      kind: 'Restore',
-      label: entry.name,
-      hint: `closed ${new Date(entry.closedAt).toLocaleDateString()}${entry.resumeId ? ' · resumes its conversation' : ''}`,
-      run: () => workspaceList.restore(entry),
-    });
-  }
-  for (const review of reviews.items) {
-    const existing = workspaces.find((ws) => ws.pr === review.url);
-    items.push({
-      kind: existing ? 'Review · has workspace' : 'Review',
-      label: `${review.repo.split('/')[1] ?? review.repo}#${review.number} ${review.title}`,
-      hint: review.author,
-      run: () => (existing ? openWorkspace(existing) : startReview(review)),
-    });
-  }
-  return items;
-}
-
-const palette = createPalette(paletteItems, () => (terminalEl.hidden ? undefined : term.focus()));
+const palette = createPalette(createPaletteItems({ state, send, creator, tools, activity, settings, git, workspaceList, openWorkspace, startReview }), () =>
+  terminalEl.hidden ? undefined : term.focus(),
+);
 // Outside the terminal the same shortcut works anywhere in the panel.
 document.addEventListener('keydown', (event) => {
   if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'k') {
@@ -548,10 +274,10 @@ document.addEventListener('keydown', (event) => {
   }
 });
 
-makeSectionsResizable(fitTerminal);
+makeSectionsResizable(session.fit);
 
 void chrome.windows.getCurrent().then((win) => {
-  myWindowId = win.id;
+  state.windowId = win.id;
   if (win.id !== undefined) followTabZoom(win.id);
   render();
 });

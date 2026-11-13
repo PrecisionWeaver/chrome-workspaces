@@ -834,41 +834,16 @@ describe('archived workspaces', () => {
 });
 
 describe('a window with no workspace', () => {
-  it('offers a picker, the closest match first, and pairs the one chosen', async () => {
+  it('offers the picker, filled from the workspaces, and pairs the one chosen', async () => {
     await boot();
-    state([ws('far', { windowId: null, lastTabUrls: ['https://other.example/'] }), ws('near', { windowId: null, lastTabUrls: ['https://example.com/start'] })]);
+    state([ws('near', { windowId: null, lastTabUrls: ['https://example.com/start'] })]);
     await flush();
     expect($('picker').hidden).toBe(false);
     expect($('terminal').hidden).toBe(true);
     const buttons = [...document.querySelectorAll<HTMLButtonElement>('#picker-options button')];
-    expect(buttons.map((b) => b.firstChild!.textContent)).toEqual(['acme/near', 'acme/far']);
-    expect(buttons[0]!.querySelector('.hint')!.textContent).toBe('no window');
+    expect(buttons.map((b) => b.firstChild!.textContent)).toEqual(['acme/near']);
     buttons[0]!.click();
     expect(sentOfType('pair')).toEqual([{ type: 'pair', id: 'near', windowId }]);
-  });
-
-  it('says a workspace already in another window moves here', async () => {
-    const { windowId: other } = fake.addWindow();
-    await boot();
-    state([ws('elsewhere', { windowId: other })]);
-    await flush();
-    expect(document.querySelector('#picker-options .hint')!.textContent).toBe('moves here from its window');
-  });
-
-  it('creates a workspace in this window from the name box', async () => {
-    await boot();
-    state([]);
-    $<HTMLInputElement>('picker-name').value = '  new thing ';
-    $('picker-new').dispatchEvent(new Event('submit', { cancelable: true }));
-    expect(sentOfType('create')).toEqual([{ type: 'create', name: 'new thing', windowId }]);
-    expect($<HTMLInputElement>('picker-name').value).toBe('');
-  });
-
-  it('creates nothing without a name', async () => {
-    await boot();
-    state([]);
-    $('picker-new').dispatchEvent(new Event('submit', { cancelable: true }));
-    expect(sentOfType('create')).toEqual([]);
   });
 
   it('shows the terminal instead once the window has a workspace', async () => {
@@ -1099,47 +1074,15 @@ describe('the command palette', () => {
     expect($('palette').hidden).toBe(true);
   });
 
-  it('lists the actions, workspaces, tickets, archived workspaces and review requests', async () => {
+  it('lists the actions and the workspaces, archived ones and review requests from the state', async () => {
     await boot();
-    onControlMessage({
-      type: 'system',
-      snapshot: makeSnapshot({ config: { ...makeSnapshot().config, jiraBaseUrl: 'https://jira.example.com' } }),
-      error: null,
-    });
-    state(
-      [ws('a', { ticket: 'PROJ-123' })],
-      { a: 'needs_input' },
-      { items: [makeReview({ number: 12, title: 'Add it' })], error: null, fetchedAt: null, refreshing: false },
-    );
+    state([ws('a')], {}, { items: [makeReview({ number: 12, title: 'Add it' })], error: null, fetchedAt: null, refreshing: false });
     onControlMessage({ type: 'history', entries: [makeHistoryEntry({ name: 'old/one' })] });
     press({ metaKey: true });
-    expect(labels()).toEqual([
-      'Action: New workspace',
-      'Action: Terminal',
-      'Action: Shell in acme/a',
-      'Action: System monitor',
-      'Action: Expand activity',
-      'Action: Open settings',
-      'Action: Refresh review requests',
-      'Action: Refresh source control',
-      'Action: Collapse the list',
-      'Workspace: acme/a',
-      'Ticket: PROJ-123 · acme/a',
-      'Restore: old/one',
-      'Review: app#12 Add it',
-    ]);
-    const workspaceRow = [...document.querySelectorAll('#palette-results .palette-row')].find(
-      (row) => row.querySelector('.palette-label')!.textContent === 'acme/a',
-    )!;
-    expect(workspaceRow.querySelector('.palette-hint')!.textContent).toBe('current · needs input · ~/acme');
-  });
-
-  it('says a review has a workspace, and opens that workspace rather than a new one', async () => {
-    const review = makeReview({ url: 'https://github.com/acme/app/pull/12' });
-    await boot();
-    state([ws('a', { pr: review.url })], {}, { items: [review], error: null, fetchedAt: null, refreshing: false });
-    press({ metaKey: true });
-    expect(labels()).toContain('Review · has workspace: app#12 Add the thing');
+    expect(labels()).toContain('Action: New workspace');
+    expect(labels()).toContain('Workspace: acme/a');
+    expect(labels()).toContain('Restore: old/one');
+    expect(labels()).toContain('Review: app#12 Add it');
   });
 
   it('runs an action: new workspace opens the creation view', async () => {
@@ -1258,45 +1201,12 @@ describe('the other views', () => {
     expect(document.querySelector('.git-branch-name')!.textContent).toContain('feature/x');
   });
 
-  it('refreshes source control when claude starts or stops working', async () => {
-    await boot();
-    state([ws('a')], { a: 'idle' });
-    await flush();
-    onControlMessage({ type: 'git', id: 'a', state: null, error: null });
-    sent.length = 0;
-    state([ws('a')], { a: 'working' });
-    expect(sentOfType('git')).toHaveLength(1);
-    onControlMessage({ type: 'git', id: 'a', state: null, error: null });
-    sent.length = 0;
-    state([ws('a')], { a: 'working' });
-    expect(sentOfType('git')).toHaveLength(0);
-  });
-
-  it('flags the settings button when something needs a look, and says how many', async () => {
+  it('counts the settings view’s warnings and setup steps on the settings button', async () => {
     await boot();
     const snapshot = makeSnapshot();
     onControlMessage({ type: 'system', snapshot: { ...snapshot, warnings: [{ id: 'a', name: 'acme/a', kind: 'memory', message: 'big' }] }, error: null });
     expect($('settings-open').classList.contains('has-warning')).toBe(true);
     expect($('settings-open').title).toBe('Settings · 2 to look at');
-    onControlMessage({ type: 'system', snapshot: { ...snapshot, setup: { ...snapshot.setup, promptsFileExists: true } }, error: null });
-  });
-
-  it('rolls the helper and every workspace up into memory and CPU in the list header', async () => {
-    await boot();
-    expect($('list-usage').hidden).toBe(true);
-    const snapshot = makeSnapshot();
-    const session = snapshot.sessions[0]!;
-    onControlMessage({
-      type: 'system',
-      snapshot: { ...snapshot, sessions: [session, { ...session, processes: [{ ...session.processes[0]!, cpu: 3, rssKb: 1024 * 1024 }] }] },
-      error: null,
-    });
-    // Helper 50 MB + 2 MB + 1 GB, and 1.5% + 0.1% + 3%.
-    expect($('list-usage').hidden).toBe(false);
-    expect($('list-usage').textContent).toBe('1.1 GB5%');
-    expect($('list-usage').title).toContain('Helper 50.0 MB + workspaces 1.00 GB');
-    onControlMessage({ type: 'system', snapshot: null, error: 'timeout' });
-    expect($('list-usage').hidden).toBe(true);
   });
 
   it('asks for system status when it starts, and every 15 seconds while settings is closed', async () => {
@@ -1313,54 +1223,11 @@ describe('the other views', () => {
 });
 
 describe('connection', () => {
-  it('says the helper is not running, with a button to start it', async () => {
+  it('says the helper is not running while disconnected, and clears the notice once connected', async () => {
     await boot();
     onConnected(false);
     expect($('notice').hidden).toBe(false);
     expect($('notice').textContent).toContain('Helper not running.');
-    $('notice').querySelector<HTMLButtonElement>('.notice-action')!.click();
-    expect(startHelper).toHaveBeenCalled();
-    expect($('notice').textContent).toContain('Starting the helper…');
-    expect($('notice').querySelector<HTMLButtonElement>('.notice-action')!.disabled).toBe(true);
-  });
-
-  it('says why starting failed and lets it be tried again', async () => {
-    startHelper.mockRejectedValue(new Error('not installed'));
-    await boot();
-    onConnected(false);
-    $('notice').querySelector<HTMLButtonElement>('.notice-action')!.click();
-    await flush();
-    expect($('notice').textContent).toContain('Could not start the helper: not installed. Try npm run agent:start.');
-    expect($('notice').querySelector<HTMLButtonElement>('.notice-action')!.disabled).toBe(false);
-  });
-
-  it('tells a missing native host to run the installer instead of offering to start it', async () => {
-    const hostMissing = new Error('Specified native messaging host not found.');
-    const { getHelper } = await import('./app/helper-client');
-    vi.mocked(getHelper).mockRejectedValueOnce(hostMissing);
-    await boot();
-    onConnected(false);
-    await flush();
-    expect($('notice').textContent).toContain('The helper is not installed.');
-    expect($('notice').textContent).toContain('npm run install-app');
-    const writeText = vi.fn(async () => {});
-    vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } });
-    $('notice').querySelector<HTMLButtonElement>('.notice-action')!.click();
-    expect(writeText).toHaveBeenCalledWith('npm run install-app');
-  });
-
-  it('points to the installer when starting fails because the native host is missing', async () => {
-    startHelper.mockRejectedValue(new Error('Specified native messaging host not found.'));
-    await boot();
-    onConnected(false);
-    $('notice').querySelector<HTMLButtonElement>('.notice-action')!.click();
-    await flush();
-    expect($('notice').textContent).toContain('The helper is not installed.');
-  });
-
-  it('clears the notice once connected', async () => {
-    await boot();
-    onConnected(false);
     onConnected(true);
     expect($('notice').hidden).toBe(true);
   });
