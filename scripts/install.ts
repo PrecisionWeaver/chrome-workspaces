@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
-import { startHelper } from '../helper/src/start-helper';
+import { startHelper } from '../helper/src/platform/start-helper';
 
 // One command for a fresh install: setup (passing its flags through), build, and start the helper.
 const repo = resolve(import.meta.dirname, '..');

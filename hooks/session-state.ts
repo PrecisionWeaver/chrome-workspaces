@@ -4,10 +4,10 @@
 import { appendFileSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { ACTIVITY_EVENTS, type ActivityEvent, type ActivityEventName } from '../shared/activity.ts';
-import { notificationWaits, STATUS_BY_EVENT } from '../shared/session-file.ts';
-import type { SessionFile } from '../shared/session-file.ts';
-import { describeTool, oneLine } from '../shared/timeline.ts';
+import { ACTIVITY_EVENTS, type ActivityEvent, type ActivityEventName } from '../shared/sessions/activity.ts';
+import { notificationWaits, STATUS_BY_EVENT } from '../shared/protocol/session-file.ts';
+import type { SessionFile } from '../shared/protocol/session-file.ts';
+import { describeTool, oneLine } from '../shared/sessions/timeline.ts';
 
 interface HookInput {
   hook_event_name?: string;

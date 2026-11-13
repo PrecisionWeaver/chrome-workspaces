@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { mergeRateLimits, PLAN_USAGE_FILE } from '../shared/plan-usage.ts';
+import { mergeRateLimits, PLAN_USAGE_FILE } from '../shared/usage/plan-usage.ts';
 
 const dataDir = process.env.CW_DATA_DIR || join(homedir(), '.chrome-workspaces');
 const claudeDir = process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude');

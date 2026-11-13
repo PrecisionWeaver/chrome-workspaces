@@ -1,11 +1,11 @@
-import { matchGroups, matchWindows } from '../../shared/pairing';
-import { attentionEvents, describeWaiting, needsInputCount } from '../../shared/attention';
-import { listFollowingTabs, listGroupOrder, nextGroupMove } from '../../shared/tab-order';
-import type { ControlToClient, WaitingOn, Workspace, WorkspaceStatus } from '../../shared/protocol';
-import { placeClaudeGroups } from './claude-groups';
-import { connectControl } from './helper-client';
-import { loadSelection, onSelectionChange, select, shownIn, type Selection } from './selection';
-import { createGroup, openWindow, recordSharedSize, switchTo } from './windows';
+import { matchGroups, matchWindows } from '../../shared/workspaces/pairing';
+import { attentionEvents, describeWaiting, needsInputCount } from '../../shared/workspaces/attention';
+import { listFollowingTabs, listGroupOrder, nextGroupMove } from '../../shared/workspaces/tab-order';
+import type { ControlToClient, WaitingOn, Workspace, WorkspaceStatus } from '../../shared/protocol/protocol';
+import { placeClaudeGroups } from './background/claude-groups';
+import { connectControl } from './app/helper-client';
+import { loadSelection, onSelectionChange, select, shownIn, type Selection } from './background/selection';
+import { createGroup, openWindow, recordSharedSize, switchTo } from './background/windows';
 
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(console.error);
 

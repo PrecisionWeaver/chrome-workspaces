@@ -1,10 +1,10 @@
-import { popoutWorkspaceId } from '../../shared/popout';
-import type { ClientMessage, ControlToClient } from '../../shared/protocol';
-import { followAppearance } from './appearance';
-import { $ } from './dom';
-import { connectControl } from './helper-client';
-import { connectSession, createSessionTerminal, shiftEnterNewline, type SessionLink } from './terminal-session';
-import { terminalTheme } from './terminal-theme';
+import { popoutWorkspaceId } from '../../shared/workspaces/popout';
+import type { ClientMessage, ControlToClient } from '../../shared/protocol/protocol';
+import { followAppearance } from './app/appearance';
+import { $ } from './ui/dom';
+import { connectControl } from './app/helper-client';
+import { connectSession, createSessionTerminal, shiftEnterNewline, type SessionLink } from './terminal/terminal-session';
+import { terminalTheme } from './terminal/terminal-theme';
 
 /** How long to wait before attaching again after the helper connection drops. */
 const RETRY_MS = 2000;

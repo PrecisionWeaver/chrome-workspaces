@@ -1,32 +1,41 @@
-import { followTabZoom } from './zoom';
-import { statusLabel } from '../../shared/attention';
+import { followTabZoom } from './terminal/zoom';
+import { statusLabel } from '../../shared/workspaces/attention';
 import { SearchAddon } from '@xterm/addon-search';
-import { similarity } from '../../shared/pairing';
-import type { ClientMessage, HistoryEntry, ReviewRequest, ReviewsState, SystemSnapshot, WaitingOn, Workspace, WorkspaceStatus } from '../../shared/protocol';
-import { $, el, installHoverTips } from './dom';
-import { formatCpu, formatKb, formatUsageShort, resourceTitle, resourceTotal } from './format';
-import { connectControl, getHelper, isHostMissing, startHelper } from './helper-client';
-import { createActivitySection } from './activity-section';
-import { createCreateView } from './create-view';
-import { attachFileDrop } from './file-drop';
-import { createGitView } from './git-view';
-import { ticketUrl } from '../../shared/jira';
-import { followAppearance } from './appearance';
-import { connectSession, createSessionTerminal, shiftEnterNewline, type SessionLink } from './terminal-session';
-import { createTerminalSearch } from './terminal-search';
-import { createPalette, type PaletteItem } from './palette';
-import { createToolView } from './tool-view';
-import { createSettingsView } from './settings-view';
-import { makeSectionsResizable } from './sections';
-import { noteReviewTab, openInWorkspace } from './tabs';
-import { createLauncher } from './launcher';
-import { createListResizer } from './list-resizer';
-import { createWorkspaceList } from './workspace-list';
-import { terminalTheme } from './terminal-theme';
-import { loadSelection, onSelectionChange, select, shownIn, type Selection } from './selection';
-import { openPopout } from './popout-window';
-import { showOnly, switchTo } from './windows';
-import { errorMessage } from '../../shared/errors';
+import { similarity } from '../../shared/workspaces/pairing';
+import type {
+  ClientMessage,
+  HistoryEntry,
+  ReviewRequest,
+  ReviewsState,
+  SystemSnapshot,
+  WaitingOn,
+  Workspace,
+  WorkspaceStatus,
+} from '../../shared/protocol/protocol';
+import { $, el, installHoverTips } from './ui/dom';
+import { formatCpu, formatKb, formatUsageShort, resourceTitle, resourceTotal } from './ui/format';
+import { connectControl, getHelper, isHostMissing, startHelper } from './app/helper-client';
+import { createActivitySection } from './activity/activity-section';
+import { createCreateView } from './create/create-view';
+import { attachFileDrop } from './create/file-drop';
+import { createGitView } from './source-control/git-view';
+import { ticketUrl } from '../../shared/lib/jira';
+import { followAppearance } from './app/appearance';
+import { connectSession, createSessionTerminal, shiftEnterNewline, type SessionLink } from './terminal/terminal-session';
+import { createTerminalSearch } from './terminal/terminal-search';
+import { createPalette, type PaletteItem } from './ui/palette';
+import { createToolView } from './terminal/tool-view';
+import { createSettingsView } from './settings/settings-view';
+import { makeSectionsResizable } from './ui/sections';
+import { noteReviewTab, openInWorkspace } from './background/tabs';
+import { createLauncher } from './source-control/launcher';
+import { createListResizer } from './workspace-list/list-resizer';
+import { createWorkspaceList } from './workspace-list/workspace-list';
+import { terminalTheme } from './terminal/terminal-theme';
+import { loadSelection, onSelectionChange, select, shownIn, type Selection } from './background/selection';
+import { openPopout } from './popout/popout-window';
+import { showOnly, switchTo } from './background/windows';
+import { errorMessage } from '../../shared/protocol/errors';
 
 const newButton = $<HTMLButtonElement>('new');
 const noticeEl = $<HTMLDivElement>('notice');

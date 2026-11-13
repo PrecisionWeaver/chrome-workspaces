@@ -2,11 +2,11 @@ import { execFile } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
-import { AGENT_LABEL, DATA_DIR, HOST, loadConfig, PORT, type HelperConfig } from '../helper/src/config';
+import { AGENT_LABEL, DATA_DIR, HOST, loadConfig, PORT, type HelperConfig } from '../helper/src/platform/config';
 import { extensionIdFromManifest } from './extension-id';
-import { HOOK_SCRIPT, typeStrippingSupported } from '../helper/src/hooks-config';
+import { HOOK_SCRIPT, typeStrippingSupported } from '../helper/src/claude/hooks-config';
 import { agentFile, hostManifest, hostWrapper } from './install-paths';
-import { errorMessage } from '../shared/errors';
+import { errorMessage } from '../shared/protocol/errors';
 
 // Checks an install from the command line, for when the panel cannot reach the helper to show its own checklist.
 const execFileAsync = promisify(execFile);
