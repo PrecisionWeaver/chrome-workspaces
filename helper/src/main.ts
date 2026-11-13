@@ -8,7 +8,8 @@ import { MONITOR_SESSION, SHELL_SESSION, WORKSPACE_SHELL_PREFIX, type WaitingOn,
 import { SAMPLE_INTERVAL_MS } from './store/resource-history';
 import { launchDirectory } from './pty/launch-dir';
 import { activityFile, readActivity } from './claude/activity';
-import { createAdmin, defaultIsManaged, defaultRunShell, defaultSpawnDetached } from './admin/admin';
+import { createAdmin } from './admin/admin';
+import { defaultIsManaged, defaultRunShell, defaultSpawnDetached } from './admin/shell';
 import { createApi } from './transport/api';
 import { isDirectory, DATA_DIR, HOST, loadConfig, SESSIONS_DIR, PORT, SCROLLBACK_LIMIT } from './platform/config';
 import { ControlHub } from './control/hub';
