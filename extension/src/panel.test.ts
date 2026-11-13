@@ -118,8 +118,6 @@ vi.mock('./app/helper-client', () => ({
 
 let fake: ReturnType<typeof installChrome>;
 let windowId: number;
-let dark: boolean;
-let mediaListeners: (() => void)[];
 
 const NOW = Date.parse('2026-03-10T12:00:00.000Z');
 const REVIEWS: ReviewsState = { items: [], error: null, fetchedAt: null, refreshing: false };
@@ -141,20 +139,14 @@ beforeEach(async () => {
   FakeSocket.instances = [];
   sent = [];
   helperUp = true;
-  dark = true;
-  mediaListeners = [];
   startHelper.mockReset();
   startHelper.mockResolvedValue(undefined);
   fake = installChrome();
   windowId = fake.addWindow('https://example.com/start').windowId;
   loadPanelHtml();
   Element.prototype.scrollIntoView = vi.fn();
-  vi.stubGlobal('matchMedia', () => ({
-    get matches() {
-      return dark;
-    },
-    addEventListener: (_: string, listener: () => void) => mediaListeners.push(listener),
-  }));
+  // The system is dark; following it as it changes is appearance.test.ts's concern.
+  vi.stubGlobal('matchMedia', () => ({ matches: true, addEventListener() {} }));
   vi.stubGlobal('WebSocket', FakeSocket);
   vi.stubGlobal(
     'ResizeObserver',
@@ -184,8 +176,10 @@ function state(
 }
 const ws = (id: string, overrides: Partial<Workspace> = {}) => makeWorkspace({ id, name: `acme/${id}`, windowId, ...overrides });
 
+// The list's own behaviour (rows, filter, menu, rename, keys, drag, archived) is covered in workspace-list.test.ts;
+// here only the wiring from the panel to the list is checked.
 describe('the list', () => {
-  it('shows each workspace, numbered, with its name and what it is doing', async () => {
+  it('shows each workspace from a state message, numbered, with its name and what it is doing', async () => {
     await boot();
     state([ws('a'), ws('b')], { a: 'working', b: 'needs_input' });
     expect(names()).toEqual(['acme/a', 'acme/b']);
@@ -194,86 +188,11 @@ describe('the list', () => {
     expect(rows()[1]!.getAttribute('aria-label')).toBe('acme/b, needs input');
   });
 
-  it('says what a waiting workspace is waiting on', async () => {
-    await boot();
-    state([ws('a'), ws('b')], { a: 'needs_input', b: 'needs_input' }, REVIEWS, {
-      a: { type: 'permission_prompt', message: 'Claude needs your permission to use Bash' },
-      b: { type: 'idle_prompt', message: 'Claude is waiting for your input' },
-    });
-    expect(rows()[0]!.getAttribute('aria-label')).toBe('acme/a, needs permission');
-    expect(rows()[0]!.title).toContain('Claude needs your permission to use Bash');
-    expect(rows()[1]!.getAttribute('aria-label')).toBe('acme/b, needs input');
-    expect(rows()[1]!.title).toContain('Claude is waiting for your input');
-  });
-
   it('shows why a workspace could not be created', async () => {
     await boot();
     onControlMessage({ type: 'createError', name: 'PROJ-1', message: 'Could not make a worktree for PROJ-1: not a git repository' });
     expect($('notice').hidden).toBe(false);
     expect($('notice').textContent).toBe('Could not make a worktree for PROJ-1: not a git repository');
-  });
-
-  it('says how many are waiting in the title', async () => {
-    await boot();
-    state([ws('a'), ws('b')], { a: 'needs_input', b: 'needs_input' });
-    expect($('list-title').textContent).toBe('2 waiting');
-    expect($('list-title').querySelector('.count')!.textContent).toBe('2');
-    state([ws('a')], {});
-    expect($('list-title').textContent).toBe('');
-  });
-
-  it('marks the current workspace, pinned ones, and the colour it was given', async () => {
-    await boot();
-    state([ws('a', { pinned: true, color: 'blue' }), ws('b')]);
-    expect(rows()[0]!.classList.contains('current')).toBe(true);
-    expect(rows()[0]!.getAttribute('aria-selected')).toBe('true');
-    expect(rows()[0]!.querySelector('.pin')).not.toBeNull();
-    expect(rows()[0]!.getAttribute('aria-label')).toContain('pinned');
-    expect(rows()[0]!.querySelector<HTMLElement>('.badge')!.dataset.group).toBe('blue');
-    expect(rows()[1]!.querySelector('.pin')).toBeNull();
-  });
-
-  it('wears the tab group’s colour when the workspace is in one', async () => {
-    const tab = fake.addTab(windowId, 'https://example.com/a');
-    const groupId = fake.addGroup([tab.id]);
-    await fake.mock.tabGroups.update(groupId, { color: 'red' as chrome.tabGroups.Color });
-    await boot();
-    state([ws('a', { groupId, color: 'blue' })]);
-    expect(rows()[0]!.querySelector<HTMLElement>('.badge')!.dataset.group).toBe('red');
-    expect(rows()[0]!.title).toContain('Tab group');
-  });
-
-  it('shows – for a row hidden by the search, keeping each workspace’s own number', async () => {
-    await boot();
-    const list = ['a', 'b', 'c', 'd', 'e'].map((id) => ws(id));
-    state(list);
-    expect($('list-search').hidden).toBe(false);
-    $<HTMLInputElement>('list-search').value = 'acme/d';
-    $('list-search').dispatchEvent(new Event('input'));
-    expect(names()).toEqual(['acme/d']);
-    expect(rows()[0]!.querySelector('.badge')!.textContent).toBe('4');
-  });
-
-  it('hides the filter box until there are five, and says when nothing matches', async () => {
-    await boot();
-    state([ws('a')]);
-    expect($('list-search').hidden).toBe(true);
-    state([]);
-    expect(document.querySelector('.list-empty')!.textContent).toBe('No workspaces yet');
-    state(['a', 'b', 'c', 'd', 'e'].map((id) => ws(id)));
-    $<HTMLInputElement>('list-search').value = 'zzz';
-    $('list-search').dispatchEvent(new Event('input'));
-    expect(document.querySelector('.list-empty')!.textContent).toBe('No workspace matches');
-  });
-
-  it('clears the filter on Escape', async () => {
-    await boot();
-    state(['a', 'b', 'c', 'd', 'e'].map((id) => ws(id)));
-    $<HTMLInputElement>('list-search').value = 'acme/a';
-    $('list-search').dispatchEvent(new Event('input'));
-    $('list-search').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
-    expect($<HTMLInputElement>('list-search').value).toBe('');
-    expect(rows()).toHaveLength(5);
   });
 
   it('shows the one selected for this window, when it holds several', async () => {
@@ -416,18 +335,6 @@ describe('archiving and the context menu', () => {
     expect(sentOfType('remove')).toEqual([{ type: 'remove', id: 'a' }]);
   });
 
-  it('keeps the archive confirmation through a state update, so the second click still lands', async () => {
-    await boot();
-    state([ws('a')]);
-    const remove = () => rows()[0]!.querySelector<HTMLButtonElement>('.remove')!;
-    remove().click();
-    // Any status change redraws the list between the two clicks.
-    state([ws('a')]);
-    expect(remove().textContent).toBe('archive?');
-    remove().click();
-    expect(sentOfType('remove')).toEqual([{ type: 'remove', id: 'a' }]);
-  });
-
   it('opens a workspace in its own window from its row, without selecting it', async () => {
     await boot();
     state([ws('a'), ws('b')]);
@@ -446,28 +353,6 @@ describe('archiving and the context menu', () => {
     rows()[0]!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 10, clientY: 10 }));
   };
 
-  it('offers pin, archive, archive and close, and rename', async () => {
-    await openMenu(ws('a'));
-    expect(menuButtons().map((b) => b.textContent)).toEqual([
-      'Pin to top',
-      'Archive',
-      'Archive & close tabs',
-      'Rename',
-      'Open a shell here',
-      'Resume an earlier conversation…',
-    ]);
-  });
-
-  it('pins and unpins', async () => {
-    await openMenu(ws('a'));
-    menuButtons()[0]!.click();
-    expect(sentOfType('mark')).toEqual([{ type: 'mark', id: 'a', pinned: true }]);
-    document.body.querySelector('.ctx-menu')?.remove();
-    state([ws('a', { pinned: true })]);
-    rows()[0]!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
-    expect(menuButtons()[0]!.textContent).toBe('Unpin');
-  });
-
   it("opens a shell in the workspace's directory from its menu", async () => {
     await openMenu(ws('a'));
     menuButtons()
@@ -475,80 +360,6 @@ describe('archiving and the context menu', () => {
       .click();
     expect($('tool').hidden).toBe(false);
     expect($('tool-title').textContent).toBe('Terminal · acme/a');
-  });
-
-  it('asks for earlier conversations, lists them with their first words, and resumes the one picked', async () => {
-    await openMenu(ws('a'));
-    menuButtons()
-      .find((b) => b.textContent === 'Resume an earlier conversation…')!
-      .click();
-    expect(sentOfType('listSessions')).toEqual([{ type: 'listSessions', id: 'a' }]);
-    onControlMessage({
-      type: 'sessions',
-      id: 'a',
-      sessions: [
-        { id: '22222222-2222-2222-2222-222222222222', startedAt: '2026-02-01T10:00:00Z', status: 'idle', firstPrompt: 'and the tests' },
-        { id: '11111111-1111-1111-1111-111111111111', startedAt: '2026-01-01T10:00:00Z', status: null, firstPrompt: 'fix the email table' },
-      ],
-    });
-    const labels = menuButtons().map((b) => b.textContent);
-    expect(labels[0]).toContain('and the tests');
-    expect(labels[0]).toContain('current');
-    expect(menuButtons()[0]!.disabled).toBe(true);
-    expect(labels[1]).toContain('fix the email table');
-    menuButtons()[1]!.click();
-    expect(sentOfType('resumeSession')).toEqual([{ type: 'resumeSession', id: 'a', sessionId: '11111111-1111-1111-1111-111111111111' }]);
-    onControlMessage({ type: 'sessions', id: 'a', sessions: [] });
-    expect(menuButtons().map((b) => b.textContent)).toEqual(['No earlier conversation is recorded']);
-  });
-
-  it('archives with or without closing the tabs', async () => {
-    await openMenu(ws('a'));
-    menuButtons()[1]!.click();
-    rows()[0]!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
-    menuButtons()[2]!.click();
-    expect(sentOfType('remove')).toEqual([
-      { type: 'remove', id: 'a' },
-      { type: 'remove', id: 'a', closeTabs: true },
-    ]);
-  });
-
-  it('offers the ticket in Jira once the site is known', async () => {
-    await openMenu(ws('a', { ticket: 'PROJ-123' }));
-    expect(menuButtons().map((b) => b.textContent)).not.toContain('Open PROJ-123');
-    document.body.querySelector('.ctx-menu')?.remove();
-    onControlMessage({
-      type: 'system',
-      snapshot: makeSnapshot({ config: { ...makeSnapshot().config, jiraBaseUrl: 'https://jira.example.com' } }),
-      error: null,
-    });
-    rows()[0]!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
-    const open = menuButtons().find((b) => b.textContent === 'Open PROJ-123')!;
-    open.click();
-    expect(fake.mock.tabs.create).toHaveBeenCalledWith({ url: 'https://jira.example.com/browse/PROJ-123' });
-  });
-
-  it('colours a workspace, and its tab group too', async () => {
-    const tab = fake.addTab(windowId, 'https://example.com/a');
-    const groupId = fake.addGroup([tab.id]);
-    await openMenu(ws('a', { groupId }));
-    const swatches = [...document.querySelectorAll<HTMLButtonElement>('.ctx-swatches .swatch')];
-    expect(swatches).toHaveLength(10);
-    // In a tab group the group's colour is the one shown, so that is the one marked.
-    expect(swatches.find((s) => s.classList.contains('selected'))!.title).toBe('grey');
-    swatches[2]!.click();
-    await flush();
-    expect(sentOfType('mark')).toEqual([{ type: 'mark', id: 'a', color: 'blue' }]);
-    expect(fake.group(groupId)?.color).toBe('blue');
-  });
-
-  it('clears a colour without touching the tab group', async () => {
-    await openMenu(ws('a', { color: 'red' as chrome.tabGroups.Color }));
-    const swatches = [...document.querySelectorAll<HTMLButtonElement>('.ctx-swatches .swatch')];
-    expect(swatches.find((s) => s.classList.contains('selected'))!.title).toBe('red');
-    swatches[0]!.click();
-    expect(sentOfType('mark')).toEqual([{ type: 'mark', id: 'a', color: null }]);
-    expect(fake.mock.tabGroups.update).not.toHaveBeenCalled();
   });
 });
 
@@ -570,44 +381,6 @@ describe('renaming', () => {
     expect(sentOfType('rename')).toEqual([{ type: 'rename', id: 'a', name: 'better' }]);
     expect(document.querySelector('input.rename')).toBeNull();
   });
-
-  it('sends nothing on Escape, for an unchanged or blank name, and only once if blur follows', async () => {
-    let input = await startRename();
-    input.value = 'changed';
-    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    expect(sentOfType('rename')).toEqual([]);
-
-    rows()[0]!
-      .querySelector('.name')!
-      .dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
-    input = document.querySelector<HTMLInputElement>('input.rename')!;
-    input.value = '   ';
-    input.dispatchEvent(new Event('blur'));
-    expect(sentOfType('rename')).toEqual([]);
-
-    rows()[0]!
-      .querySelector('.name')!
-      .dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
-    input = document.querySelector<HTMLInputElement>('input.rename')!;
-    input.value = 'once';
-    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-    input.dispatchEvent(new Event('blur'));
-    expect(sentOfType('rename')).toHaveLength(1);
-  });
-
-  it('keeps the list from redrawing while the name is being edited, and catches up after', async () => {
-    const input = await startRename();
-    state([ws('a'), ws('b')]);
-    expect(document.querySelector('input.rename')).toBe(input);
-    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    expect(names()).toEqual(['acme/a', 'acme/b']);
-  });
-
-  it('does not select the row when the box is clicked', async () => {
-    const input = await startRename();
-    input.click();
-    expect(creatorOpen()).toBe(false);
-  });
 });
 
 describe('the keyboard in the list', () => {
@@ -616,34 +389,6 @@ describe('the keyboard in the list', () => {
     target.dispatchEvent(event);
     return event;
   };
-
-  it('has one tab stop, the current workspace', async () => {
-    await boot();
-    state([ws('a'), ws('b')]);
-    expect(rows().map((row) => row.tabIndex)).toEqual([0, -1]);
-  });
-
-  it('moves focus with the arrows, stopping at the ends', async () => {
-    await boot();
-    state([ws('a'), ws('b'), ws('c')]);
-    rows()[0]!.focus();
-    press(rows()[0]!, 'ArrowDown');
-    expect(document.activeElement).toBe(rows()[1]);
-    press(rows()[1]!, 'End');
-    expect(document.activeElement).toBe(rows()[2]);
-    press(rows()[2]!, 'ArrowDown');
-    expect(document.activeElement).toBe(rows()[2]);
-    press(rows()[2]!, 'Home');
-    expect(document.activeElement).toBe(rows()[0]);
-  });
-
-  it('keeps focus on a row through redraws', async () => {
-    await boot();
-    state([ws('a'), ws('b')]);
-    rows()[1]!.focus();
-    state([ws('a'), ws('b')], { a: 'working' });
-    expect((document.activeElement as HTMLElement).dataset.id).toBe('b');
-  });
 
   it('opens on Enter or Space, and starts a rename on F2', async () => {
     const { windowId: other } = fake.addWindow();
@@ -698,49 +443,6 @@ describe('reordering by dragging', () => {
     drag('dragend', a);
     expect(names()).toEqual(['acme/b', 'acme/c', 'acme/a']);
   });
-
-  it('moves it before the one dropped on, in the upper half', async () => {
-    await boot();
-    state([ws('a'), ws('b'), ws('c')]);
-    const [, , c] = rows() as [HTMLElement, HTMLElement, HTMLElement];
-    drag('dragstart', c);
-    const a = rows()[0]!;
-    a.getBoundingClientRect = () => ({ top: 0, height: 10 }) as DOMRect;
-    drag('dragover', a, { clientY: 1 });
-    expect(a.classList.contains('drop-before')).toBe(true);
-    drag('drop', a);
-    expect(sentOfType('move')).toEqual([{ type: 'move', id: 'c', index: 0 }]);
-  });
-
-  it('ignores a drop on itself, and a dragover when nothing is being dragged', async () => {
-    await boot();
-    state([ws('a'), ws('b')]);
-    const a = rows()[0]!;
-    expect(drag('dragover', a).defaultPrevented).toBe(false);
-    drag('dragstart', a);
-    drag('drop', a);
-    expect(sentOfType('move')).toEqual([]);
-  });
-
-  it('clears the drop marks when the drag leaves a row', async () => {
-    await boot();
-    state([ws('a'), ws('b')]);
-    const [a, b] = rows() as [HTMLElement, HTMLElement];
-    drag('dragstart', a);
-    drag('dragover', b);
-    drag('dragleave', b);
-    expect(b.classList.contains('drop-before') || b.classList.contains('drop-after')).toBe(false);
-  });
-
-  it('holds off redrawing during a drag', async () => {
-    await boot();
-    state([ws('a'), ws('b')]);
-    drag('dragstart', rows()[0]!);
-    state([ws('a'), ws('b'), ws('c')]);
-    expect(names()).toEqual(['acme/a', 'acme/b']);
-    drag('dragend', rows()[0]!);
-    expect(names()).toEqual(['acme/a', 'acme/b', 'acme/c']);
-  });
 });
 
 describe('archived workspaces', () => {
@@ -762,21 +464,6 @@ describe('archived workspaces', () => {
     expect(closed()[1]!.title).not.toContain('Resumes');
   });
 
-  it('shows nothing when there is nothing archived', async () => {
-    await boot();
-    onControlMessage({ type: 'history', entries: [] });
-    expect(toggle()).toBeNull();
-  });
-
-  it('restores into a new window when this one holds no workspace', async () => {
-    await boot();
-    state([]);
-    onControlMessage({ type: 'history', entries: history });
-    toggle()!.click();
-    closed()[0]!.click();
-    expect(sentOfType('restore')).toEqual([{ type: 'restore', historyId: 'h1', windowId: null }]);
-  });
-
   it('restores into this window, as a tab group, when it already holds a workspace', async () => {
     await boot();
     state([ws('a')]);
@@ -784,52 +471,6 @@ describe('archived workspaces', () => {
     toggle()!.click();
     closed()[1]!.click();
     expect(sentOfType('restore')).toEqual([{ type: 'restore', historyId: 'h2', windowId }]);
-  });
-
-  it('forgets one with ×, without restoring it', async () => {
-    await boot();
-    onControlMessage({ type: 'history', entries: history });
-    toggle()!.click();
-    closed()[0]!.querySelector<HTMLButtonElement>('.remove')!.click();
-    expect(sentOfType('forget')).toEqual([{ type: 'forget', historyId: 'h1' }]);
-    expect(sentOfType('restore')).toEqual([]);
-  });
-
-  it('clears them all after asking twice, and disarms after three seconds', async () => {
-    await boot();
-    onControlMessage({ type: 'history', entries: history });
-    toggle()!.click();
-    const clear = () => document.querySelector<HTMLButtonElement>('.archived-clear')!;
-    clear().click();
-    expect(clear().textContent).toBe('Forget all?');
-    expect(sentOfType('forgetAll')).toEqual([]);
-    expect(closed()).toHaveLength(2);
-    vi.advanceTimersByTime(3000);
-    expect(clear().textContent).toBe('Clear all');
-    clear().click();
-    clear().click();
-    expect(sentOfType('forgetAll')).toHaveLength(1);
-  });
-
-  it('keeps Clear all armed through a redraw', async () => {
-    await boot();
-    onControlMessage({ type: 'history', entries: history });
-    toggle()!.click();
-    const clear = () => document.querySelector<HTMLButtonElement>('.archived-clear')!;
-    clear().click();
-    onControlMessage({ type: 'history', entries: history });
-    expect(clear().textContent).toBe('Forget all?');
-    clear().click();
-    expect(sentOfType('forgetAll')).toHaveLength(1);
-  });
-
-  it('is searched along with the list', async () => {
-    await boot();
-    state(['a', 'b', 'c', 'd', 'e'].map((id) => ws(id)));
-    onControlMessage({ type: 'history', entries: history });
-    $<HTMLInputElement>('list-search').value = 'two';
-    $('list-search').dispatchEvent(new Event('input'));
-    expect(closed().map((row) => row.querySelector('.name')!.textContent)).toEqual(['old/two']);
   });
 });
 
@@ -1242,22 +883,6 @@ describe('appearance', () => {
     expect(document.documentElement.dataset.density).toBe('compact');
     expect(term().options.theme!.background).toBe('#ffffff');
   });
-
-  it('follows the system when the theme is system, and when the system changes', async () => {
-    await boot();
-    expect(document.documentElement.dataset.theme).toBe('dark');
-    expect(term().options.theme!.background).toBe('#1e1e1e');
-    dark = false;
-    mediaListeners.forEach((listener) => listener());
-    expect(document.documentElement.dataset.theme).toBe('light');
-  });
-
-  it('applies a change made in settings at once', async () => {
-    await boot();
-    fake.events.storage.onChanged.emit({ prefs: { newValue: { theme: 'light', density: 'compact' } } }, 'local');
-    expect(document.documentElement.dataset.theme).toBe('light');
-    expect(document.documentElement.dataset.density).toBe('compact');
-  });
 });
 
 describe('the list’s width and collapse', () => {
@@ -1276,31 +901,5 @@ describe('the list’s width and collapse', () => {
     await boot();
     expect(document.body.classList.contains('collapsed')).toBe(true);
     expect(document.body.style.getPropertyValue('--list-width')).toBe('520px');
-  });
-
-  it('resizes by dragging the edge, between 140 and 520 pixels, and saves where it ended', async () => {
-    await boot();
-    const resizer = $('list-resizer');
-    let captured = false;
-    resizer.setPointerCapture = () => void (captured = true);
-    resizer.releasePointerCapture = () => void (captured = false);
-    resizer.hasPointerCapture = () => captured;
-    const pointer = (type: string, clientX: number) => {
-      const event = new Event(type, { bubbles: true }) as Event & { pointerId: number; clientX: number };
-      event.pointerId = 1;
-      event.clientX = clientX;
-      resizer.dispatchEvent(event);
-    };
-    pointer('pointermove', 300);
-    expect(document.body.style.getPropertyValue('--list-width')).toBe('');
-    pointer('pointerdown', 0);
-    pointer('pointermove', 300);
-    expect(document.body.style.getPropertyValue('--list-width')).toBe('300px');
-    pointer('pointermove', 10);
-    expect(document.body.style.getPropertyValue('--list-width')).toBe('140px');
-    pointer('pointerup', 900);
-    expect(document.body.style.getPropertyValue('--list-width')).toBe('520px');
-    expect(fake.storage.local.listWidth).toBe(520);
-    expect(resizer.classList.contains('dragging')).toBe(false);
   });
 });
