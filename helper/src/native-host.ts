@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { NativeHostReply, NativeHostRequest, NativeStartReply } from '../../shared/protocol';
-import { DATA_DIR, PORT } from './config';
-import { startHelper } from './start-helper';
-import { errorMessage } from '../../shared/errors';
+import type { NativeHostReply, NativeHostRequest, NativeStartReply } from '../../shared/protocol/protocol';
+import { DATA_DIR, PORT } from './platform/config';
+import { startHelper } from './platform/start-helper';
+import { errorMessage } from '../../shared/protocol/errors';
 
 let input = Buffer.alloc(0);
 let answered = false;

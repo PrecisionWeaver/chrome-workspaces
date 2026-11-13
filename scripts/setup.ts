@@ -1,8 +1,8 @@
 import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { NATIVE_HOST_NAME } from '../shared/protocol';
-import { AGENT_LABEL, DATA_DIR } from '../helper/src/config';
+import { NATIVE_HOST_NAME } from '../shared/protocol/protocol';
+import { AGENT_LABEL, DATA_DIR } from '../helper/src/platform/config';
 import { extensionIdFromManifest } from './extension-id';
 import { agentFile, hostManifest, hostWrapper as wrapper } from './install-paths';
 

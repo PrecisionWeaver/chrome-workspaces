@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DATA_DIR, HOST, PORT } from '../helper/src/config';
+import { DATA_DIR, HOST, PORT } from '../helper/src/platform/config';
 import { findWorkspace, parseCommand } from './cw-args';
 
 // A command line for the helper's HTTP API: `npm run cw -- new PROJ-123`, or an alias to that.

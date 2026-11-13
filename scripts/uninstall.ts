@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, rmSync } from 'node:fs';
-import { AGENT_LABEL, DATA_DIR } from '../helper/src/config';
+import { AGENT_LABEL, DATA_DIR } from '../helper/src/platform/config';
 import { agentFile, hostManifest, hostWrapper } from './install-paths';
 
 // Undoes `npm run setup`. The data directory (workspaces, config, prompts, history) stays unless --purge is given.

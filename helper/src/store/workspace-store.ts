@@ -1,0 +1,219 @@
+import { randomBytes } from 'node:crypto';
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
+import type { Workspace, WorkspaceColor } from '../../../shared/protocol/protocol';
+import { errorMessage } from '../../../shared/protocol/errors';
+
+export interface NewWorkspace {
+  name: string;
+  ticket?: string | null;
+  cwd: string;
+  url?: string | null;
+  pr?: string | null;
+  prompt?: string | null;
+  model?: string | null;
+  color?: WorkspaceColor | null;
+  resume?: string | null;
+  /** Tabs to open with the workspace; they become its remembered tabs. */
+  tabs?: string[];
+}
+
+export class WorkspaceStore {
+  private workspaces: Workspace[];
+  private readonly listeners = new Set<() => void>();
+  /** Workspaces an older version had archived; they now belong in history, which `moveArchived` hands them to. */
+  private legacyArchived: Workspace[] = [];
+
+  constructor(private readonly file: string) {
+    this.workspaces = this.load();
+    this.legacyArchived = this.workspaces.filter((ws) => (ws as { archived?: boolean }).archived === true);
+    this.workspaces = this.workspaces.filter((ws) => !this.legacyArchived.includes(ws));
+    for (const ws of this.workspaces) delete (ws as { archived?: boolean }).archived;
+    for (const ws of this.workspaces) ws.grouped ??= ws.groupId !== null;
+  }
+
+  /** Passes each legacy archived workspace to `keep`, and only then drops them from the file, so a crash in between loses none. */
+  moveArchived(keep: (workspace: Workspace) => void): void {
+    if (this.legacyArchived.length === 0) return;
+    for (const ws of this.legacyArchived) keep(ws);
+    this.legacyArchived = [];
+    this.save();
+  }
+
+  list(): Workspace[] {
+    return this.workspaces.map((ws) => ({ ...ws }));
+  }
+
+  get(id: string): Workspace | undefined {
+    return this.list().find((ws) => ws.id === id);
+  }
+
+  findByTicket(ticket: string): Workspace | undefined {
+    return this.list().find((ws) => ws.ticket?.toUpperCase() === ticket.toUpperCase());
+  }
+
+  findByPr(url: string): Workspace | undefined {
+    return this.list().find((ws) => ws.pr === url);
+  }
+
+  findByWindow(windowId: number): Workspace | undefined {
+    return this.list().find((ws) => ws.windowId === windowId);
+  }
+
+  create(input: NewWorkspace): Workspace {
+    const workspace: Workspace = {
+      id: `ws-${randomBytes(4).toString('hex')}`,
+      name: input.name,
+      ticket: input.ticket ?? null,
+      cwd: input.cwd,
+      url: input.url ?? null,
+      windowId: null,
+      groupId: null,
+      grouped: false,
+      resume: input.resume ?? null,
+      pinned: false,
+      color: input.color ?? null,
+      model: input.model ?? null,
+      lastTabUrls: [...(input.tabs ?? [])],
+      pr: input.pr ?? null,
+      prompt: input.prompt ?? null,
+      createdAt: new Date().toISOString(),
+    };
+    this.workspaces.push(workspace);
+    try {
+      this.save();
+    } catch (error) {
+      // Not kept in memory either, or it would be listed yet lost at the next restart.
+      this.workspaces.pop();
+      throw error;
+    }
+    return { ...workspace };
+  }
+
+  /** A workspace has one window, which it may share; a tab group belongs to one workspace, so pairing takes it from anyone else. */
+  pairWindow(id: string, windowId: number, groupId: number | null = null): void {
+    const target = this.require(id);
+    if (groupId !== null) for (const ws of this.workspaces) if (ws.groupId === groupId) ws.groupId = null;
+    target.windowId = windowId;
+    target.groupId = groupId;
+    target.grouped = groupId !== null;
+    this.save();
+  }
+
+  /** Frees every workspace in the window. Keeps `lastTabUrls`, which is what re-pairs a workspace when its tabs come back, and `grouped`, which is how it reopens if they do not. */
+  unpairWindow(windowId: number): void {
+    const paired = this.workspaces.filter((w) => w.windowId === windowId);
+    for (const ws of paired) {
+      ws.windowId = null;
+      ws.groupId = null;
+    }
+    if (paired.length) this.save();
+  }
+
+  unpairGroup(groupId: number): void {
+    const ws = this.workspaces.find((w) => w.groupId === groupId);
+    if (!ws) return;
+    ws.groupId = null;
+    this.save();
+  }
+
+  setTabs(windowId: number, urls: string[], groupId: number | null = null): void {
+    const ws = this.workspaces.find((w) => w.windowId === windowId && w.groupId === groupId);
+    if (!ws) return;
+    ws.lastTabUrls = [...urls];
+    this.save();
+  }
+
+  rename(id: string, name: string): void {
+    this.require(id).name = name;
+    this.save();
+  }
+
+  /** Moves a workspace to `index` in the list, which is the order the panel shows and switching follows. */
+  move(id: string, index: number): void {
+    const ws = this.require(id);
+    const rest = this.workspaces.filter((w) => w !== ws);
+    rest.splice(Math.max(0, Math.min(index, rest.length)), 0, ws);
+    this.workspaces = rest;
+    this.save();
+  }
+
+  /** Sets the list order. Ignored unless `ids` holds every workspace exactly once. Returns whether it applied. */
+  reorder(ids: readonly string[]): boolean {
+    const byId = new Map(this.workspaces.map((w) => [w.id, w]));
+    if (ids.length !== byId.size || new Set(ids).size !== ids.length || !ids.every((id) => byId.has(id))) return false;
+    const next = ids.map((id) => byId.get(id)!);
+    if (next.every((w, i) => w === this.workspaces[i])) return true;
+    this.workspaces = next;
+    this.save();
+    return true;
+  }
+
+  /**
+   * Pins or colors a workspace. Pinning moves it to the end of the pinned block at the top
+   * of the list, and unpinning to just below it, so the list stays the one order everything follows.
+   */
+  mark(id: string, patch: { pinned?: boolean; color?: WorkspaceColor | null }): void {
+    const ws = this.require(id);
+    if (patch.color !== undefined) ws.color = patch.color;
+    if (patch.pinned !== undefined && patch.pinned !== ws.pinned) {
+      ws.pinned = patch.pinned;
+      const rest = this.workspaces.filter((w) => w !== ws);
+      const pinnedCount = rest.filter((w) => w.pinned).length;
+      rest.splice(pinnedCount, 0, ws);
+      this.workspaces = rest;
+    }
+    this.save();
+  }
+
+  clearPrompt(id: string): void {
+    const ws = this.require(id);
+    if (ws.prompt === null) return;
+    ws.prompt = null;
+    this.save();
+  }
+
+  remove(id: string): void {
+    this.workspaces = this.workspaces.filter((ws) => ws.id !== id);
+    this.save();
+  }
+
+  onChange(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  private require(id: string): Workspace {
+    const ws = this.workspaces.find((w) => w.id === id);
+    if (!ws) throw new Error(`unknown workspace ${id}`);
+    return ws;
+  }
+
+  private load(): Workspace[] {
+    if (!existsSync(this.file)) return [];
+    try {
+      const { workspaces } = JSON.parse(readFileSync(this.file, 'utf8')) as { workspaces: Workspace[] };
+      // Files written before a field existed load with it unset.
+      return workspaces.map((ws) => ({
+        ...ws,
+        pr: ws.pr ?? null,
+        prompt: ws.prompt ?? null,
+        groupId: ws.groupId ?? null,
+        resume: ws.resume ?? null,
+        pinned: ws.pinned ?? false,
+        color: ws.color ?? null,
+        model: ws.model ?? null,
+      }));
+    } catch (error) {
+      throw new Error(`cannot read ${this.file}: ${errorMessage(error)}`);
+    }
+  }
+
+  private save(): void {
+    mkdirSync(dirname(this.file), { recursive: true, mode: 0o700 });
+    const tmp = `${this.file}.tmp`;
+    writeFileSync(tmp, `${JSON.stringify({ workspaces: this.workspaces }, null, 2)}\n`);
+    renameSync(tmp, this.file);
+    for (const listener of this.listeners) listener();
+  }
+}
