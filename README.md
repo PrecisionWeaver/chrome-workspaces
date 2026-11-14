@@ -1,7 +1,6 @@
 # Chrome Workspaces
 
-[![release](https://github.com/PrecisionWeaver/chrome-workspaces/actions/workflows/release.yml/badge.svg)](https://github.com/PrecisionWeaver/chrome-workspaces/actions/workflows/release.yml)
-[![ci](https://github.com/PrecisionWeaver/chrome-workspaces/actions/workflows/ci.yml/badge.svg)](https://github.com/PrecisionWeaver/chrome-workspaces/actions/workflows/ci.yml)
+[![release](https://github.com/PrecisionWeaver/chrome-workspaces/actions/workflows/release.yml/badge.svg?branch=main)](https://github.com/PrecisionWeaver/chrome-workspaces/actions/workflows/release.yml)
 
 A Claude terminal for every Chrome window or tab group, docked in Chrome's side panel, with source control and pull-request review built in.
 
