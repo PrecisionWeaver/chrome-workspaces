@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SystemProcess, SystemSession } from '../protocol/protocol';
-import { findWarnings, parseElapsed } from './guardrails';
+import { findWarnings, parseElapsed, warningKey } from './guardrails';
 
 const proc = (pid: number, extra: Partial<SystemProcess> = {}): SystemProcess => ({
   pid,
@@ -56,6 +56,27 @@ describe('findWarnings', () => {
     expect(findWarnings([session('x', [proc(1, { ports: [22], elapsed: '9-00:00:00' })])], limits)).toEqual([]);
     const days = findWarnings([session('x', [proc(1), proc(2, { ports: [80], elapsed: '3-01:00:00' })])], limits);
     expect(days[0].message).toContain('3d');
+  });
+
+  it('holds a raised memory warning until the workspace is clearly back under the limit', () => {
+    const at = (mb: number) => [session('big', [proc(1, { rssKb: mb * 1024 })])];
+    const raised = findWarnings(at(110), limits);
+    expect(findWarnings(at(95), limits)).toEqual([]);
+    expect(findWarnings(at(95), limits, raised)).toHaveLength(1);
+    expect(findWarnings(at(85), limits, raised)).toEqual([]);
+  });
+
+  it('holds a raised idle-server warning through a blip of CPU, and drops it once the server is busy', () => {
+    const at = (cpu: number) => [session('dev', [proc(1), proc(2, { ports: [5173], elapsed: '03:00:00', cpu })])];
+    const raised = findWarnings(at(0), limits);
+    expect(findWarnings(at(2), limits)).toEqual([]);
+    expect(findWarnings(at(2), limits, raised)).toHaveLength(1);
+    expect(findWarnings(at(20), limits, raised)).toEqual([]);
+  });
+
+  it('keys a warning by its kind, workspace and process', () => {
+    expect(warningKey({ kind: 'idle-server', id: 'ws-a', pid: 2 })).toBe('idle-server:ws-a:2');
+    expect(warningKey({ kind: 'memory', id: 'ws-a' })).toBe('memory:ws-a:');
   });
 
   it('reports nothing for a quiet system', () => {

@@ -150,6 +150,8 @@ chrome.tabs.onActivated.addListener(({ windowId }) => windowId === state.windowI
 
 // The workspace the last render showed; the views over the terminal belong to it.
 let shownId: string | undefined;
+// Whether a view covered the terminal at the last render.
+let overlayShown = false;
 
 function render(): void {
   workspaceList.render();
@@ -168,8 +170,12 @@ function render(): void {
   git.renderStatus();
   activity.setWorkspace(workspace);
   const overlay = creator.isOpen || git.isOpen || settings.isOpen || tools.isOpen;
+  // Closing a view over the terminal hands the keyboard back to claude.
+  const closed = overlayShown && !overlay;
+  overlayShown = overlay;
   pickerEl.hidden = overlay || workspace !== undefined;
   terminalEl.hidden = overlay || workspace === undefined;
+  if (closed && !terminalEl.hidden) term.focus();
   if (workspace) session.attach(workspace);
   else {
     session.detach();

@@ -9,6 +9,7 @@ describe('normalizePrefs', () => {
       density: 'comfortable',
       setupDismissed: false,
       usageRange: '14d',
+      dismissedWarnings: [],
     };
     for (const stored of [undefined, null, 'dark', 7, []]) expect(normalizePrefs(stored)).toEqual(defaults);
   });
@@ -22,6 +23,7 @@ describe('normalizePrefs', () => {
       density: 'compact',
       setupDismissed: true,
       usageRange: '30d',
+      dismissedWarnings: [],
     });
     expect(normalizePrefs({ notify: 'yes', theme: 'neon', density: 'tiny', usageRange: '90d', usageTrendWindow: 5 })).toEqual({
       notify: false,
@@ -29,6 +31,7 @@ describe('normalizePrefs', () => {
       density: 'comfortable',
       setupDismissed: false,
       usageRange: '14d',
+      dismissedWarnings: [],
     });
     expect(normalizePrefs({ theme: 'dark' })).toEqual({
       notify: false,
@@ -36,6 +39,12 @@ describe('normalizePrefs', () => {
       density: 'comfortable',
       setupDismissed: false,
       usageRange: '14d',
+      dismissedWarnings: [],
     });
+  });
+
+  it('keeps only the strings in the dismissed warnings', () => {
+    expect(normalizePrefs({ dismissedWarnings: ['memory:ws-a:', 7, null] }).dismissedWarnings).toEqual(['memory:ws-a:']);
+    expect(normalizePrefs({ dismissedWarnings: 'memory:ws-a:' }).dismissedWarnings).toEqual([]);
   });
 });

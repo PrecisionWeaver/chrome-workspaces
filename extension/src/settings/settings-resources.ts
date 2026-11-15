@@ -26,7 +26,7 @@ function line(values: readonly number[], peak: number, className: string): SVGPo
 /**
  * Every running workspace's memory and CPU together over the last couple of hours, from the samples the helper already keeps,
  * at the top of the Workspaces card: the totals, the chart, and the three workspaces using the most memory.
- * Nothing while no workspace runs; a note stands in for the chart until there are enough samples to draw.
+ * Nothing while no workspace runs. The chart is drawn from the first sample, its axis saying it is still collecting until there are a few.
  */
 export function resourcesChart(s: SystemSnapshot): HTMLElement[] {
   const running = s.sessions.filter((x) => x.pid !== null).length;
@@ -44,14 +44,10 @@ export function resourcesChart(s: SystemSnapshot): HTMLElement[] {
   const top = el('div', '', 'resources-top');
   top.append(...topConsumers(s.sessions, CONSUMER_ROWS).map((c) => row(c.name, `${formatKb(c.rssKb)} · ${formatCpu(c.cpu)}`)));
 
-  if (samples.length < MIN_POINTS) {
-    return [headline, el('p', 'Collecting samples; the chart appears in a few minutes.', 'settings-note'), top];
-  }
-
   const memory = samples.map((p) => p.rssKb);
   const cpu = samples.map((p) => p.cpu);
-  const peakMemory = Math.max(...memory);
-  const peakCpu = Math.max(...cpu);
+  const peakMemory = Math.max(0, ...memory);
+  const peakCpu = Math.max(0, ...cpu);
 
   const chart = el('div', '', 'resources-chart');
   const plot = document.createElementNS(NS, 'svg');
@@ -70,10 +66,13 @@ export function resourcesChart(s: SystemSnapshot): HTMLElement[] {
   }
   chart.append(columns);
 
-  const minutes = Math.max(1, Math.round((samples[samples.length - 1].t - samples[0].t) / 60_000));
-  const span = minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
   const axis = el('div', '', 'usage-axis');
-  axis.append(el('span', `${span} ago`), el('span', `peak ${formatKb(peakMemory)} · ${formatCpu(peakCpu)}`), el('span', 'now'));
+  let from = 'collecting samples…';
+  if (samples.length >= MIN_POINTS) {
+    const minutes = Math.max(1, Math.round((samples[samples.length - 1].t - samples[0].t) / 60_000));
+    from = `${minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`} ago`;
+  }
+  axis.append(el('span', from), el('span', `peak ${formatKb(peakMemory)} · ${formatCpu(peakCpu)}`), el('span', 'now'));
 
   const legend = el('div', '', 'resources-legend');
   const key = (className: string, text: string) => {

@@ -22,10 +22,18 @@ describe('resourcesChart', () => {
     expect(two[0]!.querySelectorAll('span')[2]!.textContent).toBe('across 2 running workspaces and the helper');
   });
 
-  it('stands a note in for the chart until there are enough samples, keeping the top consumers', () => {
+  it('draws the chart before there are enough samples, its axis saying it is still collecting', () => {
     const nodes = resourcesChart(makeSnapshot({ sessions: [running('ws-a', 'acme/app', [sample(0, 1000, 1), sample(1, 1000, 1)])] }));
-    expect(classes(nodes)).toEqual(['usage-headline', 'settings-note', 'resources-top']);
-    expect(nodes[1]!.textContent).toBe('Collecting samples; the chart appears in a few minutes.');
+    expect(classes(nodes)).toEqual(['usage-headline', 'resources-chart', 'usage-axis', 'resources-legend', 'resources-top']);
+    expect(nodes[1]!.querySelectorAll('.resources-column')).toHaveLength(2);
+    expect(nodes[2]!.querySelector('span')!.textContent).toBe('collecting samples…');
+  });
+
+  it('draws an empty chart before the first sample', () => {
+    const nodes = resourcesChart(makeSnapshot({ sessions: [running('ws-a', 'acme/app', [])] }));
+    expect(nodes[1]!.className).toBe('resources-chart');
+    expect(nodes[1]!.querySelectorAll('.resources-column')).toHaveLength(0);
+    expect([...nodes[2]!.querySelectorAll('span')].map((n) => n.textContent)).toEqual(['collecting samples…', 'peak 0 B · 0.0%', 'now']);
   });
 
   it('lists the three workspaces using the most memory, biggest first', () => {
