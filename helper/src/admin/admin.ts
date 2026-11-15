@@ -11,7 +11,7 @@ import { ResourceHistory } from '../store/resource-history';
 import type { WorkspaceStore } from '../store/workspace-store';
 import { checkUpdates, runAction } from './actions';
 import { createLedgerSync } from './ledger-sync';
-import { buildSnapshot } from './snapshot';
+import { buildSnapshot, type SnapshotContext } from './snapshot';
 
 const LOG_TAIL_BYTES = 64 * 1024;
 
@@ -78,7 +78,7 @@ export function createAdmin(options: AdminOptions): AdminService {
     tokens,
     ledger,
   });
-  const context = { options, readProcs, tokens, ledger, history, sync };
+  const context: SnapshotContext = { options, readProcs, tokens, ledger, history, sync, warnings: [] };
 
   return {
     snapshot: (extra) => buildSnapshot(context, extra),

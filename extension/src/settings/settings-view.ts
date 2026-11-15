@@ -7,6 +7,7 @@ import { newSessionsState, type SessionsState, workspacesCard } from './settings
 import { planCard, usageCard } from './settings-usage';
 import { formatBytes } from '../ui/format';
 import { DENSITIES, THEMES } from '../../../shared/lib/keynav';
+import { warningKey } from '../../../shared/usage/guardrails';
 import { buildChecklist, remaining, type SetupItem } from '../../../shared/workspaces/onboarding';
 import { loadPrefs, normalizePrefs, savePrefs, type Prefs } from '../app/prefs';
 
@@ -21,7 +22,7 @@ export interface SettingsView {
   show(): void;
   close(): void;
   setSystem(message: Extract<ControlToClient, { type: 'system' }>): void;
-  /** How many warnings the last snapshot had, for a marker on the settings button. */
+  /** How many warnings the last snapshot had that are not dismissed, for a marker on the settings button. */
   readonly warningCount: number;
   /** How many setup steps are still open, 0 once everything is done or the checklist is dismissed. */
   readonly setupRemaining: number;
@@ -187,9 +188,13 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
     return card(`Getting started · ${items.length - open} of ${items.length} done`, ...rows, actions(dismiss));
   }
 
+  /** The warnings not dismissed. */
+  const shownWarnings = (s: SystemSnapshot) => s.warnings.filter((w) => !prefs.dismissedWarnings.includes(warningKey(w)));
+
   function warningsCard(s: SystemSnapshot): HTMLElement | null {
-    if (s.warnings.length === 0) return null;
-    const rows = s.warnings.map((warning) => {
+    const warnings = shownWarnings(s);
+    if (warnings.length === 0) return null;
+    const rows = warnings.map((warning) => {
       const line = el('div', '', 'warning-row');
       line.append(el('span', '⚠', 'warning-mark'), el('span', warning.message, 'warning-text'));
       // A forgotten server can be stopped from here, with the same confirm as in the process list.
@@ -197,10 +202,22 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
         const pid = warning.pid;
         line.append(guarded(ctx, `warn-stop-${pid}`, 'Stop it', 'Stop it?', () => ctx.request({ action: 'killProcess', id: warning.id, pid })));
       }
+      line.append(
+        plain(
+          'Dismiss',
+          () => {
+            const dismissedWarnings = [...prefs.dismissedWarnings, warningKey(warning)];
+            prefs = { ...prefs, dismissedWarnings };
+            void savePrefs({ dismissedWarnings });
+            render();
+          },
+          'Hide this until it clears and comes back',
+        ),
+      );
       return line;
     });
     return card(
-      `Needs attention · ${s.warnings.length}`,
+      `Needs attention · ${warnings.length}`,
       ...rows,
       el(
         'p',
@@ -393,10 +410,19 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       return snapshot && !prefs.setupDismissed ? remaining(checklist(snapshot)) : 0;
     },
     get warningCount() {
-      return snapshot?.warnings.length ?? 0;
+      return snapshot ? shownWarnings(snapshot).length : 0;
     },
     setSystem(message) {
       snapshot = message.snapshot ?? snapshot;
+      // A dismissal lasts while its warning does, so the same trouble coming back later is shown again.
+      if (message.snapshot) {
+        const current = new Set(message.snapshot.warnings.map(warningKey));
+        const dismissedWarnings = prefs.dismissedWarnings.filter((k) => current.has(k));
+        if (dismissedWarnings.length !== prefs.dismissedWarnings.length) {
+          prefs = { ...prefs, dismissedWarnings };
+          void savePrefs({ dismissedWarnings });
+        }
+      }
       void readShortcut();
       error = message.error;
       if (isOpen) render();

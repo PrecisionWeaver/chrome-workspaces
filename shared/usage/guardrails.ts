@@ -27,18 +27,35 @@ export function parseElapsed(etime: string): number {
   return Number(d) * 86400 + Number(h) * 3600 + Number(min) * 60 + Number(s);
 }
 
+/** A memory warning already raised stays until the workspace drops below this share of the limit. */
+const MEMORY_CLEAR_SHARE = 0.9;
+/** An idle-server warning already raised stays until the server uses at least this much CPU. */
+const IDLE_CLEAR_CPU = 5;
+const IDLE_CPU = 0.5;
+
+/** What names a warning across snapshots, and what a dismissal is remembered by. */
+export const warningKey = (w: Pick<GuardrailWarning, 'kind' | 'id' | 'pid'>): string => `${w.kind}:${w.id}:${w.pid ?? ''}`;
+
 const mb = (kb: number): string => (kb >= 1024 * 1024 ? `${(kb / 1024 / 1024).toFixed(1)} GB` : `${Math.round(kb / 1024)} MB`);
 
 /**
  * What is worth telling the user about the running workspaces: one that holds a lot of memory, and a
  * server that has been listening on a port for hours without using any CPU. CPU is a snapshot, so
  * "idle" means idle now, and only a server that has also been up a long time is reported.
+ * A warning in `previous` is held until its reading is clearly back to normal, so one that sits near
+ * its threshold does not come and go with every snapshot.
  */
-export function findWarnings(sessions: readonly SystemSession[], limits: Limits = DEFAULT_LIMITS): GuardrailWarning[] {
+export function findWarnings(
+  sessions: readonly SystemSession[],
+  limits: Limits = DEFAULT_LIMITS,
+  previous: readonly GuardrailWarning[] = [],
+): GuardrailWarning[] {
+  const raised = new Set(previous.map(warningKey));
   const warnings: GuardrailWarning[] = [];
   for (const session of sessions) {
     const rssKb = session.processes.reduce((sum, p) => sum + p.rssKb, 0);
-    if (rssKb > limits.memoryWarnMb * 1024) {
+    const memoryLimit = limits.memoryWarnMb * 1024 * (raised.has(warningKey({ kind: 'memory', id: session.id })) ? MEMORY_CLEAR_SHARE : 1);
+    if (rssKb > memoryLimit) {
       warnings.push({
         id: session.id,
         name: session.name,
@@ -48,7 +65,8 @@ export function findWarnings(sessions: readonly SystemSession[], limits: Limits 
     }
     // The shell itself is never a server, and is first in the list.
     for (const proc of session.processes.slice(1)) {
-      if (proc.ports.length === 0 || proc.cpu >= 0.5) continue;
+      const held = raised.has(warningKey({ kind: 'idle-server', id: session.id, pid: proc.pid }));
+      if (proc.ports.length === 0 || proc.cpu >= (held ? IDLE_CLEAR_CPU : IDLE_CPU)) continue;
       if (parseElapsed(proc.elapsed) < limits.idleServerHours * 3600) continue;
       warnings.push({
         id: session.id,

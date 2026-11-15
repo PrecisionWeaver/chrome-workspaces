@@ -790,6 +790,17 @@ describe('the other views', () => {
     expect($('terminal').hidden).toBe(false);
   });
 
+  it('focuses the terminal when a view over it closes, and not while one opens', async () => {
+    await boot();
+    state([ws('a')]);
+    const focus = vi.spyOn(term(), 'focus');
+    $('settings-open').click();
+    $('new').click();
+    expect(focus).not.toHaveBeenCalled();
+    $('create-close').click();
+    expect(focus).toHaveBeenCalledTimes(1);
+  });
+
   it('switches between the monitor and the shell from their buttons', async () => {
     await boot();
     state([ws('a')]);

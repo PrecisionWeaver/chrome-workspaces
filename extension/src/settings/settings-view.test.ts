@@ -448,6 +448,7 @@ describe('the cards', () => {
         notify: true,
         setupDismissed: false,
         usageRange: '14d',
+        dismissedWarnings: [],
       });
     });
   });
@@ -568,17 +569,17 @@ describe('the cards', () => {
       expect([...card('Workspaces').querySelectorAll('.resources-top .kv .k')].map((n) => n.textContent)).toEqual(['acme/two', 'acme/three', 'acme/four']);
     });
 
-    it('says it is collecting until there are a few samples, and has no chart to draw', async () => {
+    it('draws the chart while it is still collecting samples', async () => {
       await open(makeSnapshot({ sessions: [running('ws-a', 'acme/app', [sample(0, 100_000, 1), sample(1, 100_000, 1)])] }));
-      expect(card('Workspaces').querySelector('.resources-chart')).toBeNull();
-      expect(card('Workspaces').textContent).toContain('Collecting samples');
+      expect(card('Workspaces').querySelector('.resources-chart')).not.toBeNull();
+      expect(card('Workspaces').textContent).toContain('collecting samples');
       expect(card('Workspaces').querySelector('.usage-headline')).not.toBeNull();
     });
 
     it('has no chart and no note when nothing is running', async () => {
       await open(makeSnapshot({ sessions: [makeSession({ pid: null, processes: [], history: [] })] }));
       expect(card('Workspaces').querySelector('.resources-chart')).toBeNull();
-      expect(card('Workspaces').textContent).not.toContain('Collecting samples');
+      expect(card('Workspaces').textContent).not.toContain('collecting samples');
       expect(card('Workspaces').querySelector('.usage-headline')).toBeNull();
     });
   });
@@ -1163,10 +1164,39 @@ describe('the cards', () => {
 
     it('offers to stop only an idle server, after asking twice', async () => {
       await open(makeSnapshot({ warnings }));
-      expect(cards()[0]!.querySelectorAll('button')).toHaveLength(1);
+      expect(text('button', cards()[0]!)).toEqual(['Dismiss', 'Stop it', 'Dismiss']);
       button('Stop it', cards()[0]!).click();
       button('Stop it?', cards()[0]!).click();
       expect(requests()).toEqual([{ action: 'killProcess', id: 'ws-a', pid: 77 }]);
+    });
+
+    it('hides a dismissed warning from the card and the count, and remembers it', async () => {
+      await open(makeSnapshot({ warnings }));
+      cards()[0]!.querySelectorAll<HTMLButtonElement>('button')[0]!.click();
+      await flush();
+      expect(text('.warning-text', card('Needs attention')!)).toEqual(['A server on :3000 has been idle 6 h']);
+      expect(card('Needs attention')!.querySelector('h3')!.textContent).toBe('Needs attention · 1');
+      expect(view.warningCount).toBe(1);
+      expect(fake.storage.local.prefs).toMatchObject({ dismissedWarnings: ['memory:ws-a:'] });
+      // Still dismissed at the next snapshot.
+      view.setSystem({ type: 'system', snapshot: makeSnapshot({ warnings }), error: null });
+      expect(view.warningCount).toBe(1);
+    });
+
+    it('drops the card once every warning is dismissed', async () => {
+      await open(makeSnapshot({ warnings }));
+      button('Dismiss', cards()[0]!).click();
+      button('Dismiss', card('Needs attention')!).click();
+      expect(card('Needs attention')).toBeUndefined();
+      expect(view.warningCount).toBe(0);
+    });
+
+    it('shows a dismissed warning again once it has cleared and come back', async () => {
+      await open(makeSnapshot({ warnings }));
+      button('Dismiss', cards()[0]!).click();
+      view.setSystem({ type: 'system', snapshot: makeSnapshot({ warnings: [warnings[1]!] }), error: null });
+      view.setSystem({ type: 'system', snapshot: makeSnapshot({ warnings }), error: null });
+      expect(view.warningCount).toBe(2);
     });
 
     it('is absent when there are no warnings', async () => {

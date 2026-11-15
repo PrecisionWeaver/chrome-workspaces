@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import type { ReviewsState, SystemSnapshot, UsageWorkspace } from '../../../shared/protocol/protocol';
-import { findWarnings } from '../../../shared/usage/guardrails';
+import { findWarnings, type GuardrailWarning } from '../../../shared/usage/guardrails';
 import { costOf, isRealModel, rateFor } from '../../../shared/usage/pricing';
 import { localDay } from '../../../shared/usage/usage';
 import type { TranscriptTokens, UsageBucket } from '../claude/tokens';
@@ -20,6 +20,8 @@ export interface SnapshotContext {
   ledger: UsageLedger;
   history: ResourceHistory;
   sync: LedgerSync;
+  /** The last snapshot's warnings, so one already raised is held while its reading hovers at the threshold. */
+  warnings: GuardrailWarning[];
 }
 
 /** The Settings snapshot: the helper, each workspace's session and processes, usage and cost, warnings, storage and config. */
@@ -120,6 +122,8 @@ export async function buildSnapshot(context: SnapshotContext, extra: { reviews: 
   const workspaces = mergeWorkspaces(workspaceUsage)
     .map((w) => ({ ...w, daily: w.daily.filter((d) => d.day >= since) }))
     .filter((w) => w.daily.length);
+  const warnings = findWarnings(sessionRows, config.limits, context.warnings);
+  context.warnings = warnings;
   return {
     takenAt: new Date().toISOString(),
     helper: {
@@ -139,7 +143,7 @@ export async function buildSnapshot(context: SnapshotContext, extra: { reviews: 
     sessions: sessionRows,
     usage: { ...trend, hourly: usageByHour(hourTotals), workspaces },
     plan: options.planUsage?.() ?? { limits: [], updatedAt: null },
-    warnings: findWarnings(sessionRows, config.limits),
+    warnings,
     storage: { uploadsBytes: pathBytes(paths.uploadDir), logBytes: pathBytes(paths.logFile), dataBytes: pathBytes(paths.dataDir) },
     config: {
       defaultCwd: config.defaultCwd,

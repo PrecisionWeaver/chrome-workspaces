@@ -10,6 +10,8 @@ export interface Prefs {
   setupDismissed: boolean;
   /** How far back the usage chart and its figures in Settings go. */
   usageRange: UsageRangeId;
+  /** Settings warnings dismissed, by `warningKey`; each is forgotten once its warning clears. */
+  dismissedWarnings: string[];
 }
 
 const DEFAULTS: Prefs = {
@@ -18,6 +20,7 @@ const DEFAULTS: Prefs = {
   density: 'comfortable',
   setupDismissed: false,
   usageRange: DEFAULT_USAGE_RANGE,
+  dismissedWarnings: [],
 };
 
 /** Stored preferences with anything missing or invalid replaced by its default, since storage can hold anything. */
@@ -29,6 +32,7 @@ export function normalizePrefs(stored: unknown): Prefs {
     density: DENSITIES.includes(p.density as Density) ? (p.density as Density) : DEFAULTS.density,
     setupDismissed: p.setupDismissed === true,
     usageRange: USAGE_RANGES.some((range) => range.id === p.usageRange) ? (p.usageRange as UsageRangeId) : DEFAULT_USAGE_RANGE,
+    dismissedWarnings: Array.isArray(p.dismissedWarnings) ? p.dismissedWarnings.filter((k): k is string => typeof k === 'string') : DEFAULTS.dismissedWarnings,
   };
 }
 
