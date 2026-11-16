@@ -5,7 +5,7 @@ import type { ControlToClient, ControlToHelper, PastSession, Prompt, Repo, Revie
 import { isControlToHelper } from './messages';
 import type { AdminService } from '../admin/admin';
 import type { Template } from '../../../shared/workspaces/templates';
-import { asPaste } from '../pty/paste';
+import { asPaste, MAX_PASTE_LENGTH } from '../pty/paste';
 import type { GitService } from '../git/git';
 import type { HistoryStore } from '../store/history';
 import { parsePrDetails, parsePrThreads, parsePrUrl } from '../git/pr-details';
@@ -208,7 +208,8 @@ export class ControlHub implements HubContext {
           this.sendTo(ws, { type: 'sent', id, ok: false, message: 'That workspace has no running terminal. Open it first, then send again.' });
         } else {
           session.write(asPaste(message.text));
-          this.sendTo(ws, { type: 'sent', id, ok: true, message: 'Sent.' });
+          const cut = message.text.length > MAX_PASTE_LENGTH ? `the first ${MAX_PASTE_LENGTH.toLocaleString('en-US')} characters` : 'it';
+          this.sendTo(ws, { type: 'sent', id, ok: true, message: `Pasted ${cut} into its terminal, not submitted.` });
         }
         break;
       }
