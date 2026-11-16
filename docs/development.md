@@ -3,7 +3,7 @@
 ## Commands
 
 ```bash
-npm test                  # vitest, ~1000 tests: real git repos and pty sessions, and a fake chrome.* with happy-dom for the extension
+npm test                  # vitest, ~1,500 tests: real git repos and pty sessions, and a fake chrome.* with happy-dom for the extension
 npm run test:coverage     # the same, with a coverage floor (vitest.config.ts); CI runs this
 npm run typecheck         # tsc --noEmit, covers shared, helper, extension, scripts
 npm run format            # Biome formatter

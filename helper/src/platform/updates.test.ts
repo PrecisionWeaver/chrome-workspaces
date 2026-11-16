@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -8,8 +8,8 @@ import { applyUpdate, checkUpdates } from './updates';
 const git = gitTrimmed;
 
 /** An origin, a clone that is the installed copy, and a second clone used to publish new commits. */
-function setup() {
-  const root = mkdtempSync(join(tmpdir(), 'cw-upd-'));
+function build(): string {
+  const root = mkdtempSync(join(tmpdir(), 'cw-upd-template-'));
   const origin = join(root, 'origin.git');
   git(root, 'init', '-q', '--bare', '-b', 'main', origin);
   const seed = join(root, 'seed');
@@ -20,8 +20,22 @@ function setup() {
   git(seed, 'add', '.');
   git(seed, 'commit', '-qm', 'first');
   git(seed, 'push', '-q', 'origin', 'HEAD:main');
+  git(root, 'clone', '-q', origin, join(root, 'installed'));
+  return root;
+}
+
+let template: string | undefined;
+
+/** The three repositories are built once and copied for each test, which only has to point the clones at its own origin. */
+function setup() {
+  template ??= build();
+  const root = mkdtempSync(join(tmpdir(), 'cw-upd-'));
+  cpSync(template, root, { recursive: true });
+  const origin = join(root, 'origin.git');
+  const seed = join(root, 'seed');
   const installed = join(root, 'installed');
-  git(root, 'clone', '-q', origin, installed);
+  git(seed, 'remote', 'set-url', 'origin', origin);
+  git(installed, 'remote', 'set-url', 'origin', origin);
   const publish = (file: string, message: string) => {
     writeFileSync(join(seed, file), `${message}\n`);
     git(seed, 'add', '.');
