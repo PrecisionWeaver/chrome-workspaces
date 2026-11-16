@@ -5,6 +5,7 @@ import { parseActivityLine } from '../../../shared/sessions/activity';
 import type { PastSession, WaitingOn, WorkspaceStatus } from '../../../shared/protocol/protocol';
 import type { SessionFile } from '../../../shared/protocol/session-file';
 import { hasRunningSubagent } from './activity';
+import { StatCache } from './stat-cache';
 
 export interface WorkspaceSession {
   status: WorkspaceStatus;
@@ -60,6 +61,19 @@ export function locateTranscript(session: Pick<SessionFile, 'session_id' | 'tran
   return found;
 }
 
+const sessionFiles = new StatCache<SessionFile | null>();
+
+/** A session's status file, parsed once for as long as it is unchanged; null when it cannot be read as JSON. */
+function readSessionFile(path: string): SessionFile | null {
+  return sessionFiles.get(path, () => {
+    try {
+      return JSON.parse(readFileSync(path, 'utf8')) as SessionFile;
+    } catch {
+      return null;
+    }
+  });
+}
+
 const MAX_CONTINUATIONS = 5;
 
 /** Follows "continued in" links from a workspace's session to a newer session that was kept out for its id or directory. */
@@ -96,12 +110,8 @@ export function readSessionStatus(dir: string, workspaceCwds: ReadonlyMap<string
   }
 
   for (const name of names) {
-    let session: SessionFile;
-    try {
-      session = JSON.parse(readFileSync(join(dir, name), 'utf8')) as SessionFile;
-    } catch {
-      continue;
-    }
+    const session = readSessionFile(join(dir, name));
+    if (!session) continue;
     const workspaceId = session.cw_workspace_id;
     if (!workspaceId || !session.session_id) continue;
     const home = workspaceCwds.get(workspaceId);
@@ -143,6 +153,16 @@ export function readSessionStatus(dir: string, workspaceCwds: ReadonlyMap<string
   return result;
 }
 
+/** Whether two readings agree on what a workspace's status and waiting are, which is all that `state` carries from them. */
+export function sameStatuses(a: ReadonlyMap<string, WorkspaceSession>, b: ReadonlyMap<string, WorkspaceSession>): boolean {
+  if (a.size !== b.size) return false;
+  for (const [id, was] of a) {
+    const now = b.get(id);
+    if (!now || was.status !== now.status || was.waiting?.type !== now.waiting?.type || was.waiting?.message !== now.waiting?.message) return false;
+  }
+  return true;
+}
+
 const FIRST_PROMPT_BYTES = 64 * 1024;
 
 /** The first prompt a session's event file recorded, from its head; null without one. */
@@ -177,12 +197,8 @@ export function listWorkspaceSessions(dir: string, workspaceId: string, home: st
   }
   const sessions: PastSession[] = [];
   for (const name of names) {
-    let session: SessionFile;
-    try {
-      session = JSON.parse(readFileSync(join(dir, name), 'utf8')) as SessionFile;
-    } catch {
-      continue;
-    }
+    const session = readSessionFile(join(dir, name));
+    if (!session) continue;
     if (session.cw_workspace_id !== workspaceId || !session.session_id || !session.started_at) continue;
     if (home && session.cwd && !isInside(session.cwd, home)) continue;
     if (session.status === 'ended' && session.transcript_path && !locateTranscript(session)) continue;
@@ -201,20 +217,28 @@ const TRANSCRIPT_TAIL_BYTES = 256 * 1024;
 /** The lines at the end of a claude transcript, oldest first. Only the end is read, since transcripts grow large. */
 const transcriptTail = (path: string): string[] | null => tailLines(path, TRANSCRIPT_TAIL_BYTES);
 
+const transcriptFields = new StatCache<string | null>();
+
 /** The value of `field` on the newest transcript line that has a string for it. */
 function lastTranscriptField(path: string, field: string): string | null {
-  const lines = transcriptTail(path);
-  if (!lines) return null;
-  for (let i = lines.length - 1; i >= 0; i--) {
-    if (!lines[i].includes(`"${field}"`)) continue;
-    try {
-      const value = (JSON.parse(lines[i]) as Record<string, unknown>)[field];
-      if (typeof value === 'string' && value) return value;
-    } catch {
-      // A line cut off by a write in progress.
-    }
-  }
-  return null;
+  return transcriptFields.get(
+    path,
+    () => {
+      const lines = transcriptTail(path);
+      if (!lines) return null;
+      for (let i = lines.length - 1; i >= 0; i--) {
+        if (!lines[i].includes(`"${field}"`)) continue;
+        try {
+          const value = (JSON.parse(lines[i]) as Record<string, unknown>)[field];
+          if (typeof value === 'string' && value) return value;
+        } catch {
+          // A line cut off by a write in progress.
+        }
+      }
+      return null;
+    },
+    `${field}:${path}`,
+  );
 }
 
 /**

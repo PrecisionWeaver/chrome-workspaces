@@ -73,6 +73,8 @@ export class ControlHub implements HubContext {
   private readonly clients = new Set<WebSocket>();
   // The workspace each client is watching the activity of, if any.
   private readonly following = new Map<WebSocket, string>();
+  /** What each following client was last sent, so an unrelated session's change does not send it the same turns again. */
+  private readonly sentActivity = new Map<WebSocket, string>();
 
   constructor(readonly options: ControlHubOptions) {
     options.store.onChange(() => this.broadcastState());
@@ -84,6 +86,7 @@ export class ControlHub implements HubContext {
     ws.on('close', () => {
       this.clients.delete(ws);
       this.following.delete(ws);
+      this.sentActivity.delete(ws);
     });
     ws.on('message', (raw) => {
       let message: unknown;
@@ -127,7 +130,16 @@ export class ControlHub implements HubContext {
 
   /** Sends each following client its workspace's activity again; called when a session's events change. */
   pushActivity(): void {
-    for (const [ws, id] of this.following) this.sendTo(ws, this.activityMessage(id));
+    for (const [ws, id] of this.following) this.sendActivity(ws, id, true);
+  }
+
+  /** Sends a client a workspace's activity; with `changedOnly`, not when it is what that client was last sent. */
+  private sendActivity(ws: WebSocket, id: string, changedOnly = false): void {
+    const message = this.activityMessage(id);
+    const json = JSON.stringify(message);
+    if (changedOnly && this.sentActivity.get(ws) === json) return;
+    this.sentActivity.set(ws, json);
+    this.sendTo(ws, message);
   }
 
   /** Archives a workspace: remembers it under Archived, ends its terminals, and closes its tabs when asked to. */
@@ -265,10 +277,11 @@ export class ControlHub implements HubContext {
       case 'activity':
         if (message.id === null) {
           this.following.delete(ws);
+          this.sentActivity.delete(ws);
           break;
         }
         this.following.set(ws, message.id);
-        this.sendTo(ws, this.activityMessage(message.id));
+        this.sendActivity(ws, message.id);
         break;
       case 'exportData':
         this.sendTo(ws, { type: 'exportData', json: this.options.admin.exportData() });
