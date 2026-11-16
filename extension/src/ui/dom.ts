@@ -106,6 +106,28 @@ export function createArming(rerender: () => void, ms: number): Arming {
 }
 
 /**
+ * Makes `button` ask twice: the first click arms `key` and shows the confirming look, the second runs `run`. `paint(armed)`
+ * draws the button's label (and icon) for either state, and is called once now, from the arming already kept for `key`, so a
+ * redrawn button comes back armed. The button carries the class `armed` while waiting and a `data-focus` of `key`, which
+ * `keepFocus` uses to hand it keyboard focus back after a redraw. The click does not reach the row or card it sits in.
+ */
+export function confirmButton(arming: Arming, key: string, button: HTMLButtonElement, paint: (armed: boolean) => void, run: () => void): HTMLButtonElement {
+  const draw = (armed: boolean): void => {
+    button.classList.toggle('armed', armed);
+    paint(armed);
+  };
+  button.type = 'button';
+  button.dataset.focus = key;
+  draw(arming.isArmed(key));
+  button.addEventListener('click', (event) => {
+    event.stopPropagation();
+    if (arming.click(key)) run();
+    else draw(true);
+  });
+  return button;
+}
+
+/**
  * Wires a page's Back button to `close`, and Escape too while `isOpen` says the page is showing.
  * A page that leaves Escape to its terminal passes no `isOpen`.
  */

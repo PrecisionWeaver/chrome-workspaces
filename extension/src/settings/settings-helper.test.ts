@@ -167,10 +167,11 @@ describe('helperCard', () => {
       const { ctx, requests, renders } = fakeContext();
       state.updates = { status: status({ behind: 1, commits: [{ short: 'def5678', subject: 'Fix it' }] }), error: null, checking: false, applied: false };
       const node = helperCard(ctx, state, makeSnapshot());
-      button('Update now', node).click();
+      const update = button('Update now', node);
+      update.click();
       expect(requests).toEqual([]);
       expect(button('Update, rebuild and restart?', helperCard(ctx, state, makeSnapshot()))).toBeDefined();
-      button('Update now', node).click();
+      update.click();
       expect(requests).toEqual([{ action: 'applyUpdate' }]);
       expect(state.updates.applied).toBe(true);
       expect(renders()).toBeGreaterThanOrEqual(2);
@@ -215,8 +216,9 @@ describe('helperCard', () => {
     it('restarts and stops after asking twice, with stop marked dangerous', () => {
       const { ctx, requests } = fakeContext();
       const node = helperCard(ctx, state, makeSnapshot());
-      button('Restart helper', node).click();
-      button('Restart helper', node).click();
+      const restart = button('Restart helper', node);
+      restart.click();
+      restart.click();
       const stop = button('Stop helper', node);
       expect(stop.classList.contains('danger')).toBe(true);
       stop.click();

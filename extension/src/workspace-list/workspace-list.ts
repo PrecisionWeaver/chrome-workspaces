@@ -10,7 +10,7 @@ import {
   type WorkspaceStatus,
   WORKSPACE_COLORS,
 } from '../../../shared/protocol/protocol';
-import { $, caret, createArming, el, icon } from '../ui/dom';
+import { $, caret, confirmButton, createArming, el, icon } from '../ui/dom';
 import { keepFocus } from '../ui/focus';
 import { closeMenu, menuItem, openMenu } from '../ui/menu';
 import { createWorkspaceDrag } from './workspace-drag';
@@ -172,19 +172,14 @@ export function createWorkspaceList(options: WorkspaceListOptions): WorkspaceLis
 
   /** Forgets every archived workspace. Two clicks, like removing one: it can't be undone. */
   function clearArchivedButton(): HTMLButtonElement {
-    const armed = arming.isArmed('forgetAll');
-    const clear = el('button', armed ? 'Forget all?' : 'Clear all', `archived-clear${armed ? ' confirm' : ''}`);
-    clear.dataset.focus = 'forgetAll';
-    clear.addEventListener('click', (event) => {
-      event.stopPropagation();
-      if (arming.click('forgetAll')) {
-        options.send({ type: 'forgetAll' });
-        return;
-      }
-      clear.classList.add('confirm');
-      clear.textContent = 'Forget all?';
-    });
-    return clear;
+    const clear = el('button', '', 'archived-clear');
+    return confirmButton(
+      arming,
+      'forgetAll',
+      clear,
+      (armed) => (clear.textContent = armed ? 'Forget all?' : 'Clear all'),
+      () => options.send({ type: 'forgetAll' }),
+    );
   }
 
   function closedRow(entry: HistoryEntry): HTMLLIElement {
@@ -254,20 +249,16 @@ export function createWorkspaceList(options: WorkspaceListOptions): WorkspaceLis
     });
 
     const removeKey = `remove:${ws.id}`;
-    const remove = el('button', arming.isArmed(removeKey) ? 'archive?' : '', `remove${arming.isArmed(removeKey) ? ' confirm' : ''}`);
+    const remove = el('button', '', 'remove');
     remove.title = 'Archive workspace';
-    remove.dataset.focus = removeKey;
-    if (!arming.isArmed(removeKey)) remove.append(icon('x'));
-    remove.addEventListener('click', (event) => {
-      event.stopPropagation();
-      // Two clicks: the first arms it, so a stray click can't end a running session.
-      if (arming.click(removeKey)) {
-        options.send({ type: 'remove', id: ws.id });
-        return;
-      }
-      remove.classList.add('confirm');
-      remove.textContent = 'archive?';
-    });
+    // Two clicks: the first arms it, so a stray click can't end a running session.
+    confirmButton(
+      arming,
+      removeKey,
+      remove,
+      (armed) => (armed ? remove.replaceChildren('archive?') : remove.replaceChildren(icon('x'))),
+      () => options.send({ type: 'remove', id: ws.id }),
+    );
 
     item.append(badge, name);
     if (ws.pinned) {

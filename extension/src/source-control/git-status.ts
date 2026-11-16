@@ -1,5 +1,5 @@
 import { describeWaiting, statusLabel } from '../../../shared/workspaces/attention';
-import { caret, el } from '../ui/dom';
+import { caret, confirmButton, el } from '../ui/dom';
 import { keepFocus } from '../ui/focus';
 import { openBranchMenu } from './git-commits';
 import { openCompare } from './git-diff';
@@ -69,15 +69,15 @@ function drawStatus(ctx: GitViewContext): void {
       branchEl.append(chip);
       // Merged means the work is done here; offer to put the workspace away.
       if (merged && ctx.archive) {
-        const button = el('button', ctx.arming.isArmed('archive') ? 'Archive?' : 'Archive workspace', 'git-chip-btn git-archive');
-        button.type = 'button';
-        button.dataset.focus = 'archive';
+        const button = el('button', '', 'git-chip-btn git-archive');
         button.title = 'The pull request has merged. Archive this workspace (its tabs stay open).';
-        button.addEventListener('click', () => {
-          if (!ctx.workspaceId) return;
-          if (ctx.arming.click('archive')) ctx.archive?.(ctx.workspaceId);
-          else button.textContent = 'Archive?';
-        });
+        confirmButton(
+          ctx.arming,
+          'archive',
+          button,
+          (armed) => (button.textContent = armed ? 'Archive?' : 'Archive workspace'),
+          () => ctx.workspaceId && ctx.archive?.(ctx.workspaceId),
+        );
         branchEl.append(button);
       }
     } else if (state.branch && ctx.checksBranch === state.branch) {

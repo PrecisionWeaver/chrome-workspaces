@@ -61,7 +61,7 @@
 }
 
 .archived-clear:hover,
-.archived-clear.confirm {
+.archived-clear.armed {
   color: var(--muted);
 }
 
