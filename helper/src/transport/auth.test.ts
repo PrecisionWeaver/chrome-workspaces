@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isAuthorized, tokenFromProtocols } from './auth';
+import { isAuthorized, tokenFromProtocols, tokenMatches } from './auth';
 
 const ORIGIN = 'chrome-extension://abcdefghijklmnopabcdefghijklmnop';
 const policy = { token: 'a'.repeat(64), allowedOrigins: [ORIGIN] };
@@ -12,6 +12,15 @@ describe('tokenFromProtocols', () => {
   it('returns null when no token entry is present', () => {
     expect(tokenFromProtocols('cw.v1')).toBeNull();
     expect(tokenFromProtocols(undefined)).toBeNull();
+  });
+});
+
+describe('tokenMatches', () => {
+  it('accepts the same token and rejects a different one, including one of another length', () => {
+    expect(tokenMatches('a'.repeat(64), 'a'.repeat(64))).toBe(true);
+    expect(tokenMatches('b'.repeat(64), 'a'.repeat(64))).toBe(false);
+    expect(tokenMatches('a', 'a'.repeat(64))).toBe(false);
+    expect(tokenMatches('', 'a')).toBe(false);
   });
 });
 

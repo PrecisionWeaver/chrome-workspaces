@@ -154,7 +154,8 @@ const admin = createAdmin({
   isManaged: defaultIsManaged,
 });
 // Memory and CPU trends need readings between snapshots, which are only taken while Settings is open.
-setInterval(() => void admin.sample().catch(() => {}), SAMPLE_INTERVAL_MS).unref();
+// A failing sample also stops the usage ledger from being kept current, so it is logged, not swallowed.
+setInterval(() => void admin.sample().catch((error) => console.error(`sample failed: ${errorMessage(error)}`)), SAMPLE_INTERVAL_MS).unref();
 
 const history = new HistoryStore(join(DATA_DIR, 'history.json'));
 // Workspaces an older version had archived are history now.
