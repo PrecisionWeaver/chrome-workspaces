@@ -1,9 +1,9 @@
 import type { Template } from '../../shared/workspaces/templates';
-import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import WebSocket from 'ws';
+import { git as runGit } from './git';
 import {
   PROTOCOL,
   TOKEN_PROTOCOL_PREFIX,
@@ -20,6 +20,7 @@ import { readActivity } from '../src/claude/activity';
 import { type AdminService, createAdmin } from '../src/admin/admin';
 import { ControlHub } from '../src/control/hub';
 import { createGitService } from '../src/git/git';
+import { readProcesses, subtree } from '../src/platform/system';
 import { HistoryStore } from '../src/store/history';
 import { startServer, type RunningServer } from '../src/transport/server';
 import { SessionManager } from '../src/pty/session';
@@ -252,11 +253,19 @@ export function opened(ws: WebSocket): Promise<void> {
   return new Promise((resolve) => ws.on('open', () => resolve()));
 }
 
+/** Starts a workspace whose shell runs a long sleep, so there is a process tree beneath it. */
+export async function startWorkspaceWithSleep(h: Harness, name: string) {
+  const workspace = h.store.create({ name, cwd: h.defaultCwd });
+  const session = h.sessions.create({ id: workspace.id, command: '/bin/sh', args: ['-c', 'sleep 300 & wait'], cwd: h.defaultCwd });
+  // The shell forks its sleep a moment after it starts.
+  for (let i = 0; i < 100 && subtree(await readProcesses(), session.pid!).length < 2; i++) await new Promise((resolve) => setTimeout(resolve, 20));
+  return { workspace, session };
+}
+
 /** A small git repository with two commits on `main`, for tests that need a real one. */
 export function gitRepo(): string {
   const dir = mkdtempSync(join(tmpdir(), 'cw-repo-'));
-  const git = (...args: string[]) =>
-    execFileSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.com', '-c', 'commit.gpgsign=false', ...args], { cwd: dir, encoding: 'utf8' });
+  const git = (...args: string[]) => runGit(dir, ...args);
   git('init', '-q', '-b', 'main');
   writeFileSync(join(dir, 'a.txt'), 'one\n');
   git('add', '.');

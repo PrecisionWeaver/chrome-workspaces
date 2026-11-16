@@ -1,13 +1,9 @@
-import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { git } from '../../testing/git';
 import { createGitService, parseLog, parseNameStatus, parseStatus } from './git';
-
-function git(cwd: string, ...args: string[]): string {
-  return execFileSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.com', '-c', 'commit.gpgsign=false', ...args], { cwd, encoding: 'utf8' });
-}
 
 function repo(): string {
   const dir = mkdtempSync(join(tmpdir(), 'cw-git-'));

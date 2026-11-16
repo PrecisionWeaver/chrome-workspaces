@@ -5,6 +5,7 @@ import { createCreateView, type CreateView } from './create-view';
 import { noteReviewTab } from '../background/tabs';
 import { installChrome } from '../../testing/chrome-mock';
 import { isolateDocumentListeners, loadPanelHtml, makePrDetails, makeReview, makeWorkspace } from '../../testing/fixtures';
+import { flush } from '../../testing/flush';
 
 isolateDocumentListeners();
 
@@ -18,7 +19,6 @@ let here: { windowId: number | undefined; workspace: Workspace | undefined };
 let ticketLink: (ticket: string | null) => string | null;
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
-const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 const sentOfType = <T extends ControlToHelper['type']>(type: T) =>
   sent.filter((message): message is Extract<ControlToHelper, { type: T }> => message.type === type);
 const created = () => sentOfType('create')[0]!;

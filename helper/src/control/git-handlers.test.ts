@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { ControlToClient } from '../../../shared/protocol/protocol';
 import { connectControl, gitRepo, opened, startHarness, type Harness } from '../../testing/harness';
+import { git } from '../../testing/git';
 import { waitFor } from '../../testing/wait-for';
 
 let h: Harness;
@@ -16,9 +17,6 @@ beforeEach(async () => {
 afterEach(async () => {
   await h.close();
 });
-
-const git = (cwd: string, ...args: string[]) =>
-  execFileSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.com', ...args], { cwd, encoding: 'utf8' });
 
 /** A repository with one commit of `f.txt`, and an unstaged second line in it. */
 function repoWithChange(): string {

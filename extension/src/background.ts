@@ -1,8 +1,9 @@
 import { matchGroups, matchWindows } from '../../shared/workspaces/pairing';
-import { attentionEvents, describeWaiting, needsInputCount } from '../../shared/workspaces/attention';
-import { listFollowingTabs, listGroupOrder, nextGroupMove } from '../../shared/workspaces/tab-order';
-import type { ControlToClient, WaitingOn, Workspace, WorkspaceStatus } from '../../shared/protocol/protocol';
+import type { ControlToClient, Workspace } from '../../shared/protocol/protocol';
+import { installAttention } from './background/attention';
 import { placeClaudeGroups } from './background/claude-groups';
+import { installOrderSync } from './background/order-sync';
+import { installSendMenu } from './background/send-menu';
 import { connectControl } from './app/helper-client';
 import { loadSelection, onSelectionChange, select, shownIn, type Selection } from './background/selection';
 import { createGroup, openWindow, recordSharedSize, switchTo } from './background/windows';
@@ -33,6 +34,9 @@ let staleCleared = false;
 const control = connectControl(handle);
 const browserCall = placeClaudeGroups(() => workspaces);
 const send = control.send.bind(control);
+const sendMenu = installSendMenu({ workspaces: () => workspaces, send });
+const attention = installAttention({ workspaces: () => workspaces, open: (workspace) => void switchTo(workspace, send, workspaces) });
+const orderSync = installOrderSync({ workspaces: () => workspaces, send });
 
 function find(id: string): Workspace | undefined {
   return workspaces.find((ws) => ws.id === id);
@@ -41,13 +45,10 @@ function find(id: string): Workspace | undefined {
 function handle(message: ControlToClient): void {
   switch (message.type) {
     case 'state': {
-      const reordered = previousOrder !== null && previousOrder !== orderKey(message.workspaces);
-      previousOrder = orderKey(message.workspaces);
       workspaces = message.workspaces;
-      void announce(message.statuses, message.waiting);
-      void rebuildSendMenu();
-      // The list was reordered, here or in a panel: put the tab groups in the same order.
-      if (reordered) void tabsFollowList();
+      void attention.announce(message.statuses, message.waiting);
+      void sendMenu.rebuild();
+      orderSync.noteState(message.workspaces);
       void clearStalePairings();
       for (const [id, kind] of pendingOpens) {
         const workspace = find(id);
@@ -79,16 +80,9 @@ function handle(message: ControlToClient): void {
     case 'closeTabs':
       void closeTabs(message.windowId, message.groupId);
       break;
-    case 'sent': {
-      const name = find(message.id)?.name ?? 'workspace';
-      chrome.notifications.create(`sent-${Date.now()}`, {
-        type: 'basic',
-        iconUrl: 'icons/icon-128.png',
-        title: message.ok ? `Sent to ${name}` : `Could not send to ${name}`,
-        message: message.ok ? 'Pasted into its terminal, not submitted.' : message.message,
-      });
+    case 'sent':
+      attention.notifySent(message);
       break;
-    }
     case 'browser':
       browserCall({ workspaceId: message.id, at: message.at });
       break;
@@ -204,143 +198,6 @@ chrome.tabs.onUpdated.addListener((_id, change, tab) => (change.url || change.gr
 chrome.tabs.onRemoved.addListener((_id, info) => !info.isWindowClosing && scheduleTabs(info.windowId));
 chrome.tabs.onAttached.addListener((_id, info) => scheduleTabs(info.newWindowId));
 chrome.tabGroups.onRemoved.addListener((group) => send({ type: 'unpairGroup', groupId: group.id }));
-
-// ---- right-click: send a selection, link or page to a workspace's terminal ----
-
-const SEND_PARENT = 'send-to-workspace';
-const MAX_MENU_WORKSPACES = 20;
-let sendMenuKey = '';
-let sendMenuBuild: Promise<void> = Promise.resolve();
-
-/** Rebuilds the right-click menu when the workspaces it lists change. */
-function rebuildSendMenu(): Promise<void> {
-  const listed = workspaces.slice(0, MAX_MENU_WORKSPACES);
-  const key = listed.map((ws) => `${ws.id}:${ws.name}`).join('|');
-  if (key === sendMenuKey) return sendMenuBuild;
-  sendMenuKey = key;
-  // One build at a time: removeAll and create are asynchronous and would interleave.
-  sendMenuBuild = sendMenuBuild.then(async () => {
-    await chrome.contextMenus.removeAll();
-    if (listed.length === 0) return;
-    const contexts: ['selection', 'link', 'page'] = ['selection', 'link', 'page'];
-    chrome.contextMenus.create({ id: SEND_PARENT, title: 'Send to workspace', contexts });
-    for (const ws of listed) chrome.contextMenus.create({ id: `send:${ws.id}`, parentId: SEND_PARENT, title: ws.name, contexts });
-  });
-  return sendMenuBuild;
-}
-
-chrome.contextMenus.onClicked.addListener((info, tab) => {
-  const id = String(info.menuItemId);
-  if (!id.startsWith('send:')) return;
-  // What was right-clicked: selected text, else the link, else the page.
-  const text = info.selectionText?.trim() || info.linkUrl || [tab?.title, info.pageUrl ?? tab?.url].filter(Boolean).join('\n');
-  if (text) send({ type: 'sendText', id: id.slice('send:'.length), text });
-});
-
-// ---- attention: the toolbar badge and optional notifications ----
-
-let previousStatuses: Record<string, WorkspaceStatus> | null = null;
-
-async function notificationsOn(): Promise<boolean> {
-  const { prefs } = (await chrome.storage.local.get('prefs')) as { prefs?: { notify?: boolean } };
-  return prefs?.notify === true;
-}
-
-/** Shows how many workspaces wait on the user, and notifies when one starts waiting or finishes. */
-async function announce(statuses: Record<string, WorkspaceStatus>, wantedBy: Record<string, WaitingOn>): Promise<void> {
-  const waiting = needsInputCount(
-    statuses,
-    workspaces.map((ws) => ws.id),
-  );
-  await chrome.action.setBadgeText({ text: waiting ? String(waiting) : '' });
-  await chrome.action.setBadgeBackgroundColor({ color: '#f26d6d' });
-  const events = previousStatuses ? attentionEvents(previousStatuses, statuses) : [];
-  previousStatuses = statuses;
-  if (events.length === 0 || !(await notificationsOn())) return;
-  for (const event of events) {
-    const workspace = find(event.id);
-    if (!workspace) continue;
-    const wanted = describeWaiting(workspace.name, wantedBy[event.id]);
-    chrome.notifications.create(`ws-${event.id}`, {
-      type: 'basic',
-      iconUrl: 'icons/icon-128.png',
-      title: event.kind === 'needs_input' ? wanted.title : `${workspace.name} finished`,
-      message: event.kind === 'needs_input' ? wanted.message : 'Claude is idle again.',
-      priority: 1,
-    });
-  }
-}
-
-chrome.notifications.onClicked.addListener((notificationId) => {
-  const workspace = find(notificationId.replace(/^ws-/, ''));
-  chrome.notifications.clear(notificationId);
-  if (workspace) void switchTo(workspace, send, workspaces);
-});
-
-// ---- order: the panel's list and the tab strip stay in step ----
-
-const orderKey = (list: readonly Workspace[]): string => list.map((ws) => ws.id).join(',');
-// The order of the last state, to tell a reorder from any other change.
-let previousOrder: string | null = null;
-// Moves the worker makes itself fire the same events as a drag, so they are not read back as one.
-let ignoreMovesUntil = 0;
-let applying = false;
-
-/** Every tab group in a window, left to right. */
-async function stripOrder(windowId: number): Promise<number[]> {
-  const tabs = await chrome.tabs.query({ windowId });
-  const groups: number[] = [];
-  for (const tab of [...tabs].sort((a, b) => a.index - b.index)) {
-    if (tab.groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE && !groups.includes(tab.groupId)) groups.push(tab.groupId);
-  }
-  return groups;
-}
-
-/** Moves each window's tab groups into the order its workspaces have in the list. */
-async function tabsFollowList(): Promise<void> {
-  if (applying) return;
-  applying = true;
-  try {
-    for (const windowId of new Set(workspaces.flatMap((ws) => (ws.windowId !== null && ws.groupId !== null ? [ws.windowId] : [])))) {
-      const desired = listGroupOrder(workspaces, windowId);
-      if (desired.length < 2) continue;
-      // Each move puts one group in place, so a window needs at most as many moves as it has groups.
-      for (let step = 0; step < desired.length; step++) {
-        const strip = await stripOrder(windowId).catch(() => null);
-        const move = strip && nextGroupMove(strip, desired);
-        if (!move) break;
-        try {
-          const tabs = await chrome.tabs.query({ windowId });
-          const target = tabs.filter((tab) => tab.groupId === move.before).sort((a, b) => a.index - b.index)[0];
-          if (!target) break;
-          await chrome.tabGroups.move(move.groupId, { index: target.index });
-        } catch {
-          // A group closed mid-move; the next change brings them back in step.
-          break;
-        }
-      }
-    }
-  } finally {
-    ignoreMovesUntil = Date.now() + 1000;
-    applying = false;
-  }
-}
-
-/** A group was dragged in the tab strip: put its window's workspaces in the same order in the list. */
-async function listFollowsTabs(windowId: number): Promise<void> {
-  const strip = await stripOrder(windowId).catch(() => null);
-  if (!strip) return;
-  const ids = listFollowingTabs(workspaces, windowId, strip);
-  if (ids) send({ type: 'order', ids });
-}
-
-let orderTimer: ReturnType<typeof setTimeout> | undefined;
-chrome.tabGroups.onMoved.addListener((group) => {
-  if (applying || Date.now() < ignoreMovesUntil) return;
-  // A drag reports every step it passes; wait for it to settle.
-  clearTimeout(orderTimer);
-  orderTimer = setTimeout(() => void listFollowsTabs(group.windowId), 400);
-});
 
 // A group made or moved by hand can be the new home of a workspace whose window closed.
 let repairTimer: ReturnType<typeof setTimeout> | undefined;

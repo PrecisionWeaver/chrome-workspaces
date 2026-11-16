@@ -1,12 +1,9 @@
-import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
+import { git } from '../../testing/git';
 import { launchDirectory } from './launch-dir';
-
-const git = (cwd: string, ...args: string[]) =>
-  execFileSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.com', '-c', 'commit.gpgsign=false', ...args], { cwd, encoding: 'utf8' });
 
 const made: string[] = [];
 const temp = (prefix: string) => {

@@ -220,140 +220,48 @@ describe('closeTabs', () => {
   });
 });
 
-describe('notifications and the badge', () => {
-  const waiting = { 'ws-a': 'needs_input', 'ws-b': 'idle' } as const;
-
-  it('badges the number of workspaces waiting for input, and clears it', async () => {
+describe('what each state drives', () => {
+  // The modules behind these (attention, send-menu, order-sync) have tests of their own; this is the worker wiring them in.
+  it('badges the workspaces waiting, lists them in the right-click menu and puts the tab groups in list order', async () => {
+    const { windowId, tab } = fake.addWindow('https://example.com/a');
+    const other = fake.addTab(windowId, 'https://example.com/b');
+    const [ga, gb] = [fake.addGroup([tab.id]), fake.addGroup([other.id])] as [number, number];
+    const a = makeWorkspace({ id: 'ws-a', name: 'acme/app', windowId, groupId: ga });
+    const b = makeWorkspace({ id: 'ws-b', name: 'acme/api', windowId, groupId: gb });
     await boot();
-    const list = [makeWorkspace({ id: 'ws-a' }), makeWorkspace({ id: 'ws-b' })];
-    state(list, waiting);
+    state([a, b], { 'ws-a': 'needs_input', 'ws-b': 'idle' });
     await settle();
     expect(fake.mock.action.setBadgeText).toHaveBeenLastCalledWith({ text: '1' });
-    state(list, { 'ws-a': 'working', 'ws-b': 'idle' });
+    expect(fake.mock.contextMenus.create.mock.calls.map(([item]) => (item as { id: string }).id)).toEqual(['send-to-workspace', 'send:ws-a', 'send:ws-b']);
+
+    state([b, a]);
     await settle();
-    expect(fake.mock.action.setBadgeText).toHaveBeenLastCalledWith({ text: '' });
+    expect((await fake.mock.tabs.query({ windowId })).map((t) => t.groupId)).toEqual([gb, ga]);
   });
 
-  it('notifies when a workspace starts waiting or finishes, if notifications are on', async () => {
-    fake.storage.local.prefs = { notify: true };
-    await boot();
-    const list = [makeWorkspace({ id: 'ws-a', name: 'acme/app' }), makeWorkspace({ id: 'ws-b', name: 'acme/api' })];
-    state(list, { 'ws-a': 'working', 'ws-b': 'working' });
-    await settle();
-    // The first state only sets the baseline, so reopening Chrome with sessions already waiting is quiet.
-    expect(fake.mock.notifications.create).not.toHaveBeenCalled();
-
-    state(list, { 'ws-a': 'needs_input', 'ws-b': 'idle' });
-    await settle();
-
-    expect(fake.mock.notifications.create).toHaveBeenCalledWith('ws-ws-a', expect.objectContaining({ title: 'acme/app needs your input' }));
-    expect(fake.mock.notifications.create).toHaveBeenCalledWith('ws-ws-b', expect.objectContaining({ title: 'acme/api finished' }));
-  });
-
-  it('says what a waiting workspace wants, so a permission prompt can be told from a question', async () => {
-    fake.storage.local.prefs = { notify: true };
-    await boot();
-    const list = [makeWorkspace({ id: 'ws-a', name: 'acme/app' })];
-    state(list, { 'ws-a': 'working' });
-    await settle();
-    state(list, { 'ws-a': 'needs_input' }, { 'ws-a': { type: 'permission_prompt', message: 'Claude needs your permission to use Bash' } });
-    await settle();
-    expect(fake.mock.notifications.create).toHaveBeenCalledWith(
-      'ws-ws-a',
-      expect.objectContaining({ title: 'acme/app needs your permission', message: 'Claude needs your permission to use Bash' }),
-    );
-  });
-
-  it('stays quiet when notifications are off, but still badges', async () => {
-    await boot();
-    const list = [makeWorkspace({ id: 'ws-a' })];
-    state(list, { 'ws-a': 'working' });
-    await settle();
-    state(list, { 'ws-a': 'needs_input' });
-    await settle();
-    expect(fake.mock.notifications.create).not.toHaveBeenCalled();
-    expect(fake.mock.action.setBadgeText).toHaveBeenLastCalledWith({ text: '1' });
-  });
-
-  it('brings a workspace forward when its notification is clicked, and dismisses the notification', async () => {
+  it('brings a workspace forward when its notification is clicked', async () => {
     const { windowId, tab } = fake.addWindow();
     const groupId = fake.addGroup([tab.id], { collapsed: true });
     await boot();
     state([makeWorkspace({ id: 'ws-a', windowId, groupId })]);
     await settle();
-
     fake.events.notifications.onClicked.emit('ws-ws-a');
     await settle();
-
-    expect(fake.mock.notifications.clear).toHaveBeenCalledWith('ws-ws-a');
     expect(fake.group(groupId)?.collapsed).toBe(false);
   });
 
-  it('says whether text was sent to a workspace', async () => {
+  it('says whether text sent to a workspace arrived', async () => {
     await boot();
     state([makeWorkspace({ id: 'ws-a', name: 'acme/app' })]);
     await settle();
-    handle({ type: 'sent', id: 'ws-a', ok: true, message: '' });
     handle({ type: 'sent', id: 'ws-a', ok: false, message: 'no terminal' });
-    handle({ type: 'sent', id: 'gone', ok: false, message: 'no terminal' });
-    const titles = fake.mock.notifications.create.mock.calls.map(([, options]) => (options as { title: string }).title);
-    expect(titles).toEqual(['Sent to acme/app', 'Could not send to acme/app', 'Could not send to workspace']);
-  });
-});
-
-describe('the Send to workspace menu', () => {
-  it('lists the workspaces, rebuilding only when they change', async () => {
-    await boot();
-    const a = makeWorkspace({ id: 'ws-a', name: 'acme/app' });
-    const b = makeWorkspace({ id: 'ws-b', name: 'acme/api' });
-    state([a, b]);
-    await settle();
-    expect(fake.mock.contextMenus.create.mock.calls.map(([item]) => (item as { id: string }).id)).toEqual(['send-to-workspace', 'send:ws-a', 'send:ws-b']);
-
-    state([a, b]);
-    await settle();
-    expect(fake.mock.contextMenus.removeAll).toHaveBeenCalledTimes(1);
-
-    state([a]);
-    await settle();
-    expect(fake.mock.contextMenus.removeAll).toHaveBeenCalledTimes(2);
+    expect(fake.mock.notifications.create).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ title: 'Could not send to acme/app' }));
   });
 
-  it('shows no menu without workspaces, and caps the list at twenty', async () => {
+  it('sends the text chosen from the right-click menu to the helper', async () => {
     await boot();
-    state([]);
-    await settle();
-    expect(fake.mock.contextMenus.create).not.toHaveBeenCalled();
-
-    state(Array.from({ length: 25 }, (_, index) => makeWorkspace({ id: `ws-${index}`, name: `w${index}` })));
-    await settle();
-    expect(fake.mock.contextMenus.create).toHaveBeenCalledTimes(21);
-  });
-
-  it('sends the selection, else the link, else the page title and address', async () => {
-    await boot();
-    const click = (info: Partial<chrome.contextMenus.OnClickData>, tab?: Partial<chrome.tabs.Tab>) =>
-      fake.events.contextMenus.onClicked.emit({ menuItemId: 'send:ws-a', editable: false, ...info } as chrome.contextMenus.OnClickData, tab as chrome.tabs.Tab);
-
-    click({ selectionText: '  some text  ', linkUrl: 'https://example.com/link' });
-    click({ linkUrl: 'https://example.com/link' });
-    click({ pageUrl: 'https://example.com/page' }, { title: 'A page' });
-    click({}, { url: 'https://example.com/tab' });
-
-    expect(sentOfType('sendText').map((message) => message.text)).toEqual([
-      'some text',
-      'https://example.com/link',
-      'A page\nhttps://example.com/page',
-      'https://example.com/tab',
-    ]);
-    expect(sentOfType('sendText')[0]).toMatchObject({ id: 'ws-a' });
-  });
-
-  it('ignores other menu items, and sends nothing when there is nothing to send', async () => {
-    await boot();
-    fake.events.contextMenus.onClicked.emit({ menuItemId: 'other', selectionText: 'x', editable: false } as chrome.contextMenus.OnClickData, undefined);
-    fake.events.contextMenus.onClicked.emit({ menuItemId: 'send:ws-a', editable: false } as chrome.contextMenus.OnClickData, undefined);
-    expect(sentOfType('sendText')).toEqual([]);
+    fake.events.contextMenus.onClicked.emit({ menuItemId: 'send:ws-a', selectionText: 'hello', editable: false } as chrome.contextMenus.OnClickData, undefined);
+    expect(sentOfType('sendText')).toEqual([{ type: 'sendText', id: 'ws-a', text: 'hello' }]);
   });
 });
 
@@ -511,71 +419,5 @@ describe('keyboard shortcuts', () => {
     fake.events.commands.onCommand.emit('something-else');
     await settle();
     expect(fake.mock.sidePanel.open).not.toHaveBeenCalled();
-  });
-});
-
-describe('keeping the list and the tab strip in the same order', () => {
-  /** Three workspaces, each in a group, with the tab strip showing them in the order given. */
-  async function threeGroups() {
-    const { windowId, tab } = fake.addWindow('https://example.com/a');
-    const b = fake.addTab(windowId, 'https://example.com/b');
-    const c = fake.addTab(windowId, 'https://example.com/c');
-    const [ga, gb, gc] = [fake.addGroup([tab.id]), fake.addGroup([b.id]), fake.addGroup([c.id])] as [number, number, number];
-    const workspaces = [
-      makeWorkspace({ id: 'ws-a', windowId, groupId: ga }),
-      makeWorkspace({ id: 'ws-b', windowId, groupId: gb }),
-      makeWorkspace({ id: 'ws-c', windowId, groupId: gc }),
-    ];
-    await boot();
-    state(workspaces);
-    await settle();
-    const strip = () => fake.mock.tabs.query({ windowId }).then((tabs) => tabs.map((t) => t.groupId));
-    return { windowId, workspaces, ga, gb, gc, strip };
-  }
-
-  it('moves the tab groups to follow a reordered list', async () => {
-    const { workspaces, ga, gb, gc, strip } = await threeGroups();
-    expect(await strip()).toEqual([ga, gb, gc]);
-
-    state([workspaces[2]!, workspaces[0]!, workspaces[1]!]);
-    await settle();
-
-    expect(await strip()).toEqual([gc, ga, gb]);
-  });
-
-  it('does not touch the tab strip when only something other than the order changed', async () => {
-    const { workspaces } = await threeGroups();
-    state(workspaces.map((ws) => ({ ...ws, name: 'renamed' })));
-    await settle();
-    expect(fake.mock.tabGroups.move).not.toHaveBeenCalled();
-  });
-
-  it('reorders the list after a group is dragged, once the drag settles', async () => {
-    const { windowId, gc } = await threeGroups();
-    await fake.mock.tabGroups.move(gc, { index: 0 });
-
-    fake.events.tabGroups.onMoved.emit({ id: gc, windowId } as chrome.tabGroups.TabGroup);
-    fake.events.tabGroups.onMoved.emit({ id: gc, windowId } as chrome.tabGroups.TabGroup);
-    await vi.advanceTimersByTimeAsync(399);
-    expect(sentOfType('order')).toEqual([]);
-    await vi.advanceTimersByTimeAsync(1);
-
-    expect(sentOfType('order')).toEqual([{ type: 'order', ids: ['ws-c', 'ws-a', 'ws-b'] }]);
-  });
-
-  it('does not read its own moves back as a drag', async () => {
-    const { windowId, workspaces, gc } = await threeGroups();
-    state([workspaces[2]!, workspaces[0]!, workspaces[1]!]);
-    await settle();
-
-    fake.events.tabGroups.onMoved.emit({ id: gc, windowId } as chrome.tabGroups.TabGroup);
-    await vi.advanceTimersByTimeAsync(400);
-    expect(sentOfType('order')).toEqual([]);
-
-    // After a second the moves are the user's again.
-    await vi.advanceTimersByTimeAsync(1000);
-    fake.events.tabGroups.onMoved.emit({ id: gc, windowId } as chrome.tabGroups.TabGroup);
-    await vi.advanceTimersByTimeAsync(400);
-    expect(sentOfType('order')).toEqual([]);
   });
 });
