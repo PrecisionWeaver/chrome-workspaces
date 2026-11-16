@@ -1,6 +1,6 @@
 import type { AdminAction, ControlToHelper } from '../../../shared/protocol/protocol';
 import type { Prefs } from '../app/prefs';
-import { type Arming, el } from '../ui/dom';
+import { type Arming, confirmButton, el } from '../ui/dom';
 
 /** Small builders shared by the Settings cards. */
 
@@ -55,18 +55,20 @@ export function guarded(
   run: () => void,
   options: { danger?: boolean; disabled?: string } = {},
 ): HTMLButtonElement {
-  const isArmed = ctx.arming.isArmed(key);
-  const button = el('button', isArmed ? confirmLabel : label, `settings-btn${options.danger ? ' danger' : ''}${isArmed ? ' armed' : ''}`);
-  button.type = 'button';
-  button.dataset.focus = key;
+  const button = el('button', '', `settings-btn${options.danger ? ' danger' : ''}`);
+  confirmButton(
+    ctx.arming,
+    key,
+    button,
+    (armed) => (button.textContent = armed ? confirmLabel : label),
+    () => run(),
+  );
   if (options.disabled) {
     button.disabled = true;
     button.title = options.disabled;
   }
-  button.addEventListener('click', () => {
-    if (ctx.arming.click(key)) run();
-    ctx.render();
-  });
+  // The card is drawn again either way: armed, or done.
+  button.addEventListener('click', () => ctx.render());
   return button;
 }
 

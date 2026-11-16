@@ -192,9 +192,10 @@ describe('workspacesCard', () => {
     it('stops or force kills a process after asking twice', () => {
       const { ctx, requests } = fakeContext();
       const row = expand(ctx).querySelectorAll<HTMLElement>('.proc')[1]!;
-      button('Stop', row).click();
+      const stop = button('Stop', row);
+      stop.click();
       expect(requests).toEqual([]);
-      button('Stop', row).click();
+      stop.click();
       const force = button('Force', row);
       expect(force.classList.contains('danger')).toBe(true);
       force.click();
@@ -227,8 +228,9 @@ describe('workspacesCard', () => {
       const { ctx, requests } = fakeContext();
       const node = expand(ctx);
       expect(node.querySelector('.session-count')!.textContent).toBe('2 processes');
-      button('Restart', node).click();
-      button('Restart', node).click();
+      const restart = button('Restart', node);
+      restart.click();
+      restart.click();
       expect(requests).toEqual([{ action: 'restartSession', id: 'ws-a' }]);
       state.expanded.clear();
       state.expanded.add('ws-b');

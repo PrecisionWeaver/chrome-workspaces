@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
-import { describe, expect, it } from 'vitest';
-import { el, hoverTip, icon, installHoverTips, promptCard } from './dom';
+import { describe, expect, it, vi } from 'vitest';
+import { confirmButton, createArming, el, hoverTip, icon, installHoverTips, promptCard } from './dom';
 import { isolateDocumentListeners } from '../../testing/fixtures';
 
 describe('el', () => {
@@ -88,5 +88,48 @@ describe('hover tips', () => {
     expect(parseFloat((document.querySelector('.hover-tip') as HTMLElement).style.top)).toBeGreaterThan(0);
     expect(parseFloat((document.querySelector('.hover-tip') as HTMLElement).style.top)).toBeLessThan(80);
     bar.remove();
+  });
+});
+
+describe('confirmButton', () => {
+  function make(arming = createArming(() => {}, 4000)) {
+    const run = vi.fn();
+    const button = el('button');
+    confirmButton(arming, 'archive:ws-a', button, (armed) => (button.textContent = armed ? 'Sure?' : 'Archive'), run);
+    return { button, run, arming };
+  }
+
+  it('runs on the second click only, relabelling itself in place after the first', () => {
+    const { button, run } = make();
+    expect(button.textContent).toBe('Archive');
+    expect(button.classList.contains('armed')).toBe(false);
+    button.click();
+    expect(run).not.toHaveBeenCalled();
+    expect(button.textContent).toBe('Sure?');
+    expect(button.classList.contains('armed')).toBe(true);
+    button.click();
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it('comes back armed when it is drawn again while its key is armed, so a redraw cannot lose the first click', () => {
+    const { button, arming } = make();
+    button.click();
+    const { button: redrawn, run } = make(arming);
+    expect(redrawn.textContent).toBe('Sure?');
+    expect(redrawn.classList.contains('armed')).toBe(true);
+    redrawn.click();
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it('is a plain button carrying its key for keepFocus, and keeps the click from its row', () => {
+    const { button } = make();
+    expect(button.type).toBe('button');
+    expect(button.dataset.focus).toBe('archive:ws-a');
+    const row = document.createElement('li');
+    const seen = vi.fn();
+    row.addEventListener('click', seen);
+    row.append(button);
+    button.click();
+    expect(seen).not.toHaveBeenCalled();
   });
 });

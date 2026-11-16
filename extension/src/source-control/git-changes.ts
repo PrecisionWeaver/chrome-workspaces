@@ -1,5 +1,5 @@
 import type { GitFile, GitState } from '../../../shared/protocol/protocol';
-import { el } from '../ui/dom';
+import { confirmButton, el } from '../ui/dom';
 import { keepFocus } from '../ui/focus';
 import { fileRow, openWorking } from './git-diff';
 import type { GitViewContext } from './git-view';
@@ -9,9 +9,9 @@ export function stagedFiles(state: GitState | null): GitFile[] {
   return state?.files.filter((f) => f.index !== ' ' && f.index !== '?') ?? [];
 }
 
-/** A small button for a file or group; `armed` draws it as one waiting for its confirming click. */
-function iconButton(label: string, title: string, run: () => void, armed = false): HTMLButtonElement {
-  const button = el('button', label, `git-act${armed ? ' armed' : ''}`);
+/** A small button for a file or group. */
+function iconButton(label: string, title: string, run: () => void): HTMLButtonElement {
+  const button = el('button', label, 'git-act');
   button.type = 'button';
   button.title = title;
   button.addEventListener('click', (event) => {
@@ -47,21 +47,15 @@ function drawChanges(ctx: GitViewContext): void {
   const discard = (f: GitFile) => {
     const key = `discard:${f.path}`;
     const ask = f.index === '?' ? 'Delete?' : 'Discard?';
-    const button = iconButton(
-      ctx.arming.isArmed(key) ? ask : '↶',
-      f.index === '?' ? 'Delete this new file' : 'Discard changes',
-      () => {
-        if (ctx.arming.click(key)) {
-          if (ctx.workspaceId) ctx.send({ type: 'gitDiscard', id: ctx.workspaceId, paths: [f.path] });
-          return;
-        }
-        button.textContent = ask;
-        button.classList.add('armed');
-      },
-      ctx.arming.isArmed(key),
+    const button = el('button', '', 'git-act');
+    button.title = f.index === '?' ? 'Delete this new file' : 'Discard changes';
+    return confirmButton(
+      ctx.arming,
+      key,
+      button,
+      (armed) => (button.textContent = armed ? ask : '↶'),
+      () => ctx.workspaceId && ctx.send({ type: 'gitDiscard', id: ctx.workspaceId, paths: [f.path] }),
     );
-    button.dataset.focus = key;
-    return button;
   };
   group(
     'Staged changes',

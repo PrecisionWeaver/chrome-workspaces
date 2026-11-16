@@ -410,7 +410,7 @@ body.collapsed #new .label {
   visibility: visible;
 }
 
-.ws .remove.confirm {
+.ws .remove.armed {
   visibility: visible;
   color: var(--needs-input);
 }

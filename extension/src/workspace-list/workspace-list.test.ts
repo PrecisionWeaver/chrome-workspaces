@@ -202,7 +202,7 @@ describe('archiving', () => {
     state([ws('a')]);
     remove().click();
     expect(remove().textContent).toBe('archive?');
-    expect(remove().classList.contains('confirm')).toBe(true);
+    expect(remove().classList.contains('armed')).toBe(true);
     expect(sentOfType('remove')).toEqual([]);
     vi.advanceTimersByTime(3000);
     expect(remove().textContent).toBe('');
