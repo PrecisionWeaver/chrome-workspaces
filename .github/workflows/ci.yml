@@ -1,10 +1,9 @@
 name: ci
 
-# Typecheck, test and build everything that is not main; main is checked by release.yml.
+# Typecheck, test and build every pull request and every push, main included: release.yml checks main only when it cuts a release.
 on:
   pull_request:
   push:
-    branches-ignore: [main]
 
 jobs:
   check:

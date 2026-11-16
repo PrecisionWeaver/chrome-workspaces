@@ -18,7 +18,12 @@ export function tokenFromProtocols(header: string | undefined): string | null {
 export function isAuthorized(policy: AuthPolicy, origin: string | undefined, token: string | null): boolean {
   if (!origin || !policy.allowedOrigins.includes(origin)) return false;
   if (!token) return false;
-  const given = Buffer.from(token);
-  const expected = Buffer.from(policy.token);
-  return given.length === expected.length && timingSafeEqual(given, expected);
+  return tokenMatches(token, policy.token);
+}
+
+/** Whether `given` is the helper's token, compared in constant time. */
+export function tokenMatches(given: string, expected: string): boolean {
+  const a = Buffer.from(given);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
 }

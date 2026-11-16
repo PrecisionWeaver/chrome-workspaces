@@ -200,6 +200,18 @@ describe('opening, closing and polling', () => {
     expect(toggled).toBe(2);
   });
 
+  it('does not ask while the panel is hidden, and asks as soon as it is shown again', () => {
+    let visibility: DocumentVisibilityState = 'hidden';
+    vi.spyOn(document, 'visibilityState', 'get').mockImplementation(() => visibility);
+    view.show();
+    vi.advanceTimersByTime(6000);
+    expect(sent).toEqual([]);
+    visibility = 'visible';
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(sentOfType('system')).toHaveLength(1);
+    vi.restoreAllMocks();
+  });
+
   it('closes from its button, and not twice', () => {
     view.show();
     $('settings-close').click();
@@ -259,13 +271,13 @@ describe('result banner', () => {
     vi.advanceTimersByTime(8000);
     expect($('settings-result').hidden).toBe(true);
 
-    view.setResult({ type: 'adminResult', action: 'x', ok: false, message: 'nope' });
+    view.setResult({ type: 'adminResult', action: 'checkGh', ok: false, message: 'nope' });
     expect($('settings-result').className).toBe('bad');
   });
 
   it('is cleared when the view opens again', async () => {
     await open();
-    view.setResult({ type: 'adminResult', action: 'x', ok: true, message: 'done' });
+    view.setResult({ type: 'adminResult', action: 'checkGh', ok: true, message: 'done' });
     view.close();
     view.show();
     expect($('settings-result').hidden).toBe(true);

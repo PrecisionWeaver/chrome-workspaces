@@ -1,9 +1,8 @@
-import { timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { isAbsolute } from 'node:path';
 import { isBranchName } from '../../../shared/workspaces/branch-name';
 import { MAX_PROMPT_LENGTH, type WorkspaceStatus } from '../../../shared/protocol/protocol';
-import type { AuthPolicy } from './auth';
+import { tokenMatches, type AuthPolicy } from './auth';
 import { isDirectory } from '../platform/config';
 import { asPaste, MAX_PASTE_LENGTH } from '../pty/paste';
 import type { ControlHub, ReviewSource } from '../control/hub';
@@ -118,10 +117,7 @@ async function handle(req: IncomingMessage, options: ApiOptions): Promise<{ stat
 
 function hasBearer(req: IncomingMessage, token: string): boolean {
   const match = req.headers.authorization?.match(/^Bearer (\S+)$/);
-  if (!match) return false;
-  const given = Buffer.from(match[1]);
-  const expected = Buffer.from(token);
-  return given.length === expected.length && timingSafeEqual(given, expected);
+  return match !== null && match !== undefined && tokenMatches(match[1], token);
 }
 
 function parseCreate(body: unknown, { defaultCwd, repoDirs, reviews }: ApiOptions) {

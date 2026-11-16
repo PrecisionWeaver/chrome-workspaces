@@ -1,4 +1,4 @@
-import { MAX_PROMPT_LENGTH, MAX_TAB_URLS, MODEL_PATTERN, WORKSPACE_COLORS, type ControlToHelper } from '../../../shared/protocol/protocol';
+import { MAX_PROMPT_LENGTH, MAX_TAB_URLS, MODEL_PATTERN, WORKSPACE_COLORS, type ClientMessage, type ControlToHelper } from '../../../shared/protocol/protocol';
 import { isBranchName } from '../../../shared/workspaces/branch-name';
 import { isPullRequestUrl } from '../git/pr-workspace';
 
@@ -21,6 +21,27 @@ function isWorkspaceName(value: unknown): value is string {
 
 function isPathList(value: unknown): boolean {
   return Array.isArray(value) && value.length <= 500 && value.every((p) => typeof p === 'string' && p.length > 0 && p.length <= 1024);
+}
+
+// A terminal's size; node-pty throws on zero or a non-number, and nothing real is this large.
+function isTerminalSize(value: unknown): boolean {
+  return Number.isInteger(value) && (value as number) > 0 && (value as number) <= 1000;
+}
+
+/** Validation of what a terminal view sends on `/attach`; anything that fails is dropped. */
+export function isClientMessage(value: unknown): value is ClientMessage {
+  if (typeof value !== 'object' || value === null) return false;
+  const m = value as Record<string, unknown>;
+  switch (m.type) {
+    case 'input':
+      return typeof m.data === 'string';
+    case 'resize':
+      return isTerminalSize(m.cols) && isTerminalSize(m.rows);
+    case 'file':
+      return typeof m.name === 'string' && typeof m.data === 'string';
+    default:
+      return false;
+  }
 }
 
 const PLAIN_ACTIONS = new Set(['applyUpdate', 'restartHelper', 'stopHelper', 'clearUploads', 'clearLog', 'pruneWorktrees', 'checkGh']);
@@ -47,8 +68,13 @@ export function isControlToHelper(value: unknown): value is ControlToHelper {
     case 'unpairGroup':
       return isWindowId(m.groupId);
     case 'tabs':
+      // Every web tab of a window, saved as what re-pairs it after a restart: bounded, but far more than a new workspace's own list.
       return (
-        isWindowId(m.windowId) && (m.groupId === undefined || isWindowId(m.groupId)) && Array.isArray(m.urls) && m.urls.every((u) => typeof u === 'string')
+        isWindowId(m.windowId) &&
+        (m.groupId === undefined || isWindowId(m.groupId)) &&
+        Array.isArray(m.urls) &&
+        m.urls.length <= 500 &&
+        m.urls.every((u) => typeof u === 'string' && u.length <= 4096)
       );
     case 'remove':
       return typeof m.id === 'string' && (m.closeTabs === undefined || typeof m.closeTabs === 'boolean');

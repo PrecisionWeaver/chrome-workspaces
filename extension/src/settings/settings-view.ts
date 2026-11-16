@@ -362,6 +362,8 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
   }
 
   function poll(): void {
+    // Nobody is looking at a hidden panel; it asks again when it is shown.
+    if (document.visibilityState !== 'visible') return;
     send({ type: 'system' });
     // An open activity list stays current while the view is showing.
     for (const id of sessions.activityOpen) send({ type: 'timeline', id });
@@ -380,6 +382,10 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
     pollTimer = setInterval(poll, POLL_MS);
     onToggle();
   }
+
+  document.addEventListener('visibilitychange', () => {
+    if (isOpen) poll();
+  });
 
   function close(): void {
     if (!isOpen) return;

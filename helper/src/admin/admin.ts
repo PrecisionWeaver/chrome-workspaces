@@ -78,12 +78,19 @@ export function createAdmin(options: AdminOptions): AdminService {
     tokens,
     ledger,
   });
-  const context: SnapshotContext = { options, readProcs, tokens, ledger, history, sync, warnings: [] };
+  const context: SnapshotContext = { options, readProcs, tokens, ledger, history, sync, warnings: [], storage: null };
 
   return {
     snapshot: (extra) => buildSnapshot(context, extra),
 
-    run: (request) => runAction(context, request),
+    run: async (request) => {
+      try {
+        return await runAction(context, request);
+      } finally {
+        // Clearing uploads or the log changes the figures, and Settings should show it at once.
+        context.storage = null;
+      }
+    },
 
     checkUpdates: () => checkUpdates(options.repoDir),
 

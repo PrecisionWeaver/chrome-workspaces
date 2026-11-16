@@ -11,7 +11,15 @@ import { defaultIsManaged, defaultRunShell, defaultSpawnDetached } from './admin
 import { createApi } from './transport/api';
 import { DATA_DIR, HOST, loadConfig, SESSIONS_DIR, PORT, SCROLLBACK_LIMIT } from './platform/config';
 import { ControlHub } from './control/hub';
-import { listWorkspaceSessions, readSessionStatus, lastTranscriptCwd, pruneSessions, watchSessionStatus, type WorkspaceSession } from './claude/session-status';
+import {
+  listWorkspaceSessions,
+  readSessionStatus,
+  lastTranscriptCwd,
+  pruneSessions,
+  sameStatuses,
+  watchSessionStatus,
+  type WorkspaceSession,
+} from './claude/session-status';
 import { writeHooksFile } from './claude/hooks-config';
 import { readPlanUsage } from './claude/plan-usage';
 import { GH_BRANCH_PR, GH_PR_CREATE, GH_PR_DETAILS, GH_PR_THREADS, PR_THREADS_QUERY } from './git/pr-details';
@@ -48,6 +56,14 @@ setInterval(() => rotateLog(LOG_FILE), 60 * 60_000).unref();
 // The folder exists before the first hook runs, so its changes can be watched from the start.
 mkdirSync(SESSIONS_DIR, { recursive: true, mode: 0o700 });
 pruneSessions(SESSIONS_DIR);
+// Pruned daily too, for the same reason as the log; a longer list also slows every status read.
+setInterval(
+  () => {
+    pruneSessions(SESSIONS_DIR);
+    pruneUploads(join(DATA_DIR, 'uploads'));
+  },
+  24 * 60 * 60_000,
+).unref();
 const hooksFile = writeHooksFile(DATA_DIR);
 if (!hooksFile) console.warn('status hooks are off: hooks/session-state.ts is missing or Node is older than 22.18');
 const store = new WorkspaceStore(join(DATA_DIR, 'workspaces.json'));
@@ -120,7 +136,8 @@ const admin = createAdmin({
   isManaged: defaultIsManaged,
 });
 // Memory and CPU trends need readings between snapshots, which are only taken while Settings is open.
-setInterval(() => void admin.sample().catch(() => {}), SAMPLE_INTERVAL_MS).unref();
+// A failing sample also stops the usage ledger from being kept current, so it is logged, not swallowed.
+setInterval(() => void admin.sample().catch((error) => console.error(`sample failed: ${errorMessage(error)}`)), SAMPLE_INTERVAL_MS).unref();
 
 const history = new HistoryStore(join(DATA_DIR, 'history.json'));
 // Workspaces an older version had archived are history now.
@@ -175,7 +192,8 @@ reviews.start(REVIEW_POLL_MS);
 const stopWatching = watchSessionStatus(SESSIONS_DIR, () => {
   const previous = sessionState;
   sessionState = readSessions();
-  control.broadcastState();
+  // Every tool call touches the folder, but `state` only carries each status and what it waits on.
+  if (!sameStatuses(previous, sessionState)) control.broadcastState();
   control.pushActivity();
   for (const [id, { browserAt }] of sessionState) {
     if (browserAt !== null && browserAt !== previous.get(id)?.browserAt) control.send({ type: 'browser', id, at: browserAt });

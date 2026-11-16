@@ -6,6 +6,7 @@ export default defineConfig({
     include: ['**/*.test.ts'],
     exclude: ['**/node_modules/**', 'extension/dist/**'],
     pool: 'forks',
+    globalSetup: ['vitest.setup.ts'],
     testTimeout: 10_000,
     coverage: {
       provider: 'v8',

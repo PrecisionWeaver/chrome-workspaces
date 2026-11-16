@@ -456,7 +456,7 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
       // A review's repo and tabs belong to that PR, not to the next workspace.
       ...(review ? {} : { newRepo: repoSelect.value }),
     });
-    send({
+    const sent = send({
       type: 'create',
       name,
       windowId: useHere ? windowId : null,
@@ -470,6 +470,12 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
       ...(prompt ? { prompt } : {}),
       ...(review ? { pr: review.url } : {}),
     });
+    // Nothing was created, so the form stays as it was for another try.
+    if (!sent) {
+      errorEl.hidden = false;
+      errorEl.textContent = 'The helper is not connected, so the workspace was not created. Try again once it is.';
+      return;
+    }
     // A window with no workspace is adopted as it is; one that holds a workspace gets the tabs in its new group instead.
     if (useHere && !workspace) {
       void (async () => {

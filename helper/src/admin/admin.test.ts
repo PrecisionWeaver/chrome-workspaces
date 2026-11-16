@@ -82,6 +82,23 @@ describe('system snapshot', () => {
     ws.close();
   });
 
+  it('keeps the storage figures for a few seconds, but measures again after an action', async () => {
+    const uploads = join(h.dataDir, 'uploads', 'x');
+    mkdirSync(uploads, { recursive: true });
+    writeFileSync(join(uploads, 'a.png'), '12345');
+    const uploadsBytes = async () => {
+      const { ws, reply } = await ask({ type: 'system' }, 'system');
+      ws.close();
+      if (reply.type !== 'system' || !reply.snapshot) throw new Error('no snapshot');
+      return reply.snapshot.storage.uploadsBytes;
+    };
+    expect(await uploadsBytes()).toBe(5);
+    writeFileSync(join(uploads, 'b.png'), '123');
+    expect(await uploadsBytes()).toBe(5);
+    await h.admin.run({ action: 'checkGh' });
+    expect(await uploadsBytes()).toBe(8);
+  });
+
   it('gives the timeline, the log tail and the data export from the same service', async () => {
     const workspace = h.store.create({ name: 'acme/app', cwd: h.defaultCwd });
     expect(h.admin.timeline(workspace.id)).toBeNull();
