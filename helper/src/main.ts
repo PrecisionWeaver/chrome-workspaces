@@ -14,7 +14,15 @@ import { createApi } from './transport/api';
 import { isDirectory, DATA_DIR, HOST, loadConfig, SESSIONS_DIR, PORT, SCROLLBACK_LIMIT } from './platform/config';
 import { ControlHub } from './control/hub';
 import { launchSpec, monitorSpec, shellSpec } from './pty/launch';
-import { listWorkspaceSessions, readSessionStatus, lastTranscriptCwd, pruneSessions, watchSessionStatus, type WorkspaceSession } from './claude/session-status';
+import {
+  listWorkspaceSessions,
+  readSessionStatus,
+  lastTranscriptCwd,
+  pruneSessions,
+  sameStatuses,
+  watchSessionStatus,
+  type WorkspaceSession,
+} from './claude/session-status';
 import { writeHooksFile } from './claude/hooks-config';
 import { readPlanUsage } from './claude/plan-usage';
 import { GH_BRANCH_PR, GH_PR_CREATE, GH_PR_DETAILS, GH_PR_THREADS, PR_THREADS_QUERY } from './git/pr-details';
@@ -218,7 +226,8 @@ reviews.start(REVIEW_POLL_MS);
 const stopWatching = watchSessionStatus(SESSIONS_DIR, () => {
   const previous = sessionState;
   sessionState = readSessions();
-  control.broadcastState();
+  // Every tool call touches the folder, but `state` only carries each status and what it waits on.
+  if (!sameStatuses(previous, sessionState)) control.broadcastState();
   control.pushActivity();
   for (const [id, { browserAt }] of sessionState) {
     if (browserAt !== null && browserAt !== previous.get(id)?.browserAt) control.send({ type: 'browser', id, at: browserAt });

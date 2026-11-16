@@ -200,6 +200,18 @@ describe('opening, closing and polling', () => {
     expect(toggled).toBe(2);
   });
 
+  it('does not ask while the panel is hidden, and asks as soon as it is shown again', () => {
+    let visibility: DocumentVisibilityState = 'hidden';
+    vi.spyOn(document, 'visibilityState', 'get').mockImplementation(() => visibility);
+    view.show();
+    vi.advanceTimersByTime(6000);
+    expect(sent).toEqual([]);
+    visibility = 'visible';
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(sentOfType('system')).toHaveLength(1);
+    vi.restoreAllMocks();
+  });
+
   it('closes from its button, and not twice', () => {
     view.show();
     $('settings-close').click();

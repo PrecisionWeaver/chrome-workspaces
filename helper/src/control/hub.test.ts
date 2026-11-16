@@ -230,6 +230,29 @@ describe('control channel', () => {
     ws.close();
   });
 
+  it('does not send a following client the same turns again when a push changes nothing for it', async () => {
+    const busy = h.store.create({ name: 'busy', cwd: h.defaultCwd });
+    const file = join(mkdtempSync(join(tmpdir(), 'cw-ctl-act-')), 's.events.jsonl');
+    writeFileSync(file, `${JSON.stringify({ at: '2026-10-08T10:00:00Z', event: 'UserPromptSubmit', promptId: 'p1', summary: 'fix the bug' })}\n`);
+    h.activityFiles[busy.id] = file;
+
+    const { ws, messages } = connectControl(h);
+    await opened(ws);
+    const replies = () => messages.filter((m) => m.type === 'activity');
+    ws.send(JSON.stringify({ type: 'activity', id: busy.id }));
+    await waitFor(() => replies().length === 1);
+    // Another session's event touched the folder: this one's turns are as they were.
+    h.control.pushActivity();
+    h.control.pushActivity();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(replies().length).toBe(1);
+
+    writeFileSync(file, `${JSON.stringify({ at: '2026-10-08T10:00:05Z', event: 'Stop', promptId: 'p1' })}\n`, { flag: 'a' });
+    h.control.pushActivity();
+    await waitFor(() => replies().length === 2);
+    ws.close();
+  });
+
   it('sends the review threads of a pull request, and says why when it cannot', async () => {
     const { ws, messages } = connectControl(h);
     await opened(ws);
