@@ -1199,6 +1199,21 @@ describe('the cards', () => {
       expect(view.warningCount).toBe(2);
     });
 
+    it('keeps a server warning dismissed through a snapshot where its CPU blipped, while the process lives', async () => {
+      const server = { pid: 77, ppid: 10, command: 'node', cpu: 8, rssKb: 1000, elapsed: '20:00:00', ports: [3000] };
+      const sessions = [makeSession({ id: 'ws-a', pid: 10, processes: [server] })];
+      await open(makeSnapshot({ warnings, sessions }));
+      button('Dismiss', cards()[0]!).click();
+      button('Dismiss', card('Needs attention')!).click();
+      view.setSystem({ type: 'system', snapshot: makeSnapshot({ warnings: [], sessions }), error: null });
+      view.setSystem({ type: 'system', snapshot: makeSnapshot({ warnings: [warnings[1]!], sessions }), error: null });
+      expect(view.warningCount).toBe(0);
+      // Once the process is gone the dismissal is forgotten.
+      view.setSystem({ type: 'system', snapshot: makeSnapshot({ warnings: [], sessions: [makeSession({ id: 'ws-a', pid: 10 })] }), error: null });
+      view.setSystem({ type: 'system', snapshot: makeSnapshot({ warnings: [warnings[1]!], sessions }), error: null });
+      expect(view.warningCount).toBe(1);
+    });
+
     it('is absent when there are no warnings', async () => {
       await open();
       expect(card('Needs attention')).toBeUndefined();

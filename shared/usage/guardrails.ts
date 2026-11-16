@@ -40,7 +40,8 @@ const mb = (kb: number): string => (kb >= 1024 * 1024 ? `${(kb / 1024 / 1024).to
 
 /**
  * What is worth telling the user about the running workspaces: one that holds a lot of memory, and a
- * server that has been listening on a port for hours without using any CPU. CPU is a snapshot, so
+ * server that has been listening on a port for hours without using any CPU (the message says it looks
+ * forgotten, not that it uses no CPU). CPU is a snapshot, so
  * "idle" means idle now, and only a server that has also been up a long time is reported.
  * A warning in `previous` is held until its reading is clearly back to normal, so one that sits near
  * its threshold does not come and go with every snapshot.
@@ -73,7 +74,7 @@ export function findWarnings(
         name: session.name,
         kind: 'idle-server',
         pid: proc.pid,
-        message: `${session.name} has had :${proc.ports[0]} open for ${proc.elapsed.includes('-') ? `${proc.elapsed.split('-')[0]}d` : `${Math.floor(parseElapsed(proc.elapsed) / 3600)}h`} without using any CPU`,
+        message: `${session.name} has had a server on :${proc.ports[0]} running for ${proc.elapsed.includes('-') ? `${proc.elapsed.split('-')[0]}d` : `${Math.floor(parseElapsed(proc.elapsed) / 3600)}h`}, and it looks forgotten`,
       });
     }
   }

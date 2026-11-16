@@ -211,7 +211,7 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
             void savePrefs({ dismissedWarnings });
             render();
           },
-          'Hide this until it clears and comes back',
+          'Hide this until it clears and comes back (a server: until it stops)',
         ),
       );
       return line;
@@ -415,8 +415,13 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
     setSystem(message) {
       snapshot = message.snapshot ?? snapshot;
       // A dismissal lasts while its warning does, so the same trouble coming back later is shown again.
+      // A server's lasts while the process does: a blip of CPU lifts its warning for a snapshot, and
+      // that must not bring back one the user has dismissed.
       if (message.snapshot) {
         const current = new Set(message.snapshot.warnings.map(warningKey));
+        for (const session of message.snapshot.sessions) {
+          for (const proc of session.processes) current.add(warningKey({ kind: 'idle-server', id: session.id, pid: proc.pid }));
+        }
         const dismissedWarnings = prefs.dismissedWarnings.filter((k) => current.has(k));
         if (dismissedWarnings.length !== prefs.dismissedWarnings.length) {
           prefs = { ...prefs, dismissedWarnings };
