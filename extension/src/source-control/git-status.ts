@@ -1,11 +1,16 @@
 import { describeWaiting, statusLabel } from '../../../shared/workspaces/attention';
 import { caret, el } from '../ui/dom';
+import { keepFocus } from '../ui/focus';
 import { openBranchMenu } from './git-commits';
 import { openCompare } from './git-diff';
 import type { GitViewContext } from './git-view';
 
 /** The branch line: the branch with its switch menu, sync counts, push, compare, the pull request chip and what claude is doing. */
 export function renderStatus(ctx: GitViewContext): void {
+  keepFocus(ctx.branchEl, () => drawStatus(ctx));
+}
+
+function drawStatus(ctx: GitViewContext): void {
   const { branchEl, state, pr } = ctx;
   branchEl.replaceChildren();
   if (!ctx.workspaceId) return;
@@ -66,6 +71,7 @@ export function renderStatus(ctx: GitViewContext): void {
       if (merged && ctx.archive) {
         const button = el('button', ctx.arming.isArmed('archive') ? 'Archive?' : 'Archive workspace', 'git-chip-btn git-archive');
         button.type = 'button';
+        button.dataset.focus = 'archive';
         button.title = 'The pull request has merged. Archive this workspace (its tabs stay open).';
         button.addEventListener('click', () => {
           if (!ctx.workspaceId) return;

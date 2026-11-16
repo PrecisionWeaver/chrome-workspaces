@@ -5,6 +5,7 @@ import { actions, card, guarded, mono, plain, row, type SettingsContext } from '
 import { helperCard, type HelperState, newHelperState } from './settings-helper';
 import { newSessionsState, type SessionsState, workspacesCard } from './settings-sessions';
 import { planCard, usageCard } from './settings-usage';
+import { keepFocus } from '../ui/focus';
 import { formatBytes } from '../ui/format';
 import { DENSITIES, THEMES } from '../../../shared/lib/keynav';
 import { warningKey } from '../../../shared/usage/guardrails';
@@ -269,6 +270,10 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
 
   /** Puts the layout's groups in the grid; the held card is not moved, so its open dropdown survives. */
   function place(layout: CardLayout, held: HTMLElement | null): void {
+    keepFocus(grid, () => placeCards(layout, held));
+  }
+
+  function placeCards(layout: CardLayout, held: HTMLElement | null): void {
     const groups = [
       ...(layout.top.length ? [{ cls: 'settings-top', cards: layout.top }] : []),
       ...layout.columns.map((c) => ({ cls: 'settings-column', cards: c })),

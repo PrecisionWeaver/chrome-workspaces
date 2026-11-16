@@ -1,5 +1,6 @@
 import type { CiState, ControlToHelper, MergeState, ReviewRequest, ReviewsState, Workspace } from '../../../shared/protocol/protocol';
 import { $, el } from '../ui/dom';
+import { collapsible } from '../ui/collapsible';
 import { ref, relative, byline } from './pr-view';
 
 export interface LauncherOptions {
@@ -93,13 +94,9 @@ export function createLauncher({ send, create, closeCreate, selectedUrl, openWor
     renderReviews(lastReviews, lastWorkspaces);
   }
 
-  $<HTMLButtonElement>('reviews-toggle').addEventListener('click', () => {
-    const collapsed = reviewsSection.classList.toggle('collapsed');
-    void chrome.storage.local.set({ reviewsCollapsed: collapsed });
-  });
+  collapsible({ section: reviewsSection, toggle: $<HTMLButtonElement>('reviews-toggle'), storageKey: 'reviewsCollapsed' });
 
-  void chrome.storage.local.get(['reviewsCollapsed', 'reviewsHidden']).then(({ reviewsCollapsed, reviewsHidden }) => {
-    reviewsSection.classList.toggle('collapsed', reviewsCollapsed === true);
+  void chrome.storage.local.get('reviewsHidden').then(({ reviewsHidden }) => {
     const saved = reviewsHidden as Partial<Record<Facet, string[]>> | undefined;
     for (const facet of FACETS) for (const value of saved?.[facet] ?? []) hidden[facet].add(value);
     renderReviews(lastReviews, lastWorkspaces);

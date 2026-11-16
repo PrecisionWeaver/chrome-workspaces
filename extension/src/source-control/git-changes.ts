@@ -1,5 +1,6 @@
 import type { GitFile, GitState } from '../../../shared/protocol/protocol';
 import { el } from '../ui/dom';
+import { keepFocus } from '../ui/focus';
 import { fileRow, openWorking } from './git-diff';
 import type { GitViewContext } from './git-view';
 
@@ -21,7 +22,12 @@ function iconButton(label: string, title: string, run: () => void, armed = false
 }
 
 /** The working tree: staged and unstaged files with their stage, unstage and discard buttons, then the commit box. */
+/** Draws the changed files; a button that was focused keeps focus through the redraw, so a two-click discard can be finished from the keyboard. */
 export function renderChanges(ctx: GitViewContext): void {
+  keepFocus(ctx.changesEl, () => drawChanges(ctx));
+}
+
+function drawChanges(ctx: GitViewContext): void {
   const { changesEl, state } = ctx;
   changesEl.replaceChildren();
   if (!state) return;
@@ -54,6 +60,7 @@ export function renderChanges(ctx: GitViewContext): void {
       },
       ctx.arming.isArmed(key),
     );
+    button.dataset.focus = key;
     return button;
   };
   group(

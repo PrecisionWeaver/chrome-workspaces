@@ -24,7 +24,8 @@ import { createSessionTerminal, shiftEnterNewline } from './terminal/terminal-se
 import { terminalTheme } from './terminal/terminal-theme';
 import { createToolView } from './terminal/tool-view';
 import { followTabZoom } from './terminal/zoom';
-import { $, installHoverTips } from './ui/dom';
+import { $, installHoverTips, isShortcut } from './ui/dom';
+import { collapsible } from './ui/collapsible';
 import { createPalette } from './ui/palette';
 import { makeSectionsResizable } from './ui/sections';
 import { createListResizer } from './workspace-list/list-resizer';
@@ -80,11 +81,7 @@ const launcher = createLauncher({
 const creator = createCreateView({
   send,
   onToggle() {
-    if (creator.isOpen) {
-      git.close();
-      settings.close();
-      tools.close();
-    }
+    if (creator.isOpen) closeOthers(creator);
     render();
   },
   here,
@@ -96,11 +93,7 @@ const git = createGitView({
   waiting: (id) => state.waiting[id] ?? null,
   archive: (id) => send({ type: 'remove', id }),
   onToggle() {
-    if (git.isOpen) {
-      creator.close();
-      settings.close();
-      tools.close();
-    }
+    if (git.isOpen) closeOthers(git);
     render();
   },
 });
@@ -109,24 +102,21 @@ installHoverTips();
 const settings = createSettingsView({
   send,
   onToggle() {
-    if (settings.isOpen) {
-      creator.close();
-      git.close();
-      tools.close();
-    }
+    if (settings.isOpen) closeOthers(settings);
     render();
   },
 });
 const tools = createToolView({
   onToggle() {
-    if (tools.isOpen) {
-      creator.close();
-      git.close();
-      settings.close();
-    }
+    if (tools.isOpen) closeOthers(tools);
     render();
   },
 });
+// The views that cover the terminal; one is open at a time.
+const overlays = [creator, git, settings, tools];
+function closeOthers(open: (typeof overlays)[number]): void {
+  for (const view of overlays) if (view !== open) view.close();
+}
 const activity = createActivitySection({ send });
 for (const [id, tool] of [
   ['monitor-open', 'monitor'],
@@ -160,10 +150,7 @@ function render(): void {
   // Switching workspaces returns to the terminal: the new-workspace, review and diff views are left behind.
   if (shownId !== undefined && workspace?.id !== shownId) {
     shownId = workspace?.id;
-    creator.close();
-    git.close();
-    settings.close();
-    tools.close();
+    for (const view of overlays) view.close();
   }
   shownId = workspace?.id;
   git.setWorkspace(workspace);
@@ -210,16 +197,11 @@ function openWorkspace(ws: Workspace): void {
 
 newButton.addEventListener('click', () => creator.show());
 
-$<HTMLButtonElement>('collapse').addEventListener('click', () => {
-  const collapsed = document.body.classList.toggle('collapsed');
-  void chrome.storage.local.set({ listCollapsed: collapsed });
-  session.fit();
-});
+collapsible({ section: document.body, toggle: $<HTMLButtonElement>('collapse'), storageKey: 'listCollapsed', onChange: session.fit });
 
 const listResizer = createListResizer($<HTMLDivElement>('list-resizer'), session.fit);
 
-void chrome.storage.local.get(['listCollapsed', 'listWidth']).then(({ listCollapsed, listWidth }) => {
-  document.body.classList.toggle('collapsed', listCollapsed === true);
+void chrome.storage.local.get('listWidth').then(({ listWidth }) => {
   if (typeof listWidth === 'number') listResizer.setWidth(listWidth);
   session.fit();
 });
@@ -239,9 +221,9 @@ term.attachCustomKeyEventHandler((event) => {
   // ⌘K / Ctrl+K is the palette's, even while the terminal has focus: the terminal ignores it, and the
   // same keypress then reaches the page-level handler below, which opens the palette. Opening it here as
   // well would open and immediately close it, so this only declines the key.
-  if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'k') return false;
+  if (isShortcut(event, 'k')) return false;
   // ⌘F / Ctrl+F likewise belongs to the find box.
-  if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'f') return false;
+  if (isShortcut(event, 'f')) return false;
   return shiftEnterNewline(event, session.send);
 });
 
@@ -269,12 +251,12 @@ const palette = createPalette(createPaletteItems({ state, send, creator, tools, 
 );
 // Outside the terminal the same shortcut works anywhere in the panel.
 document.addEventListener('keydown', (event) => {
-  if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'k') {
+  if (isShortcut(event, 'k')) {
     event.preventDefault();
     if (palette.isOpen) palette.close();
     else palette.open();
   }
-  if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'f' && !terminalEl.hidden) {
+  if (isShortcut(event, 'f') && !terminalEl.hidden) {
     event.preventDefault();
     finder.open();
   }
