@@ -57,7 +57,7 @@ export function installAttention({ workspaces, open }: AttentionDeps) {
         type: 'basic',
         iconUrl: 'icons/icon-128.png',
         title: message.ok ? `Sent to ${name}` : `Could not send to ${name}`,
-        message: message.ok ? 'Pasted into its terminal, not submitted.' : message.message,
+        message: message.message,
       });
     },
   };

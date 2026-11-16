@@ -1,11 +1,12 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
-import { MAX_UPLOAD_BYTES, MONITOR_SESSION, PROTOCOL, type ClientMessage, type ServerMessage } from '../../../shared/protocol/protocol';
+import { MAX_UPLOAD_BYTES, MONITOR_SESSION, PROTOCOL, type ServerMessage } from '../../../shared/protocol/protocol';
 import { isAuthorized, tokenFromProtocols, type AuthPolicy } from './auth';
 import type { ControlHub } from '../control/hub';
 import type { Session, SessionManager } from '../pty/session';
 import { saveUpload } from './uploads';
 import { errorMessage } from '../../../shared/protocol/errors';
+import { isClientMessage } from '../control/messages';
 
 const SESSION_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
@@ -91,21 +92,27 @@ function handleConnection(ws: WebSocket, url: string, options: ServerOptions): v
   );
 
   ws.on('message', (raw) => {
-    let message: ClientMessage;
+    let message: unknown;
     try {
-      message = JSON.parse(raw.toString()) as ClientMessage;
+      message = JSON.parse(raw.toString());
     } catch {
       return;
     }
-    if (message.type === 'input') session.write(message.data);
-    else if (message.type === 'resize') session.resize(message.cols, message.rows);
-    else if (message.type === 'file' && typeof message.name === 'string' && typeof message.data === 'string') {
-      if (!options.uploadDir) return send({ type: 'uploaded', name: message.name, path: null, error: 'uploads are not enabled' });
-      try {
-        send({ type: 'uploaded', name: message.name, path: saveUpload(options.uploadDir, id, message.name, message.data), error: null });
-      } catch (error) {
-        send({ type: 'uploaded', name: message.name, path: null, error: errorMessage(error) });
+    if (!isClientMessage(message)) return;
+    try {
+      if (message.type === 'input') session.write(message.data);
+      else if (message.type === 'resize') session.resize(message.cols, message.rows);
+      else if (!options.uploadDir) send({ type: 'uploaded', name: message.name, path: null, error: 'uploads are not enabled' });
+      else {
+        try {
+          send({ type: 'uploaded', name: message.name, path: saveUpload(options.uploadDir, id, message.name, message.data), error: null });
+        } catch (error) {
+          send({ type: 'uploaded', name: message.name, path: null, error: errorMessage(error) });
+        }
       }
+    } catch (error) {
+      // node-pty can still throw (a resize racing the shell's exit); that must not take every terminal down.
+      console.error(`attach: ${message.type} failed: ${errorMessage(error)}`);
     }
   });
   ws.on('close', () => {

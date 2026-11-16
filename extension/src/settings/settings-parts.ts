@@ -58,6 +58,7 @@ export function guarded(
   const isArmed = ctx.arming.isArmed(key);
   const button = el('button', isArmed ? confirmLabel : label, `settings-btn${options.danger ? ' danger' : ''}${isArmed ? ' armed' : ''}`);
   button.type = 'button';
+  button.dataset.focus = key;
   if (options.disabled) {
     button.disabled = true;
     button.title = options.disabled;

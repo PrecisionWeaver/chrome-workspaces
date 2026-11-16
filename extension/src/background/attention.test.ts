@@ -75,10 +75,12 @@ describe('notifications', () => {
 
 describe('notifySent', () => {
   it('says whether text was sent to a workspace', () => {
-    attention.notifySent({ type: 'sent', id: 'ws-a', ok: true, message: '' });
+    attention.notifySent({ type: 'sent', id: 'ws-a', ok: true, message: 'Pasted it into its terminal, not submitted.' });
     attention.notifySent({ type: 'sent', id: 'ws-a', ok: false, message: 'no terminal' });
     attention.notifySent({ type: 'sent', id: 'gone', ok: false, message: 'no terminal' });
     expect(titles()).toEqual(['Sent to acme/app', 'Could not send to acme/app', 'Could not send to workspace']);
+    // The helper words the message, so a paste that was cut says so.
+    expect(fake.mock.notifications.create.mock.calls[0][1]).toMatchObject({ message: 'Pasted it into its terminal, not submitted.' });
     expect(fake.mock.notifications.create.mock.calls[1][1]).toMatchObject({ message: 'no terminal' });
   });
 });

@@ -563,6 +563,20 @@ describe('archived workspaces', () => {
     expect(closed()).toHaveLength(0);
   });
 
+  it('can be reached and opened from the keyboard, and keeps focus when the list redraws', async () => {
+    await build();
+    history(entries);
+    expect(toggle()!.tabIndex).toBe(0);
+    expect(toggle()!.getAttribute('aria-expanded')).toBe('false');
+    toggle()!.focus();
+    toggle()!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    expect(toggle()!.getAttribute('aria-expanded')).toBe('true');
+    expect(closed()).toHaveLength(2);
+    expect(document.activeElement).toBe(toggle());
+    toggle()!.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }));
+    expect(closed()).toHaveLength(0);
+  });
+
   it('shows nothing when there is nothing archived', async () => {
     await build();
     history([]);

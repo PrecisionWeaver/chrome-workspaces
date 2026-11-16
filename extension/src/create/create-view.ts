@@ -38,7 +38,10 @@ export interface CreateView {
 function segmented(container: HTMLElement, onChange: () => void) {
   const buttons = [...container.querySelectorAll<HTMLButtonElement>('button')];
   const select = (value: string) => {
-    for (const button of buttons) button.classList.toggle('active', button.dataset.value === value);
+    for (const button of buttons) {
+      button.classList.toggle('active', button.dataset.value === value);
+      button.setAttribute('aria-pressed', String(button.dataset.value === value));
+    }
   };
   for (const button of buttons) {
     button.addEventListener('click', () => {
@@ -46,6 +49,7 @@ function segmented(container: HTMLElement, onChange: () => void) {
       onChange();
     });
   }
+  select(container.querySelector<HTMLButtonElement>('.active')?.dataset.value ?? '');
   return { select, value: () => container.querySelector<HTMLButtonElement>('.active')?.dataset.value ?? '' };
 }
 
@@ -118,6 +122,7 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
     swatch.type = 'button';
     swatch.className = 'swatch';
     swatch.title = option ?? 'No color';
+    swatch.setAttribute('aria-label', option ?? 'No color');
     if (option) swatch.dataset.group = option;
     swatch.addEventListener('click', () => pickColor(option));
     swatches.set(option, swatch);
@@ -125,7 +130,10 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
   }
   function pickColor(next: WorkspaceColor | null): void {
     color = next;
-    for (const [option, swatch] of swatches) swatch.classList.toggle('selected', option === color);
+    for (const [option, swatch] of swatches) {
+      swatch.classList.toggle('selected', option === color);
+      swatch.setAttribute('aria-pressed', String(option === color));
+    }
   }
   pickColor(null);
 
@@ -397,7 +405,7 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
       // A review's repo and tabs belong to that PR, not to the next workspace.
       ...(review ? {} : { newRepo: repoSelect.value }),
     });
-    send({
+    const sent = send({
       type: 'create',
       name,
       windowId: useHere ? windowId : null,
@@ -411,6 +419,12 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
       ...(prompt ? { prompt } : {}),
       ...(review ? { pr: review.url } : {}),
     });
+    // Nothing was created, so the form stays as it was for another try.
+    if (!sent) {
+      errorEl.hidden = false;
+      errorEl.textContent = 'The helper is not connected, so the workspace was not created. Try again once it is.';
+      return;
+    }
     // A window with no workspace is adopted as it is; one that holds a workspace gets the tabs in its new group instead.
     if (useHere && !workspace) {
       void (async () => {

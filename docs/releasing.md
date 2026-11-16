@@ -9,7 +9,7 @@ git checkout main && git pull
 npm run release -- patch      # or minor / major
 ```
 
-`scripts/release.ts` requires a clean `main` in sync with origin, runs the format check, typecheck, tests and the build, creates `release/vX.Y.Z`, bumps `version` in `package.json` and `extension/manifest.json` together, makes one commit, and rebuilds so `extension/dist` carries the new version (reload the unpacked extension to see it). Then the release commit goes to `main` like any other change, as a pull request:
+`scripts/release.ts` requires a clean `main` in sync with origin, runs the format check, typecheck, tests with the coverage floor and the build, creates `release/vX.Y.Z`, bumps `version` in `package.json`, `package-lock.json` and `extension/manifest.json` together, makes one commit, and rebuilds so `extension/dist` carries the new version (reload the unpacked extension to see it). Then the release commit goes to `main` like any other change, as a pull request:
 
 ```bash
 git push -u origin release/vX.Y.Z

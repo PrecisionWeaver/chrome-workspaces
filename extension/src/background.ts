@@ -11,6 +11,10 @@ import { createGroup, openWindow, recordSharedSize, switchTo } from './backgroun
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(console.error);
 
 let workspaces: Workspace[] = [];
+/** What `repair` and `syncGroupTitles` read from the workspaces: who they are, where they are paired, and what their tabs were. */
+const pairingKey = (list: readonly Workspace[]): string =>
+  list.map((ws) => `${ws.id}\t${ws.name}\t${ws.windowId}\t${ws.groupId}\t${ws.lastTabUrls.join(' ')}`).join('\n');
+let previousPairing: string | null = null;
 // `open` can arrive before the `state` that lists the new workspace; those wait for it.
 const pendingOpens = new Map<string, 'window' | 'group'>();
 let selection: Selection = {};
@@ -56,8 +60,13 @@ function handle(message: ControlToClient): void {
         pendingOpens.delete(id);
         void (kind === 'group' ? createGroup(workspace, send) : openWindow(workspace, send));
       }
-      void repair();
-      void syncGroupTitles();
+      // `state` comes with every status change in every session; Chrome is only swept when what pairing and titles use has changed.
+      const pairing = pairingKey(message.workspaces);
+      if (pairing !== previousPairing) {
+        previousPairing = pairing;
+        void repair();
+        void syncGroupTitles();
+      }
       break;
     }
     case 'open': {

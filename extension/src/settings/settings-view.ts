@@ -1,5 +1,6 @@
 import type { ControlToClient, ControlToHelper, SystemSnapshot } from '../../../shared/protocol/protocol';
 import { $, createArming, el, wireBack } from '../ui/dom';
+import { keepFocus } from '../ui/focus';
 import { type CardLayout, columnCountFor, keysOf, layoutCards, layoutFromKeys, placeCards } from './settings-layout';
 import { configCard, dataCard } from './settings-data';
 import type { PrefsHandle, SettingsContext } from './settings-parts';
@@ -91,7 +92,8 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
     render();
   }
 
-  const place = (layout: CardLayout, held: HTMLElement | null): void => placeCards(grid, layout, held);
+  // A button waiting for its second press keeps keyboard focus through the redraw.
+  const place = (layout: CardLayout, held: HTMLElement | null): void => keepFocus(grid, () => placeCards(grid, layout, held));
 
   function render(): void {
     const scroll = body.scrollTop;
@@ -155,6 +157,8 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
   }
 
   function poll(): void {
+    // Nobody is looking at a hidden panel; it asks again when it is shown.
+    if (document.visibilityState !== 'visible') return;
     send({ type: 'system' });
     // An open activity list stays current while the view is showing.
     for (const id of sessions.activityOpen) send({ type: 'timeline', id });
@@ -173,6 +177,10 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
     pollTimer = setInterval(poll, POLL_MS);
     onToggle();
   }
+
+  document.addEventListener('visibilitychange', () => {
+    if (isOpen) poll();
+  });
 
   function close(): void {
     if (!isOpen) return;

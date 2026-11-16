@@ -10,6 +10,7 @@ import type {
   WorkspaceStatus,
 } from '../../../shared/protocol/protocol';
 import { $, type Arming, createArming, el, wireBack } from '../ui/dom';
+import { collapsible } from '../ui/collapsible';
 import { commit, renderChanges, renderSave, stagedFiles } from './git-changes';
 import { renderCommits, showBranches } from './git-commits';
 import { listDiffFiles, renderDiff } from './git-diff';
@@ -206,16 +207,8 @@ export function createGitView(options: GitViewOptions): GitView {
 
   // ---- accordion ----
 
-  $<HTMLButtonElement>('git-toggle').addEventListener('click', () => {
-    const nowCollapsed = section.classList.toggle('collapsed');
-    void chrome.storage.local.set({ gitCollapsed: nowCollapsed });
-    if (!nowCollapsed) refresh();
-  });
   refreshButton.addEventListener('click', refresh);
-  void chrome.storage.local.get('gitCollapsed').then(({ gitCollapsed }) => {
-    section.classList.toggle('collapsed', gitCollapsed === true);
-    refresh();
-  });
+  collapsible({ section, toggle: $<HTMLButtonElement>('git-toggle'), storageKey: 'gitCollapsed', onChange: () => refresh() });
 
   setInterval(() => {
     if (document.visibilityState === 'visible') refresh();

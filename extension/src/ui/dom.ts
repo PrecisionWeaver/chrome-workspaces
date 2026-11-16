@@ -1,5 +1,10 @@
 export const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
+/** Whether a key event is ⌘ or Ctrl plus `key` and nothing else. */
+export function isShortcut(event: KeyboardEvent, key: string): boolean {
+  return (event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === key;
+}
+
 export function el<K extends keyof HTMLElementTagNameMap>(tag: K, text = '', className = ''): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag);
   node.textContent = text;

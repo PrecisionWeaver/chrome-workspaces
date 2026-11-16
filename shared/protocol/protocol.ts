@@ -204,7 +204,7 @@ export interface SystemSnapshot {
     pricing: Record<string, { input: number; output: number }>;
     jiraBaseUrl: string | null;
   };
-  /** Tokens and estimated cost across every workspace, by day (local time), oldest first; see `shared/pricing.ts` and `shared/usage.ts`. */
+  /** Tokens and estimated cost across every workspace, by day (local time), oldest first; see `shared/usage/pricing.ts` and `shared/usage/usage.ts`. */
   usage: {
     daily: UsageDay[];
     /** Today's use by hour, in local time: always 24 entries, 0 to 23, with the hours not yet reached at zero. */
@@ -249,6 +249,12 @@ export interface UpdateStatus {
   /** Why it cannot be updated, or that it is already current. */
   reason: string | null;
 }
+
+/** What a git write was: the one-line result carries it so the view knows what just happened. */
+export type GitResultAction = 'stage' | 'unstage' | 'discard' | 'commit' | 'switch' | 'push' | 'pr';
+/** GitHub's own enums for a pull request's review decision and whether it merges cleanly. */
+export type ReviewDecision = 'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED';
+export type MergeableState = 'MERGEABLE' | 'CONFLICTING' | 'UNKNOWN';
 
 export type AdminAction =
   /** Ends the workspace's shell and everything in it; it starts again, resuming the conversation, when opened. */
@@ -357,7 +363,7 @@ export interface BranchPr {
   title: string;
   url: string;
   isDraft: boolean;
-  reviewDecision: string | null;
+  reviewDecision: ReviewDecision | null;
   state: 'OPEN' | 'MERGED' | 'CLOSED';
 }
 
@@ -471,10 +477,9 @@ export interface PrDetails {
   additions: number;
   deletions: number;
   changedFiles: number;
-  /** APPROVED, CHANGES_REQUESTED, REVIEW_REQUIRED, or null when no review is required. */
-  reviewDecision: string | null;
-  /** MERGEABLE, CONFLICTING, or UNKNOWN. */
-  mergeable: string;
+  /** Null when no review is required. */
+  reviewDecision: ReviewDecision | null;
+  mergeable: MergeableState;
   createdAt: string;
   updatedAt: string;
   /** Each reviewer's latest review. */
@@ -538,7 +543,7 @@ export type ControlToClient =
   | { type: 'createError'; name: string; message: string }
   /** Reply to `system`, to the client that asked. */
   | { type: 'system'; snapshot: SystemSnapshot | null; error: string | null }
-  | { type: 'adminResult'; action: string; ok: boolean; message: string }
+  | { type: 'adminResult'; action: AdminAction['action']; ok: boolean; message: string }
   | { type: 'systemLog'; text: string }
   | { type: 'exportData'; json: string }
   /** The workspace's session was replaced; a panel attached to it should attach again. */
@@ -553,7 +558,7 @@ export type ControlToClient =
   | { type: 'gitDiff'; id: string; path: string; sha: string | null; diff: string; truncated: boolean; error: string | null }
   /** Reply to a staging, discard, commit or branch-switch request. */
   /** `url` comes with a pull request just made, for the panel to open. */
-  | { type: 'gitResult'; id: string; action: string; ok: boolean; message: string; url?: string }
+  | { type: 'gitResult'; id: string; action: GitResultAction; ok: boolean; message: string; url?: string }
   | { type: 'gitBranches'; id: string; branches: GitBranch[]; error: string | null }
   /** `pr` is null when the branch has no pull request. */
   | { type: 'gitChecks'; id: string; pr: BranchPr | null; checks: PrDetails['checks'] | null; error: string | null }

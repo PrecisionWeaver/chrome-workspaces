@@ -1,6 +1,6 @@
 import { isAbsolute } from 'node:path';
 import type { WebSocket } from 'ws';
-import type { ControlToClient, ControlToHelper, Workspace } from '../../../shared/protocol/protocol';
+import type { ControlToClient, ControlToHelper, GitResultAction, Workspace } from '../../../shared/protocol/protocol';
 import { parseBranchChecks } from '../git/pr-details';
 import { isDirectory } from '../platform/config';
 import type { HubContext } from './hub';
@@ -65,7 +65,7 @@ export function handleGit(hub: HubContext, message: GitRequest, ws: WebSocket): 
   const answer = <T>(work: (cwd: string) => Promise<T>, ok: (value: T) => ControlToClient, fail: (reason: string) => ControlToClient) =>
     hub.answer(ws, dir.then(work), ok, fail);
   // A write answers with a one-line result; the work resolves to the message, or to it with a url to open.
-  const result = (action: string, work: (cwd: string) => Promise<string | { message: string; url: string }>) =>
+  const result = (action: GitResultAction, work: (cwd: string) => Promise<string | { message: string; url: string }>) =>
     answer(
       work,
       (done) => ({ type: 'gitResult', id, action, ok: true, ...(typeof done === 'string' ? { message: done } : done) }),

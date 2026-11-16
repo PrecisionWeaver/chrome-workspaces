@@ -88,6 +88,21 @@ describe('helper server', () => {
     ws.close();
   });
 
+  it('ignores malformed messages and keeps relaying', async () => {
+    await start();
+    const ws = connect('/attach?session=cat');
+    let output = '';
+    ws.on('message', (raw) => {
+      const msg = JSON.parse(raw.toString()) as ServerMessage;
+      if (msg.type === 'output') output += msg.data;
+    });
+    await new Promise((resolve) => ws.on('open', resolve));
+    for (const bad of ['null', '42', '{}', '{"type":"input"}', '{"type":"resize","cols":0,"rows":0}', '{"type":"resize","cols":"80","rows":24}']) ws.send(bad);
+    ws.send(JSON.stringify({ type: 'input', data: 'still here\r' }));
+    await waitFor(() => output.includes('still here'));
+    ws.close();
+  });
+
   it('replaces an exited session with a fresh one from onUnknownSession', async () => {
     await start((id) => sessions.create({ id, command: '/bin/cat', args: [], cwd: tmpdir() }));
     const old = sessions.create({ id: 'done', command: '/bin/sh', args: ['-c', 'exit 0'], cwd: tmpdir() });

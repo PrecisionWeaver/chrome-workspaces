@@ -5,7 +5,7 @@ import type { ControlToClient, ControlToHelper, PastSession, Prompt, Repo, Revie
 import { isControlToHelper } from './messages';
 import type { AdminService } from '../admin/admin';
 import type { Template } from '../../../shared/workspaces/templates';
-import { asPaste } from '../pty/paste';
+import { asPaste, MAX_PASTE_LENGTH } from '../pty/paste';
 import type { GitService } from '../git/git';
 import type { HistoryStore } from '../store/history';
 import { parsePrDetails, parsePrThreads, parsePrUrl } from '../git/pr-details';
@@ -73,6 +73,8 @@ export class ControlHub implements HubContext {
   private readonly clients = new Set<WebSocket>();
   // The workspace each client is watching the activity of, if any.
   private readonly following = new Map<WebSocket, string>();
+  /** What each following client was last sent, so an unrelated session's change does not send it the same turns again. */
+  private readonly sentActivity = new Map<WebSocket, string>();
 
   constructor(readonly options: ControlHubOptions) {
     options.store.onChange(() => this.broadcastState());
@@ -84,6 +86,7 @@ export class ControlHub implements HubContext {
     ws.on('close', () => {
       this.clients.delete(ws);
       this.following.delete(ws);
+      this.sentActivity.delete(ws);
     });
     ws.on('message', (raw) => {
       let message: unknown;
@@ -127,7 +130,16 @@ export class ControlHub implements HubContext {
 
   /** Sends each following client its workspace's activity again; called when a session's events change. */
   pushActivity(): void {
-    for (const [ws, id] of this.following) this.sendTo(ws, this.activityMessage(id));
+    for (const [ws, id] of this.following) this.sendActivity(ws, id, true);
+  }
+
+  /** Sends a client a workspace's activity; with `changedOnly`, not when it is what that client was last sent. */
+  private sendActivity(ws: WebSocket, id: string, changedOnly = false): void {
+    const message = this.activityMessage(id);
+    const json = JSON.stringify(message);
+    if (changedOnly && this.sentActivity.get(ws) === json) return;
+    this.sentActivity.set(ws, json);
+    this.sendTo(ws, message);
   }
 
   /** Archives a workspace: remembers it under Archived, ends its terminals, and closes its tabs when asked to. */
@@ -208,7 +220,8 @@ export class ControlHub implements HubContext {
           this.sendTo(ws, { type: 'sent', id, ok: false, message: 'That workspace has no running terminal. Open it first, then send again.' });
         } else {
           session.write(asPaste(message.text));
-          this.sendTo(ws, { type: 'sent', id, ok: true, message: 'Sent.' });
+          const cut = message.text.length > MAX_PASTE_LENGTH ? `the first ${MAX_PASTE_LENGTH.toLocaleString('en-US')} characters` : 'it';
+          this.sendTo(ws, { type: 'sent', id, ok: true, message: `Pasted ${cut} into its terminal, not submitted.` });
         }
         break;
       }
@@ -264,10 +277,11 @@ export class ControlHub implements HubContext {
       case 'activity':
         if (message.id === null) {
           this.following.delete(ws);
+          this.sentActivity.delete(ws);
           break;
         }
         this.following.set(ws, message.id);
-        this.sendTo(ws, this.activityMessage(message.id));
+        this.sendActivity(ws, message.id);
         break;
       case 'exportData':
         this.sendTo(ws, { type: 'exportData', json: this.options.admin.exportData() });

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { ControlToClient } from '../../../shared/protocol/protocol';
 import { connectControl, opened, startHarness, type Harness } from '../../testing/harness';
 import { waitFor } from '../../testing/wait-for';
+import { MAX_PASTE_LENGTH } from '../pty/paste';
 
 let h: Harness;
 
@@ -142,6 +143,20 @@ describe('control channel', () => {
     ws.close();
   });
 
+  it('says so when text sent to a workspace is cut to the paste limit', async () => {
+    const workspace = h.store.create({ name: 'long', cwd: h.defaultCwd });
+    h.sessions.create({ id: workspace.id, command: '/bin/cat', args: [], cwd: h.defaultCwd });
+    const { ws, messages } = connectControl(h);
+    await opened(ws);
+    ws.send(JSON.stringify({ type: 'sendText', id: workspace.id, text: 'x'.repeat(MAX_PASTE_LENGTH + 1) }));
+    await waitFor(() => messages.some((m) => m.type === 'sent'));
+    expect(messages.find((m) => m.type === 'sent')).toMatchObject({
+      ok: true,
+      message: 'Pasted the first 20,000 characters into its terminal, not submitted.',
+    });
+    ws.close();
+  });
+
   it("lists a workspace's earlier conversations, and resumes one by ending the session with a reset", async () => {
     const workspace = h.store.create({ name: 'w', cwd: h.defaultCwd });
     const past = { id: '169128c8-8b10-48e0-993f-a743c8fad9ef', startedAt: '2026-01-01T10:00:00Z', status: null, firstPrompt: 'fix it' };
@@ -227,6 +242,29 @@ describe('control channel', () => {
     h.control.pushActivity();
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(replies().length).toBe(4);
+    ws.close();
+  });
+
+  it('does not send a following client the same turns again when a push changes nothing for it', async () => {
+    const busy = h.store.create({ name: 'busy', cwd: h.defaultCwd });
+    const file = join(mkdtempSync(join(tmpdir(), 'cw-ctl-act-')), 's.events.jsonl');
+    writeFileSync(file, `${JSON.stringify({ at: '2026-10-08T10:00:00Z', event: 'UserPromptSubmit', promptId: 'p1', summary: 'fix the bug' })}\n`);
+    h.activityFiles[busy.id] = file;
+
+    const { ws, messages } = connectControl(h);
+    await opened(ws);
+    const replies = () => messages.filter((m) => m.type === 'activity');
+    ws.send(JSON.stringify({ type: 'activity', id: busy.id }));
+    await waitFor(() => replies().length === 1);
+    // Another session's event touched the folder: this one's turns are as they were.
+    h.control.pushActivity();
+    h.control.pushActivity();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(replies().length).toBe(1);
+
+    writeFileSync(file, `${JSON.stringify({ at: '2026-10-08T10:00:05Z', event: 'Stop', promptId: 'p1' })}\n`, { flag: 'a' });
+    h.control.pushActivity();
+    await waitFor(() => replies().length === 2);
     ws.close();
   });
 

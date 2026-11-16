@@ -22,6 +22,18 @@ export interface SnapshotContext {
   sync: LedgerSync;
   /** The last snapshot's warnings, so one already raised is held while its reading hovers at the threshold. */
   warnings: GuardrailWarning[];
+  /** The last storage figures, which walk the whole data folder; see `STORAGE_MAX_AGE_MS`. */
+  storage: { at: number; value: SystemSnapshot['storage'] } | null;
+}
+
+// Settings asks every few seconds, and the figures only change as fast as uploads and the log grow.
+const STORAGE_MAX_AGE_MS = 10_000;
+
+function storageBytes(context: SnapshotContext, paths: { uploadDir: string; logFile: string; dataDir: string }, now = Date.now()): SystemSnapshot['storage'] {
+  if (context.storage && now - context.storage.at < STORAGE_MAX_AGE_MS) return context.storage.value;
+  const value = { uploadsBytes: pathBytes(paths.uploadDir), logBytes: pathBytes(paths.logFile), dataBytes: pathBytes(paths.dataDir) };
+  context.storage = { at: now, value };
+  return value;
 }
 
 /** The Settings snapshot: the helper, each workspace's session and processes, usage and cost, warnings, storage and config. */
@@ -144,7 +156,7 @@ export async function buildSnapshot(context: SnapshotContext, extra: { reviews: 
     usage: { ...trend, hourly: usageByHour(hourTotals), workspaces },
     plan: options.planUsage?.() ?? { limits: [], updatedAt: null },
     warnings,
-    storage: { uploadsBytes: pathBytes(paths.uploadDir), logBytes: pathBytes(paths.logFile), dataBytes: pathBytes(paths.dataDir) },
+    storage: storageBytes(context, paths),
     config: {
       defaultCwd: config.defaultCwd,
       promptsFile: config.promptsFile,

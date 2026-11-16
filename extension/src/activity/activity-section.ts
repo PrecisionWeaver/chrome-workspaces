@@ -2,6 +2,7 @@ import type { ActivityItem, ActivityTurn } from '../../../shared/sessions/activi
 import type { ControlToClient, ControlToHelper, Workspace } from '../../../shared/protocol/protocol';
 import { drawTurn, legend, type View, windowOf, zoomed } from './activity-chart';
 import { $, el } from '../ui/dom';
+import { collapsible } from '../ui/collapsible';
 
 export interface ActivitySectionOptions {
   send(message: ControlToHelper): boolean;
@@ -201,15 +202,7 @@ export function createActivitySection({ send }: ActivitySectionOptions): Activit
     render();
   }
 
-  $<HTMLButtonElement>('activity-toggle').addEventListener('click', () => {
-    const nowCollapsed = section.classList.toggle('collapsed');
-    void chrome.storage.local.set({ activityCollapsed: nowCollapsed });
-    follow();
-  });
-  void chrome.storage.local.get('activityCollapsed').then(({ activityCollapsed }) => {
-    section.classList.toggle('collapsed', activityCollapsed === true);
-    follow();
-  });
+  collapsible({ section, toggle: $<HTMLButtonElement>('activity-toggle'), storageKey: 'activityCollapsed', onChange: follow });
 
   render();
 

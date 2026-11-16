@@ -14,6 +14,7 @@ const PR = 'https://github.com/acme/app/pull/12';
 let fake: ReturnType<typeof installChrome>;
 let view: CreateView;
 let sent: ControlToHelper[];
+let connected: boolean;
 let toggled: number;
 let here: { windowId: number | undefined; workspace: Workspace | undefined };
 let ticketLink: (ticket: string | null) => string | null;
@@ -27,11 +28,12 @@ beforeEach(() => {
   fake = installChrome();
   loadPanelHtml();
   sent = [];
+  connected = true;
   toggled = 0;
   here = { windowId: undefined, workspace: undefined };
   ticketLink = (ticket) => (ticket ? `https://jira.example.com/browse/${ticket}` : null);
   view = createCreateView({
-    send: (message) => (sent.push(message), true),
+    send: (message) => connected && (sent.push(message), true),
     onToggle: () => void toggled++,
     here: () => here,
     ticketLink: (ticket) => ticketLink(ticket),
@@ -61,6 +63,15 @@ describe('opening and closing', () => {
     expect(view.review).toBeNull();
     expect($('create-details').hidden).toBe(true);
     expect($('create-github').hidden).toBe(true);
+  });
+
+  it('says which choice of each segmented control is on', async () => {
+    await open();
+    const pressed = (id: string) => [...document.querySelectorAll<HTMLButtonElement>(`#${id} button`)].map((b) => b.getAttribute('aria-pressed'));
+    expect(pressed('create-start')).toContain('true');
+    choose('text');
+    expect(document.querySelector('#create-start button[data-value="text"]')?.getAttribute('aria-pressed')).toBe('true');
+    expect(pressed('create-start').filter((value) => value === 'true')).toHaveLength(1);
   });
 
   it('asks the helper for prompts, team templates and repos each time it opens', async () => {
@@ -367,6 +378,20 @@ describe('model, colour and window controls', () => {
     expect(swatches[0]!.classList.contains('selected')).toBe(true);
     swatches[2]!.click();
     expect(swatches.map((swatch) => swatch.classList.contains('selected'))).toEqual([false, false, true, false, false, false, false, false, false, false]);
+    // A screen reader hears which one is chosen, and what each is called.
+    expect(swatches.map((swatch) => swatch.getAttribute('aria-pressed'))).toEqual([
+      'false',
+      'false',
+      'true',
+      'false',
+      'false',
+      'false',
+      'false',
+      'false',
+      'false',
+      'false',
+    ]);
+    expect(swatches[0]!.getAttribute('aria-label')).toBe('No color');
     await open();
     expect(swatches[2]!.classList.contains('selected')).toBe(false);
     expect(swatches[0]!.classList.contains('selected')).toBe(true);
@@ -618,6 +643,23 @@ describe('creating', () => {
       submit();
       await flush();
       expect(created()).toMatchObject({ windowId, group: true });
+      expect(fake.mock.tabs.create).not.toHaveBeenCalled();
+    });
+
+    it('keeps the form and opens no tabs when the helper is not connected', async () => {
+      connected = false;
+      const { windowId } = fake.addWindow();
+      here = { windowId, workspace: undefined };
+      await open();
+      click('#create-window [data-value="here"]');
+      type('create-name', 'w');
+      type('create-tabs', 'example.com/a');
+      submit();
+      await flush();
+      expect(view.isOpen).toBe(true);
+      expect($<HTMLInputElement>('create-name').value).toBe('w');
+      expect($('create-error').hidden).toBe(false);
+      expect($('create-error').textContent).toContain('not connected');
       expect(fake.mock.tabs.create).not.toHaveBeenCalled();
     });
 

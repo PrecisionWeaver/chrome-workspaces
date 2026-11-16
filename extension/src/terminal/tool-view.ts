@@ -1,6 +1,6 @@
 import type { ITheme } from '@xterm/xterm';
 import { MONITOR_SESSION, SHELL_SESSION, workspaceShellSession } from '../../../shared/protocol/protocol';
-import { $, wireBack } from '../ui/dom';
+import { $, isShortcut, wireBack } from '../ui/dom';
 import { connectSession, createSessionTerminal, type SessionLink } from './terminal-session';
 
 /** The terminals that belong to no workspace: each is a helper session of its own. */
@@ -10,6 +10,9 @@ const TOOLS = {
 } as const;
 
 export type Tool = keyof typeof TOOLS;
+
+// How long a dropped connection waits before trying again; the same as the pop-out's.
+const RETRY_MS = 2000;
 
 /** What the view is attached to: a tool, or a workspace's own shell. */
 interface Target {
@@ -48,6 +51,9 @@ export function createToolView({ onToggle }: ToolViewOptions): ToolView {
 
   const terminal = createSessionTerminal((message) => link?.send(message));
   const { term } = terminal;
+  // ⌘K / Ctrl+K is the palette's, even here: the key only declines xterm and reaches the panel's own handler, so the
+  // shell does not also get it (it would delete to the end of the line).
+  term.attachCustomKeyEventHandler((event) => !isShortcut(event, 'k'));
   let opened = false;
   let current: Target | null = null;
   let link: SessionLink | null = null;
@@ -63,10 +69,22 @@ export function createToolView({ onToggle }: ToolViewOptions): ToolView {
     old?.close();
   }
 
-  function connect(target: Target): void {
+  /** Tries a dropped connection again, unless the view has moved on to another target. */
+  function retry(target: Target, notice: string): void {
+    link = null;
+    if (current !== target) return;
+    term.write(`\r\n\x1b[33m[${notice}]\x1b[0m\r\n`);
+    setTimeout(() => {
+      if (current === target && link === null) connect(target, true);
+    }, RETRY_MS);
+  }
+
+  function connect(target: Target, reconnecting = false): void {
     link = connectSession(target.session, terminal, {
       isCurrent: () => current === target,
       onOpen() {
+        // The helper replays the session's scrollback on attach, so what is on screen starts over.
+        if (reconnecting) term.reset();
         resize();
         term.focus();
       },
@@ -74,13 +92,8 @@ export function createToolView({ onToggle }: ToolViewOptions): ToolView {
       onMessage(message) {
         if (message.type === 'exit') close();
       },
-      onDisconnect() {
-        link = null;
-        if (current === target) term.write('\r\n\x1b[33m[disconnected from helper]\x1b[0m\r\n');
-      },
-      onUnreachable() {
-        if (current === target) term.write('\r\n\x1b[33m[could not reach the helper]\x1b[0m\r\n');
-      },
+      onDisconnect: () => retry(target, 'disconnected from helper — reconnecting'),
+      onUnreachable: () => retry(target, 'could not reach the helper — retrying'),
     });
   }
 

@@ -2,7 +2,16 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { continuedInSession, lastTranscriptCwd, listWorkspaceSessions, locateTranscript, pruneSessions, readSessionStatus } from './session-status';
+import {
+  continuedInSession,
+  lastTranscriptCwd,
+  listWorkspaceSessions,
+  locateTranscript,
+  pruneSessions,
+  readSessionStatus,
+  sameStatuses,
+  type WorkspaceSession,
+} from './session-status';
 import { existsSync, utimesSync } from 'node:fs';
 
 function stateDir(files: Record<string, unknown>): string {
@@ -247,8 +256,59 @@ describe('pruneSessions', () => {
     expect(['old.json', 'old.events.jsonl', 'new.json', 'notes.txt'].map((name) => existsSync(join(dir, name)))).toEqual([false, false, true, true]);
   });
 
+  it('deletes a temporary file a failed hook write left behind once it is an hour old', () => {
+    const dir = stateDir({ 'a.json.123.tmp': '{}', 'b.json.456.tmp': '{}' });
+    const stale = Date.now() / 1000 - 2 * 60 * 60;
+    utimesSync(join(dir, 'a.json.123.tmp'), stale, stale);
+    pruneSessions(dir);
+    expect(['a.json.123.tmp', 'b.json.456.tmp'].map((name) => existsSync(join(dir, name)))).toEqual([false, true]);
+  });
+
   it('does nothing for a folder that does not exist', () => {
     expect(() => pruneSessions(join(tmpdir(), 'cw-sessions-does-not-exist'))).not.toThrow();
+  });
+});
+
+describe('sameStatuses', () => {
+  const session = (over: Partial<WorkspaceSession> = {}): WorkspaceSession => ({
+    status: 'working',
+    waiting: null,
+    claudeSessionId: ID_OLD,
+    browserAt: null,
+    cwd: '/repo',
+    transcriptPath: null,
+    ...over,
+  });
+  const readings = (...entries: [string, WorkspaceSession][]) => new Map(entries);
+
+  it('is true when only what `state` does not carry has changed', () => {
+    expect(
+      sameStatuses(
+        readings(['ws-a', session()]),
+        readings(['ws-a', session({ cwd: '/other', browserAt: 5, transcriptPath: '/t.jsonl', claudeSessionId: ID_NEW })]),
+      ),
+    ).toBe(true);
+    expect(sameStatuses(new Map(), new Map())).toBe(true);
+  });
+
+  it('is false when a status, what it waits on, or the set of workspaces differs', () => {
+    expect(sameStatuses(readings(['ws-a', session()]), readings(['ws-a', session({ status: 'idle' })]))).toBe(false);
+    const waiting = (message: string) => session({ status: 'needs_input', waiting: { type: 'permission_prompt', message } });
+    expect(sameStatuses(readings(['ws-a', waiting('one')]), readings(['ws-a', waiting('two')]))).toBe(false);
+    expect(sameStatuses(readings(['ws-a', session()]), new Map())).toBe(false);
+    expect(sameStatuses(readings(['ws-a', session()]), readings(['ws-b', session()]))).toBe(false);
+  });
+});
+
+describe('readSessionStatus with a file that changes', () => {
+  it('reads a status file again once it has been rewritten', () => {
+    const dir = stateDir({ 'a.json': { session_id: ID_OLD, cw_workspace_id: 'ws-a', status: 'working', started_at: '2026-01-01T10:00:00Z' } });
+    expect(readSessionStatus(dir).get('ws-a')?.status).toBe('working');
+    writeFileSync(
+      join(dir, 'a.json'),
+      JSON.stringify({ session_id: ID_OLD, cw_workspace_id: 'ws-a', status: 'needs_input', started_at: '2026-01-01T10:00:00Z' }),
+    );
+    expect(readSessionStatus(dir).get('ws-a')?.status).toBe('needs_input');
   });
 });
 

@@ -61,6 +61,20 @@ describe('opening', () => {
   });
 });
 
+describe('for assistive technology', () => {
+  it('names the highlighted result in aria-activedescendant and marks it selected as it moves', () => {
+    const palette = createPalette(() => [item('acme/app'), item('acme/api')], onClose);
+    palette.open();
+    expect(input().getAttribute('aria-activedescendant')).toBe('palette-row-0');
+    expect(rows().map((row) => row.getAttribute('aria-selected'))).toEqual(['true', 'false']);
+    press('ArrowDown');
+    expect(input().getAttribute('aria-activedescendant')).toBe('palette-row-1');
+    expect(rows().map((row) => row.getAttribute('aria-selected'))).toEqual(['false', 'true']);
+    type('zzzz');
+    expect(input().hasAttribute('aria-activedescendant')).toBe(false);
+  });
+});
+
 describe('searching', () => {
   it('filters as you type, best match first, matching the kind too', () => {
     const palette = createPalette(() => [item('docs'), item('acme/app'), item('settings', vi.fn(), { kind: 'Action' })], onClose);

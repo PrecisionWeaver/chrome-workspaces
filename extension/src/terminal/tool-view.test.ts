@@ -20,6 +20,10 @@ class FakeTerminal {
     terms.push(this);
   }
   loadAddon() {}
+  keyHandler: ((event: KeyboardEvent) => boolean) | null = null;
+  attachCustomKeyEventHandler(handler: (event: KeyboardEvent) => boolean) {
+    this.keyHandler = handler;
+  }
   open(element: HTMLElement) {
     this.opened = element;
   }
@@ -98,7 +102,10 @@ beforeEach(() => {
     },
   );
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -286,7 +293,7 @@ describe('the connection', () => {
     view.show('shell');
     await flush();
     socket().onclose!();
-    expect(term.written.join('')).toContain('[disconnected from helper]');
+    expect(term.written.join('')).toContain('[disconnected from helper');
 
     view.show('monitor');
     await flush();
@@ -302,13 +309,60 @@ describe('the connection', () => {
     const { view, term } = await make();
     view.show('shell');
     await flush();
-    expect(term.written.join('')).toContain('[could not reach the helper]');
+    expect(term.written.join('')).toContain('[could not reach the helper');
 
     term.written.length = 0;
     view.show('monitor');
     view.close();
     await flush();
     expect(term.written).toEqual([]);
+  });
+});
+
+describe('reconnecting', () => {
+  it('attaches again a moment after the helper drops the connection, starting the screen over', async () => {
+    vi.useFakeTimers();
+    const { view, term } = await make();
+    view.show('shell');
+    await vi.advanceTimersByTimeAsync(0);
+    const first = socket();
+    first.onclose!();
+    await vi.advanceTimersByTimeAsync(1999);
+    expect(socket()).toBe(first);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(socket()).not.toBe(first);
+    expect(socket().path).toContain(SHELL_SESSION);
+    socket().onopen!();
+    expect(term.resets).toBeGreaterThanOrEqual(2);
+  });
+
+  it('does not attach again once the view has closed or moved to another tool', async () => {
+    vi.useFakeTimers();
+    const { view } = await make();
+    view.show('shell');
+    await vi.advanceTimersByTimeAsync(0);
+    socket().onclose!();
+    view.show('monitor');
+    await vi.advanceTimersByTimeAsync(0);
+    const count = FakeSocket.instances.length;
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(FakeSocket.instances).toHaveLength(count);
+    view.close();
+    socket().onclose!();
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(FakeSocket.instances).toHaveLength(count);
+  });
+});
+
+describe('keys', () => {
+  it("leaves ⌘K and Ctrl+K to the panel's palette, and everything else to the terminal", async () => {
+    const { term } = await make();
+    const key = (init: KeyboardEventInit) => term.keyHandler!(new KeyboardEvent('keydown', init));
+    expect(key({ key: 'k', metaKey: true })).toBe(false);
+    expect(key({ key: 'K', ctrlKey: true })).toBe(false);
+    expect(key({ key: 'k' })).toBe(true);
+    expect(key({ key: 'f', ctrlKey: true })).toBe(true);
+    expect(key({ key: 'k', ctrlKey: true, shiftKey: true })).toBe(true);
   });
 });
 
