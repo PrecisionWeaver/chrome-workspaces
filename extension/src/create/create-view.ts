@@ -2,12 +2,13 @@ import { fillPrompt } from '../../../shared/workspaces/prompts';
 import { MAX_TAB_URLS, MODEL_ALIASES, WORKSPACE_COLORS } from '../../../shared/protocol/protocol';
 import { parseTabUrls } from '../../../shared/workspaces/tab-urls';
 import { isBranchName, slugBranch } from '../../../shared/workspaces/branch-name';
-import { parseTemplates, removeTemplate, upsertTemplate, type Template } from '../../../shared/workspaces/templates';
+import type { Template } from '../../../shared/workspaces/templates';
 import type { ControlToClient, ControlToHelper, PrDetails, Prompt, Repo, ReviewRequest, Workspace, WorkspaceColor } from '../../../shared/protocol/protocol';
 import { $, el, icon, wireBack } from '../ui/dom';
 import { ref, renderDetails, renderThreads, repoName } from '../source-control/pr-view';
 import { findTab, noteReviewTab, openInWorkspace } from '../background/tabs';
 import { createPromptPicker } from './prompt-picker';
+import { createTemplatePicker } from './template-picker';
 
 export interface CreateViewOptions {
   send(message: ControlToHelper): boolean;
@@ -79,11 +80,6 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
   const threadsEl = el('div', '', 'create-threads');
   threadsEl.id = 'create-threads';
   const paintDetails = (...nodes: Node[]): void => detailsEl.replaceChildren(...nodes, threadsEl);
-  const templateBox = $<HTMLDivElement>('create-templates');
-  const templateSelect = $<HTMLSelectElement>('create-template');
-  const templateDelete = $<HTMLButtonElement>('template-delete');
-  const templateNameRow = $<HTMLDivElement>('template-name-row');
-  const templateName = $<HTMLInputElement>('template-name');
   const worktreeBox = $<HTMLInputElement>('create-worktree');
   const branchInput = $<HTMLInputElement>('create-branch');
   // Whether the branch was typed since the view opened; until then it follows the name.
@@ -150,27 +146,21 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
 
   // ---- templates ----
 
-  let templates: Template[] = [];
-  let teamTemplates: Template[] = [];
-
-  async function loadTemplates(): Promise<void> {
-    const { templates: stored } = await chrome.storage.local.get('templates');
-    templates = parseTemplates(stored);
-    renderTemplates();
-  }
-
-  function renderTemplates(selected = ''): void {
-    const none = el('option', 'None');
-    none.value = '';
-    const option = (t: Template) => Object.assign(el('option', t.name), { value: t.id });
-    const team = el('optgroup') as HTMLOptGroupElement;
-    team.label = 'Team';
-    team.append(...teamTemplates.map(option));
-    templateSelect.replaceChildren(none, ...templates.map(option), ...(teamTemplates.length ? [team] : []));
-    templateSelect.value = selected;
-    // A team template lives in its file, not here, so there is nothing to delete.
-    templateDelete.hidden = !selected || selected.startsWith('team:');
-  }
+  const templatePicker = createTemplatePicker({
+    apply: (template) => applyTemplate(template),
+    // The first message is whichever is showing: typed text, or the prompt that was picked and edited.
+    current: () => {
+      const mode = start.value();
+      return {
+        repo: repoSelect.value,
+        model: modelSelect.value,
+        tabs: tabsInput.value.trim(),
+        message: mode === 'text' ? messageInput.value.trim() : mode === 'prompt' ? textInput.value.trim() : '',
+        window: target.value() === 'here' ? 'here' : 'new',
+        worktree: worktreeBox.checked,
+      };
+    },
+  });
 
   /** Fills the form from a template; the name is left alone, since each workspace has its own. */
   function applyTemplate(template: Template): void {
@@ -190,67 +180,13 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
     syncBranch();
   }
 
-  templateSelect.addEventListener('change', () => {
-    const chosen = [...templates, ...teamTemplates].find((t) => t.id === templateSelect.value);
-    templateDelete.hidden = !chosen || chosen.id.startsWith('team:');
-    if (chosen) applyTemplate(chosen);
-  });
-
-  $<HTMLButtonElement>('template-save').addEventListener('click', () => {
-    templateNameRow.hidden = false;
-    templateName.value = templates.find((t) => t.id === templateSelect.value)?.name ?? '';
-    templateName.focus();
-    templateName.select();
-  });
-
-  async function saveTemplate(): Promise<void> {
-    const name = templateName.value.trim();
-    if (!name) return;
-    // The first message is whichever is showing: typed text, or the prompt that was picked and edited.
-    const mode = start.value();
-    const message = mode === 'text' ? messageInput.value.trim() : mode === 'prompt' ? textInput.value.trim() : '';
-    const saved = upsertTemplate(templates, {
-      id: crypto.randomUUID(),
-      name,
-      repo: repoSelect.value,
-      model: modelSelect.value,
-      tabs: tabsInput.value.trim(),
-      message,
-      window: target.value() === 'here' ? 'here' : 'new',
-      worktree: worktreeBox.checked,
-    });
-    await chrome.storage.local.set({ templates: saved });
-    templates = saved;
-    templateNameRow.hidden = true;
-    renderTemplates(saved.find((t) => t.name.toLowerCase() === name.toLowerCase())?.id ?? '');
-  }
-
-  $<HTMLButtonElement>('template-confirm').addEventListener('click', () => void saveTemplate());
-  templateName.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      void saveTemplate();
-    } else if (event.key === 'Escape') {
-      event.stopPropagation();
-      templateNameRow.hidden = true;
-    }
-  });
-  templateDelete.addEventListener('click', async () => {
-    const remaining = removeTemplate(templates, templateSelect.value);
-    await chrome.storage.local.set({ templates: remaining });
-    templates = remaining;
-    renderTemplates();
-  });
-
   function show(request: ReviewRequest | null = null): void {
     isOpen = true;
     review = request;
     repoPicked = false;
     pickColor(null);
     // A review starts from its PR, so templates are for workspaces made from scratch.
-    templateBox.hidden = request !== null;
-    templateNameRow.hidden = true;
-    void loadTemplates();
+    templatePicker.show(request !== null);
     nameInput.value = request ? ref(request) : '';
     // A review's worktree is for the PR's branch, which git checks out from the remote.
     branchEdited = Boolean(request?.branch);
@@ -446,9 +382,7 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
       picker.set(next);
     },
     setTemplates(next, error) {
-      teamTemplates = next;
-      templateBox.title = error ? `Team templates: ${error}` : '';
-      renderTemplates(templateSelect.value);
+      templatePicker.setTeam(next, error);
     },
     setRepos(next) {
       repos = next;
