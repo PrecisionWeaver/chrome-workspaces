@@ -1,87 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import {
-  describeFailure,
-  ghOwnPrs,
-  ghReviewedPrs,
-  ghWatchedPrs,
-  isRateLimited,
-  isTransient,
-  MERGE_BATCH,
-  MERGE_CONCURRENCY,
-  mergeStatusQuery,
-  parseMergeStatuses,
-  parseReviewRequests,
-  ReviewsPoller,
-  ticketFromTitle,
-} from './reviews';
-
-const pr = (number: number, title: string, updatedAt: string) => ({
-  author: { login: 'drew', is_bot: false },
-  isDraft: number === 2,
-  number,
-  repository: { name: 'web-app', nameWithOwner: 'acme/web-app' },
-  title,
-  updatedAt,
-  url: `https://github.com/acme/web-app/pull/${number}`,
-});
-const GH = JSON.stringify([pr(1, 'PROJ-10 - Fix it', '2026-10-01T00:00:00Z'), pr(2, 'Tidy up', '2026-10-02T00:00:00Z')]);
-
-describe('ticketFromTitle', () => {
-  it('prefers a key outside brackets, since a bracketed key names the parent', () => {
-    expect(ticketFromTitle('[PROJ-1731] PROJ-1737 - Sync cache')).toBe('PROJ-1737');
-    expect(ticketFromTitle('[PROJ-1731] Sync cache')).toBe('PROJ-1731');
-    expect(ticketFromTitle('OPS-88: fix')).toBe('OPS-88');
-    expect(ticketFromTitle('Bump deps')).toBeNull();
-  });
-});
-
-describe('parseReviewRequests', () => {
-  it('maps gh search output, most recently updated first', () => {
-    expect(parseReviewRequests([GH])).toEqual([
-      {
-        repo: 'acme/web-app',
-        number: 2,
-        title: 'Tidy up',
-        url: 'https://github.com/acme/web-app/pull/2',
-        author: 'drew',
-        isDraft: true,
-        updatedAt: '2026-10-02T00:00:00Z',
-        ticket: null,
-        branch: '',
-        merge: 'draft',
-        mergeReason: null,
-        needsReReview: false,
-        approved: false,
-        ci: null,
-      },
-      {
-        repo: 'acme/web-app',
-        number: 1,
-        title: 'PROJ-10 - Fix it',
-        url: 'https://github.com/acme/web-app/pull/1',
-        author: 'drew',
-        isDraft: false,
-        updatedAt: '2026-10-01T00:00:00Z',
-        ticket: 'PROJ-10',
-        branch: '',
-        merge: 'unknown',
-        mergeReason: null,
-        needsReReview: false,
-        approved: false,
-        ci: null,
-      },
-    ]);
-  });
-
-  it('merges several searches, listing a PR found by both once', () => {
-    const other = JSON.stringify([pr(3, 'Tidy change', '2026-10-03T00:00:00Z'), pr(1, 'PROJ-10 - Fix it', '2026-10-01T00:00:00Z')]);
-    expect(parseReviewRequests([GH, other]).map((r) => r.number)).toEqual([3, 2, 1]);
-  });
-
-  it('rejects output that is not a list', () => {
-    expect(() => parseReviewRequests(['{"message":"Bad credentials"}'])).toThrow();
-  });
-});
+import { GH, URL1, answer, lookup, pr, review } from '../../testing/reviews';
+import { type Lookup, parseMergeStatuses, parseReviewRequests } from './review-parse';
+import { mergeStatusQuery } from './review-queries';
+import { describeFailure, isRateLimited, isTransient, MERGE_BATCH, MERGE_CONCURRENCY, ReviewsPoller } from './reviews';
 
 describe('ReviewsPoller', () => {
   it('starts empty, then holds the fetched list and notifies', async () => {
@@ -138,53 +59,10 @@ describe('ReviewsPoller', () => {
   });
 });
 
-const URL1 = 'https://github.com/acme/web-app/pull/1';
 const URL2 = 'https://github.com/acme/web-app/pull/2';
 const merge = (url: string, mergeStateStatus: string) => ({ pullRequest: { url, mergeStateStatus, reviewDecision: null } });
 
 describe('merge states', () => {
-  it('asks for every PR in one query, skipping a repo name that is not plain', () => {
-    const [two, one] = parseReviewRequests([GH]);
-    const query = mergeStatusQuery([two, one, { ...one, repo: 'x/y" } } mutation { z' }]);
-    expect(query).toContain('r0: repository(owner: "acme", name: "web-app") { pullRequest(number: 2)');
-    expect(query).toContain('r1: repository(owner: "acme", name: "web-app") { pullRequest(number: 1)');
-    expect(query).not.toContain('mutation');
-  });
-
-  it('maps GitHub merge states to ready, review, draft, blocked with a reason, or unknown', () => {
-    const at = (mergeStateStatus: string, reviewDecision: string | null = null) => ({
-      pullRequest: { url: mergeStateStatus + reviewDecision, mergeStateStatus, reviewDecision },
-    });
-    const json = JSON.stringify({
-      data: {
-        clean: at('CLEAN', 'APPROVED'),
-        unprotected: at('CLEAN'),
-        needsReview: at('BLOCKED', 'REVIEW_REQUIRED'),
-        changes: at('BLOCKED', 'CHANGES_REQUESTED'),
-        blocked: at('BLOCKED', 'APPROVED'),
-        conflicts: at('DIRTY', 'REVIEW_REQUIRED'),
-        behind: at('BEHIND'),
-        checks: at('UNSTABLE'),
-        draft: at('DRAFT', 'REVIEW_REQUIRED'),
-        unknown: at('UNKNOWN'),
-        missing: null,
-        none: { pullRequest: null },
-      },
-    });
-    expect([...parseMergeStatuses(json)].map(([, state]) => [state.merge, state.mergeReason])).toEqual([
-      ['ready', null],
-      ['ready', null],
-      ['review', null],
-      ['blocked', 'Changes requested'],
-      ['blocked', 'Blocked'],
-      ['blocked', 'Conflicts'],
-      ['blocked', 'Behind'],
-      ['blocked', 'Checks failing'],
-      ['draft', null],
-      ['unknown', null],
-    ]);
-  });
-
   it('puts merge states on the polled list, leaving a PR the response omits unknown', async () => {
     const poller = new ReviewsPoller(
       async () => [GH],
@@ -220,21 +98,6 @@ describe('merge states', () => {
   });
 });
 
-describe('ghWatchedPrs', () => {
-  it("searches every watched repo and does not exclude the user's own PRs", () => {
-    const command = ghWatchedPrs(['acme/api', 'acme/web-app']);
-    expect(command).toContain('--repo acme/api --repo acme/web-app');
-    expect(command).not.toContain('-author');
-    expect(command).not.toContain('@me');
-  });
-});
-
-describe('ghOwnPrs', () => {
-  it("searches the user's own open PRs in each repo", () => {
-    expect(ghOwnPrs(['acme/api', 'acme/web-app'])).toContain('--repo acme/api --repo acme/web-app --state=open --author=@me');
-  });
-});
-
 describe('merge state batches', () => {
   const many = (count: number) =>
     JSON.stringify(
@@ -248,6 +111,7 @@ describe('merge state batches', () => {
         updatedAt: `2026-01-01T00:${String(i % 60).padStart(2, '0')}:00Z`,
       })),
     );
+
   const answer = (query: string, state = 'CLEAN') =>
     JSON.stringify({
       data: Object.fromEntries(
@@ -419,70 +283,10 @@ describe('describeFailure', () => {
   });
 });
 
-const lookup = (url: string, extra: Record<string, unknown> = {}) => ({
-  pullRequest: { url, mergeStateStatus: 'CLEAN', reviewDecision: null, headRefOid: 'new', ...extra },
-});
-const review = (login: string, state: string, oid: string | null) => ({ author: { login }, state, commit: oid === null ? null : { oid } });
-const answer = (viewer: string | null, ...lookups: ReturnType<typeof lookup>[]) =>
-  JSON.stringify({ data: { ...(viewer ? { viewer: { login: viewer } } : {}), ...Object.fromEntries(lookups.map((l, i) => [`r${i}`, l])) } });
-
-describe('a PR you approved', () => {
-  const approved = (extra: Record<string, unknown>, viewer: string | null = 'me') =>
-    parseMergeStatuses(answer(viewer, lookup(URL1, extra))).get(URL1)?.approved;
-  const reviews = (...nodes: ReturnType<typeof review>[]) => ({ latestReviews: { nodes } });
-
-  it('is true when your latest review is an approval, whatever the case of your login', () => {
-    expect(approved(reviews(review('me', 'APPROVED', 'old')))).toBe(true);
-    expect(approved(reviews(review('ME', 'APPROVED', 'new')), 'me')).toBe(true);
-  });
-
-  it("is false for another reviewer's approval, your other reviews, or an unknown viewer", () => {
-    expect(approved(reviews(review('them', 'APPROVED', 'new')))).toBe(false);
-    expect(approved(reviews(review('me', 'CHANGES_REQUESTED', 'new')))).toBe(false);
-    expect(approved(reviews(review('me', 'APPROVED', 'new')), null)).toBe(false);
-    expect(approved({})).toBe(false);
-  });
-});
-
 describe('a PR that needs another look', () => {
   const reviews = (...nodes: ReturnType<typeof review>[]) => ({ latestReviews: { nodes } });
   const needs = (extra: Record<string, unknown>, viewer: string | null = 'me') =>
     parseMergeStatuses(answer(viewer, lookup(URL1, extra))).get(URL1)?.needsReReview;
-
-  it('reads the head branch from the lookup', () => {
-    expect(parseMergeStatuses(answer('me', lookup(URL1, { headRefName: 'proj-9/rework-sync' }))).get(URL1)?.branch).toBe('proj-9/rework-sync');
-    expect(parseMergeStatuses(answer('me', lookup(URL1))).get(URL1)?.branch).toBe('');
-  });
-
-  it('asks for the viewer, the reviewed commit and the rolled-up checks, not each check run', () => {
-    const query = mergeStatusQuery(parseReviewRequests([GH]));
-    expect(query).toContain('viewer { login }');
-    expect(query).toContain('headRefOid');
-    expect(query).toContain('headRefName');
-    expect(query).toContain('latestReviews(first: 100) { nodes { author { login } state commit { oid } } }');
-    expect(query).toContain('statusCheckRollup { state }');
-    expect(query).not.toContain('contexts');
-  });
-
-  it('is true when your changes-requested or comment review is on an older commit than the head', () => {
-    expect(needs(reviews(review('me', 'CHANGES_REQUESTED', 'old')))).toBe(true);
-    expect(needs(reviews(review('me', 'COMMENTED', 'old')))).toBe(true);
-    expect(needs(reviews(review('ME', 'COMMENTED', 'old')), 'me')).toBe(true);
-  });
-
-  it('is false for an approval, a review of the current head, or someone else’s review', () => {
-    expect(needs(reviews(review('me', 'APPROVED', 'old')))).toBe(false);
-    expect(needs(reviews(review('me', 'CHANGES_REQUESTED', 'new')))).toBe(false);
-    expect(needs(reviews(review('you', 'CHANGES_REQUESTED', 'old')))).toBe(false);
-    expect(needs(reviews(review('me', 'DISMISSED', 'old')))).toBe(false);
-  });
-
-  it('is false when either commit is missing, rather than reading a gap as a push', () => {
-    expect(needs(reviews(review('me', 'COMMENTED', null)))).toBe(false);
-    expect(needs({ ...reviews(review('me', 'COMMENTED', '')), headRefOid: '' })).toBe(false);
-    expect(needs({ ...reviews(review('me', 'COMMENTED', 'old')), headRefOid: undefined })).toBe(false);
-    expect(needs(reviews(review('me', 'COMMENTED', 'old')), null)).toBe(false);
-  });
 
   it('lists a PR you reviewed only when it needs re-review, and flags one already on the list', async () => {
     const requested = JSON.stringify([pr(1, 'Requested', '2026-10-03T00:00:00Z')]);
@@ -533,10 +337,6 @@ describe('a PR that needs another look', () => {
     await poller.refresh();
     expect(poller.state().items.find((r) => r.number === 1)?.needsReReview).toBe(true);
   });
-
-  it('searches for your reviews in the given repos', () => {
-    expect(ghReviewedPrs(['acme/api', 'acme/web-app'])).toContain('--repo acme/api --repo acme/web-app --state=open --reviewed-by=@me');
-  });
 });
 
 describe('checks', () => {
@@ -544,21 +344,6 @@ describe('checks', () => {
     commits: { nodes: [{ commit: { statusCheckRollup: state === null ? null : { state } } }] },
   });
   const read = (state: string | null) => parseMergeStatuses(answer('me', lookup(URL1, ci(state)))).get(URL1)?.ci;
-
-  it('rolls GitHub’s state up to passing, failing or pending, and none without checks', () => {
-    expect([read('SUCCESS'), read('FAILURE'), read('ERROR'), read('PENDING'), read('EXPECTED'), read(null)]).toEqual([
-      'passing',
-      'failing',
-      'failing',
-      'pending',
-      'pending',
-      null,
-    ]);
-  });
-
-  it('reads a state it does not know as pending, never as passing', () => {
-    expect(read('SOMETHING_NEW')).toBe('pending');
-  });
 
   it('puts the checks on the polled list, also for a draft', async () => {
     const poller = new ReviewsPoller(
