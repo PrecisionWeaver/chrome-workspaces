@@ -12,6 +12,8 @@ export const PORT = Number(process.env.CW_PORT ?? 4178);
 export const DATA_DIR = process.env.CW_DATA_DIR ?? join(homedir(), '.chrome-workspaces');
 /** The launchd label the helper runs under; setup writes the matching plist. */
 export const AGENT_LABEL = 'com.chrome-workspaces.helper';
+/** Where setup writes that plist, and where the helper's own start looks for it. */
+export const AGENT_PLIST = join(homedir(), 'Library', 'LaunchAgents', `${AGENT_LABEL}.plist`);
 export const SCROLLBACK_LIMIT = 2_000_000;
 export const SESSIONS_DIR = join(DATA_DIR, 'sessions');
 

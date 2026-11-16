@@ -238,6 +238,8 @@ export function watchSessionStatus(dir: string, onChange: () => void, debounceMs
     clearTimeout(timer);
     timer = setTimeout(onChange, debounceMs);
   });
+  // An error event nobody listens to is thrown; status would go stale quietly, so say why instead.
+  watcher.on('error', (error) => console.error(`watching ${dir} failed: ${error.message}`));
   return () => {
     clearTimeout(timer);
     watcher.close();

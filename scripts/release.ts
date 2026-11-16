@@ -1,8 +1,8 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
-import { isBump, nextVersion } from './release-version';
+import { isBump, lockWithVersion, nextVersion } from './release-version';
 
-// Prepares a release: checks, version bump in both files, one commit, on a release branch.
+// Prepares a release: checks, version bump in package.json, its lockfile and the manifest, one commit, on a release branch.
 // CI tags and publishes once that commit reaches main (see docs/releasing.md).
 
 const run = (command: string, args: string[]): string => execFileSync(command, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim();
@@ -31,13 +31,15 @@ if (run('git', ['tag', '--list', `v${version}`])) throw new Error(`Tag v${versio
 
 step('npm', ['run', 'check']);
 step('npm', ['run', 'typecheck']);
-step('npm', ['test']);
+// With coverage, as CI runs it, so a coverage floor fails here and not on the release pull request.
+step('npm', ['run', 'test:coverage']);
 step('npm', ['run', 'build:extension']);
 
 const branch = `release/v${version}`;
 step('git', ['checkout', '-b', branch]);
 rewrite('package.json', version);
 rewrite('extension/manifest.json', version);
+writeFileSync('package-lock.json', `${JSON.stringify(lockWithVersion(JSON.parse(readFileSync('package-lock.json', 'utf8')), version), null, 2)}\n`);
 // JSON.stringify's layout is not Biome's, and CI checks formatting.
 step('npx', ['biome', 'format', '--write', 'package.json', 'extension/manifest.json']);
 step('git', ['commit', '-am', `release: v${version}`]);

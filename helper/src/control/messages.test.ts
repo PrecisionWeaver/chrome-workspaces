@@ -22,6 +22,9 @@ describe('isControlToHelper', () => {
     bad({ type: 'unpair' });
     ok({ type: 'tabs', windowId: 3, urls: ['https://example.com'] });
     bad({ type: 'tabs', windowId: 3, urls: [1] });
+    ok({ type: 'tabs', windowId: 3, urls: Array.from({ length: 500 }, (_, n) => `https://example.com/${n}`) });
+    bad({ type: 'tabs', windowId: 3, urls: Array.from({ length: 501 }, (_, n) => `https://example.com/${n}`) });
+    bad({ type: 'tabs', windowId: 3, urls: [`https://example.com/${'a'.repeat(4100)}`] });
   });
 
   it('bounds a workspace name', () => {

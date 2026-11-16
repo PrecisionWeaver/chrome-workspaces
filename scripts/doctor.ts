@@ -6,6 +6,7 @@ import { AGENT_LABEL, DATA_DIR, HOST, loadConfig, PORT, type HelperConfig } from
 import { extensionIdFromManifest } from './extension-id';
 import { HOOK_SCRIPT, typeStrippingSupported } from '../helper/src/claude/hooks-config';
 import { agentFile, hostManifest, hostWrapper } from './install-paths';
+import { plistNodePath, wrapperNodePath } from './node-path';
 import { errorMessage } from '../shared/protocol/errors';
 
 // Checks an install from the command line, for when the panel cannot reach the helper to show its own checklist.
@@ -23,17 +24,20 @@ const succeeds = (command: string, args: string[]) =>
     () => false,
   );
 
+// What package.json's engines asks for; the status hooks need less (22.18, for type stripping) and are checked on their own.
+const NODE_MAJOR = 24;
+
 let config: HelperConfig | null = null;
 const extensionId = extensionIdFromManifest(join(repo, 'extension', 'manifest.json'));
 const version = (path: string) => (JSON.parse(readFileSync(path, 'utf8')) as { version?: string }).version;
 
 const checks: [string, () => Promise<Result> | Result][] = [
   [
-    'Node 22.18 or newer',
+    `Node ${NODE_MAJOR} or newer`,
     () =>
-      typeStrippingSupported(process.versions.node)
+      Number(process.versions.node.split('.')[0]) >= NODE_MAJOR
         ? pass(process.versions.node)
-        : fail(process.versions.node, 'Install Node 22.18 or newer; the status hooks need it.'),
+        : fail(process.versions.node, `Install Node ${NODE_MAJOR} or newer, then run npm run setup (package.json's engines).`),
   ],
   [
     'Config file',
@@ -74,6 +78,24 @@ const checks: [string, () => Promise<Result> | Result][] = [
         : fail('Not installed, or for another extension ID.', 'Run npm run setup, then quit and reopen Chrome.'),
   ],
   ['LaunchAgent installed', () => (existsSync(agentFile) ? pass(agentFile) : fail('No plist.', 'Run npm run setup.'))],
+  [
+    'Node the install points at',
+    () => {
+      // Setup writes the full path of the Node that ran it into the plist and the host wrapper; an upgrade can remove it.
+      const recorded = [
+        ...(existsSync(agentFile) ? [plistNodePath(readFileSync(agentFile, 'utf8'))] : []),
+        ...(existsSync(hostWrapper) ? [wrapperNodePath(readFileSync(hostWrapper, 'utf8'))] : []),
+      ].filter((path): path is string => path !== null);
+      const missing = recorded.filter((path) => !existsSync(path));
+      if (recorded.length === 0) return fail('Neither the plist nor the host wrapper names a Node.', 'Run npm run setup.');
+      return missing.length === 0
+        ? pass(recorded[0])
+        : fail(
+            `${missing[0]} no longer exists, so the helper and the token bridge cannot start.`,
+            'Run npm run setup with the Node you want, then npm run agent:restart.',
+          );
+    },
+  ],
   [
     'Helper loaded in launchd',
     async () =>

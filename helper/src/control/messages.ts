@@ -47,8 +47,13 @@ export function isControlToHelper(value: unknown): value is ControlToHelper {
     case 'unpairGroup':
       return isWindowId(m.groupId);
     case 'tabs':
+      // Every web tab of a window, saved as what re-pairs it after a restart: bounded, but far more than a new workspace's own list.
       return (
-        isWindowId(m.windowId) && (m.groupId === undefined || isWindowId(m.groupId)) && Array.isArray(m.urls) && m.urls.every((u) => typeof u === 'string')
+        isWindowId(m.windowId) &&
+        (m.groupId === undefined || isWindowId(m.groupId)) &&
+        Array.isArray(m.urls) &&
+        m.urls.length <= 500 &&
+        m.urls.every((u) => typeof u === 'string' && u.length <= 4096)
       );
     case 'remove':
       return typeof m.id === 'string' && (m.closeTabs === undefined || typeof m.closeTabs === 'boolean');

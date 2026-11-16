@@ -127,20 +127,20 @@
 
 .pill.good {
   color: var(--good);
-  border-color: rgba(79, 207, 142, 0.35);
-  background: rgba(79, 207, 142, 0.08);
+  border-color: color-mix(in srgb, var(--good) 35%, transparent);
+  background: color-mix(in srgb, var(--good) 8%, transparent);
 }
 
 .pill.bad {
   color: var(--bad);
-  border-color: rgba(242, 109, 109, 0.35);
-  background: rgba(242, 109, 109, 0.08);
+  border-color: color-mix(in srgb, var(--bad) 35%, transparent);
+  background: color-mix(in srgb, var(--bad) 8%, transparent);
 }
 
 .pill.wait {
   color: var(--wait);
-  border-color: rgba(229, 184, 77, 0.35);
-  background: rgba(229, 184, 77, 0.08);
+  border-color: color-mix(in srgb, var(--wait) 35%, transparent);
+  background: color-mix(in srgb, var(--wait) 8%, transparent);
 }
 
 .pill.good::before {

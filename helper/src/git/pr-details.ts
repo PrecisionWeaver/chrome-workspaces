@@ -1,4 +1,13 @@
-import { MAX_PR_BODY, PR_COMMITS_SHOWN, PR_FILES_SHOWN, type BranchPr, type PrDetails, type PrThread } from '../../../shared/protocol/protocol';
+import {
+  MAX_PR_BODY,
+  PR_COMMITS_SHOWN,
+  PR_FILES_SHOWN,
+  type BranchPr,
+  type MergeableState,
+  type PrDetails,
+  type PrThread,
+  type ReviewDecision,
+} from '../../../shared/protocol/protocol';
 
 /** Runs with the PR url in `$CW_PR_URL`, so the url never becomes shell syntax. */
 export const GH_PR_DETAILS =
@@ -23,8 +32,9 @@ interface GhPrView {
   additions: number;
   deletions: number;
   changedFiles: number;
-  reviewDecision: string;
-  mergeable: string;
+  /** Empty when no review is required. */
+  reviewDecision: ReviewDecision | '';
+  mergeable: MergeableState;
   createdAt: string;
   updatedAt: string;
   latestReviews: { author: { login: string }; state: string; submittedAt?: string }[] | null;
@@ -73,7 +83,7 @@ export function parseBranchChecks(json: string): { pr: BranchPr; checks: PrDetai
     title?: string;
     url?: string;
     isDraft?: boolean;
-    reviewDecision?: string;
+    reviewDecision?: ReviewDecision | '';
     state?: string;
     statusCheckRollup?: GhCheck[] | null;
   };
