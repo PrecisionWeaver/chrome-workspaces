@@ -1,6 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import type { UsageDay } from '../protocol/protocol';
-import { localDay, movingAverage, localDayAndHour, localDayBack, previousLabel, shortDay, summarizeUsage, summarizeWorkspaces, usageChange } from './usage';
+import {
+  addTokens,
+  localDay,
+  movingAverage,
+  noTokens,
+  localDayAndHour,
+  localDayBack,
+  previousLabel,
+  shortDay,
+  summarizeUsage,
+  summarizeWorkspaces,
+  usageChange,
+} from './usage';
 
 process.env.TZ = 'America/New_York';
 
@@ -182,5 +194,21 @@ describe('movingAverage', () => {
   it('is the values themselves for a window of one, and empty for none', () => {
     expect(movingAverage([1, 2], 1)).toEqual([1, 2]);
     expect(movingAverage([], 3)).toEqual([]);
+  });
+});
+
+describe('addTokens', () => {
+  it('adds every field into the first set and returns it, leaving the second alone', () => {
+    const into = noTokens();
+    const from = { input: 1, output: 2, cacheWrite: 3, cacheRead: 4 };
+    expect(addTokens(into, from)).toBe(into);
+    addTokens(into, from);
+    expect(into).toEqual({ input: 2, output: 4, cacheWrite: 6, cacheRead: 8 });
+    expect(from).toEqual({ input: 1, output: 2, cacheWrite: 3, cacheRead: 4 });
+  });
+
+  it('starts from nothing', () => {
+    expect(noTokens()).toEqual({ input: 0, output: 0, cacheWrite: 0, cacheRead: 0 });
+    expect(noTokens()).not.toBe(noTokens());
   });
 });

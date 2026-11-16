@@ -1,4 +1,15 @@
-import type { UsageDay, UsageWorkspace } from '../protocol/protocol';
+import type { TokenTotals, UsageDay, UsageWorkspace } from '../protocol/protocol';
+
+export const noTokens = (): TokenTotals => ({ input: 0, output: 0, cacheWrite: 0, cacheRead: 0 });
+
+/** Adds `from` into `into`, field by field, and returns `into`. */
+export function addTokens(into: TokenTotals, from: Readonly<TokenTotals>): TokenTotals {
+  into.input += from.input;
+  into.output += from.output;
+  into.cacheWrite += from.cacheWrite;
+  into.cacheRead += from.cacheRead;
+  return into;
+}
 
 /** The ranges Settings can show; `days` counts back from today, which is the last one. */
 export const USAGE_RANGES = [
