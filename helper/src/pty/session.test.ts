@@ -71,8 +71,14 @@ describe('Session', () => {
       () => {},
     );
     detach();
+    // A second listener hears when `cat` has echoed the line, so there is something to compare against.
+    let heard = '';
+    session.attach(
+      (data) => (heard += data),
+      () => {},
+    );
     session.write('after\r');
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    await waitFor(() => heard.includes('after'));
 
     expect(output).not.toContain('after');
   });

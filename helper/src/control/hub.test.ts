@@ -1,7 +1,6 @@
 import { chmodSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { setTimeout as sleep } from 'node:timers/promises';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { ControlToClient } from '../../../shared/protocol/protocol';
 import { connectControl, opened, startHarness, type Harness } from '../../testing/harness';
@@ -9,6 +8,18 @@ import { waitFor } from '../../testing/wait-for';
 import { MAX_PASTE_LENGTH } from '../pty/paste';
 
 let h: Harness;
+
+/**
+ * Resolves once the helper has dealt with everything sent before it. Messages on a socket are handled in order and
+ * answered in order, so the reply to a request sent last shows that what came earlier was handled, and sent nothing,
+ * which a fixed sleep can only guess at.
+ */
+async function roundTrip(ws: ReturnType<typeof connectControl>['ws'], messages: ControlToClient[]): Promise<void> {
+  const answered = () => messages.filter((m) => m.type === 'systemLog').length;
+  const before = answered();
+  ws.send(JSON.stringify({ type: 'systemLog' }));
+  await waitFor(() => answered() > before);
+}
 
 beforeEach(async () => {
   h = await startHarness();
@@ -89,12 +100,12 @@ describe('control channel', () => {
 
   it('survives a request the store could not save', async () => {
     const a = h.store.create({ name: 'a', cwd: h.defaultCwd });
-    const { ws } = connectControl(h);
+    const { ws, messages } = connectControl(h);
     await opened(ws);
     chmodSync(h.dataDir, 0o555);
     try {
       ws.send(JSON.stringify({ type: 'rename', id: a.id, name: 'lost' }));
-      await sleep(100);
+      await roundTrip(ws, messages);
     } finally {
       chmodSync(h.dataDir, 0o755);
     }
@@ -238,9 +249,9 @@ describe('control channel', () => {
     expect(replies()[3]).toMatchObject({ items: [], error: expect.any(String) });
 
     ws.send(JSON.stringify({ type: 'activity', id: null }));
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await roundTrip(ws, messages);
     h.control.pushActivity();
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await roundTrip(ws, messages);
     expect(replies().length).toBe(4);
     ws.close();
   });
@@ -259,7 +270,7 @@ describe('control channel', () => {
     // Another session's event touched the folder: this one's turns are as they were.
     h.control.pushActivity();
     h.control.pushActivity();
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await roundTrip(ws, messages);
     expect(replies().length).toBe(1);
 
     writeFileSync(file, `${JSON.stringify({ at: '2026-10-08T10:00:05Z', event: 'Stop', promptId: 'p1' })}\n`, { flag: 'a' });

@@ -1,18 +1,25 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { git } from '../../testing/git';
 import { createGitService, parseLog, parseNameStatus, parseStatus } from './git';
 
+let template: string | undefined;
+
+/** A repository with two commits. Built once and copied for each test: starting git is most of what these tests cost. */
 function repo(): string {
+  if (!template) {
+    template = mkdtempSync(join(tmpdir(), 'cw-git-template-'));
+    git(template, 'init', '-q', '-b', 'main');
+    writeFileSync(join(template, 'a.txt'), 'one\n');
+    git(template, 'add', '.');
+    git(template, 'commit', '-q', '-m', 'first');
+    writeFileSync(join(template, 'a.txt'), 'one\ntwo\n');
+    git(template, 'commit', '-qam', 'second: add two');
+  }
   const dir = mkdtempSync(join(tmpdir(), 'cw-git-'));
-  git(dir, 'init', '-q', '-b', 'main');
-  writeFileSync(join(dir, 'a.txt'), 'one\n');
-  git(dir, 'add', '.');
-  git(dir, 'commit', '-q', '-m', 'first');
-  writeFileSync(join(dir, 'a.txt'), 'one\ntwo\n');
-  git(dir, 'commit', '-qam', 'second: add two');
+  cpSync(template, dir, { recursive: true });
   return dir;
 }
 
