@@ -100,7 +100,7 @@
           <div id="git-error" hidden></div>
           <div id="git-changes"></div>
           <div id="git-save" hidden>
-            <textarea id="git-message" rows="2" placeholder="Commit message  (⌘⏎ to commit)" spellcheck="true"></textarea>
+            <textarea id="git-message" rows="2" aria-label="Commit message" placeholder="Commit message  (⌘⏎ to commit)" spellcheck="true"></textarea>
             <button type="button" id="git-save-btn" class="settings-btn">Commit</button>
           </div>
           <div id="git-notice" hidden></div>
@@ -198,16 +198,16 @@
             </div>
           </div>
           <div id="create-message" hidden>
-            <textarea id="create-message-text" maxlength="8000" rows="6" placeholder="The first message Claude receives" spellcheck="true"></textarea>
+            <textarea id="create-message-text" maxlength="8000" rows="6" aria-label="First message" placeholder="The first message Claude receives" spellcheck="true"></textarea>
           </div>
           <div id="create-prompt" hidden>
             <div id="create-choose">
-              <input id="create-filter" placeholder="Filter prompts" autocomplete="off" />
+              <input id="create-filter" aria-label="Filter prompts" placeholder="Filter prompts" autocomplete="off" />
               <div id="create-error" hidden></div>
               <div id="create-prompts"></div>
             </div>
             <div id="create-chosen" hidden>
-              <textarea id="create-text" maxlength="8000"></textarea>
+              <textarea id="create-text" maxlength="8000" aria-label="Prompt"></textarea>
               <button type="button" id="create-change">Change prompt</button>
             </div>
           </div>
@@ -269,7 +269,7 @@
       <div id="terminal"></div>
       <div id="palette" hidden>
         <div id="palette-box" role="dialog" aria-label="Command palette">
-          <input id="palette-input" placeholder="Jump to a workspace or review, or run a command…" autocomplete="off" spellcheck="false" />
+          <input id="palette-input" role="combobox" aria-expanded="true" aria-controls="palette-results" aria-autocomplete="list" aria-label="Search workspaces, reviews and commands" placeholder="Jump to a workspace or review, or run a command…" autocomplete="off" spellcheck="false" />
           <!-- biome-ignore lint/a11y/noNoninteractiveElementToInteractiveRole: the palette is an ARIA listbox -->
           <ul id="palette-results" role="listbox"></ul>
           <div id="palette-foot">↑↓ to move · Enter to choose · Esc to close</div>

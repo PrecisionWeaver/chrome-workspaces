@@ -37,7 +37,9 @@ export function createPalette(items: () => PaletteItem[], onClose: () => void): 
     list.replaceChildren(
       ...shown.map((item, index) => {
         const row = el('li', '', `palette-row${index === active ? ' active' : ''}`);
+        row.id = `palette-row-${index}`;
         row.setAttribute('role', 'option');
+        row.setAttribute('aria-selected', String(index === active));
         row.append(el('span', item.kind, 'palette-kind'), el('span', item.label, 'palette-label'));
         if (item.hint) row.append(el('span', item.hint, 'palette-hint'));
         row.addEventListener('mousemove', () => {
@@ -50,12 +52,21 @@ export function createPalette(items: () => PaletteItem[], onClose: () => void): 
       }),
     );
     if (shown.length === 0) list.append(el('li', 'Nothing matches', 'palette-empty'));
+    markActive();
+  }
+
+  /** Tells assistive technology which result is the highlighted one, since focus stays in the input. */
+  function markActive(): void {
+    if (shown.length === 0) input.removeAttribute('aria-activedescendant');
+    else input.setAttribute('aria-activedescendant', `palette-row-${active}`);
   }
 
   function highlight(): void {
     [...list.children].forEach((row, index) => {
       row.classList.toggle('active', index === active);
+      if (row.id) row.setAttribute('aria-selected', String(index === active));
     });
+    markActive();
     list.children[active]?.scrollIntoView({ block: 'nearest' });
   }
 
