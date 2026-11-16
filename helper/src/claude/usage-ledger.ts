@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { addTokens } from '../../../shared/usage/usage';
 import type { UsageBucket } from './tokens';
 
 /** What one transcript used, as it was when last counted. */
@@ -65,10 +66,7 @@ export class UsageLedger {
           folded.set(key, { ...bucket, hour, usage: { ...bucket.usage } });
           continue;
         }
-        into.usage.input += bucket.usage.input;
-        into.usage.output += bucket.usage.output;
-        into.usage.cacheWrite += bucket.usage.cacheWrite;
-        into.usage.cacheRead += bucket.usage.cacheRead;
+        addTokens(into.usage, bucket.usage);
       }
       if (!changed) continue;
       this.dirty = true;
