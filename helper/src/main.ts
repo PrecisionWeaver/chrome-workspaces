@@ -49,6 +49,14 @@ setInterval(() => rotateLog(LOG_FILE), 60 * 60_000).unref();
 // The folder exists before the first hook runs, so its changes can be watched from the start.
 mkdirSync(SESSIONS_DIR, { recursive: true, mode: 0o700 });
 pruneSessions(SESSIONS_DIR);
+// Pruned daily too, for the same reason as the log; a longer list also slows every status read.
+setInterval(
+  () => {
+    pruneSessions(SESSIONS_DIR);
+    pruneUploads(join(DATA_DIR, 'uploads'));
+  },
+  24 * 60 * 60_000,
+).unref();
 const hooksFile = writeHooksFile(DATA_DIR);
 if (!hooksFile) console.warn('status hooks are off: hooks/session-state.ts is missing or Node is older than 22.18');
 const store = new WorkspaceStore(join(DATA_DIR, 'workspaces.json'));

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { ControlToClient } from '../../../shared/protocol/protocol';
 import { connectControl, opened, startHarness, type Harness } from '../../testing/harness';
 import { waitFor } from '../../testing/wait-for';
+import { MAX_PASTE_LENGTH } from '../pty/paste';
 
 let h: Harness;
 
@@ -139,6 +140,20 @@ describe('control channel', () => {
     // The escape the page tried to smuggle in was stripped, and nothing submitted the line.
     expect(output).toContain('https://example.com/a[201~ rm -rf ~');
     expect(output).not.toContain('\x1b[201~ rm');
+    ws.close();
+  });
+
+  it('says so when text sent to a workspace is cut to the paste limit', async () => {
+    const workspace = h.store.create({ name: 'long', cwd: h.defaultCwd });
+    h.sessions.create({ id: workspace.id, command: '/bin/cat', args: [], cwd: h.defaultCwd });
+    const { ws, messages } = connectControl(h);
+    await opened(ws);
+    ws.send(JSON.stringify({ type: 'sendText', id: workspace.id, text: 'x'.repeat(MAX_PASTE_LENGTH + 1) }));
+    await waitFor(() => messages.some((m) => m.type === 'sent'));
+    expect(messages.find((m) => m.type === 'sent')).toMatchObject({
+      ok: true,
+      message: 'Pasted the first 20,000 characters into its terminal, not submitted.',
+    });
     ws.close();
   });
 

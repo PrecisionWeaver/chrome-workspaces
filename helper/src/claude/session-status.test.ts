@@ -247,6 +247,14 @@ describe('pruneSessions', () => {
     expect(['old.json', 'old.events.jsonl', 'new.json', 'notes.txt'].map((name) => existsSync(join(dir, name)))).toEqual([false, false, true, true]);
   });
 
+  it('deletes a temporary file a failed hook write left behind once it is an hour old', () => {
+    const dir = stateDir({ 'a.json.123.tmp': '{}', 'b.json.456.tmp': '{}' });
+    const stale = Date.now() / 1000 - 2 * 60 * 60;
+    utimesSync(join(dir, 'a.json.123.tmp'), stale, stale);
+    pruneSessions(dir);
+    expect(['a.json.123.tmp', 'b.json.456.tmp'].map((name) => existsSync(join(dir, name)))).toEqual([false, true]);
+  });
+
   it('does nothing for a folder that does not exist', () => {
     expect(() => pruneSessions(join(tmpdir(), 'cw-sessions-does-not-exist'))).not.toThrow();
   });

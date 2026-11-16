@@ -1,9 +1,32 @@
 import { describe, expect, it } from 'vitest';
 import { MAX_PROMPT_LENGTH, MAX_TAB_URLS } from '../../../shared/protocol/protocol';
-import { isControlToHelper } from './messages';
+import { isClientMessage, isControlToHelper } from './messages';
 
 const ok = (message: unknown) => expect(isControlToHelper(message)).toBe(true);
 const bad = (message: unknown) => expect(isControlToHelper(message)).toBe(false);
+
+describe('isClientMessage', () => {
+  it('accepts the three terminal messages and rejects anything malformed', () => {
+    expect(isClientMessage({ type: 'input', data: 'ls\r' })).toBe(true);
+    expect(isClientMessage({ type: 'resize', cols: 80, rows: 24 })).toBe(true);
+    expect(isClientMessage({ type: 'file', name: 'a.png', data: 'AAAA' })).toBe(true);
+    for (const message of [null, 42, {}, { type: 'input' }, { type: 'file', name: 'a.png' }, { type: 'exit', code: 0 }])
+      expect(isClientMessage(message)).toBe(false);
+  });
+
+  it('rejects a terminal size node-pty would throw on', () => {
+    for (const [cols, rows] of [
+      [0, 24],
+      [80, -1],
+      [80.5, 24],
+      ['80', 24],
+      [80, Number.NaN],
+      [80, 5000],
+    ]) {
+      expect(isClientMessage({ type: 'resize', cols, rows })).toBe(false);
+    }
+  });
+});
 
 describe('isControlToHelper', () => {
   it('rejects anything that is not an object with a known type', () => {

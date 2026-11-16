@@ -293,11 +293,13 @@ describe('notifications and the badge', () => {
     await boot();
     state([makeWorkspace({ id: 'ws-a', name: 'acme/app' })]);
     await settle();
-    handle({ type: 'sent', id: 'ws-a', ok: true, message: '' });
+    handle({ type: 'sent', id: 'ws-a', ok: true, message: 'Pasted it into its terminal, not submitted.' });
     handle({ type: 'sent', id: 'ws-a', ok: false, message: 'no terminal' });
     handle({ type: 'sent', id: 'gone', ok: false, message: 'no terminal' });
-    const titles = fake.mock.notifications.create.mock.calls.map(([, options]) => (options as { title: string }).title);
-    expect(titles).toEqual(['Sent to acme/app', 'Could not send to acme/app', 'Could not send to workspace']);
+    const shown = fake.mock.notifications.create.mock.calls.map(([, options]) => options as { title: string; message: string });
+    expect(shown.map((n) => n.title)).toEqual(['Sent to acme/app', 'Could not send to acme/app', 'Could not send to workspace']);
+    // The helper words the message, so a cut paste says so.
+    expect(shown[0].message).toBe('Pasted it into its terminal, not submitted.');
   });
 });
 

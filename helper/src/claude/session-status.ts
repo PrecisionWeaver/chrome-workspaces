@@ -245,18 +245,27 @@ export function watchSessionStatus(dir: string, onChange: () => void, debounceMs
 }
 
 const RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+// A hook's write takes milliseconds, so a temporary file this old was left by one that failed.
+const TMP_RETENTION_MS = 60 * 60 * 1000;
 
-/** Deletes state and event files nothing has touched in a month, so ended sessions do not pile up. */
+function retention(name: string): number | null {
+  if (name.endsWith('.json') || name.endsWith('.jsonl')) return RETENTION_MS;
+  return name.endsWith('.tmp') ? TMP_RETENTION_MS : null;
+}
+
+/** Deletes state and event files nothing has touched in a month, and stale temporary files, so ended sessions do not pile up. */
 export function pruneSessions(dir: string, now = Date.now()): void {
   let names: string[];
   try {
-    names = readdirSync(dir).filter((name) => name.endsWith('.json') || name.endsWith('.jsonl'));
+    names = readdirSync(dir);
   } catch {
     return;
   }
   for (const name of names) {
+    const keepFor = retention(name);
+    if (keepFor === null) continue;
     try {
-      if (now - statSync(join(dir, name)).mtimeMs > RETENTION_MS) rmSync(join(dir, name), { force: true });
+      if (now - statSync(join(dir, name)).mtimeMs > keepFor) rmSync(join(dir, name), { force: true });
     } catch {
       // Gone already, or not ours to remove.
     }
