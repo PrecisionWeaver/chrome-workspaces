@@ -55,8 +55,13 @@ function handle(message: ControlToClient): void {
         pendingOpens.delete(id);
         void (kind === 'group' ? createGroup(workspace, send) : openWindow(workspace, send));
       }
-      void repair();
-      void syncGroupTitles();
+      // `state` comes with every status change in every session; Chrome is only swept when what pairing and titles use has changed.
+      const pairing = pairingKey(message.workspaces);
+      if (pairing !== previousPairing) {
+        previousPairing = pairing;
+        void repair();
+        void syncGroupTitles();
+      }
       break;
     }
     case 'open': {
@@ -85,7 +90,7 @@ function handle(message: ControlToClient): void {
         type: 'basic',
         iconUrl: 'icons/icon-128.png',
         title: message.ok ? `Sent to ${name}` : `Could not send to ${name}`,
-        message: message.ok ? 'Pasted into its terminal, not submitted.' : message.message,
+        message: message.message,
       });
       break;
     }
@@ -280,8 +285,12 @@ chrome.notifications.onClicked.addListener((notificationId) => {
 // ---- order: the panel's list and the tab strip stay in step ----
 
 const orderKey = (list: readonly Workspace[]): string => list.map((ws) => ws.id).join(',');
+/** What `repair` and `syncGroupTitles` read from the workspaces: who they are, where they are paired, and what their tabs were. */
+const pairingKey = (list: readonly Workspace[]): string =>
+  list.map((ws) => `${ws.id}\t${ws.name}\t${ws.windowId}\t${ws.groupId}\t${ws.lastTabUrls.join(' ')}`).join('\n');
 // The order of the last state, to tell a reorder from any other change.
 let previousOrder: string | null = null;
+let previousPairing: string | null = null;
 // Moves the worker makes itself fire the same events as a drag, so they are not read back as one.
 let ignoreMovesUntil = 0;
 let applying = false;

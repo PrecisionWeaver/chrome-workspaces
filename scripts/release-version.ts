@@ -6,6 +6,12 @@ export function isBump(value: string | undefined): value is Bump {
   return value === 'patch' || value === 'minor' || value === 'major';
 }
 
+/** A package-lock.json with its own version (and its root package's) set to `version`; the release bumps the lockfile with package.json. */
+export function lockWithVersion<T extends { version?: string; packages?: Record<string, { version?: string }> }>(lock: T, version: string): T {
+  const root = lock.packages?.[''];
+  return { ...lock, version, ...(root ? { packages: { ...lock.packages, '': { ...root, version } } } : {}) };
+}
+
 /** The next version after `current`; throws on anything but a plain `x.y.z`. */
 export function nextVersion(current: string, bump: Bump): string {
   const match = VERSION.exec(current);

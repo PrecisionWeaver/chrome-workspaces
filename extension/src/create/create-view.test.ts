@@ -13,6 +13,7 @@ const PR = 'https://github.com/acme/app/pull/12';
 let fake: ReturnType<typeof installChrome>;
 let view: CreateView;
 let sent: ControlToHelper[];
+let connected: boolean;
 let toggled: number;
 let here: { windowId: number | undefined; workspace: Workspace | undefined };
 let ticketLink: (ticket: string | null) => string | null;
@@ -27,11 +28,12 @@ beforeEach(() => {
   fake = installChrome();
   loadPanelHtml();
   sent = [];
+  connected = true;
   toggled = 0;
   here = { windowId: undefined, workspace: undefined };
   ticketLink = (ticket) => (ticket ? `https://jira.example.com/browse/${ticket}` : null);
   view = createCreateView({
-    send: (message) => (sent.push(message), true),
+    send: (message) => connected && (sent.push(message), true),
     onToggle: () => void toggled++,
     here: () => here,
     ticketLink: (ticket) => ticketLink(ticket),
@@ -641,6 +643,23 @@ describe('creating', () => {
       submit();
       await flush();
       expect(created()).toMatchObject({ windowId, group: true });
+      expect(fake.mock.tabs.create).not.toHaveBeenCalled();
+    });
+
+    it('keeps the form and opens no tabs when the helper is not connected', async () => {
+      connected = false;
+      const { windowId } = fake.addWindow();
+      here = { windowId, workspace: undefined };
+      await open();
+      click('#create-window [data-value="here"]');
+      type('create-name', 'w');
+      type('create-tabs', 'example.com/a');
+      submit();
+      await flush();
+      expect(view.isOpen).toBe(true);
+      expect($<HTMLInputElement>('create-name').value).toBe('w');
+      expect($('create-error').hidden).toBe(false);
+      expect($('create-error').textContent).toContain('not connected');
       expect(fake.mock.tabs.create).not.toHaveBeenCalled();
     });
 

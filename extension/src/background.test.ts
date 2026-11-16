@@ -88,6 +88,26 @@ describe('re-pairing', () => {
     expect(sentOfType('pair')).toEqual([{ type: 'pair', id: 'ws-a', windowId }]);
   });
 
+  it('sweeps Chrome only when what pairing uses has changed, not on every status update', async () => {
+    const { windowId } = fake.addWindow('https://example.com/a');
+    await boot();
+    const ws = makeWorkspace({ id: 'ws-a', windowId: null, lastTabUrls: ['https://example.com/a'] });
+    state([ws]);
+    await settle();
+    const sweeps = () => fake.mock.windows.getAll.mock.calls.length;
+    const first = sweeps();
+    expect(first).toBeGreaterThan(0);
+    // The same workspaces, a different status: nothing to re-pair.
+    state([ws], { 'ws-a': 'working' });
+    state([ws], { 'ws-a': 'idle' });
+    await settle();
+    expect(sweeps()).toBe(first);
+    // Paired to the window it was found in.
+    state([{ ...ws, windowId }]);
+    await settle();
+    expect(sweeps()).toBeGreaterThan(first);
+  });
+
   it('follows its tabs into a tab group when the window was merged into another', async () => {
     const { windowId, tab } = fake.addWindow('https://other.example/0');
     // Enough other tabs that the window as a whole no longer looks like the workspace's.
@@ -293,11 +313,13 @@ describe('notifications and the badge', () => {
     await boot();
     state([makeWorkspace({ id: 'ws-a', name: 'acme/app' })]);
     await settle();
-    handle({ type: 'sent', id: 'ws-a', ok: true, message: '' });
+    handle({ type: 'sent', id: 'ws-a', ok: true, message: 'Pasted it into its terminal, not submitted.' });
     handle({ type: 'sent', id: 'ws-a', ok: false, message: 'no terminal' });
     handle({ type: 'sent', id: 'gone', ok: false, message: 'no terminal' });
-    const titles = fake.mock.notifications.create.mock.calls.map(([, options]) => (options as { title: string }).title);
-    expect(titles).toEqual(['Sent to acme/app', 'Could not send to acme/app', 'Could not send to workspace']);
+    const shown = fake.mock.notifications.create.mock.calls.map(([, options]) => options as { title: string; message: string });
+    expect(shown.map((n) => n.title)).toEqual(['Sent to acme/app', 'Could not send to acme/app', 'Could not send to workspace']);
+    // The helper words the message, so a cut paste says so.
+    expect(shown[0].message).toBe('Pasted it into its terminal, not submitted.');
   });
 });
 
