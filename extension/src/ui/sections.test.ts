@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeSectionsResizable } from './sections';
 import { installChrome } from '../../testing/chrome-mock';
+import { flush } from '../../testing/flush';
 
 let fake: ReturnType<typeof installChrome>;
 const fit = vi.fn();
@@ -43,7 +44,6 @@ const pointer = (target: Element, type: string, clientY = 0) => {
 };
 const handle = (section: string) => document.querySelector(`.v-resizer[data-resize="${section}"]`)!;
 const height = (section: string) => document.getElementById(section)!.style.height;
-const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 describe('restoring', () => {
   it('applies the heights saved earlier, ignoring anything that is not a number', async () => {

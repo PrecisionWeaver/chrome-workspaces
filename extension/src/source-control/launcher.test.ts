@@ -4,6 +4,7 @@ import type { ReviewRequest, ReviewsState, Workspace } from '../../../shared/pro
 import { createLauncher, type Launcher } from './launcher';
 import { installChrome } from '../../testing/chrome-mock';
 import { isolateDocumentListeners, loadPanelHtml, makeReview, makeWorkspace } from '../../testing/fixtures';
+import { flush } from '../../testing/flush';
 
 isolateDocumentListeners();
 
@@ -25,7 +26,6 @@ const state = (items: ReviewRequest[], overrides: Partial<ReviewsState> = {}): R
   ...overrides,
 });
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
-const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 /** Creates the launcher against the real markup and lets its saved settings load. */
 async function start(saved: Record<string, unknown> = {}) {

@@ -13,6 +13,8 @@ import {
 import { $, caret, createArming, el, icon } from '../ui/dom';
 import { keepFocus } from '../ui/focus';
 import { closeMenu, menuItem, openMenu } from '../ui/menu';
+import { createWorkspaceDrag } from './workspace-drag';
+import { startRename } from './workspace-rename';
 
 // An archive button asks twice; the first click disarms after this long.
 const ARM_MS = 3000;
@@ -60,7 +62,12 @@ export function createWorkspaceList(options: WorkspaceListOptions): WorkspaceLis
   // While a name is being edited or a workspace dragged the list isn't redrawn (status updates
   // arrive constantly and would discard the input or the drag); it catches up when that ends.
   let editing = false;
-  let dragged: Workspace | null = null;
+  const drag = createWorkspaceDrag({
+    workspaces: () => options.state().workspaces,
+    reorder: (next) => options.reorder(next),
+    move: (id, index) => options.send({ type: 'move', id, index }),
+    onEnd: () => renderList(),
+  });
   // Archiving asks twice; the first click stays armed through the state updates that redraw the list.
   const arming = createArming(() => renderList(), ARM_MS);
 
@@ -85,7 +92,7 @@ export function createWorkspaceList(options: WorkspaceListOptions): WorkspaceLis
     badge.append(el('span', String(waiting), 'count'), el('span', ' waiting', 'word'));
     title.replaceChildren(...(waiting ? [badge] : []));
     title.title = waiting ? `${waiting} waiting` : '';
-    if (editing || dragged) return;
+    if (editing || drag.active) return;
     // A filter box earns its room once the list is long enough to need one.
     listSearch.hidden = workspaces.length < 5 && listSearch.value === '';
     const here = options.current();
@@ -233,7 +240,7 @@ export function createWorkspaceList(options: WorkspaceListOptions): WorkspaceLis
     name.title = 'Double-click to rename';
     name.addEventListener('dblclick', (event) => {
       event.stopPropagation();
-      startRename(ws, name);
+      rename(ws, name);
     });
 
     const popOut = document.createElement('button');
@@ -279,7 +286,7 @@ export function createWorkspaceList(options: WorkspaceListOptions): WorkspaceLis
       event.preventDefault();
       showContextMenu(event.clientX, event.clientY, ws, name);
     });
-    addDragHandlers(item, ws);
+    drag.attach(item, ws);
     return item;
   }
 
@@ -341,7 +348,7 @@ export function createWorkspaceList(options: WorkspaceListOptions): WorkspaceLis
         menuItem(ws.pinned ? 'Unpin' : 'Pin to top', () => options.send({ type: 'mark', id: ws.id, pinned: !ws.pinned })),
         menuItem('Archive', () => options.send({ type: 'remove', id: ws.id })),
         menuItem('Archive & close tabs', () => options.send({ type: 'remove', id: ws.id, closeTabs: true })),
-        menuItem('Rename', () => startRename(ws, nameEl)),
+        menuItem('Rename', () => rename(ws, nameEl)),
         menuItem('Open a shell here', () => options.openShell(ws)),
         menuItem('Resume an earlier conversation…', () => {
           menuAt = { x, y };
@@ -354,67 +361,17 @@ export function createWorkspaceList(options: WorkspaceListOptions): WorkspaceLis
     );
   }
 
-  function addDragHandlers(item: HTMLLIElement, ws: Workspace): void {
-    item.draggable = true;
-    item.addEventListener('dragstart', (event) => {
-      dragged = ws;
-      item.classList.add('dragging');
-      event.dataTransfer?.setData('text/plain', ws.name);
-      if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
-    });
-    item.addEventListener('dragover', (event) => {
-      if (!dragged) return;
-      event.preventDefault();
-      const { top, height } = item.getBoundingClientRect();
-      const after = event.clientY > top + height / 2;
-      item.classList.toggle('drop-before', !after);
-      item.classList.toggle('drop-after', after);
-    });
-    item.addEventListener('dragleave', () => item.classList.remove('drop-before', 'drop-after'));
-    item.addEventListener('drop', (event) => {
-      event.preventDefault();
-      const moving = dragged;
-      const after = item.classList.contains('drop-after');
-      if (!moving || moving.id === ws.id) return;
-      const rest = options.state().workspaces.filter((w) => w.id !== moving.id);
-      const index = rest.findIndex((w) => w.id === ws.id) + (after ? 1 : 0);
-      // Reorder now rather than waiting for the helper's state, so the list doesn't jump back.
-      options.reorder([...rest.slice(0, index), moving, ...rest.slice(index)]);
-      options.send({ type: 'move', id: moving.id, index });
-    });
-    // Fires after drop, or alone when the drag is cancelled.
-    item.addEventListener('dragend', () => {
-      dragged = null;
-      renderList();
-    });
-  }
-
-  function startRename(ws: Workspace, nameEl: HTMLElement): void {
+  function rename(ws: Workspace, nameEl: HTMLElement): void {
     editing = true;
-    const input = document.createElement('input');
-    input.className = 'rename';
-    input.value = ws.name;
-    input.maxLength = 80;
-    nameEl.replaceWith(input);
-    input.focus();
-    input.select();
-
-    let done = false;
-    const finish = (save: boolean) => {
-      if (done) return;
-      done = true;
-      const name = input.value.trim();
-      if (save && name && name !== ws.name) options.send({ type: 'rename', id: ws.id, name });
-      editing = false;
-      renderList();
-    };
-    input.addEventListener('keydown', (event) => {
-      event.stopPropagation();
-      if (event.key === 'Enter') finish(true);
-      else if (event.key === 'Escape') finish(false);
-    });
-    input.addEventListener('blur', () => finish(true));
-    input.addEventListener('click', (event) => event.stopPropagation());
+    startRename(
+      ws,
+      nameEl,
+      (name) => options.send({ type: 'rename', id: ws.id, name }),
+      () => {
+        editing = false;
+        renderList();
+      },
+    );
   }
 
   void loadGroupColors();

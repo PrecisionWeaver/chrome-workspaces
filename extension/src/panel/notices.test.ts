@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadPanelHtml } from '../../testing/fixtures';
 import { createNotices, INSTALL_COMMAND, type Notices } from './notices';
+import { flush } from '../../testing/flush';
 
 const startHelper = vi.fn(async () => {});
 const getHelper = vi.fn(async (): Promise<unknown> => ({ token: 't', port: 1 }));
@@ -15,7 +16,6 @@ let notices: Notices;
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const notice = () => $<HTMLDivElement>('notice');
 const action = () => notice().querySelector<HTMLButtonElement>('.notice-action')!;
-const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 beforeEach(() => {
   loadPanelHtml();

@@ -1,15 +1,16 @@
 import type { ControlToClient, ControlToHelper, SystemSnapshot } from '../../../shared/protocol/protocol';
 import { $, createArming, el, wireBack } from '../ui/dom';
-import { type CardLayout, columnCountFor, keysOf, layoutCards, layoutFromKeys } from './settings-layout';
-import { actions, card, guarded, mono, plain, row, type SettingsContext } from './settings-parts';
+import { keepFocus } from '../ui/focus';
+import { type CardLayout, columnCountFor, keysOf, layoutCards, layoutFromKeys, placeCards } from './settings-layout';
+import { configCard, dataCard } from './settings-data';
+import type { PrefsHandle, SettingsContext } from './settings-parts';
+import { setupCard, setupChecklist, shownWarnings, warningsCard } from './settings-attention';
+import { preferencesCard } from './settings-preferences';
 import { helperCard, type HelperState, newHelperState } from './settings-helper';
 import { newSessionsState, type SessionsState, workspacesCard } from './settings-sessions';
 import { planCard, usageCard } from './settings-usage';
-import { keepFocus } from '../ui/focus';
-import { formatBytes } from '../ui/format';
-import { DENSITIES, THEMES } from '../../../shared/lib/keynav';
 import { warningKey } from '../../../shared/usage/guardrails';
-import { buildChecklist, remaining, type SetupItem } from '../../../shared/workspaces/onboarding';
+import { remaining } from '../../../shared/workspaces/onboarding';
 import { loadPrefs, normalizePrefs, savePrefs, type Prefs } from '../app/prefs';
 
 export interface SettingsViewOptions {
@@ -65,6 +66,13 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
     prefs = loaded;
     if (isOpen) render();
   });
+  const prefsHandle: PrefsHandle = {
+    get: () => prefs,
+    set(change) {
+      prefs = { ...prefs, ...change };
+      void savePrefs(change);
+    },
+  };
   const sessions: SessionsState = newSessionsState();
   const helper: HelperState = newHelperState();
 
@@ -78,232 +86,14 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
 
   // ---- sections ----
 
-  function checkbox(label: string, checked: boolean, onChange: (value: boolean) => void, hint = ''): HTMLElement {
-    const wrapper = el('label', '', 'pref');
-    const box = el('input');
-    box.type = 'checkbox';
-    box.checked = checked;
-    box.addEventListener('change', () => onChange(box.checked));
-    wrapper.append(box, el('span', label, 'pref-label'));
-    if (hint) wrapper.append(el('span', hint, 'pref-hint'));
-    return wrapper;
-  }
-
-  function checklist(s: SystemSnapshot): SetupItem[] {
-    return buildChecklist({
-      managed: s.helper.managed,
-      helperExtensionId: s.helper.extensionId,
-      extensionId: chrome.runtime.id,
-      reviews: s.reviews,
-      promptsFileExists: s.setup.promptsFileExists,
-      repoRoots: s.setup.repoRoots,
-      switchShortcut,
-      workspaceCount: s.sessions.length,
-      statusHooks: s.setup.statusHooks,
-      configProblems: s.setup.configProblems,
-    });
-  }
-
   function setUsageRange(usageRange: Prefs['usageRange']): void {
     prefs = { ...prefs, usageRange };
     void savePrefs({ usageRange });
     render();
   }
 
-  function dataCard(s: SystemSnapshot): HTMLElement {
-    return card(
-      'Data',
-      row('Uploads', formatBytes(s.storage.uploadsBytes), 'Files dropped or pasted into terminals; deleted after a week'),
-      row('Helper log', formatBytes(s.storage.logBytes)),
-      row('Data folder', formatBytes(s.storage.dataBytes)),
-      actions(
-        guarded(ctx, 'clear-uploads', 'Clear uploads', 'Delete all uploads?', () => ctx.request({ action: 'clearUploads' })),
-        guarded(ctx, 'clear-log', 'Clear log', 'Empty the log?', () => ctx.request({ action: 'clearLog' })),
-        plain(
-          'Prune worktrees',
-          () => ctx.request({ action: 'pruneWorktrees' }),
-          "Removes git records of worktrees whose folders are gone, in each workspace's repository",
-        ),
-        plain('Export workspaces', () => send({ type: 'exportData' }), 'Downloads the workspace list as JSON'),
-      ),
-    );
-  }
-
-  function configCard(s: SystemSnapshot): HTMLElement {
-    const { config, helper, setup } = s;
-    const map = (record: Record<string, string>) =>
-      Object.keys(record).length
-        ? Object.entries(record)
-            .map(([k, v]) => `${k} → ${v}`)
-            .join('\n')
-        : 'none';
-    return card(
-      'Configuration',
-      el('p', `Read from ${helper.configPath}. Edit it and restart the helper to change these.`, 'settings-note'),
-      ...(setup.configProblems.length ? [row('Ignored entries', el('span', setup.configProblems.join('\n'), 'bad'))] : []),
-      row('Default directory', mono(config.defaultCwd)),
-      row('Prompts file', mono(config.promptsFile)),
-      row('Default model', config.defaultModel ?? "claude's own"),
-      row('Command', config.claudeCommand),
-      ...(config.claudeArgs.length ? [row('Claude arguments', mono(config.claudeArgs.join(' ')))] : []),
-      ...(config.promptsFiles.length ? [row('Team prompts', mono(config.promptsFiles.join('\n')))] : []),
-      ...(config.templatesFile ? [row('Team templates', mono(config.templatesFile))] : []),
-      row('Repo folders', mono(config.repoRoots.join('\n') || 'none')),
-      row('Repo directories', mono(map(config.repoDirs))),
-      row('Watched repos', mono(config.watchRepos.join('\n') || 'none')),
-      row('Jira', mono(config.jiraBaseUrl ?? 'none')),
-      row(
-        'Prices',
-        mono(
-          Object.entries(config.pricing)
-            .map(([family, r]) => `${family}: $${r.input} in / $${r.output} out`)
-            .join('\n'),
-        ),
-      ),
-      row('Warn above', `${config.limits.memoryWarnMb} MB per workspace · servers idle ${config.limits.idleServerHours} h`),
-    );
-  }
-
-  function setupCard(s: SystemSnapshot): HTMLElement | null {
-    const items = checklist(s);
-    const open = remaining(items);
-    if (open === 0 || prefs.setupDismissed) return null;
-    const rows = items.map((item) => {
-      const line = el('div', '', `setup-row${item.ok ? ' done' : ''}`);
-      line.append(el('span', item.ok ? '✓' : '○', 'setup-mark'));
-      const text = el('span', '', 'setup-text');
-      text.append(el('span', item.label, 'setup-label'));
-      if (!item.ok) text.append(el('span', `${item.detail} ${item.fix ?? ''}`.trim(), 'setup-detail'));
-      line.append(text);
-      return line;
-    });
-    const dismiss = plain(
-      'Dismiss',
-      () => {
-        prefs = { ...prefs, setupDismissed: true };
-        void savePrefs({ setupDismissed: true });
-        render();
-      },
-      'Hide this checklist; the Helper and Configuration cards keep saying what it checks',
-    );
-    return card(`Getting started · ${items.length - open} of ${items.length} done`, ...rows, actions(dismiss));
-  }
-
-  /** The warnings not dismissed. */
-  const shownWarnings = (s: SystemSnapshot) => s.warnings.filter((w) => !prefs.dismissedWarnings.includes(warningKey(w)));
-
-  function warningsCard(s: SystemSnapshot): HTMLElement | null {
-    const warnings = shownWarnings(s);
-    if (warnings.length === 0) return null;
-    const rows = warnings.map((warning) => {
-      const line = el('div', '', 'warning-row');
-      line.append(el('span', '⚠', 'warning-mark'), el('span', warning.message, 'warning-text'));
-      // A forgotten server can be stopped from here, with the same confirm as in the process list.
-      if (warning.kind === 'idle-server' && warning.pid !== undefined) {
-        const pid = warning.pid;
-        line.append(guarded(ctx, `warn-stop-${pid}`, 'Stop it', 'Stop it?', () => ctx.request({ action: 'killProcess', id: warning.id, pid })));
-      }
-      line.append(
-        plain(
-          'Dismiss',
-          () => {
-            const dismissedWarnings = [...prefs.dismissedWarnings, warningKey(warning)];
-            prefs = { ...prefs, dismissedWarnings };
-            void savePrefs({ dismissedWarnings });
-            render();
-          },
-          'Hide this until it clears and comes back (a server: until it stops)',
-        ),
-      );
-      return line;
-    });
-    return card(
-      `Needs attention · ${warnings.length}`,
-      ...rows,
-      el(
-        'p',
-        `Limits: ${s.config.limits.memoryWarnMb} MB per workspace, servers idle over ${s.config.limits.idleServerHours} h. Change them under "limits" in the config.`,
-        'settings-note',
-      ),
-    );
-  }
-
-  function choice<T extends string>(label: string, values: readonly T[], current: T, onChange: (value: T) => void): HTMLElement {
-    const wrapper = el('label', '', 'pref');
-    const select = el('select', '', 'pref-select');
-    select.append(...values.map((value) => Object.assign(el('option', value[0].toUpperCase() + value.slice(1)), { value, selected: value === current })));
-    select.addEventListener('change', () => onChange(select.value as T));
-    wrapper.append(el('span', label, 'pref-label'), select);
-    return wrapper;
-  }
-
-  function preferencesCard(): HTMLElement {
-    const change = plain(
-      'Change',
-      () => void chrome.tabs.create({ url: 'chrome://extensions/shortcuts' }),
-      "Chrome's shortcuts page, where the keys are bound",
-    );
-    const shortcut = row('Switch workspaces', switchShortcut || 'not bound');
-    shortcut.append(change);
-    return card(
-      'Preferences',
-      shortcut,
-      choice('Theme', THEMES, prefs.theme, (theme) => {
-        prefs = { ...prefs, theme };
-        void savePrefs({ theme });
-      }),
-      choice('Density', DENSITIES, prefs.density, (density) => {
-        prefs = { ...prefs, density };
-        void savePrefs({ density });
-      }),
-      checkbox(
-        'Desktop notifications',
-        prefs.notify,
-        (notify) => {
-          prefs = { ...prefs, notify };
-          void savePrefs({ notify });
-        },
-        'When a workspace starts waiting for input or finishes. The toolbar icon always shows how many are waiting.',
-      ),
-    );
-  }
-
-  /** Puts the layout's groups in the grid; the held card is not moved, so its open dropdown survives. */
-  function place(layout: CardLayout, held: HTMLElement | null): void {
-    keepFocus(grid, () => placeCards(layout, held));
-  }
-
-  function placeCards(layout: CardLayout, held: HTMLElement | null): void {
-    const groups = [
-      ...(layout.top.length ? [{ cls: 'settings-top', cards: layout.top }] : []),
-      ...layout.columns.map((c) => ({ cls: 'settings-column', cards: c })),
-    ];
-    const holder = held?.parentElement;
-    const heldAt = held ? groups.findIndex((g) => g.cards.some((card) => card.dataset.key === held.dataset.key)) : -1;
-    // The same layout as last time, so the held card can stay where it is; a different one has to move it.
-    const same = holder != null && heldAt >= 0 && grid.children.length === groups.length && grid.children[heldAt] === holder;
-    if (held && same) {
-      groups.forEach((g, i) => {
-        const node = grid.children[i] as HTMLElement;
-        if (node !== holder) {
-          node.replaceChildren(...g.cards);
-          return;
-        }
-        const at = g.cards.findIndex((card) => card.dataset.key === held.dataset.key);
-        for (const child of [...node.children]) if (child !== held) child.remove();
-        held.before(...g.cards.slice(0, at));
-        held.after(...g.cards.slice(at + 1));
-      });
-      return;
-    }
-    grid.replaceChildren(
-      ...groups.map((g) => {
-        const node = el('div', '', g.cls);
-        node.append(...g.cards);
-        return node;
-      }),
-    );
-  }
+  // A button waiting for its second press keeps keyboard focus through the redraw.
+  const place = (layout: CardLayout, held: HTMLElement | null): void => keepFocus(grid, () => placeCards(grid, layout, held));
 
   function render(): void {
     const scroll = body.scrollTop;
@@ -313,13 +103,13 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       return;
     }
     const cards = [
-      ...[setupCard(snapshot), warningsCard(snapshot)].filter((card): card is HTMLElement => card !== null),
+      ...[setupCard(ctx, prefsHandle, switchShortcut, snapshot), warningsCard(ctx, prefsHandle, snapshot)].filter((card): card is HTMLElement => card !== null),
       planCard(snapshot),
       usageCard(snapshot, prefs.usageRange, setUsageRange),
       workspacesCard(ctx, sessions, snapshot),
-      preferencesCard(),
+      preferencesCard(prefsHandle, switchShortcut),
       helperCard(ctx, helper, snapshot),
-      dataCard(snapshot),
+      dataCard(ctx, snapshot),
       configCard(snapshot),
     ];
     columnsNow = columnCountFor(body.clientWidth);
@@ -418,10 +208,10 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       if (isOpen) render();
     },
     get setupRemaining() {
-      return snapshot && !prefs.setupDismissed ? remaining(checklist(snapshot)) : 0;
+      return snapshot && !prefs.setupDismissed ? remaining(setupChecklist(snapshot, switchShortcut)) : 0;
     },
     get warningCount() {
-      return snapshot ? shownWarnings(snapshot).length : 0;
+      return snapshot ? shownWarnings(prefsHandle, snapshot).length : 0;
     },
     setSystem(message) {
       snapshot = message.snapshot ?? snapshot;

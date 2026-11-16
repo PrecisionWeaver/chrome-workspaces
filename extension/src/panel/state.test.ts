@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { installChrome } from '../../testing/chrome-mock';
 import { makeWorkspace } from '../../testing/fixtures';
 import { createPanelState, type PanelState } from './state';
+import { flush } from '../../testing/flush';
 
 const showOnly = vi.fn(async () => {});
 vi.mock('../background/windows', () => ({ showOnly: (...args: unknown[]) => showOnly(...(args as [])) }));
@@ -9,7 +10,6 @@ vi.mock('../background/windows', () => ({ showOnly: (...args: unknown[]) => show
 let fake: ReturnType<typeof installChrome>;
 let state: PanelState;
 let windowId: number;
-const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 const ws = (id: string, overrides = {}) => makeWorkspace({ id, name: `acme/${id}`, windowId, ...overrides });
 const selected = () => fake.storage.local.selectedByWindow as Record<string, string> | undefined;
 

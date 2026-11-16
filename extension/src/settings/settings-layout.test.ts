@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest';
-import { columnCountFor, keysOf, layoutCards, layoutFromKeys } from './settings-layout';
+import { columnCountFor, keysOf, layoutCards, layoutFromKeys, placeCards } from './settings-layout';
 
 const card = (key: string) => {
   const node = document.createElement('section');
@@ -88,5 +88,56 @@ describe('layoutCards', () => {
     const again = layoutFromKeys(KEYS.map(card), keysOf(first));
     expect(again.columns.map(keys)).toEqual(first.columns.map(keys));
     expect(keys(again.top)).toEqual(['Getting started', 'Needs attention']);
+  });
+});
+
+describe('placeCards', () => {
+  const grid = () => document.createElement('div');
+  const groups = (g: HTMLElement) => [...g.children].map((c) => [c.className, keys([...c.children] as HTMLElement[])]);
+
+  it('puts a full-width group above the columns, then each column', () => {
+    const g = grid();
+    placeCards(g, { top: [card('Getting started')], columns: [[card('Usage')], [card('Workspaces'), card('Helper')]] }, null);
+    expect(groups(g)).toEqual([
+      ['settings-top', ['Getting started']],
+      ['settings-column', ['Usage']],
+      ['settings-column', ['Workspaces', 'Helper']],
+    ]);
+  });
+
+  it('leaves out the top group when there are no cards for it', () => {
+    const g = grid();
+    placeCards(g, { top: [], columns: [[card('Usage')]] }, null);
+    expect(groups(g)).toEqual([['settings-column', ['Usage']]]);
+  });
+
+  it('keeps the held card where it is, and deals the others round it', () => {
+    const g = grid();
+    placeCards(g, { top: [], columns: [[card('Usage'), card('Preferences'), card('Helper')], [card('Workspaces')]] }, null);
+    const held = g.querySelector<HTMLElement>('[data-key="Preferences"]')!;
+    placeCards(
+      g,
+      {
+        top: [],
+        columns: [
+          [card('Preferences'), card('Usage')],
+          [card('Workspaces'), card('Helper')],
+        ],
+      },
+      held,
+    );
+    expect(g.querySelector('[data-key="Preferences"]')).toBe(held);
+    expect(groups(g)).toEqual([
+      ['settings-column', ['Preferences', 'Usage']],
+      ['settings-column', ['Workspaces', 'Helper']],
+    ]);
+  });
+
+  it('moves a held card when the layout has changed shape, as it cannot stay in a column that is gone', () => {
+    const g = grid();
+    placeCards(g, { top: [], columns: [[card('Usage')], [card('Preferences')]] }, null);
+    const held = g.querySelector<HTMLElement>('[data-key="Preferences"]')!;
+    placeCards(g, { top: [], columns: [[card('Usage'), card('Preferences')]] }, held);
+    expect(groups(g)).toEqual([['settings-column', ['Usage', 'Preferences']]]);
   });
 });

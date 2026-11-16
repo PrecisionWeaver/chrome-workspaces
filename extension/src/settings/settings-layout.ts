@@ -1,3 +1,5 @@
+import { el } from '../ui/dom';
+
 /** Narrowest a card column may be, and the gap between columns; as many columns fit as the body is wide enough for, up to three. */
 const COLUMN_MIN = 340;
 const COLUMN_GAP = 12;
@@ -70,4 +72,37 @@ export function layoutFromKeys(cards: readonly HTMLElement[], keys: readonly (re
     top: cards.filter((card) => FULL_WIDTH.includes(card.dataset.key ?? '')),
     columns: keys.map((column) => column.flatMap((key) => byKey.get(key) ?? [])),
   };
+}
+
+/** Puts the layout's groups in `grid`; the held card is not moved, so its open dropdown survives. */
+export function placeCards(grid: HTMLElement, layout: CardLayout, held: HTMLElement | null): void {
+  const groups = [
+    ...(layout.top.length ? [{ cls: 'settings-top', cards: layout.top }] : []),
+    ...layout.columns.map((c) => ({ cls: 'settings-column', cards: c })),
+  ];
+  const holder = held?.parentElement;
+  const heldAt = held ? groups.findIndex((g) => g.cards.some((card) => card.dataset.key === held.dataset.key)) : -1;
+  // The same layout as last time, so the held card can stay where it is; a different one has to move it.
+  const same = holder != null && heldAt >= 0 && grid.children.length === groups.length && grid.children[heldAt] === holder;
+  if (held && same) {
+    groups.forEach((g, i) => {
+      const node = grid.children[i] as HTMLElement;
+      if (node !== holder) {
+        node.replaceChildren(...g.cards);
+        return;
+      }
+      const at = g.cards.findIndex((card) => card.dataset.key === held.dataset.key);
+      for (const child of [...node.children]) if (child !== held) child.remove();
+      held.before(...g.cards.slice(0, at));
+      held.after(...g.cards.slice(at + 1));
+    });
+    return;
+  }
+  grid.replaceChildren(
+    ...groups.map((g) => {
+      const node = el('div', '', g.cls);
+      node.append(...g.cards);
+      return node;
+    }),
+  );
 }

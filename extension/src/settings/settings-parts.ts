@@ -1,4 +1,5 @@
 import type { AdminAction, ControlToHelper } from '../../../shared/protocol/protocol';
+import type { Prefs } from '../app/prefs';
 import { type Arming, el } from '../ui/dom';
 
 /** Small builders shared by the Settings cards. */
@@ -28,6 +29,13 @@ export const actions = (...buttons: Node[]): HTMLElement => {
 };
 
 export const mono = (text: string): HTMLElement => el('span', text, 'mono');
+
+/** The saved preferences, as a card sees them: read now, and change (which saves it). */
+export interface PrefsHandle {
+  get(): Prefs;
+  /** Merges `change` into the preferences and saves it; a card that needs the view redrawn says so itself. */
+  set(change: Partial<Prefs>): void;
+}
 
 /** What every card can do: talk to the helper, redraw the view, and report an outcome. */
 export interface SettingsContext {

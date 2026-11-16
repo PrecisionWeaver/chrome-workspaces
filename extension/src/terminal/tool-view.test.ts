@@ -2,6 +2,7 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { MONITOR_SESSION, SHELL_SESSION } from '../../../shared/protocol/protocol';
 import { loadPanelHtml } from '../../testing/fixtures';
+import { flush } from '../../testing/flush';
 
 /** xterm needs a real browser, so a recording stand-in takes its place; what matters here is how the view drives it. */
 const terms: FakeTerminal[] = [];
@@ -106,7 +107,6 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
 async function make() {

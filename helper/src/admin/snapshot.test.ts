@@ -4,8 +4,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { ControlToClient } from '../../../shared/protocol/protocol';
 import { localDay } from '../../../shared/usage/usage';
-import { readProcesses, subtree } from '../platform/system';
-import { connectControl, type Harness, opened, startHarness } from '../../testing/harness';
+import { connectControl, type Harness, opened, startHarness, startWorkspaceWithSleep } from '../../testing/harness';
 import { waitFor } from '../../testing/wait-for';
 
 // The trend test names days, so it needs a known zone.
@@ -19,14 +18,7 @@ afterEach(async () => {
   await h.close();
 });
 
-/** Starts a workspace whose shell runs a long sleep, so there is a process tree beneath it. */
-async function workspaceWithSleep(name: string) {
-  const workspace = h.store.create({ name, cwd: h.defaultCwd });
-  const session = h.sessions.create({ id: workspace.id, command: '/bin/sh', args: ['-c', 'sleep 300 & wait'], cwd: h.defaultCwd });
-  // The shell forks its sleep a moment after it starts.
-  for (let i = 0; i < 100 && subtree(await readProcesses(), session.pid!).length < 2; i++) await new Promise((resolve) => setTimeout(resolve, 20));
-  return { workspace, session };
-}
+const workspaceWithSleep = (name: string) => startWorkspaceWithSleep(h, name);
 
 async function ask(request: unknown, replyType: ControlToClient['type']) {
   const { ws, messages } = connectControl(h);
