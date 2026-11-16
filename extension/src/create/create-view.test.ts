@@ -63,6 +63,15 @@ describe('opening and closing', () => {
     expect($('create-github').hidden).toBe(true);
   });
 
+  it('says which choice of each segmented control is on', async () => {
+    await open();
+    const pressed = (id: string) => [...document.querySelectorAll<HTMLButtonElement>(`#${id} button`)].map((b) => b.getAttribute('aria-pressed'));
+    expect(pressed('create-start')).toContain('true');
+    choose('text');
+    expect(document.querySelector('#create-start button[data-value="text"]')?.getAttribute('aria-pressed')).toBe('true');
+    expect(pressed('create-start').filter((value) => value === 'true')).toHaveLength(1);
+  });
+
   it('asks the helper for prompts, team templates and repos each time it opens', async () => {
     await open();
     expect(sent).toEqual([{ type: 'listPrompts' }, { type: 'listTemplates' }, { type: 'listRepos' }]);
@@ -367,6 +376,20 @@ describe('model, colour and window controls', () => {
     expect(swatches[0]!.classList.contains('selected')).toBe(true);
     swatches[2]!.click();
     expect(swatches.map((swatch) => swatch.classList.contains('selected'))).toEqual([false, false, true, false, false, false, false, false, false, false]);
+    // A screen reader hears which one is chosen, and what each is called.
+    expect(swatches.map((swatch) => swatch.getAttribute('aria-pressed'))).toEqual([
+      'false',
+      'false',
+      'true',
+      'false',
+      'false',
+      'false',
+      'false',
+      'false',
+      'false',
+      'false',
+    ]);
+    expect(swatches[0]!.getAttribute('aria-label')).toBe('No color');
     await open();
     expect(swatches[2]!.classList.contains('selected')).toBe(false);
     expect(swatches[0]!.classList.contains('selected')).toBe(true);

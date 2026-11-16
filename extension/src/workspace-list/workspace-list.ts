@@ -11,6 +11,7 @@ import {
   WORKSPACE_COLORS,
 } from '../../../shared/protocol/protocol';
 import { $, caret, createArming, el, icon } from '../ui/dom';
+import { keepFocus } from '../ui/focus';
 import { closeMenu, menuItem, openMenu } from '../ui/menu';
 
 // An archive button asks twice; the first click disarms after this long.
@@ -94,6 +95,16 @@ export function createWorkspaceList(options: WorkspaceListOptions): WorkspaceLis
     if (closed.length) {
       const toggle = document.createElement('li');
       toggle.className = 'archived-toggle';
+      // A list item the keyboard can reach: it opens and closes the archived workspaces.
+      toggle.tabIndex = 0;
+      toggle.setAttribute('role', 'button');
+      toggle.setAttribute('aria-expanded', String(closedOpen));
+      toggle.dataset.focus = 'archived';
+      toggle.addEventListener('keydown', (event) => {
+        if (event.target !== toggle || (event.key !== 'Enter' && event.key !== ' ')) return;
+        event.preventDefault();
+        toggle.click();
+      });
       const label = document.createElement('span');
       label.className = 'archived-label';
       label.append(caret(closedOpen), `Archived (${closed.length})`);
@@ -112,10 +123,8 @@ export function createWorkspaceList(options: WorkspaceListOptions): WorkspaceLis
       empty.textContent = listSearch.value ? 'No workspace matches' : 'No workspaces yet';
       rows.push(empty);
     }
-    // Status updates redraw the list constantly; a row being navigated to must keep focus through that.
-    const focusedId = listEl.contains(document.activeElement) ? (document.activeElement as HTMLElement).dataset.id : undefined;
-    listEl.replaceChildren(...rows);
-    if (focusedId) listEl.querySelector<HTMLElement>(`[data-id="${focusedId}"]`)?.focus();
+    // Status updates redraw the list constantly; a row being navigated to, or a button waiting for its second press, must keep focus through that.
+    keepFocus(listEl, () => listEl.replaceChildren(...rows));
     // One row is a tab stop (the current one, else the first), and the arrow keys move among the rest.
     const stops = [...listEl.querySelectorAll<HTMLElement>('.ws[data-id]')];
     const stop = stops.find((row) => row.classList.contains('current')) ?? stops[0];
@@ -158,6 +167,7 @@ export function createWorkspaceList(options: WorkspaceListOptions): WorkspaceLis
   function clearArchivedButton(): HTMLButtonElement {
     const armed = arming.isArmed('forgetAll');
     const clear = el('button', armed ? 'Forget all?' : 'Clear all', `archived-clear${armed ? ' confirm' : ''}`);
+    clear.dataset.focus = 'forgetAll';
     clear.addEventListener('click', (event) => {
       event.stopPropagation();
       if (arming.click('forgetAll')) {
@@ -239,6 +249,7 @@ export function createWorkspaceList(options: WorkspaceListOptions): WorkspaceLis
     const removeKey = `remove:${ws.id}`;
     const remove = el('button', arming.isArmed(removeKey) ? 'archive?' : '', `remove${arming.isArmed(removeKey) ? ' confirm' : ''}`);
     remove.title = 'Archive workspace';
+    remove.dataset.focus = removeKey;
     if (!arming.isArmed(removeKey)) remove.append(icon('x'));
     remove.addEventListener('click', (event) => {
       event.stopPropagation();
@@ -302,6 +313,8 @@ export function createWorkspaceList(options: WorkspaceListOptions): WorkspaceLis
       const shown = (ws.groupId === null ? undefined : groupColors.get(ws.groupId)) ?? ws.color;
       swatch.className = `swatch${(shown ?? null) === color ? ' selected' : ''}`;
       swatch.title = color ?? 'No color';
+      swatch.setAttribute('aria-label', color ?? 'No color');
+      swatch.setAttribute('aria-pressed', String((shown ?? null) === color));
       if (color) swatch.dataset.group = color;
       else swatch.textContent = '×';
       swatch.addEventListener('click', () => {

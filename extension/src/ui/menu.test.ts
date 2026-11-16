@@ -72,3 +72,50 @@ describe('dismissing', () => {
     expect(() => closeMenu()).not.toThrow();
   });
 });
+
+describe('keyboard', () => {
+  const press = (key: string) => document.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+  const labels = () => [...document.querySelectorAll('.popup-menu button')].map((b) => b.textContent);
+
+  it('moves focus into the menu, onto its first enabled item', () => {
+    openMenu(0, 0, [menuItem('Off', () => {}, { disabled: true }), menuItem('One', () => {}), menuItem('Two', () => {})]);
+    expect(document.activeElement?.textContent).toBe('One');
+    expect(labels()).toEqual(['Off', 'One', 'Two']);
+    expect(document.querySelector('.popup-menu button')?.getAttribute('role')).toBe('menuitem');
+  });
+
+  it('moves among the enabled items with the arrow keys, Home and End, wrapping round', () => {
+    openMenu(0, 0, [menuItem('One', () => {}), menuItem('Off', () => {}, { disabled: true }), menuItem('Two', () => {}), menuItem('Three', () => {})]);
+    const at = () => document.activeElement?.textContent;
+    press('ArrowDown');
+    expect(at()).toBe('Two');
+    press('ArrowDown');
+    press('ArrowDown');
+    expect(at()).toBe('One');
+    press('ArrowUp');
+    expect(at()).toBe('Three');
+    press('Home');
+    expect(at()).toBe('One');
+    press('End');
+    expect(at()).toBe('Three');
+  });
+
+  it('hands focus back to what had it when it closes, on Escape or on choosing an item', () => {
+    const opener = document.createElement('button');
+    document.body.append(opener);
+    opener.focus();
+    openMenu(0, 0, [menuItem('One', () => {})]);
+    press('Escape');
+    expect(document.activeElement).toBe(opener);
+
+    openMenu(0, 0, [menuItem('One', () => {})]);
+    (document.querySelector('.popup-menu button') as HTMLButtonElement).click();
+    expect(document.activeElement).toBe(opener);
+  });
+
+  it('closes on Tab', () => {
+    openMenu(0, 0, [menuItem('One', () => {})]);
+    press('Tab');
+    expect(document.querySelector('.popup-menu')).toBeNull();
+  });
+});
