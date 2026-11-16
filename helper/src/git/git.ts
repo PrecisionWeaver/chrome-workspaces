@@ -62,6 +62,11 @@ async function run(cwd: string, args: string[], acceptCodes: readonly number[] =
   }
 }
 
+/** Whether git tracks `path`; `ls-files --error-unmatch` exits 1 for one it does not, and anything that fails counts as untracked. */
+async function isTracked(cwd: string, path: string): Promise<boolean> {
+  return (await run(cwd, ['ls-files', '--error-unmatch', '--', path], [0, 1]).catch(() => ({ stdout: '', code: 1 }))).code === 0;
+}
+
 /** Parses `git status --porcelain=v1 -z --branch`. */
 export function parseStatus(output: string): Omit<GitState, 'commits' | 'root' | 'worktree'> {
   const tokens = output.split('\0');
@@ -257,8 +262,7 @@ export function createGitService(): GitService {
         if (!SHA.test(sha)) throw new Error('not a commit id');
         return cap((await run(cwd, ['show', '--no-color', '--format=', '--find-renames', sha, '--', path])).stdout);
       }
-      const tracked = (await run(cwd, ['ls-files', '--error-unmatch', '--', path], [0, 1]).catch(() => ({ stdout: '', code: 1 }))).code === 0;
-      if (tracked) {
+      if (await isTracked(cwd, path)) {
         // Staged and unstaged together; a repository with no commits has no HEAD to compare to.
         const head = await run(cwd, ['diff', '--no-color', 'HEAD', '--', path], [0, 128]).catch(() => null);
         if (head?.stdout) return cap(head.stdout);
@@ -288,9 +292,8 @@ export function createGitService(): GitService {
       const list = repoPaths(paths);
       if (list.length === 0) throw new Error('choose which files to discard');
       for (const path of list) {
-        const tracked = (await run(cwd, ['ls-files', '--error-unmatch', '--', path], [0, 1]).catch(() => ({ stdout: '', code: 1 }))).code === 0;
         // `clean` only removes untracked files, and `restore` only touches tracked ones, so neither can reach the other's.
-        if (tracked) await run(cwd, ['restore', '--', path]);
+        if (await isTracked(cwd, path)) await run(cwd, ['restore', '--', path]);
         else await run(cwd, ['clean', '-f', '-q', '--', path]);
       }
       return `Discarded ${list.length} file${list.length === 1 ? '' : 's'}.`;

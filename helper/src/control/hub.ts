@@ -8,11 +8,12 @@ import type { Template } from '../../../shared/workspaces/templates';
 import { asPaste } from '../pty/paste';
 import type { GitService } from '../git/git';
 import type { HistoryStore } from '../store/history';
-import { parsePrDetails, parsePrThreads, parsePrUrl } from '../git/pr-details';
 import type { SessionManager } from '../pty/session';
 import type { WorkspaceStore } from '../store/workspace-store';
 import { errorMessage } from '../../../shared/protocol/errors';
+import { handleAdmin, isAdminRequest } from './admin-handlers';
 import { handleGit, isGitRequest } from './git-handlers';
+import { handlePr, isPrRequest } from './pr-handlers';
 import { handleWorkspace, isWorkspaceRequest } from './workspace-handlers';
 
 export interface ReviewSource {
@@ -60,6 +61,8 @@ export interface ControlHubOptions {
 /** What a message handler outside the hub gets to work with: the hub's options and its ways of replying. */
 export interface HubContext {
   readonly options: ControlHubOptions;
+  /** How many extension contexts are connected. */
+  readonly clientCount: number;
   /** Sends every connected client a message; returns whether any received it. */
   send(message: ControlToClient): boolean;
   /** Sends one client a message. */
@@ -77,6 +80,10 @@ export class ControlHub implements HubContext {
   constructor(readonly options: ControlHubOptions) {
     options.store.onChange(() => this.broadcastState());
     options.history.onChange(() => this.send(this.historyMessage()));
+  }
+
+  get clientCount(): number {
+    return this.clients.size;
   }
 
   add(ws: WebSocket): void {
@@ -178,6 +185,14 @@ export class ControlHub implements HubContext {
       handleGit(this, message, ws);
       return;
     }
+    if (isAdminRequest(message)) {
+      handleAdmin(this, message, ws);
+      return;
+    }
+    if (isPrRequest(message)) {
+      handlePr(this, message, ws);
+      return;
+    }
     const { store } = this.options;
     switch (message.type) {
       case 'pair':
@@ -227,40 +242,6 @@ export class ControlHub implements HubContext {
           this.listing(this.options.templates, [], (templates, error) => ({ type: 'templates', templates, error })),
         );
         break;
-      case 'system':
-        this.answer(
-          ws,
-          this.options.admin.snapshot({ reviews: this.options.reviews.state(), clients: this.clients.size }),
-          (snapshot) => ({ type: 'system', snapshot, error: null }),
-          (error) => ({ type: 'system', snapshot: null, error }),
-        );
-        break;
-      case 'admin': {
-        const { request } = message;
-        this.answer(
-          ws,
-          this.options.admin.run(request),
-          (result) => {
-            for (const id of result.reset ?? []) this.send({ type: 'sessionReset', id });
-            return { type: 'adminResult', action: request.action, ok: result.ok, message: result.message };
-          },
-          (message) => ({ type: 'adminResult', action: request.action, ok: false, message }),
-        );
-        break;
-      }
-      case 'systemLog':
-        this.sendTo(ws, { type: 'systemLog', text: this.options.admin.log() });
-        break;
-      case 'timeline': {
-        const events = this.options.store.get(message.id) ? this.options.admin.timeline(message.id) : null;
-        this.sendTo(ws, {
-          type: 'timeline',
-          id: message.id,
-          events: events ?? [],
-          error: events === null ? 'This workspace has no claude session yet.' : null,
-        });
-        break;
-      }
       case 'activity':
         if (message.id === null) {
           this.following.delete(ws);
@@ -269,44 +250,12 @@ export class ControlHub implements HubContext {
         this.following.set(ws, message.id);
         this.sendTo(ws, this.activityMessage(message.id));
         break;
-      case 'exportData':
-        this.sendTo(ws, { type: 'exportData', json: this.options.admin.exportData() });
-        break;
-      case 'checkUpdates':
-        this.answer(
-          ws,
-          this.options.admin.checkUpdates(),
-          (status) => ({ type: 'updates', status, error: null }),
-          (error) => ({ type: 'updates', status: null, error }),
-        );
-        break;
       case 'listRepos':
         this.sendTo(ws, { type: 'repos', repos: this.options.repos() });
         break;
       case 'refreshReviews':
         void this.options.reviews.refresh();
         break;
-      case 'prThreads': {
-        const { url } = message;
-        const parts = parsePrUrl(url);
-        this.answer(
-          ws,
-          parts ? this.options.prThreads(parts).then(parsePrThreads) : Promise.reject(new Error('not a pull request URL')),
-          ({ threads, total }) => ({ type: 'prThreads', url, threads, total, error: null }),
-          (error) => ({ type: 'prThreads', url, threads: [], total: 0, error }),
-        );
-        break;
-      }
-      case 'prDetails': {
-        const { url } = message;
-        this.answer(
-          ws,
-          this.options.prDetails(url).then(parsePrDetails),
-          (details) => ({ type: 'prDetails', url, details, error: null }),
-          (error) => ({ type: 'prDetails', url, details: null, error }),
-        );
-        break;
-      }
     }
   }
 }

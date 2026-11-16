@@ -6,15 +6,18 @@ export const GH_REVIEW_REQUESTS = `gh search prs --review-requested=@me --state=
 
 /** Every open PR in the watched repos, yours included, for repos where nobody requests reviewers. */
 export function ghWatchedPrs(repos: readonly string[]): string {
-  return `gh search prs ${repos.map((repo) => `--repo ${repo}`).join(' ')} --state=open ${GH_FIELDS} --limit 100`;
+  return `gh search prs ${repoFlags(repos)} --state=open ${GH_FIELDS} --limit 100`;
 }
 
 /** PRs you have already reviewed, which no longer match a review request; they are listed only if they need another look. */
 export function ghReviewedPrs(repos: readonly string[]): string {
-  return `gh search prs ${repos.map((repo) => `--repo ${repo}`).join(' ')} --state=open --reviewed-by=@me ${GH_FIELDS} --limit 50`;
+  return `gh search prs ${repoFlags(repos)} --state=open --reviewed-by=@me ${GH_FIELDS} --limit 50`;
 }
 
 const SAFE_NAME = /^[\w.-]+$/;
+
+/** `--repo` for each repository, for the search commands that take a list of them. */
+const repoFlags = (repos: readonly string[]): string => repos.map((repo) => `--repo ${repo}`).join(' ');
 
 /** GitHub's intermittent 5xx and cut-off replies, which a second try usually gets past. */
 const TRANSIENT = /HTTP 50[234]\b|unexpected end of JSON input|unexpected EOF|timed out|i\/o timeout|handshake timeout|connection reset/i;
@@ -107,12 +110,17 @@ function ciOf(pr: PullRequestNode): CiState | null {
   return state === undefined ? null : (CI_STATES[state] ?? 'pending');
 }
 
+/** Your latest review on the PR, if you have one. */
+function viewerReview(pr: PullRequestNode, viewer: string | undefined) {
+  return pr.latestReviews?.nodes?.find((review) => viewer !== undefined && review.author?.login.toLowerCase() === viewer.toLowerCase());
+}
+
 /**
  * Your latest review asked for changes or commented, and the PR's head has moved on from the commit it was on. An approval
  * does not count: a push after one is new work, not your comments answered. A missing commit on either side is no answer.
  */
 function needsReReview(pr: PullRequestNode, viewer: string | undefined): boolean {
-  const mine = pr.latestReviews?.nodes?.find((review) => viewer !== undefined && review.author?.login.toLowerCase() === viewer.toLowerCase());
+  const mine = viewerReview(pr, viewer);
   if (!mine || (mine.state !== 'CHANGES_REQUESTED' && mine.state !== 'COMMENTED')) return false;
   const reviewed = mine.commit?.oid ?? '';
   return reviewed !== '' && !!pr.headRefOid && reviewed !== pr.headRefOid;
@@ -120,8 +128,7 @@ function needsReReview(pr: PullRequestNode, viewer: string | undefined): boolean
 
 /** Your latest review on the PR is an approval. */
 function approvedByViewer(pr: PullRequestNode, viewer: string | undefined): boolean {
-  const mine = pr.latestReviews?.nodes?.find((review) => viewer !== undefined && review.author?.login.toLowerCase() === viewer.toLowerCase());
-  return mine?.state === 'APPROVED';
+  return viewerReview(pr, viewer)?.state === 'APPROVED';
 }
 
 /** Reads the response of `mergeStatusQuery`; PRs missing from it, e.g. in a repo the token cannot see, stay unknown. */
@@ -147,7 +154,7 @@ export function parseMergeStatuses(json: string): Map<string, Lookup> {
 
 /** Your own open PRs in the given repos, which nobody has requested your review on. */
 export function ghOwnPrs(repos: readonly string[]): string {
-  return `gh search prs ${repos.map((repo) => `--repo ${repo}`).join(' ')} --state=open --author=@me ${GH_FIELDS} --limit 50`;
+  return `gh search prs ${repoFlags(repos)} --state=open --author=@me ${GH_FIELDS} --limit 50`;
 }
 
 const TICKET = /[A-Z][A-Z0-9]*-\d+/;

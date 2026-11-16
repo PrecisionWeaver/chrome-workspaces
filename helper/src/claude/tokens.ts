@@ -1,7 +1,7 @@
 import { open, stat } from 'node:fs/promises';
 import { StringDecoder } from 'node:string_decoder';
 import type { TokenTotals } from '../../../shared/protocol/protocol';
-import { localDayAndHour } from '../../../shared/usage/usage';
+import { addTokens, localDayAndHour, noTokens } from '../../../shared/usage/usage';
 
 const CHUNK_BYTES = 4 * 1024 * 1024;
 /** How long before its file was created a message can be and still be the transcript's own, for clocks that disagree a little. */
@@ -45,18 +45,13 @@ interface Tracked {
   scanning: Promise<void> | null;
 }
 
-const zero = (): TokenTotals => ({ input: 0, output: 0, cacheWrite: 0, cacheRead: 0 });
-
 /** Messages grouped by model, day and hour, which is all that pricing and a trend need. */
 function bucketsOf(messages: ReadonlyMap<string, Counted>): UsageBucket[] {
   const buckets = new Map<string, UsageBucket>();
   for (const { model, day, hour, usage } of messages.values()) {
     const key = `${model}|${day}|${hour}`;
-    const bucket = buckets.get(key) ?? { model, day, hour, usage: zero() };
-    bucket.usage.input += usage.input;
-    bucket.usage.output += usage.output;
-    bucket.usage.cacheWrite += usage.cacheWrite;
-    bucket.usage.cacheRead += usage.cacheRead;
+    const bucket = buckets.get(key) ?? { model, day, hour, usage: noTokens() };
+    addTokens(bucket.usage, usage);
     buckets.set(key, bucket);
   }
   return [...buckets.values()];
@@ -137,7 +132,7 @@ export class TranscriptTokens {
         carry: '',
         decoder: new StringDecoder('utf8'),
         byMessage: new Map(),
-        totals: zero(),
+        totals: noTokens(),
         counted: false,
         failed: false,
         scanning: null,
@@ -217,13 +212,8 @@ export class TranscriptTokens {
     } finally {
       await file.close();
     }
-    const totals = zero();
-    for (const { usage: u } of t.byMessage.values()) {
-      totals.input += u.input;
-      totals.output += u.output;
-      totals.cacheWrite += u.cacheWrite;
-      totals.cacheRead += u.cacheRead;
-    }
+    const totals = noTokens();
+    for (const { usage } of t.byMessage.values()) addTokens(totals, usage);
     t.totals = totals;
   }
 }

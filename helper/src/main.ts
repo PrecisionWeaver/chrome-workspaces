@@ -1,19 +1,16 @@
-import { execFile, execFileSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { promisify } from 'node:util';
 import { PLAN_USAGE_FILE } from '../../shared/usage/plan-usage';
-import { MONITOR_SESSION, SHELL_SESSION, WORKSPACE_SHELL_PREFIX, type WaitingOn, type WorkspaceStatus } from '../../shared/protocol/protocol';
+import type { WaitingOn, WorkspaceStatus } from '../../shared/protocol/protocol';
 import { SAMPLE_INTERVAL_MS } from './store/resource-history';
-import { launchDirectory } from './pty/launch-dir';
 import { activityFile, readActivity } from './claude/activity';
 import { createAdmin } from './admin/admin';
 import { defaultIsManaged, defaultRunShell, defaultSpawnDetached } from './admin/shell';
 import { createApi } from './transport/api';
-import { isDirectory, DATA_DIR, HOST, loadConfig, SESSIONS_DIR, PORT, SCROLLBACK_LIMIT } from './platform/config';
+import { DATA_DIR, HOST, loadConfig, SESSIONS_DIR, PORT, SCROLLBACK_LIMIT } from './platform/config';
 import { ControlHub } from './control/hub';
-import { launchSpec, monitorSpec, shellSpec } from './pty/launch';
 import { listWorkspaceSessions, readSessionStatus, lastTranscriptCwd, pruneSessions, watchSessionStatus, type WorkspaceSession } from './claude/session-status';
 import { writeHooksFile } from './claude/hooks-config';
 import { readPlanUsage } from './claude/plan-usage';
@@ -21,6 +18,8 @@ import { GH_BRANCH_PR, GH_PR_CREATE, GH_PR_DETAILS, GH_PR_THREADS, PR_THREADS_QU
 import { readAllPrompts } from './store/prompts';
 import { readTemplatesFile } from './store/templates-file';
 import { createGitService } from './git/git';
+import { createGh, newPullRequestUrl } from './git/gh';
+import { startSession } from './pty/start-session';
 import { HistoryStore } from './store/history';
 import { listRepos } from './git/repos';
 import { GH_REVIEW_REQUESTS, ghOwnPrs, ghReviewedPrs, ghWatchedPrs, ReviewsPoller } from './git/reviews';
@@ -62,9 +61,7 @@ const waiting = (): Record<string, WaitingOn> =>
   Object.fromEntries(store.list().flatMap((ws) => (sessionState.get(ws.id)?.waiting ? [[ws.id, sessionState.get(ws.id)!.waiting!]] : [])));
 
 const REVIEW_POLL_MS = 5 * 60_000;
-const execFileAsync = promisify(execFile);
-// launchd's PATH lacks Homebrew, so gh runs through a login shell.
-const gh = async (command: string) => (await execFileAsync(shell, ['-l', '-c', command], { timeout: 30_000, maxBuffer: 4 * 1024 * 1024 })).stdout;
+const gh = createGh(shell);
 // Your own PRs are searched in every repo you have configured, watched or not.
 const ownRepos = [...new Set([...config.watchRepos, ...Object.keys(config.repoDirs)])];
 const reviewSearches = [
@@ -73,29 +70,14 @@ const reviewSearches = [
   ...(ownRepos.length ? [ghOwnPrs(ownRepos)] : []),
 ];
 // gh exits non-zero when GraphQL reports an error for any PR, but its stdout still holds the rest.
-const ghMergeStates = async (query: string) => {
-  try {
-    return (
-      await execFileAsync(shell, ['-l', '-c', 'gh api graphql -f query="$CW_QUERY"'], {
-        env: { ...process.env, CW_QUERY: query },
-        timeout: 30_000,
-        maxBuffer: 4 * 1024 * 1024,
-      })
-    ).stdout;
-  } catch (error) {
-    const { stdout } = error as { stdout?: string };
-    if (stdout) return stdout;
-    throw error;
-  }
-};
-const reviews = new ReviewsPoller(() => Promise.all(reviewSearches.map(gh)), ghMergeStates, undefined, {
+const ghMergeStates = (query: string) => gh('gh api graphql -f query="$CW_QUERY"', { env: { CW_QUERY: query }, keepStdout: true });
+const reviews = new ReviewsPoller(() => Promise.all(reviewSearches.map((search) => gh(search))), ghMergeStates, undefined, {
   // PRs you reviewed no longer match a review request, so they are looked for in the repos you have configured.
   fetchReviewed: async () => (ownRepos.length ? [await gh(ghReviewedPrs(ownRepos))] : []),
 });
 const prompts = () => readAllPrompts([config.promptsFile, ...config.promptsFiles]);
 const templates = () => readTemplatesFile(config.templatesFile);
-const prDetails = async (url: string) =>
-  (await execFileAsync(shell, ['-l', '-c', GH_PR_DETAILS], { env: { ...process.env, CW_PR_URL: url }, timeout: 30_000, maxBuffer: 4 * 1024 * 1024 })).stdout;
+const prDetails = (url: string) => gh(GH_PR_DETAILS, { env: { CW_PR_URL: url } });
 
 /** Where a workspace's claude last was: the worktree it moved into, else where it started. */
 function workingDir(id: string): string | null {
@@ -143,39 +125,14 @@ setInterval(() => void admin.sample().catch(() => {}), SAMPLE_INTERVAL_MS).unref
 const history = new HistoryStore(join(DATA_DIR, 'history.json'));
 // Workspaces an older version had archived are history now.
 store.moveArchived((ws) => history.record(ws, ws.resume));
-const branchPr = async (cwd: string) =>
-  (
-    await execFileAsync(shell, ['-l', '-c', GH_BRANCH_PR], { cwd, timeout: 30_000, maxBuffer: 4 * 1024 * 1024 }).catch(
-      (error: { stderr?: string; message: string }) => {
-        throw new Error(error.stderr?.trim() || error.message);
-      },
-    )
-  ).stdout;
+const branchPr = (cwd: string) => gh(GH_BRANCH_PR, { cwd, stderrAs: 'message' });
 
-// gh prints the new pull request's url last; anything before it is its own chatter.
-const createPr = async (cwd: string) => {
-  const { stdout } = await execFileAsync(shell, ['-l', '-c', GH_PR_CREATE], { cwd, timeout: 60_000, maxBuffer: 1024 * 1024 }).catch(
-    (error: { stderr?: string; message: string }) => {
-      throw new Error(error.stderr?.trim().split('\n').pop() || error.message);
-    },
-  );
-  const url = stdout.trim().split('\n').pop() ?? '';
-  if (!/^https:\/\/github\.com\/.+\/pull\/\d+$/.test(url)) throw new Error(`gh did not say where the pull request is: ${url || 'no output'}`);
-  return url;
-};
+const createPr = async (cwd: string) =>
+  newPullRequestUrl(await gh(GH_PR_CREATE, { cwd, timeoutMs: 60_000, maxBufferBytes: 1024 * 1024, stderrAs: 'last-line' }));
 
-const prThreads = async ({ owner, repo, number }: { owner: string; repo: string; number: string }) =>
-  (
-    await execFileAsync(shell, ['-l', '-c', GH_PR_THREADS], {
-      env: { ...process.env, CW_QUERY: PR_THREADS_QUERY, CW_OWNER: owner, CW_REPO: repo, CW_NUMBER: number },
-      timeout: 30_000,
-      maxBuffer: 4 * 1024 * 1024,
-    }).catch((error: { stdout?: string; stderr?: string; message: string }) => {
-      // gh exits non-zero when GraphQL reports an error but still prints the answer; the parser reads the message from it.
-      if (error.stdout) return { stdout: error.stdout };
-      throw new Error(error.stderr?.trim() || error.message);
-    })
-  ).stdout;
+// gh exits non-zero when GraphQL reports an error but still prints the answer; the parser reads the message from it.
+const prThreads = ({ owner, repo, number }: { owner: string; repo: string; number: string }) =>
+  gh(GH_PR_THREADS, { env: { CW_QUERY: PR_THREADS_QUERY, CW_OWNER: owner, CW_REPO: repo, CW_NUMBER: number }, keepStdout: true, stderrAs: 'message' });
 
 const git = createGitService();
 
@@ -233,35 +190,22 @@ const server = await startServer({
   control,
   uploadDir: join(DATA_DIR, 'uploads'),
   api: createApi({ auth, store, control, sessions, defaultCwd: config.defaultCwd, statuses, reviews, repoDirs: config.repoDirs, git }),
-  onUnknownSession: (id) => {
-    if (id === MONITOR_SESSION) return sessions.create(monitorSpec(shell, homedir()));
-    if (id === SHELL_SESSION) return sessions.create(shellSpec(shell, config.defaultCwd));
-    // A workspace's own shell starts in its directory, a worktree included, and has no workspace id, so a claude typed into it is not tracked.
-    if (id.startsWith(WORKSPACE_SHELL_PREFIX)) {
-      const owner = store.get(id.slice(WORKSPACE_SHELL_PREFIX.length));
-      return owner ? sessions.create(shellSpec(shell, isDirectory(owner.cwd) ? owner.cwd : config.defaultCwd, id)) : undefined;
-    }
-    const workspace = store.get(id);
-    if (!workspace) return undefined;
-    // A restored workspace has no session of its own yet, so it resumes the one it had.
-    const resumeId = resumeOverride.get(id) ?? sessionState.get(id)?.claudeSessionId ?? workspace.resume ?? null;
-    resumeOverride.delete(id);
-    // Resuming starts where claude was, which may be a worktree it moved into; a new conversation starts in the workspace's directory.
-    const cwd = resumeId ? launchDirectory(workspace.cwd, workingDir(id)) : undefined;
-    const spec = launchSpec(workspace, {
+  onUnknownSession: (id) =>
+    startSession(id, {
       shell,
-      resumeId,
-      cwd,
+      defaultCwd: config.defaultCwd,
+      home: homedir(),
       defaultModel: config.defaultModel,
-      command: config.claudeCommand,
-      args: config.claudeArgs,
+      claudeCommand: config.claudeCommand,
+      claudeArgs: config.claudeArgs,
       hooksFile,
-    });
-    const session = sessions.create(spec);
-    console.log(`started ${workspace.name} in ${spec.cwd}${spec.args.join(' ').includes('--resume') ? ', resuming its conversation' : ''}`);
-    if (spec.env?.CW_PROMPT !== undefined) store.clearPrompt(id);
-    return session;
-  },
+      store,
+      sessions,
+      resumeOverride,
+      claudeSessionId: (workspaceId) => sessionState.get(workspaceId)?.claudeSessionId ?? null,
+      workingDir,
+      log: console.log,
+    }),
 });
 
 console.log(`chrome-workspaces helper on ${HOST}:${server.port} for extension ${config.extensionId}`);
