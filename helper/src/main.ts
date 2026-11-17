@@ -34,6 +34,7 @@ import { GH_REVIEW_REQUESTS, ghOwnPrs, ghReviewedPrs, ghWatchedPrs } from './git
 import { ReviewsPoller } from './git/reviews';
 import { startServer } from './transport/server';
 import { SessionManager } from './pty/session';
+import { ScrollbackStore } from './pty/scrollback-store';
 import { loadOrCreateToken } from './platform/token';
 import { WorkspaceStore } from './store/workspace-store';
 import { stampConsole } from './platform/log';
@@ -68,7 +69,10 @@ setInterval(
 const hooksFile = writeHooksFile(DATA_DIR);
 if (!hooksFile) console.warn('status hooks are off: hooks/session-state.ts is missing or Node is older than 22.18');
 const store = new WorkspaceStore(join(DATA_DIR, 'workspaces.json'));
-const sessions = new SessionManager(SCROLLBACK_LIMIT);
+// What each terminal showed when the helper last stopped, so a restart does not empty them.
+const savedScrollback = new ScrollbackStore(join(DATA_DIR, 'scrollback'));
+savedScrollback.prune();
+const sessions = new SessionManager(SCROLLBACK_LIMIT, savedScrollback);
 const auth = { token: loadOrCreateToken(DATA_DIR), allowedOrigins: [`chrome-extension://${config.extensionId}`] };
 
 const readSessions = (): Map<string, WorkspaceSession> => readSessionStatus(SESSIONS_DIR, new Map(store.list().map((ws) => [ws.id, ws.cwd])));
@@ -235,6 +239,11 @@ function shutdown(signal: NodeJS.Signals): void {
   console.log(`stopping on ${signal}, ending ${running} terminal${running === 1 ? '' : 's'}`);
   stopWatching();
   reviews.stop();
+  try {
+    sessions.saveAll();
+  } catch (error) {
+    console.error(`could not save scrollback: ${errorMessage(error)}`);
+  }
   sessions.killAll();
   void server.close().then(() => process.exit(0));
 }

@@ -1,5 +1,7 @@
 import { spawn, type IPty } from 'node-pty';
+import { MONITOR_SESSION } from '../../../shared/protocol/protocol';
 import { Scrollback } from './scrollback';
+import { RESTORED_MARK, type ScrollbackStore } from './scrollback-store';
 
 export interface SessionSpec {
   id: string;
@@ -21,9 +23,11 @@ export class Session {
   private readonly exitListeners = new Set<ExitListener>();
   private exitCode: number | null = null;
 
-  constructor(spec: SessionSpec, scrollbackLimit: number) {
+  /** `restored` is what a session of this id had on screen when the helper last stopped; it is replayed ahead of the new output. */
+  constructor(spec: SessionSpec, scrollbackLimit: number, restored: string | null = null) {
     this.id = spec.id;
     this.scrollback = new Scrollback(scrollbackLimit);
+    if (restored) this.scrollback.push(restored + RESTORED_MARK);
     this.pty = spawn(spec.command, spec.args, {
       name: 'xterm-256color',
       cols: 120,
@@ -74,6 +78,11 @@ export class Session {
     };
   }
 
+  /** Everything a newly attached view would be replayed. */
+  snapshot(): string {
+    return this.scrollback.snapshot();
+  }
+
   /** How many panels are watching this session. */
   get attached(): number {
     return this.dataListeners.size;
@@ -106,11 +115,15 @@ function inheritedEnv(): Record<string, string> {
 export class SessionManager {
   private readonly sessions = new Map<string, Session>();
 
-  constructor(private readonly scrollbackLimit: number) {}
+  /** With `saved`, a session starts with the scrollback kept for its id when the helper last stopped. */
+  constructor(
+    private readonly scrollbackLimit: number,
+    private readonly saved?: ScrollbackStore,
+  ) {}
 
   create(spec: SessionSpec): Session {
     if (this.sessions.has(spec.id)) throw new Error(`session ${spec.id} already exists`);
-    const session = new Session(spec, this.scrollbackLimit);
+    const session = new Session(spec, this.scrollbackLimit, this.saved?.take(spec.id));
     this.sessions.set(spec.id, session);
     return session;
   }
@@ -126,6 +139,16 @@ export class SessionManager {
   remove(id: string): void {
     this.sessions.get(id)?.kill();
     this.sessions.delete(id);
+    // A session ended on purpose (archived, restarted, resumed elsewhere) is not the one to bring back.
+    this.saved?.drop(id);
+  }
+
+  /** Saves every running terminal's scrollback, for the helper that starts next. The system monitor redraws itself, so it is left out. */
+  saveAll(): void {
+    if (!this.saved) return;
+    for (const session of this.sessions.values()) {
+      if (!session.exited && session.id !== MONITOR_SESSION) this.saved.save(session.id, session.snapshot());
+    }
   }
 
   killAll(): void {
