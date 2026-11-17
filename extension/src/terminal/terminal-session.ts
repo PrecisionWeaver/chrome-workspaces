@@ -1,11 +1,15 @@
 import { FitAddon } from '@xterm/addon-fit';
+import { Unicode11Addon } from '@xterm/addon-unicode11';
 import { WebLinksAddon } from '@xterm/addon-web-links';
+import { WebglAddon } from '@xterm/addon-webgl';
 import { Terminal } from '@xterm/xterm';
 import type { ClientMessage, ServerMessage } from '../../../shared/protocol/protocol';
 import { getHelper, openSocket } from '../app/helper-client';
 
 export interface SessionTerminal {
   readonly term: Terminal;
+  /** Opens the terminal in `parent` and switches to the GPU renderer where there is one. */
+  open(parent: HTMLElement): void;
   /** Fits the terminal to its container and tells the session its new size. */
   refit(): void;
   /** Writes an `output` message from the session. */
@@ -21,6 +25,9 @@ export function createSessionTerminal(send: (message: ClientMessage) => void): S
   const fit = new FitAddon();
   term.loadAddon(fit);
   term.loadAddon(new WebLinksAddon((_event, uri) => void chrome.tabs.create({ url: uri })));
+  // Emoji and CJK take two cells; without Unicode 11 widths Claude's boxes and spinners drift out of line.
+  term.loadAddon(new Unicode11Addon());
+  term.unicode.activeVersion = '11';
   // Replayed scrollback can hold terminal queries (device attributes, say); xterm answers them through onData,
   // and the shell would read each answer as typed text. Whatever xterm emits while a replay is parsed is dropped.
   let replaying = false;
@@ -29,6 +36,17 @@ export function createSessionTerminal(send: (message: ClientMessage) => void): S
   });
   return {
     term,
+    open(parent) {
+      term.open(parent);
+      // The WebGL renderer must be loaded after open(). Without WebGL, or once its context is lost, xterm's DOM renderer stays.
+      try {
+        const webgl = new WebglAddon();
+        webgl.onContextLoss(() => webgl.dispose());
+        term.loadAddon(webgl);
+      } catch {
+        /* no WebGL here */
+      }
+    },
     refit() {
       fit.fit();
       send({ type: 'resize', cols: term.cols, rows: term.rows });

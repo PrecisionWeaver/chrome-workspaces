@@ -7,6 +7,7 @@ import { flush } from '../../testing/flush';
 /** xterm needs a real browser, so a recording stand-in takes its place; what matters here is how the view drives it. */
 const terms: FakeTerminal[] = [];
 class FakeTerminal {
+  unicode = { activeVersion: '6' };
   cols = 80;
   rows = 24;
   options: { theme?: unknown } = {};
@@ -44,6 +45,13 @@ class FakeTerminal {
 }
 const fits = vi.fn();
 vi.mock('@xterm/xterm', () => ({ Terminal: FakeTerminal }));
+vi.mock('@xterm/addon-unicode11', () => ({ Unicode11Addon: class {} }));
+vi.mock('@xterm/addon-webgl', () => ({
+  WebglAddon: class {
+    onContextLoss() {}
+    dispose() {}
+  },
+}));
 vi.mock('@xterm/addon-web-links', () => ({ WebLinksAddon: class {} }));
 vi.mock('@xterm/addon-fit', () => ({
   FitAddon: class {

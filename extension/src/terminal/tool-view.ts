@@ -111,7 +111,7 @@ export function createToolView({ onToggle }: ToolViewOptions): ToolView {
     if (!wasOpen) onToggle();
     // xterm measures its container, so it is opened once the section is visible.
     if (!opened) {
-      term.open(holder);
+      terminal.open(holder);
       opened = true;
     }
     term.reset();

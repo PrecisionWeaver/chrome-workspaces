@@ -20,7 +20,7 @@ const send = (message: ClientMessage) => link?.send(message);
 
 const terminal = createSessionTerminal(send);
 const { term } = terminal;
-term.open(terminalEl);
+terminal.open(terminalEl);
 term.attachCustomKeyEventHandler((event) => shiftEnterNewline(event, send));
 followAppearance((theme) => {
   term.options.theme = terminalTheme(theme);

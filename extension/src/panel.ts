@@ -44,7 +44,7 @@ const terminal = createSessionTerminal((message) => session.send(message));
 const { term } = terminal;
 const search = new SearchAddon();
 term.loadAddon(search);
-term.open(terminalEl);
+terminal.open(terminalEl);
 const finder = createTerminalSearch(search, () => term.focus());
 const session = createSessionAttachment({ terminal, terminalEl, windowId: () => state.windowId, showNotice: notices.show });
 
