@@ -166,6 +166,11 @@ describe('createSessionTerminal', () => {
 });
 
 describe('the renderer and character widths', () => {
+  it('allows proposed API, which the Unicode addon needs and xterm throws without', () => {
+    createSessionTerminal(send);
+    expect(term().options).toMatchObject({ allowProposedApi: true });
+  });
+
   it('measures emoji and CJK with Unicode 11 widths', () => {
     createSessionTerminal(send);
     expect(term().addons.some((addon) => addon instanceof FakeUnicode11)).toBe(true);

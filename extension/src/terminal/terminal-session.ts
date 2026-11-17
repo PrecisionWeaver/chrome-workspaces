@@ -21,7 +21,14 @@ export interface SessionTerminal {
  * sent to `send` as input. A side panel cannot window.open, so links go to a tab of their own.
  */
 export function createSessionTerminal(send: (message: ClientMessage) => void): SessionTerminal {
-  const term = new Terminal({ fontFamily: 'Menlo, monospace', fontSize: 12, cursorBlink: true, theme: { background: '#1e1e1e' } });
+  // allowProposedApi: the Unicode 11 addon reads term.unicode, which xterm treats as proposed API and throws on otherwise.
+  const term = new Terminal({
+    fontFamily: 'Menlo, monospace',
+    fontSize: 12,
+    cursorBlink: true,
+    allowProposedApi: true,
+    theme: { background: '#1e1e1e' },
+  });
   const fit = new FitAddon();
   term.loadAddon(fit);
   term.loadAddon(new WebLinksAddon((_event, uri) => void chrome.tabs.create({ url: uri })));
