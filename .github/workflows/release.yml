@@ -9,6 +9,9 @@ on:
 
 permissions:
   contents: write
+  # For the build provenance attestation on the zip.
+  id-token: write
+  attestations: write
 
 jobs:
   release:
@@ -40,6 +43,11 @@ jobs:
       - name: Package the extension
         if: steps.version.outputs.exists != 'true'
         run: (cd extension/dist && zip -qr "../../chrome-workspaces-extension-${{ steps.version.outputs.tag }}.zip" .)
+      - name: Attest the zip
+        if: steps.version.outputs.exists != 'true'
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: chrome-workspaces-extension-${{ steps.version.outputs.tag }}.zip
       - name: Publish
         if: steps.version.outputs.exists != 'true'
         env:
