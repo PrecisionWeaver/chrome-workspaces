@@ -155,4 +155,88 @@ describe('HTTP API', () => {
     expect((await call('/workspaces', { method: 'POST', body: { pr: 'https://github.com/o/r/issues/1' } })).status).toBe(400);
     expect((await call('/workspaces', { method: 'POST', body: { name: 'x', prompt: 'x'.repeat(8001) } })).status).toBe(400);
   });
+
+  it('reads one workspace with its status and what it waits on', async () => {
+    const ws1 = h.store.create({ name: 'a', cwd: h.defaultCwd });
+    expect(await (await call(`/workspaces/${ws1.id}`)).json()).toMatchObject({ workspace: { id: ws1.id, name: 'a' }, status: null, waiting: null });
+
+    h.statuses[ws1.id] = 'needs_input';
+    h.waiting[ws1.id] = { type: 'permission_prompt', message: 'Claude needs your permission to use Bash' };
+    expect(await (await call(`/workspaces/${ws1.id}`)).json()).toMatchObject({ status: 'needs_input', waiting: { type: 'permission_prompt' } });
+    expect((await call('/workspaces/ws-00000000')).status).toBe(404);
+  });
+
+  it('waits until claude stops for the person, through a workspace with no status and one that is working', async () => {
+    const ws1 = h.store.create({ name: 'a', cwd: h.defaultCwd });
+    const pending = call(`/workspaces/${ws1.id}/wait`).then((res) => res.json());
+    let answered = false;
+    void pending.then(() => {
+      answered = true;
+    });
+    h.statuses[ws1.id] = 'working';
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(answered).toBe(false);
+
+    h.statuses[ws1.id] = 'idle';
+    expect(await pending).toEqual({ status: 'idle', waiting: null, timedOut: false });
+  });
+
+  it('answers a wait at once for a workspace already waiting, and says when it timed out', async () => {
+    const ws1 = h.store.create({ name: 'a', cwd: h.defaultCwd });
+    h.statuses[ws1.id] = 'working';
+    expect(await (await call(`/workspaces/${ws1.id}/wait?timeout=0.05`)).json()).toEqual({ status: 'working', waiting: null, timedOut: true });
+
+    h.statuses[ws1.id] = 'needs_input';
+    h.waiting[ws1.id] = { type: 'elicitation_dialog', message: 'Which one?' };
+    expect(await (await call(`/workspaces/${ws1.id}/wait`)).json()).toEqual({
+      status: 'needs_input',
+      waiting: { type: 'elicitation_dialog', message: 'Which one?' },
+      timedOut: false,
+    });
+  });
+
+  it('rejects a wait on an unknown workspace or with a bad timeout, and ends one whose workspace is archived', async () => {
+    expect((await call('/workspaces/ws-00000000/wait')).status).toBe(404);
+    const ws1 = h.store.create({ name: 'a', cwd: h.defaultCwd });
+    expect((await call(`/workspaces/${ws1.id}/wait?timeout=soon`)).status).toBe(400);
+    expect((await call(`/workspaces/${ws1.id}/wait?timeout=99999`)).status).toBe(400);
+
+    const pending = call(`/workspaces/${ws1.id}/wait`);
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    h.control.remove(ws1.id);
+    expect((await pending).status).toBe(404);
+  });
+
+  it('stops waiting for a caller that gave up', async () => {
+    const ws1 = h.store.create({ name: 'a', cwd: h.defaultCwd });
+    const abort = new AbortController();
+    const pending = fetch(h.url(`/workspaces/${ws1.id}/wait`), { headers: { authorization: `Bearer ${TOKEN}` }, signal: abort.signal });
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    abort.abort();
+    await expect(pending).rejects.toThrow();
+    // The helper is still answering, and the abandoned wait holds nothing open when the harness closes.
+    expect((await call(`/workspaces/${ws1.id}`)).status).toBe(200);
+  });
+
+  it('lists archived workspaces and restores one with its conversation, pin and color', async () => {
+    const ws1 = h.store.create({ name: 'a', ticket: 'PROJ-9', cwd: h.defaultCwd });
+    h.store.mark(ws1.id, { pinned: true, color: 'blue' });
+    h.resumeIds[ws1.id] = '11111111-2222-3333-4444-555555555555';
+    await call(`/workspaces/${ws1.id}`, { method: 'DELETE' });
+
+    const { entries } = (await (await call('/archived')).json()) as { entries: { id: string; name: string }[] };
+    expect(entries.map((entry) => entry.name)).toEqual(['a']);
+
+    const { ws, messages } = connectControl(h);
+    await opened(ws);
+    const res = await call(`/archived/${entries[0].id}/restore`, { method: 'POST' });
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as { workspace: { id: string }; delivered: boolean };
+    expect(body).toMatchObject({ delivered: true, workspace: { name: 'a', ticket: 'PROJ-9', pinned: true, color: 'blue', resume: h.resumeIds[ws1.id] } });
+    await waitFor(() => messages.some((m) => m.type === 'open' && m.id === body.workspace.id));
+    expect(h.history.list()).toEqual([]);
+    ws.close();
+
+    expect((await call(`/archived/${entries[0].id}/restore`, { method: 'POST' })).status).toBe(404);
+  });
 });

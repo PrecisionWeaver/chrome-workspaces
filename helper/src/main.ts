@@ -3,7 +3,7 @@ import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { PLAN_USAGE_FILE } from '../../shared/usage/plan-usage';
-import type { WaitingOn, WorkspaceStatus } from '../../shared/protocol/protocol';
+import type { WaitingOn, WorkspaceStatus } from '../../shared/protocol/workspace';
 import { SAMPLE_INTERVAL_MS } from './store/resource-history';
 import { activityFile, readActivity } from './claude/activity';
 import { createAdmin } from './admin/admin';
@@ -208,7 +208,7 @@ const server = await startServer({
   sessions,
   control,
   uploadDir: join(DATA_DIR, 'uploads'),
-  api: createApi({ auth, store, control, sessions, defaultCwd: config.defaultCwd, statuses, reviews, repoDirs: config.repoDirs, git }),
+  api: createApi({ auth, store, control, sessions, defaultCwd: config.defaultCwd, statuses, waiting, history, reviews, repoDirs: config.repoDirs, git }),
   onUnknownSession: (id) =>
     startSession(id, {
       shell,

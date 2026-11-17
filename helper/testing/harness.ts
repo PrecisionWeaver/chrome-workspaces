@@ -4,17 +4,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import WebSocket from 'ws';
 import { git as runGit } from './git';
-import {
-  PROTOCOL,
-  TOKEN_PROTOCOL_PREFIX,
-  type ControlToClient,
-  type PastSession,
-  type Prompt,
-  type Repo,
-  type ReviewRequest,
-  type WaitingOn,
-  type WorkspaceStatus,
-} from '../../shared/protocol/protocol';
+import { PROTOCOL, TOKEN_PROTOCOL_PREFIX, type ControlToClient } from '../../shared/protocol/protocol';
+import type { PastSession, Prompt, Repo, WaitingOn, WorkspaceStatus } from '../../shared/protocol/workspace';
+import type { ReviewRequest } from '../../shared/protocol/pull-requests';
 import { createApi } from '../src/transport/api';
 import { readActivity } from '../src/claude/activity';
 import { type AdminService, createAdmin } from '../src/admin/admin';
@@ -38,6 +30,8 @@ export interface Harness {
   history: HistoryStore;
   defaultCwd: string;
   statuses: Record<string, WorkspaceStatus>;
+  /** What each waiting workspace waits on, by id. */
+  waiting: Record<string, WaitingOn>;
   /** What the fake review poller reports; tests push into it. */
   reviews: ReviewRequest[];
   reviewRefreshes: number;
@@ -224,7 +218,7 @@ export async function startHarness(): Promise<Harness> {
     auth,
     sessions,
     control,
-    api: createApi({ auth, store, control, sessions, defaultCwd, statuses, reviews, repoDirs: fakes.repoDirs, git }),
+    api: createApi({ auth, store, control, sessions, defaultCwd, statuses, waiting, history, waitPollMs: 10, reviews, repoDirs: fakes.repoDirs, git }),
   });
   return Object.assign(fakes, {
     server,

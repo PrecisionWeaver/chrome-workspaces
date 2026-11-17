@@ -10,20 +10,27 @@ export interface CreateBody {
 }
 
 export type Command =
-  | { command: 'list' }
+  | { command: 'list' | 'archived' }
   | { command: 'new'; body: CreateBody }
-  | { command: 'focus' | 'rm'; ref: string }
+  | { command: 'focus' | 'rm' | 'status' | 'restore'; ref: string }
+  | { command: 'wait'; ref: string; timeoutSeconds: number }
   | { command: 'send'; ref: string; text: string }
   | { error: string };
+
+export const DEFAULT_WAIT_SECONDS = 600;
 
 export const usage = [
   'Usage: cw <command>',
   '  list                                   every workspace and its status',
+  '  status <workspace>                     its status, and what it is waiting on',
+  '  wait <workspace> [--timeout SECONDS]   block until claude waits on you or finishes its turn (default 600)',
   '  new <name> [--cwd DIR] [--url URL] [--prompt TEXT] [--worktree BRANCH]',
   '  new --pr URL [--prompt TEXT]           a workspace for a pull request',
   '  focus <workspace>                      switch Chrome to it',
   '  send <workspace> <text...>             paste text into its terminal (not submitted)',
-  '  rm <workspace>                         end its session and remove it',
+  '  rm <workspace>                         end its session and archive it',
+  '  archived                               every archived workspace',
+  '  restore <archived workspace>           bring one back, resuming its conversation',
   'A workspace is its id, ticket or name.',
 ].join('\n');
 
@@ -35,7 +42,8 @@ export function parseCommand(argv: readonly string[]): Command {
     case undefined:
       return { error: usage };
     case 'list':
-      return { command: 'list' };
+    case 'archived':
+      return { command };
     case 'new': {
       const body: CreateBody = {};
       for (let i = 0; i < rest.length; i++) {
@@ -54,8 +62,20 @@ export function parseCommand(argv: readonly string[]): Command {
     }
     case 'focus':
     case 'rm':
+    case 'status':
+    case 'restore':
       if (!rest[0]) return { error: `${command} needs a workspace: its id, name or ticket.` };
       return { command, ref: rest[0] };
+    case 'wait': {
+      const [ref, flag, value, extra] = rest;
+      if (!ref || ref.startsWith('--')) return { error: 'wait needs a workspace: its id, name or ticket.' };
+      if (flag === undefined) return { command, ref, timeoutSeconds: DEFAULT_WAIT_SECONDS };
+      if (flag !== '--timeout') return { error: flag.startsWith('--') ? `Unknown option "${flag}".` : `Unexpected argument "${flag}".` };
+      const timeoutSeconds = Number(value);
+      if (value === undefined || !Number.isFinite(timeoutSeconds) || timeoutSeconds < 0) return { error: '--timeout needs a number of seconds.' };
+      if (extra !== undefined) return { error: `Unexpected argument "${extra}".` };
+      return { command, ref, timeoutSeconds };
+    }
     case 'send': {
       if (!rest[0]) return { error: 'send needs a workspace: its id, name or ticket.' };
       const text = rest.slice(1).join(' ');
