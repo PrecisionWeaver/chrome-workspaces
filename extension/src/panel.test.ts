@@ -11,6 +11,7 @@ isolateDocumentListeners();
 /** xterm needs a real browser; a recording stand-in takes its place. */
 const terms: FakeTerminal[] = [];
 class FakeTerminal {
+  unicode = { activeVersion: '6' };
   cols = 80;
   rows = 24;
   options: { theme?: { background?: string } } = {};
@@ -44,6 +45,13 @@ class FakeTerminal {
   }
 }
 vi.mock('@xterm/xterm', () => ({ Terminal: FakeTerminal }));
+vi.mock('@xterm/addon-unicode11', () => ({ Unicode11Addon: class {} }));
+vi.mock('@xterm/addon-webgl', () => ({
+  WebglAddon: class {
+    onContextLoss() {}
+    dispose() {}
+  },
+}));
 /** Link clicks and searches go to stand-ins that record what they were asked. */
 const linkHandlers: ((event: MouseEvent, uri: string) => void)[] = [];
 vi.mock('@xterm/addon-web-links', () => ({

@@ -7,6 +7,8 @@ import type { SessionHandlers } from './terminal-session';
 /** xterm needs a real browser, so a recording stand-in takes its place; what matters here is how the module drives it. */
 const terms: FakeTerminal[] = [];
 class FakeTerminal {
+  unicode = { activeVersion: '6' };
+  opened: unknown = null;
   cols = 80;
   rows = 24;
   written: string[] = [];
@@ -19,6 +21,9 @@ class FakeTerminal {
   loadAddon(addon: unknown) {
     this.addons.push(addon);
   }
+  open(parent: unknown) {
+    this.opened = parent;
+  }
   onData(listener: (data: string) => void) {
     this.onDataListener = listener;
   }
@@ -29,6 +34,23 @@ class FakeTerminal {
   }
 }
 const fits = vi.fn();
+class FakeWebgl {
+  static fail = false;
+  contextLoss: (() => void) | null = null;
+  disposed = false;
+  constructor() {
+    if (FakeWebgl.fail) throw new Error('no WebGL');
+  }
+  onContextLoss(listener: () => void) {
+    this.contextLoss = listener;
+  }
+  dispose() {
+    this.disposed = true;
+  }
+}
+class FakeUnicode11 {}
+vi.mock('@xterm/addon-webgl', () => ({ WebglAddon: FakeWebgl }));
+vi.mock('@xterm/addon-unicode11', () => ({ Unicode11Addon: FakeUnicode11 }));
 let linkHandler: ((event: unknown, uri: string) => void) | null = null;
 vi.mock('@xterm/xterm', () => ({ Terminal: FakeTerminal }));
 vi.mock('@xterm/addon-web-links', () => ({
@@ -92,6 +114,7 @@ beforeEach(() => {
   fits.mockClear();
   linkHandler = null;
   helperResult = 'ok';
+  FakeWebgl.fail = false;
   sent = [];
 });
 afterEach(() => {
@@ -135,10 +158,41 @@ describe('createSessionTerminal', () => {
 
   it('opens a link clicked in the terminal in a tab of its own, since a side panel cannot open windows', async () => {
     createSessionTerminal(send);
-    expect(term().addons).toHaveLength(2);
+    expect(term().addons).toHaveLength(3);
     linkHandler!({}, 'https://example.com/docs');
     await flush();
     expect(fake.mock.tabs.create).toHaveBeenCalledWith({ url: 'https://example.com/docs' });
+  });
+});
+
+describe('the renderer and character widths', () => {
+  it('measures emoji and CJK with Unicode 11 widths', () => {
+    createSessionTerminal(send);
+    expect(term().addons.some((addon) => addon instanceof FakeUnicode11)).toBe(true);
+    expect(term().unicode.activeVersion).toBe('11');
+  });
+
+  it('opens the terminal and only then switches to the WebGL renderer', () => {
+    const terminal = createSessionTerminal(send);
+    expect(term().addons.some((addon) => addon instanceof FakeWebgl)).toBe(false);
+    const parent = document.createElement('div');
+    terminal.open(parent);
+    expect(term().opened).toBe(parent);
+    expect(term().addons.some((addon) => addon instanceof FakeWebgl)).toBe(true);
+  });
+
+  it('falls back to the DOM renderer when WebGL is unavailable', () => {
+    FakeWebgl.fail = true;
+    const terminal = createSessionTerminal(send);
+    expect(() => terminal.open(document.createElement('div'))).not.toThrow();
+    expect(term().addons.some((addon) => addon instanceof FakeWebgl)).toBe(false);
+  });
+
+  it('drops the WebGL renderer when its context is lost', () => {
+    createSessionTerminal(send).open(document.createElement('div'));
+    const webgl = term().addons.find((addon) => addon instanceof FakeWebgl) as FakeWebgl;
+    webgl.contextLoss!();
+    expect(webgl.disposed).toBe(true);
   });
 });
 
