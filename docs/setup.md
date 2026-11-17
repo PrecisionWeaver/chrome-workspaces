@@ -20,6 +20,7 @@ npm run install-app -- --default-cwd ~/code --repo-root ~/code
 `setup` writes `~/.chrome-workspaces/`, Chrome's native-host manifest, and a LaunchAgent. It keeps whatever is already in your config.
 
 In Chrome:
+
 1. `chrome://settings/appearance` → side panel position → **Left**.
 2. `chrome://extensions` → Developer mode → **Load unpacked** → `extension/dist`.
 3. Optional: `chrome://extensions/shortcuts` → bind _Open the workspace panel_.
