@@ -2,7 +2,7 @@ import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, r
 import { tailLines } from './tail';
 import { dirname, join } from 'node:path';
 import { parseActivityLine } from '../../../shared/sessions/activity';
-import type { PastSession, WaitingOn, WorkspaceStatus } from '../../../shared/protocol/protocol';
+import type { PastSession, WaitingOn, WorkspaceStatus } from '../../../shared/protocol/workspace';
 import type { SessionFile } from '../../../shared/protocol/session-file';
 import { hasRunningSubagent } from './activity';
 import { StatCache } from './stat-cache';

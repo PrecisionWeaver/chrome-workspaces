@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
-import type { ControlToHelper, HistoryEntry, WaitingOn, Workspace, WorkspaceStatus } from '../../../shared/protocol/protocol';
+import type { ControlToHelper } from '../../../shared/protocol/protocol';
+import type { HistoryEntry, WaitingOn, Workspace, WorkspaceStatus } from '../../../shared/protocol/workspace';
 import { installChrome } from '../../testing/chrome-mock';
 import { isolateDocumentListeners, loadPanelHtml, makeHistoryEntry, makeWorkspace } from '../../testing/fixtures';
 import { createWorkspaceList, type WorkspaceList, type WorkspaceListOptions } from './workspace-list';

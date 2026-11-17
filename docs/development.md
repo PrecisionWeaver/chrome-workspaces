@@ -25,7 +25,7 @@ Run `format`, `check`, `typecheck`, `test:coverage` and `build:extension` before
 
 ## Conventions
 
-- Add or change a message in `shared/protocol/protocol.ts` first; both sides then type-check against it. Validate incoming control messages in `helper/src/control/messages.ts` (`isControlToHelper`, `isAdminAction`).
+- Add or change a message in `shared/protocol/protocol.ts` first (the data it carries goes in the file beside it for its domain: `workspace.ts`, `system.ts`, `git.ts`, `pull-requests.ts`); both sides then type-check against it. Validate incoming control messages in `helper/src/control/messages.ts` (`isControlToHelper`, `isAdminAction`); `messages.test.ts` holds one valid sample of every message, typed so that a new one does not compile until it has a sample, and fails until the validator accepts it.
 - Folders group code by purpose (the table in [architecture.md](architecture.md)). A new module goes in the folder for what it is for; in `shared/`, pick the bucket it belongs to and use `lib/` only for code with no domain of its own. No `index.ts` barrels: import the file.
 - Every module has its test beside it, `foo.ts` and `foo.test.ts`. Put pure logic in `shared/` or a small module with its own test, not inside `panel.ts` or `control/hub.ts`. Helpers that tests share go in `helper/testing/` or `extension/testing/`, never beside source.
 - Helper tests use real temp git repos and the `helper/testing/harness.ts` / `wait-for.ts` utilities; prefer those to mocks.

@@ -1,9 +1,12 @@
 import { fillPrompt } from '../../../shared/workspaces/prompts';
-import { MAX_TAB_URLS, MODEL_ALIASES, WORKSPACE_COLORS } from '../../../shared/protocol/protocol';
+import { MAX_TAB_URLS, MODEL_ALIASES } from '../../../shared/protocol/protocol';
+import { WORKSPACE_COLORS } from '../../../shared/protocol/workspace';
 import { parseTabUrls } from '../../../shared/workspaces/tab-urls';
 import { isBranchName, slugBranch } from '../../../shared/workspaces/branch-name';
 import type { Template } from '../../../shared/workspaces/templates';
-import type { ControlToClient, ControlToHelper, PrDetails, Prompt, Repo, ReviewRequest, Workspace, WorkspaceColor } from '../../../shared/protocol/protocol';
+import type { ControlToClient, ControlToHelper } from '../../../shared/protocol/protocol';
+import type { Prompt, Repo, Workspace, WorkspaceColor } from '../../../shared/protocol/workspace';
+import type { PrDetails, ReviewRequest } from '../../../shared/protocol/pull-requests';
 import { $, el, icon, wireBack } from '../ui/dom';
 import { ref, renderDetails, renderThreads, repoName } from '../source-control/pr-view';
 import { findTab, noteReviewTab, openInWorkspace } from '../background/tabs';

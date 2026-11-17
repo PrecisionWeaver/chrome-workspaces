@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ControlToHelper, Workspace } from '../../../shared/protocol/protocol';
+import type { ControlToHelper } from '../../../shared/protocol/protocol';
+import type { Workspace } from '../../../shared/protocol/workspace';
 import { noteReviewTab } from './tabs';
 import { createGroup, openWindow, recordSharedSize, showOnly, switchTo } from './windows';
 import { installChrome } from '../../testing/chrome-mock';

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { matchGroups, matchWindows } from './pairing';
-import type { Workspace } from '../protocol/protocol';
+import type { Workspace } from '../protocol/workspace';
 
 function ws(id: string, lastTabUrls: string[], windowId: number | null = null): Workspace {
   return {

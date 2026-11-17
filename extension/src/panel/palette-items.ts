@@ -1,4 +1,6 @@
-import type { ControlToHelper, ReviewRequest, Workspace } from '../../../shared/protocol/protocol';
+import type { ControlToHelper } from '../../../shared/protocol/protocol';
+import type { Workspace } from '../../../shared/protocol/workspace';
+import type { ReviewRequest } from '../../../shared/protocol/pull-requests';
 import { ticketUrl } from '../../../shared/lib/jira';
 import { statusLabel } from '../../../shared/workspaces/attention';
 import type { ActivitySection } from '../activity/activity-section';

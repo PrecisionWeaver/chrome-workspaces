@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
-import type { GitBranch, GitCommit, GitCommitFile, GitCompare, GitFile, GitState } from '../../../shared/protocol/protocol';
+import type { GitBranch, GitCommit, GitCommitFile, GitCompare, GitFile, GitState } from '../../../shared/protocol/git';
 import { errorMessage } from '../../../shared/protocol/errors';
 
 const execFileAsync = promisify(execFile);

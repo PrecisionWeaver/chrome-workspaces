@@ -1,4 +1,4 @@
-import type { Workspace } from '../../../shared/protocol/protocol';
+import type { Workspace } from '../../../shared/protocol/workspace';
 
 /**
  * Swaps a workspace's name for a box to rename it in. Enter or leaving the box saves (a blank or unchanged name

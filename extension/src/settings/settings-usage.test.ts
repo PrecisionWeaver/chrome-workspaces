@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, expect, it, vi } from 'vitest';
-import type { SystemSnapshot, UsageDay } from '../../../shared/protocol/protocol';
+import type { SystemSnapshot, UsageDay } from '../../../shared/protocol/system';
 import { makeSnapshot, makeUsageDay, makeUsageHours } from '../../testing/fixtures';
 import { planCard, usageCard } from './settings-usage';
 

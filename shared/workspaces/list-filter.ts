@@ -1,5 +1,5 @@
 import { waitingKind } from './attention';
-import type { WaitingOn, Workspace, WorkspaceStatus } from '../protocol/protocol';
+import type { WaitingOn, Workspace, WorkspaceStatus } from '../protocol/workspace';
 
 const STATUS_WORDS: Record<NonNullable<WorkspaceStatus>, string> = {
   needs_input: 'waiting needs input',

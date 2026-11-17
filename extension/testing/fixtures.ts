@@ -1,7 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach } from 'vitest';
 import { resolve } from 'node:path';
-import type { HistoryEntry, PrDetails, ReviewRequest, SystemSession, SystemSnapshot, UsageDay, UsageHour, Workspace } from '../../shared/protocol/protocol';
+import type { HistoryEntry, Workspace } from '../../shared/protocol/workspace';
+import type { SystemSession, SystemSnapshot, UsageDay, UsageHour } from '../../shared/protocol/system';
+import type { PrDetails, ReviewRequest } from '../../shared/protocol/pull-requests';
 
 /** A workspace with everything unset; tests override what they care about. */
 export function makeWorkspace(overrides: Partial<Workspace> = {}): Workspace {

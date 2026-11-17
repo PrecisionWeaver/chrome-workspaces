@@ -1,4 +1,4 @@
-import type { SystemSession } from '../protocol/protocol';
+import type { SystemSession } from '../protocol/system';
 
 export interface Limits {
   /** A workspace whose processes together hold more than this is flagged. */

@@ -1,4 +1,4 @@
-import type { SystemSnapshot } from '../../../shared/protocol/protocol';
+import type { SystemSnapshot } from '../../../shared/protocol/system';
 import { hitLabel, planPace, resetLabel } from '../../../shared/usage/plan-usage';
 import { formatUsd } from '../../../shared/usage/pricing';
 import {

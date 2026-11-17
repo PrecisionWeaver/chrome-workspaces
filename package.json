@@ -4,6 +4,9 @@
   "private": true,
   "license": "MIT",
   "type": "module",
+  "bin": {
+    "cw": "bin/cw.mjs"
+  },
   "engines": {
     "node": ">=24"
   },

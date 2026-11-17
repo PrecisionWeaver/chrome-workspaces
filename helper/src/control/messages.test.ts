@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_PROMPT_LENGTH, MAX_TAB_URLS } from '../../../shared/protocol/protocol';
+import { type AdminAction, type ClientMessage, type ControlToHelper, MAX_PROMPT_LENGTH, MAX_TAB_URLS } from '../../../shared/protocol/protocol';
 import { isClientMessage, isControlToHelper } from './messages';
 
 const ok = (message: unknown) => expect(isControlToHelper(message)).toBe(true);
@@ -146,4 +146,89 @@ describe('isControlToHelper', () => {
       ok({ type });
     }
   });
+});
+
+// One valid message of every kind. The mapped types make a kind added to the protocol a type error here until it has
+// a sample, and the tests below fail until the validator accepts it, so the two cannot drift apart unnoticed.
+const WS = 'ws-0123abcd';
+const PR = 'https://github.com/acme/app/pull/7';
+
+const CLIENT_SAMPLES: { [T in ClientMessage['type']]: Extract<ClientMessage, { type: T }> } = {
+  input: { type: 'input', data: 'ls\r' },
+  resize: { type: 'resize', cols: 80, rows: 24 },
+  file: { type: 'file', name: 'a.png', data: 'AAAA' },
+};
+
+const ADMIN_SAMPLES: { [A in AdminAction['action']]: AdminAction & { action: A } } = {
+  restartSession: { action: 'restartSession', id: WS },
+  killProcess: { action: 'killProcess', id: WS, pid: 4321, force: true },
+  applyUpdate: { action: 'applyUpdate' },
+  restartHelper: { action: 'restartHelper' },
+  stopHelper: { action: 'stopHelper' },
+  clearUploads: { action: 'clearUploads' },
+  clearLog: { action: 'clearLog' },
+  pruneWorktrees: { action: 'pruneWorktrees' },
+  checkGh: { action: 'checkGh' },
+};
+
+const CONTROL_SAMPLES: { [T in ControlToHelper['type']]: Extract<ControlToHelper, { type: T }> } = {
+  pair: { type: 'pair', id: WS, windowId: 1, groupId: 2 },
+  unpair: { type: 'unpair', windowId: 1 },
+  unpairGroup: { type: 'unpairGroup', groupId: 2 },
+  tabs: { type: 'tabs', windowId: 1, urls: ['https://a.example/'], groupId: 2 },
+  create: {
+    type: 'create',
+    name: 'PROJ-123',
+    windowId: null,
+    pr: PR,
+    prompt: 'go',
+    cwd: '/Users/me/code/app',
+    model: 'opus',
+    color: 'blue',
+    group: true,
+    urls: ['https://a.example/'],
+    worktree: 'PROJ-123',
+  },
+  remove: { type: 'remove', id: WS, closeTabs: true },
+  rename: { type: 'rename', id: WS, name: 'renamed' },
+  mark: { type: 'mark', id: WS, pinned: true, color: null },
+  move: { type: 'move', id: WS, index: 0 },
+  order: { type: 'order', ids: [WS] },
+  restore: { type: 'restore', historyId: 'h-0123abcd', windowId: null },
+  forget: { type: 'forget', historyId: 'h-0123abcd' },
+  forgetAll: { type: 'forgetAll' },
+  sendText: { type: 'sendText', id: WS, text: 'hello' },
+  listSessions: { type: 'listSessions', id: WS },
+  resumeSession: { type: 'resumeSession', id: WS, sessionId: '11111111-2222-3333-4444-555555555555' },
+  listPrompts: { type: 'listPrompts' },
+  listTemplates: { type: 'listTemplates' },
+  listRepos: { type: 'listRepos' },
+  system: { type: 'system' },
+  admin: { type: 'admin', request: { action: 'checkGh' } },
+  systemLog: { type: 'systemLog' },
+  checkUpdates: { type: 'checkUpdates' },
+  timeline: { type: 'timeline', id: WS },
+  activity: { type: 'activity', id: null },
+  exportData: { type: 'exportData' },
+  git: { type: 'git', id: WS },
+  gitCommit: { type: 'gitCommit', id: WS, sha: 'abc1234' },
+  gitDiff: { type: 'gitDiff', id: WS, path: 'a.txt', sha: 'abc1234', base: false },
+  gitStage: { type: 'gitStage', id: WS, paths: ['a.txt'], stage: true },
+  gitDiscard: { type: 'gitDiscard', id: WS, paths: ['a.txt'] },
+  gitSave: { type: 'gitSave', id: WS, message: 'fix' },
+  gitBranches: { type: 'gitBranches', id: WS },
+  gitChecks: { type: 'gitChecks', id: WS },
+  gitSwitch: { type: 'gitSwitch', id: WS, branch: 'main' },
+  gitPush: { type: 'gitPush', id: WS },
+  gitCreatePr: { type: 'gitCreatePr', id: WS },
+  gitCompare: { type: 'gitCompare', id: WS },
+  refreshReviews: { type: 'refreshReviews' },
+  prDetails: { type: 'prDetails', url: PR },
+  prThreads: { type: 'prThreads', url: PR },
+};
+
+describe('every message in the protocol has a validator', () => {
+  it.each(Object.values(CLIENT_SAMPLES))('accepts a terminal $type', (message) => expect(isClientMessage(message)).toBe(true));
+  it.each(Object.values(CONTROL_SAMPLES))('accepts a control $type', ok);
+  it.each(Object.values(ADMIN_SAMPLES))('accepts the admin action $action', (request) => ok({ type: 'admin', request }));
 });

@@ -17,6 +17,26 @@ describe('parseCommand', () => {
     expect(parseCommand(['rm', 'ws-0123abcd'])).toEqual({ command: 'rm', ref: 'ws-0123abcd' });
   });
 
+  it('reads status, wait, archived and restore', () => {
+    expect(parseCommand(['status', 'PROJ-1'])).toEqual({ command: 'status', ref: 'PROJ-1' });
+    expect(parseCommand(['archived'])).toEqual({ command: 'archived' });
+    expect(parseCommand(['restore', 'PROJ-1'])).toEqual({ command: 'restore', ref: 'PROJ-1' });
+    expect(parseCommand(['wait', 'PROJ-1'])).toEqual({ command: 'wait', ref: 'PROJ-1', timeoutSeconds: 600 });
+    expect(parseCommand(['wait', 'PROJ-1', '--timeout', '30'])).toEqual({ command: 'wait', ref: 'PROJ-1', timeoutSeconds: 30 });
+  });
+
+  it('says what is wrong with a wait it cannot read', () => {
+    expect(parseCommand(['wait'])).toEqual({ error: 'wait needs a workspace: its id, name or ticket.' });
+    expect(parseCommand(['wait', '--timeout', '30'])).toEqual({ error: 'wait needs a workspace: its id, name or ticket.' });
+    expect(parseCommand(['wait', 'PROJ-1', '--forever'])).toEqual({ error: 'Unknown option "--forever".' });
+    expect(parseCommand(['wait', 'PROJ-1', 'PROJ-2'])).toEqual({ error: 'Unexpected argument "PROJ-2".' });
+    expect(parseCommand(['wait', 'PROJ-1', '--timeout'])).toEqual({ error: '--timeout needs a number of seconds.' });
+    expect(parseCommand(['wait', 'PROJ-1', '--timeout', 'soon'])).toEqual({ error: '--timeout needs a number of seconds.' });
+    expect(parseCommand(['wait', 'PROJ-1', '--timeout', '-1'])).toEqual({ error: '--timeout needs a number of seconds.' });
+    expect(parseCommand(['wait', 'PROJ-1', '--timeout', '30', 'more'])).toEqual({ error: 'Unexpected argument "more".' });
+    expect(parseCommand(['restore'])).toEqual({ error: 'restore needs a workspace: its id, name or ticket.' });
+  });
+
   it('says what is wrong with a command it cannot read', () => {
     expect(parseCommand([])).toEqual({ error: usage });
     expect(parseCommand(['dance'])).toEqual({ error: `Unknown command "dance".\n${usage}` });

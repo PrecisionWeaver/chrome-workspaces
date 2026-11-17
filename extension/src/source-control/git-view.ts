@@ -1,14 +1,7 @@
-import type {
-  BranchPr,
-  ControlToClient,
-  ControlToHelper,
-  GitBranch,
-  GitState,
-  PrDetails,
-  WaitingOn,
-  Workspace,
-  WorkspaceStatus,
-} from '../../../shared/protocol/protocol';
+import type { ControlToClient, ControlToHelper } from '../../../shared/protocol/protocol';
+import type { WaitingOn, Workspace, WorkspaceStatus } from '../../../shared/protocol/workspace';
+import type { BranchPr, GitBranch, GitState } from '../../../shared/protocol/git';
+import type { PrDetails } from '../../../shared/protocol/pull-requests';
 import { $, type Arming, createArming, el, wireBack } from '../ui/dom';
 import { collapsible } from '../ui/collapsible';
 import { commit, renderChanges, renderSave, stagedFiles } from './git-changes';

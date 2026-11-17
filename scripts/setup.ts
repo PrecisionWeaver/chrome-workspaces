@@ -1,10 +1,10 @@
 import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { NATIVE_HOST_NAME } from '../shared/protocol/protocol';
 import { AGENT_LABEL, DATA_DIR } from '../helper/src/platform/config';
 import { extensionIdFromManifest } from './extension-id';
 import { agentFile, hostManifest, hostWrapper as wrapper } from './install-paths';
+import { agentPlist, hostManifestJson, hostWrapperScript, mergedConfig } from './setup-files';
 
 const repo = resolve(import.meta.dirname, '..');
 const extensionId = extensionIdFromManifest(join(repo, 'extension', 'manifest.json'));
@@ -25,60 +25,29 @@ mkdirSync(DATA_DIR, { recursive: true, mode: 0o700 });
 const configFile = join(DATA_DIR, 'config.json');
 const existing = existsSync(configFile) ? (JSON.parse(readFileSync(configFile, 'utf8')) as Record<string, unknown> & { defaultCwd?: string }) : {};
 const defaultCwd = requestedCwd ?? existing.defaultCwd ?? homedir();
-writeFileSync(configFile, `${JSON.stringify({ ...existing, extensionId, defaultCwd, ...(repoRoots.length ? { repoRoots } : {}) }, null, 2)}\n`);
+writeFileSync(configFile, mergedConfig(existing, { extensionId, defaultCwd, repoRoots }));
 
-// Chrome launches the host with an unknown cwd and a minimal PATH, so pin both.
 // A starter prompts note, only if there is none, so From prompt has something to pick on a fresh install.
 const promptsFile = join(DATA_DIR, 'prompts.md');
 if (!existsSync(promptsFile) && !('promptsFile' in existing)) copyFileSync(join(repo, 'prompts.example.md'), promptsFile);
 
-writeFileSync(wrapper, `#!/bin/sh\ncd "${repo}" && exec "${process.execPath}" --import tsx helper/src/native-host.ts\n`);
+writeFileSync(wrapper, hostWrapperScript(repo, process.execPath));
 chmodSync(wrapper, 0o755);
 
 mkdirSync(dirname(hostManifest), { recursive: true });
-writeFileSync(
-  hostManifest,
-  `${JSON.stringify(
-    {
-      name: NATIVE_HOST_NAME,
-      description: 'Chrome Workspaces token bridge',
-      path: wrapper,
-      type: 'stdio',
-      allowed_origins: [`chrome-extension://${extensionId}/`],
-    },
-    null,
-    2,
-  )}\n`,
-);
+writeFileSync(hostManifest, hostManifestJson(wrapper, extensionId));
 
-// launchd starts agents with almost no environment; shells need SHELL, and claude needs a UTF-8 locale.
-const xml = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-const programArguments = [process.execPath, '--import', 'tsx', 'helper/src/main.ts'];
 mkdirSync(dirname(agentFile), { recursive: true });
 writeFileSync(
   agentFile,
-  `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key><string>${AGENT_LABEL}</string>
-  <key>ProgramArguments</key>
-  <array>
-${programArguments.map((arg) => `    <string>${xml(arg)}</string>`).join('\n')}
-  </array>
-  <key>WorkingDirectory</key><string>${xml(repo)}</string>
-  <key>EnvironmentVariables</key>
-  <dict>
-    <key>SHELL</key><string>${xml(process.env.SHELL ?? '/bin/zsh')}</string>
-    <key>LANG</key><string>${xml(process.env.LANG ?? 'en_US.UTF-8')}</string>
-  </dict>
-  <key>RunAtLoad</key><true/>
-  <key>KeepAlive</key><true/>
-  <key>StandardOutPath</key><string>${xml(join(DATA_DIR, 'helper.log'))}</string>
-  <key>StandardErrorPath</key><string>${xml(join(DATA_DIR, 'helper.log'))}</string>
-</dict>
-</plist>
-`,
+  agentPlist({
+    label: AGENT_LABEL,
+    node: process.execPath,
+    repo,
+    shell: process.env.SHELL ?? '/bin/zsh',
+    lang: process.env.LANG ?? 'en_US.UTF-8',
+    logFile: join(DATA_DIR, 'helper.log'),
+  }),
 );
 
 console.log(`extension id: ${extensionId}`);

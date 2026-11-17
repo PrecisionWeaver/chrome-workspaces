@@ -1,4 +1,4 @@
-import type { CiState, MergeState, ReviewRequest } from '../../../shared/protocol/protocol';
+import type { CiState, MergeState, ReviewRequest } from '../../../shared/protocol/pull-requests';
 
 const BLOCKED_REASONS: Record<string, string> = {
   BLOCKED: 'Blocked',

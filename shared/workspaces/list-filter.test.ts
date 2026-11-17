@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Workspace } from '../protocol/protocol';
+import type { Workspace } from '../protocol/workspace';
 import { filterList, workspaceMatches } from './list-filter';
 
 const ws = (id: string, name: string, extra: Partial<Workspace> = {}): Workspace => ({

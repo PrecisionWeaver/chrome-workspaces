@@ -1,4 +1,4 @@
-import type { SystemSnapshot, TokenTotals } from '../../../shared/protocol/protocol';
+import type { SystemSnapshot, TokenTotals } from '../../../shared/protocol/system';
 
 export const formatBytes = (bytes: number): string =>
   bytes < 1024

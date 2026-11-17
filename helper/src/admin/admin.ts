@@ -1,5 +1,8 @@
 import { join } from 'node:path';
-import type { AdminAction, PlanUsage, ReviewsState, SystemSnapshot, UpdateStatus, WorkspaceStatus } from '../../../shared/protocol/protocol';
+import type { AdminAction } from '../../../shared/protocol/protocol';
+import type { WorkspaceStatus } from '../../../shared/protocol/workspace';
+import type { PlanUsage, SystemSnapshot, UpdateStatus } from '../../../shared/protocol/system';
+import type { ReviewsState } from '../../../shared/protocol/pull-requests';
 import { tailLines } from '../claude/tail';
 import { readTimeline } from '../claude/timeline';
 import { TranscriptTokens } from '../claude/tokens';

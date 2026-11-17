@@ -1,13 +1,13 @@
+import type { BranchPr } from '../../../shared/protocol/git';
 import {
   MAX_PR_BODY,
   PR_COMMITS_SHOWN,
   PR_FILES_SHOWN,
-  type BranchPr,
   type MergeableState,
   type PrDetails,
   type PrThread,
   type ReviewDecision,
-} from '../../../shared/protocol/protocol';
+} from '../../../shared/protocol/pull-requests';
 
 /** Runs with the PR url in `$CW_PR_URL`, so the url never becomes shell syntax. */
 export const GH_PR_DETAILS =

@@ -19,7 +19,7 @@ Opening a Jira ticket, a PR or a workspace's tabs is ordinary browsing in Chrome
 
 ## What it keeps
 
-Everything is under `~/.chrome-workspaces/`: the config, the workspace list, one small status file and one event log per Claude session (both pruned after a month), recently closed workspaces, terminal scrollback (in memory only, gone when the helper restarts), files you drop into a terminal (deleted after a week), and the helper's log. The panel's own preferences live in Chrome's extension storage. `npm run uninstall -- --purge` deletes the folder.
+Everything is under `~/.chrome-workspaces/`: the config, the workspace list, one small status file and one event log per Claude session (both pruned after a month), recently closed workspaces, terminal scrollback (in memory while the helper runs; when it stops, each running terminal's is written to `scrollback/`, readable only by you, and deleted again when that terminal is next opened or its workspace archived, or after a month), files you drop into a terminal (deleted after a week), and the helper's log. The panel's own preferences live in Chrome's extension storage. `npm run uninstall -- --purge` deletes the folder.
 
 ## Who can reach the helper
 

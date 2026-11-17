@@ -1,4 +1,4 @@
-import type { Workspace } from '../../../shared/protocol/protocol';
+import type { Workspace } from '../../../shared/protocol/workspace';
 import { showsPage } from '../../../shared/workspaces/tab-urls';
 
 /** The tab already showing `url` in a tab group, or among a window's tabs that belong to no group. */

@@ -1,4 +1,4 @@
-import type { ReviewRequest } from '../../../shared/protocol/protocol';
+import type { ReviewRequest } from '../../../shared/protocol/pull-requests';
 import { isDirectory } from '../platform/config';
 import type { NewWorkspace } from '../store/workspace-store';
 

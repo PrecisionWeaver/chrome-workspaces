@@ -1,4 +1,4 @@
-import { PR_COMMITS_SHOWN, PR_FILES_SHOWN, type PrDetails, type PrThread, type ReviewRequest } from '../../../shared/protocol/protocol';
+import { PR_COMMITS_SHOWN, PR_FILES_SHOWN, type PrDetails, type PrThread, type ReviewRequest } from '../../../shared/protocol/pull-requests';
 import { caret, el } from '../ui/dom';
 import { renderMarkdown } from '../ui/markdown-view';
 

@@ -1,4 +1,4 @@
-import type { Workspace } from '../protocol/protocol';
+import type { Workspace } from '../protocol/workspace';
 
 // Workspaces that have a tab group in a window are listed in the panel in the same relative order
 // as their groups sit in that window's tab strip. These keep the two in step, in either direction.

@@ -1,6 +1,6 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { basename, join } from 'node:path';
-import type { Repo } from '../../../shared/protocol/protocol';
+import type { Repo } from '../../../shared/protocol/workspace';
 import { isDirectory } from '../platform/config';
 
 /** Git repos directly inside each root; a worktree counts, since its `.git` is a file. Read on every request. */

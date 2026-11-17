@@ -1,4 +1,5 @@
-import type { ControlToClient, SystemSnapshot } from '../../../shared/protocol/protocol';
+import type { ControlToClient } from '../../../shared/protocol/protocol';
+import type { SystemSnapshot } from '../../../shared/protocol/system';
 import type { ActivitySection } from '../activity/activity-section';
 import type { CreateView } from '../create/create-view';
 import type { SettingsView } from '../settings/settings-view';

@@ -1,5 +1,9 @@
+import { mkdtempSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { MONITOR_SESSION } from '../../../shared/protocol/protocol';
+import { RESTORED_MARK, ScrollbackStore } from './scrollback-store';
 import { SessionManager } from './session';
 import { waitFor } from '../../testing/wait-for';
 
@@ -110,5 +114,47 @@ describe('Session', () => {
     sessions = new SessionManager(10_000);
     sessions.create({ id: 'dup', command: '/bin/cat', args: [], cwd: tmpdir() });
     expect(() => sessions.create({ id: 'dup', command: '/bin/cat', args: [], cwd: tmpdir() })).toThrow(/already exists/);
+  });
+
+  it('saves running terminals when asked, and starts the next session of that id with what was saved', async () => {
+    const dir = join(mkdtempSync(join(tmpdir(), 'cw-saved-')), 'scrollback');
+    sessions = new SessionManager(10_000, new ScrollbackStore(dir));
+    const cat = sessions.create({ id: 'ws-0123abcd', command: '/bin/cat', args: [], cwd: tmpdir() });
+    const done = sessions.create({ id: 'ws-00000002', command: '/bin/sh', args: ['-c', 'printf bye'], cwd: tmpdir() });
+    const monitor = sessions.create({ id: MONITOR_SESSION, command: '/bin/cat', args: [], cwd: tmpdir() });
+    cat.write('before\r');
+    monitor.write('gauges\r');
+    await waitFor(() => cat.snapshot().includes('before') && monitor.snapshot().includes('gauges') && done.exited);
+
+    sessions.saveAll();
+    // A shell that already exited starts afresh, and the monitor redraws itself.
+    expect(readdirSync(dir)).toEqual(['ws-0123abcd.txt']);
+    sessions.killAll();
+
+    sessions = new SessionManager(10_000, new ScrollbackStore(dir));
+    const next = sessions.create({ id: 'ws-0123abcd', command: '/bin/cat', args: [], cwd: tmpdir() });
+    const replayed: string[] = [];
+    next.attach(
+      (data, replay) => replay && replayed.push(data),
+      () => {},
+    );
+    expect(replayed.join('')).toContain('before');
+    expect(replayed.join('').endsWith(RESTORED_MARK)).toBe(true);
+    // Read once: the session after this one starts empty.
+    expect(readdirSync(dir)).toEqual([]);
+  });
+
+  it('forgets the saved scrollback of a session that is removed, and saves nothing without a store', async () => {
+    const dir = join(mkdtempSync(join(tmpdir(), 'cw-saved-')), 'scrollback');
+    const store = new ScrollbackStore(dir);
+    store.save('ws-0123abcd', 'old');
+    sessions = new SessionManager(10_000, store);
+    sessions.remove('ws-0123abcd');
+    expect(readdirSync(dir)).toEqual([]);
+
+    sessions = new SessionManager(10_000);
+    sessions.create({ id: 'cat', command: '/bin/cat', args: [], cwd: tmpdir() });
+    sessions.saveAll();
+    expect(readdirSync(dir)).toEqual([]);
   });
 });

@@ -1,7 +1,8 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { isAbsolute } from 'node:path';
 import { isBranchName } from '../../../shared/workspaces/branch-name';
-import { MAX_PROMPT_LENGTH, type WorkspaceStatus } from '../../../shared/protocol/protocol';
+import { MAX_PROMPT_LENGTH } from '../../../shared/protocol/protocol';
+import type { WaitingOn, WorkspaceStatus } from '../../../shared/protocol/workspace';
 import { tokenMatches, type AuthPolicy } from './auth';
 import { isDirectory } from '../platform/config';
 import { asPaste, MAX_PASTE_LENGTH } from '../pty/paste';
@@ -9,6 +10,7 @@ import type { ControlHub, ReviewSource } from '../control/hub';
 import type { GitService } from '../git/git';
 import { isPullRequestUrl, prWorkspace } from '../git/pr-workspace';
 import type { SessionManager } from '../pty/session';
+import type { HistoryStore } from '../store/history';
 import type { WorkspaceStore } from '../store/workspace-store';
 import { errorMessage } from '../../../shared/protocol/errors';
 
@@ -19,6 +21,11 @@ export interface ApiOptions {
   sessions: SessionManager;
   defaultCwd: string;
   statuses: () => Record<string, WorkspaceStatus>;
+  /** What each waiting workspace waits on; only workspaces at `needs_input` have an entry. */
+  waiting: () => Record<string, WaitingOn>;
+  history: Pick<HistoryStore, 'list'>;
+  /** How often a `wait` looks at the status again; tests shorten it. */
+  waitPollMs?: number;
   reviews: Pick<ReviewSource, 'state'>;
   repoDirs: Record<string, string>;
   git: Pick<GitService, 'addWorktree'>;
@@ -27,6 +34,8 @@ export interface ApiOptions {
 type Handler = (req: IncomingMessage, res: ServerResponse) => void;
 
 const MAX_BODY = 64 * 1024;
+const DEFAULT_WAIT_SECONDS = 600;
+const MAX_WAIT_SECONDS = 3600;
 
 class HttpError extends Error {
   constructor(
@@ -55,7 +64,7 @@ async function handle(req: IncomingMessage, options: ApiOptions): Promise<{ stat
   if (origin && !options.auth.allowedOrigins.includes(origin)) throw new HttpError(403, 'forbidden origin');
   if (!hasBearer(req, options.auth.token)) throw new HttpError(401, 'unauthorized');
 
-  const { pathname } = new URL(req.url ?? '/', 'http://localhost');
+  const { pathname, searchParams } = new URL(req.url ?? '/', 'http://localhost');
   const { store, control } = options;
 
   if (pathname === '/workspaces' && req.method === 'GET') {
@@ -104,7 +113,30 @@ async function handle(req: IncomingMessage, options: ApiOptions): Promise<{ stat
     return { status: 200, body: { ok: true } };
   }
 
+  const wait = pathname.match(/^\/workspaces\/(ws-[0-9a-f]{8})\/wait$/);
+  if (wait && req.method === 'GET') {
+    if (!store.get(wait[1])) throw new HttpError(404, 'unknown workspace');
+    return { status: 200, body: await waitForTurn(req, wait[1], waitSeconds(searchParams.get('timeout')), options) };
+  }
+
+  if (pathname === '/archived' && req.method === 'GET') {
+    return { status: 200, body: { entries: options.history.list() } };
+  }
+
+  const restore = pathname.match(/^\/archived\/(h-[0-9a-f]{8})\/restore$/);
+  if (restore && req.method === 'POST') {
+    // The same restore as the panel's, in a window of its own.
+    const workspace = control.restore(restore[1]);
+    if (!workspace) throw new HttpError(404, 'unknown archived workspace');
+    return { status: 201, body: { workspace, delivered: control.clientCount > 0 } };
+  }
+
   const one = pathname.match(/^\/workspaces\/(ws-[0-9a-f]{8})$/);
+  if (one && req.method === 'GET') {
+    const workspace = store.get(one[1]);
+    if (!workspace) throw new HttpError(404, 'unknown workspace');
+    return { status: 200, body: { workspace, status: options.statuses()[one[1]] ?? null, waiting: options.waiting()[one[1]] ?? null } };
+  }
   if (one && req.method === 'DELETE') {
     if (!store.get(one[1])) throw new HttpError(404, 'unknown workspace');
     // The same archive as the panel's, so the workspace can be restored from Archived.
@@ -113,6 +145,43 @@ async function handle(req: IncomingMessage, options: ApiOptions): Promise<{ stat
   }
 
   throw new HttpError(404, 'not found');
+}
+
+function waitSeconds(value: string | null): number {
+  if (value === null) return DEFAULT_WAIT_SECONDS;
+  const seconds = Number(value);
+  if (!Number.isFinite(seconds) || seconds < 0 || seconds > MAX_WAIT_SECONDS) throw new HttpError(400, `timeout must be 0 to ${MAX_WAIT_SECONDS} seconds`);
+  return seconds;
+}
+
+/**
+ * Answers once the workspace's claude has stopped for the person: waiting on input, or idle after a turn. A workspace
+ * with no status yet (its claude has not started) keeps waiting, so a script can create one and wait on it at once.
+ */
+function waitForTurn(req: IncomingMessage, id: string, seconds: number, options: ApiOptions) {
+  const { store, statuses, waiting, waitPollMs = 500 } = options;
+  const deadline = Date.now() + seconds * 1000;
+  return new Promise<{ status: WorkspaceStatus; waiting: WaitingOn | null; timedOut: boolean }>((resolve, reject) => {
+    const look = (): void => {
+      if (!store.get(id)) {
+        finish(() => reject(new HttpError(404, 'that workspace was archived while waiting')));
+        return;
+      }
+      const status = statuses()[id] ?? null;
+      const stopped = status === 'needs_input' || status === 'idle';
+      if (stopped || Date.now() >= deadline) finish(() => resolve({ status, waiting: waiting()[id] ?? null, timedOut: !stopped }));
+    };
+    const timer = setInterval(look, waitPollMs);
+    // A caller that gave up is not waited for.
+    const gone = (): void => finish(() => reject(new HttpError(499, 'client closed the request')));
+    const finish = (settle: () => void): void => {
+      clearInterval(timer);
+      req.off('close', gone);
+      settle();
+    };
+    req.on('close', gone);
+    look();
+  });
 }
 
 function hasBearer(req: IncomingMessage, token: string): boolean {

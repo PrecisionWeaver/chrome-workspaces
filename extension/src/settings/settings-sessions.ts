@@ -1,7 +1,7 @@
 import type { TimelineEvent } from '../../../shared/sessions/timeline';
 import { statusLabel } from '../../../shared/workspaces/attention';
 import { formatUsd } from '../../../shared/usage/pricing';
-import type { SystemProcess, SystemSession, SystemSnapshot, TokenTotals } from '../../../shared/protocol/protocol';
+import type { SystemProcess, SystemSession, SystemSnapshot, TokenTotals } from '../../../shared/protocol/system';
 import { caret, el } from '../ui/dom';
 import { formatCpu, formatKb, formatTokens, newTokens, resourceTitle, resourceTotal } from '../ui/format';
 import { card, guarded, type SettingsContext, shortId } from './settings-parts';

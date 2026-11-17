@@ -1,4 +1,4 @@
-import type { GitCommit, GitCommitFile } from '../../../shared/protocol/protocol';
+import type { GitCommit, GitCommitFile } from '../../../shared/protocol/git';
 import { el } from '../ui/dom';
 import type { GitViewContext } from './git-view';
 

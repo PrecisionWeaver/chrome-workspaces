@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import type { Prompt } from '../../../shared/protocol/protocol';
+import type { Prompt } from '../../../shared/protocol/workspace';
 import { errorMessage } from '../../../shared/protocol/errors';
 
 const HEADING = /^\*\*(.+?)\*\*$/;

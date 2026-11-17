@@ -1,4 +1,6 @@
-import type { CiState, ControlToHelper, MergeState, ReviewRequest, ReviewsState, Workspace } from '../../../shared/protocol/protocol';
+import type { ControlToHelper } from '../../../shared/protocol/protocol';
+import type { Workspace } from '../../../shared/protocol/workspace';
+import type { CiState, MergeState, ReviewRequest, ReviewsState } from '../../../shared/protocol/pull-requests';
 import { $, el } from '../ui/dom';
 import { collapsible } from '../ui/collapsible';
 import { ref, relative, byline } from './pr-view';

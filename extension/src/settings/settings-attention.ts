@@ -1,4 +1,4 @@
-import type { SystemSnapshot } from '../../../shared/protocol/protocol';
+import type { SystemSnapshot } from '../../../shared/protocol/system';
 import { warningKey } from '../../../shared/usage/guardrails';
 import { buildChecklist, remaining, type SetupItem } from '../../../shared/workspaces/onboarding';
 import { el } from '../ui/dom';

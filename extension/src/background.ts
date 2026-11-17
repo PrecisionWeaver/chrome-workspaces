@@ -1,5 +1,6 @@
 import { matchGroups, matchWindows } from '../../shared/workspaces/pairing';
-import type { ControlToClient, Workspace } from '../../shared/protocol/protocol';
+import type { ControlToClient } from '../../shared/protocol/protocol';
+import type { Workspace } from '../../shared/protocol/workspace';
 import { installAttention } from './background/attention';
 import { placeClaudeGroups } from './background/claude-groups';
 import { installOrderSync } from './background/order-sync';

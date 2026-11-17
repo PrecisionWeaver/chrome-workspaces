@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { UsageDay } from '../protocol/protocol';
+import type { UsageDay } from '../protocol/system';
 import {
   addTokens,
   localDay,

@@ -1,4 +1,4 @@
-import type { TokenTotals, UsageDay, UsageWorkspace } from '../protocol/protocol';
+import type { TokenTotals, UsageDay, UsageWorkspace } from '../protocol/system';
 
 export const noTokens = (): TokenTotals => ({ input: 0, output: 0, cacheWrite: 0, cacheRead: 0 });
 

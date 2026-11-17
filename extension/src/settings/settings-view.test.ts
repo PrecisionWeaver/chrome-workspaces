@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ControlToHelper, SystemSnapshot, UpdateStatus, UsageDay, UsageHour } from '../../../shared/protocol/protocol';
+import type { ControlToHelper } from '../../../shared/protocol/protocol';
+import type { SystemSnapshot, UpdateStatus, UsageDay, UsageHour } from '../../../shared/protocol/system';
 import type { TimelineEvent } from '../../../shared/sessions/timeline';
 import { formatBytes, formatDuration, formatKb, formatTokens, newTokens } from '../ui/format';
 import { createSettingsView, type SettingsView } from './settings-view';

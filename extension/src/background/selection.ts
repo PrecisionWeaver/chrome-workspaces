@@ -1,4 +1,4 @@
-import type { Workspace } from '../../../shared/protocol/protocol';
+import type { Workspace } from '../../../shared/protocol/workspace';
 
 /** Which workspace each window shows when it holds several, by window id. Shared by every panel and the service worker. */
 export type Selection = Record<string, string>;

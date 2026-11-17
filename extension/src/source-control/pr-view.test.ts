@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { PrThread, ReviewRequest } from '../../../shared/protocol/protocol';
+import type { PrThread, ReviewRequest } from '../../../shared/protocol/pull-requests';
 import { byline, ref, relative, renderDetails, renderThreads, repoName } from './pr-view';
 import { installChrome } from '../../testing/chrome-mock';
 import { makePrDetails } from '../../testing/fixtures';

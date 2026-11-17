@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ReviewRequest, ReviewsState, Workspace } from '../../../shared/protocol/protocol';
+import type { Workspace } from '../../../shared/protocol/workspace';
+import type { ReviewRequest, ReviewsState } from '../../../shared/protocol/pull-requests';
 import { createLauncher, type Launcher } from './launcher';
 import { installChrome } from '../../testing/chrome-mock';
 import { isolateDocumentListeners, loadPanelHtml, makeReview, makeWorkspace } from '../../testing/fixtures';

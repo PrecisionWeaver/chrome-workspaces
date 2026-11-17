@@ -1,4 +1,5 @@
-import { MONITOR_SESSION, SHELL_SESSION, WORKSPACE_SHELL_PREFIX, type Workspace } from '../../../shared/protocol/protocol';
+import { MONITOR_SESSION, SHELL_SESSION, WORKSPACE_SHELL_PREFIX } from '../../../shared/protocol/protocol';
+import type { Workspace } from '../../../shared/protocol/workspace';
 import { isDirectory } from '../platform/config';
 import { launchDirectory } from './launch-dir';
 import { launchSpec, monitorSpec, shellSpec } from './launch';

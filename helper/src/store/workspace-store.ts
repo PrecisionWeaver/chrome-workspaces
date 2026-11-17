@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import type { Workspace, WorkspaceColor } from '../../../shared/protocol/protocol';
+import type { Workspace, WorkspaceColor } from '../../../shared/protocol/workspace';
 import { errorMessage } from '../../../shared/protocol/errors';
 
 export interface NewWorkspace {

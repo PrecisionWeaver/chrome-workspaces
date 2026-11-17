@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { planUsageOf } from '../../../shared/usage/plan-usage';
-import type { PlanUsage } from '../../../shared/protocol/protocol';
+import type { PlanUsage } from '../../../shared/protocol/system';
 
 /** The plan's limits as `hooks/status-line.ts` last saved them; none when it has not, or the file cannot be read. */
 export function readPlanUsage(file: string, now = Date.now()): PlanUsage {

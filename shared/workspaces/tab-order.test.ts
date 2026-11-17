@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Workspace } from '../protocol/protocol';
+import type { Workspace } from '../protocol/workspace';
 import { listFollowingTabs, listGroupOrder, nextGroupMove } from './tab-order';
 
 const ws = (id: string, windowId: number | null, groupId: number | null = null): Workspace => ({

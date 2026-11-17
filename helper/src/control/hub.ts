@@ -1,7 +1,9 @@
 import type { WebSocket } from 'ws';
 import type { ActivityItem } from '../../../shared/sessions/activity';
 import { workspaceShellSession } from '../../../shared/protocol/protocol';
-import type { ControlToClient, ControlToHelper, PastSession, Prompt, Repo, ReviewsState, WaitingOn, WorkspaceStatus } from '../../../shared/protocol/protocol';
+import type { ControlToClient, ControlToHelper } from '../../../shared/protocol/protocol';
+import type { PastSession, Prompt, Repo, WaitingOn, Workspace, WorkspaceStatus } from '../../../shared/protocol/workspace';
+import type { ReviewsState } from '../../../shared/protocol/pull-requests';
 import { isControlToHelper } from './messages';
 import type { AdminService } from '../admin/admin';
 import type { Template } from '../../../shared/workspaces/templates';
@@ -14,7 +16,7 @@ import { errorMessage } from '../../../shared/protocol/errors';
 import { handleAdmin, isAdminRequest } from './admin-handlers';
 import { handleGit, isGitRequest } from './git-handlers';
 import { handlePr, isPrRequest } from './pr-handlers';
-import { handleWorkspace, isWorkspaceRequest } from './workspace-handlers';
+import { handleWorkspace, isWorkspaceRequest, restoreWorkspace } from './workspace-handlers';
 
 export interface ReviewSource {
   state(): ReviewsState;
@@ -163,6 +165,11 @@ export class ControlHub implements HubContext {
       const shared = store.list().some((ws) => ws.windowId === removing.windowId);
       if (removing.groupId !== null || !shared) this.send({ type: 'closeTabs', windowId: removing.windowId, groupId: removing.groupId });
     }
+  }
+
+  /** Brings an archived workspace back in a window of its own, as the panel's Archived list does; undefined when the archive has no such entry. */
+  restore(historyId: string): Workspace | undefined {
+    return restoreWorkspace(this, historyId, null);
   }
 
   private activityMessage(id: string): ControlToClient {

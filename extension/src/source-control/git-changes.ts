@@ -1,4 +1,4 @@
-import type { GitFile, GitState } from '../../../shared/protocol/protocol';
+import type { GitFile, GitState } from '../../../shared/protocol/git';
 import { confirmButton, el } from '../ui/dom';
 import { keepFocus } from '../ui/focus';
 import { fileRow, openWorking } from './git-diff';

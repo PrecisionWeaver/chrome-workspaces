@@ -1,4 +1,4 @@
-import type { SystemSnapshot } from '../../../shared/protocol/protocol';
+import type { SystemSnapshot } from '../../../shared/protocol/system';
 import { el } from '../ui/dom';
 import { formatBytes } from '../ui/format';
 import { actions, card, guarded, mono, plain, row, type SettingsContext } from './settings-parts';

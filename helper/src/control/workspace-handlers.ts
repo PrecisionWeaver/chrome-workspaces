@@ -2,6 +2,7 @@ import { isAbsolute } from 'node:path';
 import type { WebSocket } from 'ws';
 import { errorMessage } from '../../../shared/protocol/errors';
 import type { ControlToHelper } from '../../../shared/protocol/protocol';
+import type { Workspace } from '../../../shared/protocol/workspace';
 import { prWorkspace } from '../git/pr-workspace';
 import { isDirectory } from '../platform/config';
 import type { HubContext } from './hub';
@@ -40,7 +41,7 @@ export function handleWorkspace(hub: HubContext, message: WorkspaceRequest, ws: 
       store.reorder(message.ids);
       break;
     case 'restore':
-      restoreWorkspace(hub, message);
+      restoreWorkspace(hub, message.historyId, message.windowId);
       break;
     case 'forget':
       history.remove(message.historyId);
@@ -87,11 +88,11 @@ async function createWorkspace(hub: HubContext, message: Extract<ControlToHelper
   }
 }
 
-/** Brings an archived workspace back, in the window asked for or a new one, and drops it from the archive. */
-function restoreWorkspace(hub: HubContext, message: Extract<ControlToHelper, { type: 'restore' }>): void {
+/** Brings an archived workspace back, in the window asked for or a new one, and drops it from the archive. Undefined when the archive has no such entry. */
+export function restoreWorkspace(hub: HubContext, historyId: string, windowId: number | null): Workspace | undefined {
   const { store, history, defaultCwd } = hub.options;
-  const entry = history.get(message.historyId);
-  if (!entry) return;
+  const entry = history.get(historyId);
+  if (!entry) return undefined;
   // The directory may be gone, e.g. a deleted worktree; the default directory is better than none.
   const cwd = isDirectory(entry.cwd) ? entry.cwd : defaultCwd;
   const workspace = store.create({
@@ -106,10 +107,11 @@ function restoreWorkspace(hub: HubContext, message: Extract<ControlToHelper, { t
   });
   history.remove(entry.id);
   if (entry.pinned || entry.color) store.mark(workspace.id, { pinned: entry.pinned, color: entry.color });
-  if (message.windowId === null) hub.send({ type: 'open', id: workspace.id });
+  if (windowId === null) hub.send({ type: 'open', id: workspace.id });
   else {
-    store.pairWindow(workspace.id, message.windowId);
+    store.pairWindow(workspace.id, windowId);
     // The window already holds a workspace, so this one gets its own tab group there, with its tabs.
     hub.send({ type: 'group', id: workspace.id });
   }
+  return store.get(workspace.id);
 }

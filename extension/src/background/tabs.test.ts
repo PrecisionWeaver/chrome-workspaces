@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Workspace } from '../../../shared/protocol/protocol';
+import type { Workspace } from '../../../shared/protocol/workspace';
 import { findTab, noteReviewTab, openInWorkspace, takeReviewTab } from './tabs';
 import { installChrome } from '../../testing/chrome-mock';
 

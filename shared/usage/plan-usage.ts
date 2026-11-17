@@ -1,4 +1,4 @@
-import type { PlanLimit, PlanUsage } from '../protocol/protocol';
+import type { PlanLimit, PlanUsage } from '../protocol/system';
 
 /** Where the status line wrapper keeps what claude last told it, in the data directory. */
 export const PLAN_USAGE_FILE = 'plan-usage.json';
