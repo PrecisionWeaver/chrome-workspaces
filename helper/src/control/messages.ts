@@ -1,4 +1,5 @@
-import { MAX_PROMPT_LENGTH, MAX_TAB_URLS, MODEL_PATTERN, WORKSPACE_COLORS, type ClientMessage, type ControlToHelper } from '../../../shared/protocol/protocol';
+import { MAX_PROMPT_LENGTH, MAX_TAB_URLS, MODEL_PATTERN, type ClientMessage, type ControlToHelper } from '../../../shared/protocol/protocol';
+import { WORKSPACE_COLORS } from '../../../shared/protocol/workspace';
 import { isBranchName } from '../../../shared/workspaces/branch-name';
 import { isPullRequestUrl } from '../git/pr-workspace';
 

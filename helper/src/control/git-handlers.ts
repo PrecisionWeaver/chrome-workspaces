@@ -1,6 +1,8 @@
 import { isAbsolute } from 'node:path';
 import type { WebSocket } from 'ws';
-import type { ControlToClient, ControlToHelper, GitResultAction, Workspace } from '../../../shared/protocol/protocol';
+import type { ControlToClient, ControlToHelper } from '../../../shared/protocol/protocol';
+import type { Workspace } from '../../../shared/protocol/workspace';
+import type { GitResultAction } from '../../../shared/protocol/git';
 import { parseBranchChecks } from '../git/pr-details';
 import { isDirectory } from '../platform/config';
 import type { HubContext } from './hub';

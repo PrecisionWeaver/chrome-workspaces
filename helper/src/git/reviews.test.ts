@@ -1,7 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
 import { GH, URL1, answer, lookup, pr, review } from '../../testing/reviews';
-import { type Lookup, parseMergeStatuses, parseReviewRequests } from './review-parse';
-import { mergeStatusQuery } from './review-queries';
 import { describeFailure, isRateLimited, isTransient, MERGE_BATCH, MERGE_CONCURRENCY, ReviewsPoller } from './reviews';
 
 describe('ReviewsPoller', () => {
@@ -285,8 +283,6 @@ describe('describeFailure', () => {
 
 describe('a PR that needs another look', () => {
   const reviews = (...nodes: ReturnType<typeof review>[]) => ({ latestReviews: { nodes } });
-  const needs = (extra: Record<string, unknown>, viewer: string | null = 'me') =>
-    parseMergeStatuses(answer(viewer, lookup(URL1, extra))).get(URL1)?.needsReReview;
 
   it('lists a PR you reviewed only when it needs re-review, and flags one already on the list', async () => {
     const requested = JSON.stringify([pr(1, 'Requested', '2026-10-03T00:00:00Z')]);
@@ -343,7 +339,6 @@ describe('checks', () => {
   const ci = (state: string | null) => ({
     commits: { nodes: [{ commit: { statusCheckRollup: state === null ? null : { state } } }] },
   });
-  const read = (state: string | null) => parseMergeStatuses(answer('me', lookup(URL1, ci(state)))).get(URL1)?.ci;
 
   it('puts the checks on the polled list, also for a draft', async () => {
     const poller = new ReviewsPoller(

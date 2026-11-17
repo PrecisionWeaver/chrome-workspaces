@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { SystemProcess, SystemSession } from '../protocol/protocol';
+import type { SystemProcess, SystemSession } from '../protocol/system';
 import { findWarnings, parseElapsed, warningKey } from './guardrails';
 
 const proc = (pid: number, extra: Partial<SystemProcess> = {}): SystemProcess => ({

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Workspace } from '../../../shared/protocol/protocol';
+import type { Workspace } from '../../../shared/protocol/workspace';
 import { launchSpec, monitorSpec, shellSpec } from './launch';
 
 const workspace: Workspace = {

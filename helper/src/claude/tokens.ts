@@ -1,6 +1,6 @@
 import { open, stat } from 'node:fs/promises';
 import { StringDecoder } from 'node:string_decoder';
-import type { TokenTotals } from '../../../shared/protocol/protocol';
+import type { TokenTotals } from '../../../shared/protocol/system';
 import { addTokens, localDayAndHour, noTokens } from '../../../shared/usage/usage';
 
 const CHUNK_BYTES = 4 * 1024 * 1024;

@@ -1,4 +1,4 @@
-import type { ResourceSample, SystemSession } from '../protocol/protocol';
+import type { ResourceSample, SystemSession } from '../protocol/system';
 
 /** What every running workspace was using together in one minute. */
 export interface CombinedSample {

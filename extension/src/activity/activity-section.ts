@@ -1,5 +1,6 @@
 import type { ActivityItem, ActivityTurn } from '../../../shared/sessions/activity';
-import type { ControlToClient, ControlToHelper, Workspace } from '../../../shared/protocol/protocol';
+import type { ControlToClient, ControlToHelper } from '../../../shared/protocol/protocol';
+import type { Workspace } from '../../../shared/protocol/workspace';
 import { drawTurn, legend, type View, windowOf, zoomed } from './activity-chart';
 import { $, el } from '../ui/dom';
 import { collapsible } from '../ui/collapsible';

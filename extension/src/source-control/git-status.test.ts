@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { BranchPr } from '../../../shared/protocol/protocol';
+import type { BranchPr } from '../../../shared/protocol/git';
 import { isolateDocumentListeners } from '../../testing/fixtures';
 import { GIT_NOW, GIT_WORKSPACE, type GitViewHarness, gitState, mountGitView } from '../../testing/git-fixtures';
 

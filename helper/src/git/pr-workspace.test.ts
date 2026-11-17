@@ -2,7 +2,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import type { ReviewRequest } from '../../../shared/protocol/protocol';
+import type { ReviewRequest } from '../../../shared/protocol/pull-requests';
 import { isPullRequestUrl, prWorkspace } from './pr-workspace';
 
 const URL = 'https://github.com/acme/web-app/pull/482';

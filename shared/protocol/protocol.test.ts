@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MODEL_ALIASES, MODEL_PATTERN, MONITOR_SESSION, SHELL_SESSION, WORKSPACE_COLORS, WORKSPACE_SHELL_PREFIX, workspaceShellSession } from './protocol';
+import { MODEL_ALIASES, MODEL_PATTERN, MONITOR_SESSION, SHELL_SESSION, WORKSPACE_SHELL_PREFIX, workspaceShellSession } from './protocol';
 
 describe('workspaceShellSession', () => {
   it('names a workspace shell apart from the plain shell and the monitor', () => {
@@ -24,11 +24,5 @@ describe('MODEL_PATTERN', () => {
     expect(MODEL_PATTERN.test('opus; rm -rf /')).toBe(false);
     expect(MODEL_PATTERN.test('opus[toolong12]')).toBe(false);
     expect(MODEL_PATTERN.test(`o${'x'.repeat(64)}`)).toBe(false);
-  });
-});
-
-describe('WORKSPACE_COLORS', () => {
-  it('lists each colour once', () => {
-    expect(new Set(WORKSPACE_COLORS).size).toBe(WORKSPACE_COLORS.length);
   });
 });

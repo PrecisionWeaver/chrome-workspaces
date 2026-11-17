@@ -1,4 +1,4 @@
-import type { WaitingOn } from './protocol';
+import type { WaitingOn } from './workspace';
 
 export type HookStatus = 'idle' | 'working' | 'needs_input' | 'ended';
 

@@ -1,4 +1,4 @@
-import type { ResourceSample } from '../../../shared/protocol/protocol';
+import type { ResourceSample } from '../../../shared/protocol/system';
 
 /** How often a session is sampled, and how many samples are kept: two hours. */
 export const SAMPLE_INTERVAL_MS = 60_000;

@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ControlToHelper, Workspace } from '../../../shared/protocol/protocol';
+import type { ControlToHelper } from '../../../shared/protocol/protocol';
+import type { Workspace } from '../../../shared/protocol/workspace';
 import { createCreateView, type CreateView } from './create-view';
 import { noteReviewTab } from '../background/tabs';
 import { installChrome } from '../../testing/chrome-mock';

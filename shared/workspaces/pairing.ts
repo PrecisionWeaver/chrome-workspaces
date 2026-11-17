@@ -1,4 +1,4 @@
-import type { Workspace } from '../protocol/protocol';
+import type { Workspace } from '../protocol/workspace';
 
 export interface OpenWindow {
   id: number;

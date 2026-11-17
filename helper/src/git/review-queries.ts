@@ -1,4 +1,4 @@
-import type { ReviewRequest } from '../../../shared/protocol/protocol';
+import type { ReviewRequest } from '../../../shared/protocol/pull-requests';
 
 const GH_FIELDS = '--json number,title,url,repository,author,isDraft,updatedAt';
 export const GH_REVIEW_REQUESTS = `gh search prs --review-requested=@me --state=open ${GH_FIELDS} --limit 50`;

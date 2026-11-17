@@ -1,4 +1,4 @@
-import type { SystemSnapshot, UsageDay, UsageHour, UsageWorkspace } from '../../../shared/protocol/protocol';
+import type { SystemSnapshot, UsageDay, UsageHour, UsageWorkspace } from '../../../shared/protocol/system';
 import { localDayBack, USAGE_HISTORY_DAYS } from '../../../shared/usage/usage';
 
 /** One day's use as it is added up, before it becomes a `UsageDay`. */

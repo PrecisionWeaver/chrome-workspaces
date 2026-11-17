@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ControlToClient, ControlToHelper, WaitingOn, WorkspaceStatus } from '../../shared/protocol/protocol';
+import type { ControlToClient, ControlToHelper } from '../../shared/protocol/protocol';
+import type { WaitingOn, WorkspaceStatus } from '../../shared/protocol/workspace';
 import { installChrome } from '../testing/chrome-mock';
 import { makeWorkspace } from '../testing/fixtures';
 

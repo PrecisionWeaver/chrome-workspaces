@@ -1,15 +1,8 @@
 import { describeWaiting, needsInputCount, statusLabel } from '../../../shared/workspaces/attention';
 import { nextIndex } from '../../../shared/lib/keynav';
 import { filterList } from '../../../shared/workspaces/list-filter';
-import {
-  type ControlToClient,
-  type ControlToHelper,
-  type HistoryEntry,
-  type WaitingOn,
-  type Workspace,
-  type WorkspaceStatus,
-  WORKSPACE_COLORS,
-} from '../../../shared/protocol/protocol';
+import type { ControlToClient, ControlToHelper } from '../../../shared/protocol/protocol';
+import { type HistoryEntry, type WaitingOn, type Workspace, type WorkspaceStatus, WORKSPACE_COLORS } from '../../../shared/protocol/workspace';
 import { $, caret, confirmButton, createArming, el, icon } from '../ui/dom';
 import { keepFocus } from '../ui/focus';
 import { closeMenu, menuItem, openMenu } from '../ui/menu';

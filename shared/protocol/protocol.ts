@@ -1,32 +1,41 @@
 import type { Template } from '../workspaces/templates';
-// Shared by the helper and the extension bundle — keep this free of Node imports.
-
-import type { GuardrailWarning } from '../usage/guardrails';
 import type { ActivityItem } from '../sessions/activity';
 import type { TimelineEvent } from '../sessions/timeline';
+import type { BranchPr, GitBranch, GitCommitFile, GitCompare, GitResultAction, GitState } from './git';
+import type { PrDetails, PrThread, ReviewsState } from './pull-requests';
+import type { SystemSnapshot, UpdateStatus } from './system';
+import type { HistoryEntry, PastSession, Prompt, Repo, WaitingOn, Workspace, WorkspaceColor, WorkspaceStatus } from './workspace';
+
+// The messages the helper and the extension exchange, and the constants both sides agree on; the data they carry is in the files beside this one.
+// Shared by the helper and the extension bundle — keep this free of Node imports.
 
 export const PROTOCOL = 'cw.v1';
+
 export const TOKEN_PROTOCOL_PREFIX = 'token.';
+
 export const NATIVE_HOST_NAME = 'com.chrome_workspaces.helper';
+
 export const MAX_PROMPT_LENGTH = 8000;
+
 export const MAX_TAB_URLS = 20;
-export const MAX_PR_BODY = 6000;
+
 /** The largest file that can be dropped or pasted into a terminal. */
 export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+
 /** What `--model` accepts that is safe to put in a shell command: an alias or id, optionally with a `[1m]`-style suffix. */
 export const MODEL_PATTERN = /^[A-Za-z0-9][\w.-]{0,63}(\[\w{1,8}\])?$/;
+
 export const MODEL_ALIASES = ['fable', 'opus', 'sonnet', 'haiku'] as const;
-/** Colors a workspace can be marked with; the names Chrome uses for tab groups. */
-export const WORKSPACE_COLORS = ['grey', 'blue', 'red', 'yellow', 'green', 'pink', 'purple', 'cyan', 'orange'] as const;
-export type WorkspaceColor = (typeof WORKSPACE_COLORS)[number];
 
 /** The id of the helper session that runs the system monitor. Workspace ids are `ws-` and eight hex digits, so none can collide. */
 export const MONITOR_SESSION = 'monitor';
 
 /** The id of the helper session that runs a plain login shell, for a command line that belongs to no workspace. */
 export const SHELL_SESSION = 'shell';
+
 /** A shell of a workspace's own, started in its directory: `shell-<workspace id>`. */
 export const WORKSPACE_SHELL_PREFIX = 'shell-';
+
 export const workspaceShellSession = (workspaceId: string): string => `${WORKSPACE_SHELL_PREFIX}${workspaceId}`;
 
 export type ClientMessage =
@@ -49,213 +58,6 @@ export type NativeHostReply = { ok: true; token: string; port: number } | { ok: 
 /** The reply to `start`: the helper was asked to start, which does not mean it is listening yet. */
 export type NativeStartReply = { ok: true } | { ok: false; error: string };
 
-/** A removed workspace, kept so it can be restored. */
-export interface HistoryEntry {
-  id: string;
-  name: string;
-  cwd: string;
-  ticket: string | null;
-  url: string | null;
-  pr: string | null;
-  model: string | null;
-  tabs: string[];
-  pinned: boolean;
-  color: WorkspaceColor | null;
-  /** Its claude session, resumed when restored. */
-  resumeId: string | null;
-  /** The id the workspace had, which its session files are kept under; absent in entries from before this was kept. */
-  workspaceId?: string;
-  closedAt: string;
-}
-
-/** Tokens a claude session has used. */
-export interface TokenTotals {
-  /** Input not served from the cache. */
-  input: number;
-  output: number;
-  /** Input written to the prompt cache. */
-  cacheWrite: number;
-  /** Input read back from the prompt cache. */
-  cacheRead: number;
-}
-
-/** One day's use across every workspace. */
-export interface UsageDay {
-  /** The date in the machine's time zone, `2026-10-07`. */
-  day: string;
-  /** New work: input, output and cache writes. */
-  tokens: number;
-  costUsd: number;
-  output: number;
-  /** Input served from the prompt cache; it repeats earlier input, so it is not in `tokens`. */
-  cacheRead: number;
-  /** The real models that did the work, with what each cost; empty on a quiet day. */
-  models: { model: string; tokens: number; costUsd: number }[];
-}
-
-/** One workspace's use on one day, for the split by workspace. */
-export interface UsageWorkspace {
-  id: string;
-  name: string;
-  /** Only the days it used anything, oldest first, over the same history as `UsageSnapshot.daily`. */
-  daily: { day: string; tokens: number; costUsd: number }[];
-}
-
-/** One hour of today's use across every workspace. */
-export interface UsageHour {
-  /** The hour in the machine's time zone, 0 to 23. */
-  hour: number;
-  /** New work, counted as in `UsageDay`. */
-  tokens: number;
-  costUsd: number;
-}
-
-/** One process in a workspace's shell tree. */
-export interface SystemProcess {
-  pid: number;
-  ppid: number;
-  command: string;
-  cpu: number;
-  rssKb: number;
-  /** Time since it started, as `ps` prints it, e.g. `01:23:45`. */
-  elapsed: string;
-  /** TCP ports it is listening on. */
-  ports: number[];
-}
-
-/** What a session's shell tree was using at one moment. */
-export interface ResourceSample {
-  /** Epoch milliseconds. */
-  t: number;
-  rssKb: number;
-  /** Summed across its processes, so it can pass 100 on several cores. */
-  cpu: number;
-}
-
-export interface SystemSession {
-  id: string;
-  name: string;
-  /** The shell's pid; null when no session is running for the workspace. */
-  pid: number | null;
-  status: WorkspaceStatus;
-  cwd: string;
-  cwdMissing: boolean;
-  claudeSessionId: string | null;
-  /** What its claude session has used, counted from the transcript; null when there is none. `counting` while the first read is still running. */
-  tokens: (TokenTotals & { counting: boolean; costUsd: number }) | null;
-  /** The shell and everything beneath it, shell first. */
-  processes: SystemProcess[];
-  /** Its recent memory and CPU, oldest first, one sample a minute; empty until it has been sampled. */
-  history: ResourceSample[];
-}
-
-/** One of the plan's rate limits, as `/usage` shows it. */
-export interface PlanLimit {
-  id: string;
-  label: string;
-  /** Share used, 0 to 100 (a spend limit can pass 100). */
-  percent: number;
-  /** When it resets; always in the future, since a window that has passed is dropped. */
-  resetsAt: string;
-  /** Estimated spend against a dollar limit, when claude reports it (a gateway's spend limit, on newer versions). */
-  spend?: { usedUsd: number; limitUsd: number; period: 'daily' | 'weekly' | 'monthly' };
-}
-
-/** The plan's limits as claude last reported them to a workspace's status line; empty when none has yet, or the plan has none. */
-export interface PlanUsage {
-  limits: PlanLimit[];
-  /** When claude last reported them, so the card can say how old they are. */
-  updatedAt: string | null;
-}
-
-export interface SystemSnapshot {
-  takenAt: string;
-  helper: {
-    pid: number;
-    uptimeSec: number;
-    rssKb: number;
-    /** Percent of one core, as `ps` reports it. Absent from a helper that predates it. */
-    cpu?: number;
-    port: number;
-    node: string;
-    commit: string | null;
-    /** Whether launchd runs and can restart it; false when started by hand. */
-    managed: boolean;
-    clients: number;
-    logPath: string;
-    configPath: string;
-    extensionId: string;
-  };
-  sessions: SystemSession[];
-  storage: { uploadsBytes: number; logBytes: number; dataBytes: number };
-  config: {
-    defaultCwd: string;
-    promptsFile: string;
-    /** The team's prompt notes and templates, when configured. */
-    promptsFiles: string[];
-    templatesFile: string | null;
-    defaultModel: string | null;
-    claudeCommand: string;
-    claudeArgs: string[];
-    repoRoots: string[];
-    repoDirs: Record<string, string>;
-    watchRepos: string[];
-    limits: { memoryWarnMb: number; idleServerHours: number };
-    pricing: Record<string, { input: number; output: number }>;
-    jiraBaseUrl: string | null;
-  };
-  /** Tokens and estimated cost across every workspace, by day (local time), oldest first; see `shared/usage/pricing.ts` and `shared/usage/usage.ts`. */
-  usage: {
-    daily: UsageDay[];
-    /** Today's use by hour, in local time: always 24 entries, 0 to 23, with the hours not yet reached at zero. */
-    hourly: UsageHour[];
-    /** Each workspace's use by day, so a range can be split by workspace; the busiest first is up to the card. */
-    workspaces: UsageWorkspace[];
-    /** Estimated cost across each workspace's current claude session, not only the days in `daily`. */
-    costUsd: number;
-    counting: boolean;
-    /** Models used that have no rate, so are missing from the cost. */ unpriced: string[];
-  };
-  plan: PlanUsage;
-  /** Workspaces using a lot of memory, and servers left running; see `findWarnings`. */
-  warnings: GuardrailWarning[];
-  reviews: { fetchedAt: string | null; count: number; error: string | null };
-  /** Facts about the install that only the helper can see, for the setup checklist. */
-  setup: {
-    promptsFileExists: boolean;
-    repoRoots: { path: string; exists: boolean }[];
-    /** The status hooks are set up; status, attention, activity and cost all come from them. */
-    statusHooks: boolean;
-    /** Config entries the helper ignored, and why. */
-    configProblems: string[];
-  };
-}
-
-/** Whether this copy of the app is behind the newest release, and whether it is safe to fast-forward. */
-export interface UpdateStatus {
-  /** Short id of the commit running now. */
-  current: string;
-  branch: string;
-  upstream: string | null;
-  /** The newest `vX.Y.Z` tag, which updates go to; null when there are none and the upstream is followed. */
-  release: string | null;
-  behind: number;
-  ahead: number;
-  /** Tracked files have uncommitted changes. */
-  dirty: boolean;
-  /** What the update brings, newest first. */
-  commits: { short: string; subject: string }[];
-  canUpdate: boolean;
-  /** Why it cannot be updated, or that it is already current. */
-  reason: string | null;
-}
-
-/** What a git write was: the one-line result carries it so the view knows what just happened. */
-export type GitResultAction = 'stage' | 'unstage' | 'discard' | 'commit' | 'switch' | 'push' | 'pr';
-/** GitHub's own enums for a pull request's review decision and whether it merges cleanly. */
-export type ReviewDecision = 'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED';
-export type MergeableState = 'MERGEABLE' | 'CONFLICTING' | 'UNKNOWN';
-
 export type AdminAction =
   /** Ends the workspace's shell and everything in it; it starts again, resuming the conversation, when opened. */
   | { action: 'restartSession'; id: string }
@@ -264,256 +66,6 @@ export type AdminAction =
   /** Fast-forwards this copy of the app, installs and rebuilds, then restarts the helper. */
   | { action: 'applyUpdate' }
   | { action: 'restartHelper' | 'stopHelper' | 'clearUploads' | 'clearLog' | 'pruneWorktrees' | 'checkGh' };
-
-export interface Workspace {
-  /** `ws-<8 hex>`; also the id of its terminal session. */
-  id: string;
-  /** Ticket key or a user-chosen name. */
-  name: string;
-  ticket: string | null;
-  cwd: string;
-  /** First URL to open in a new window for this workspace, e.g. its Jira ticket. */
-  url: string | null;
-  /** The window it lives in; several workspaces can share one. */
-  windowId: number | null;
-  /** The Chrome tab group holding its tabs, for a workspace that shares a window; null when it has none. */
-  groupId: number | null;
-  /** Whether it was last open as a tab group. A Chrome restart frees its window and group, and this is what reopens it as a group in the focused window rather than in a window of its own. */
-  grouped: boolean;
-  /** Kept at the top of the list. */
-  pinned: boolean;
-  color: WorkspaceColor | null;
-  /** A claude session to resume the first time this workspace's terminal starts. */
-  resume: string | null;
-  /** `claude --model` value; null uses the helper's `defaultModel`. */
-  model: string | null;
-  /** Tab URLs last seen in its window or group; used to re-pair after Chrome restarts. */
-  lastTabUrls: string[];
-  /** GitHub PR URL the workspace was created to work on. */
-  pr: string | null;
-  /** First message for claude; cleared once a session has started with it. */
-  prompt: string | null;
-  createdAt: string;
-}
-
-export type WorkspaceStatus = 'needs_input' | 'working' | 'idle' | null;
-
-/** One of a workspace's claude sessions, for picking an earlier conversation to resume. */
-export interface PastSession {
-  id: string;
-  startedAt: string;
-  /** Live status when it is the running one, else null. */
-  status: WorkspaceStatus;
-  /** The first words typed to it, when its hooks recorded them. */
-  firstPrompt: string | null;
-}
-
-/** What a workspace at `needs_input` waits on, from claude's Notification: its type (`permission_prompt`, `idle_prompt`, ...) and its words. */
-export interface WaitingOn {
-  type: string;
-  message: string;
-}
-
-/** One reusable prompt from the vault note, under the bold heading above it. */
-export interface Prompt {
-  section: string;
-  text: string;
-}
-
-/** One changed path in a working tree, as `git status` reports it. */
-export interface GitFile {
-  path: string;
-  /** Status letter in the index (staged), or `?` for untracked; a space when unchanged. */
-  index: string;
-  /** Status letter in the working tree; a space when unchanged. */
-  worktree: string;
-  /** Where a renamed or copied file came from. */
-  from?: string;
-}
-
-export interface GitCommit {
-  sha: string;
-  short: string;
-  author: string;
-  /** ISO 8601. */
-  date: string;
-  /** Branches and tags pointing at it, e.g. `HEAD -> main`, `origin/main`, `tag: v1`. */
-  refs: string[];
-  parents: string[];
-  subject: string;
-}
-
-export interface GitState {
-  /** The working tree's top directory. */
-  root: string;
-  /** The name of the linked worktree this is, or null for the main working tree. */
-  worktree: string | null;
-  /** Null on a detached HEAD. */
-  branch: string | null;
-  upstream: string | null;
-  ahead: number;
-  behind: number;
-  files: GitFile[];
-  commits: GitCommit[];
-}
-
-/** The pull request for a workspace's current branch. */
-export interface BranchPr {
-  number: number;
-  title: string;
-  url: string;
-  isDraft: boolean;
-  reviewDecision: ReviewDecision | null;
-  state: 'OPEN' | 'MERGED' | 'CLOSED';
-}
-
-export interface GitBranch {
-  name: string;
-  current: boolean;
-  upstream: string | null;
-}
-
-export interface GitCompare {
-  /** The branch compared against, e.g. `origin/main`. */
-  base: string;
-  /** The commit the current branch forked from. */
-  mergeBase: string;
-  /** Commits on the current branch that the base does not have. */
-  ahead: number;
-  files: GitCommitFile[];
-}
-
-export interface GitCommitFile {
-  /** `A`, `M`, `D`, `R`, `C` or `T`. */
-  status: string;
-  path: string;
-  from?: string;
-}
-
-/** A git repo that a new workspace can start in. */
-export interface Repo {
-  name: string;
-  path: string;
-  /** The folder it was found in, to tell apart repos that share a name. */
-  root: string;
-}
-
-/**
- * Where a PR stands: `ready` can merge now (approved, checks passing, no conflicts), `review` is open
- * and waiting for a review, `draft` is not up for review yet, and `blocked` cannot merge for a stated reason.
- */
-export type MergeState = 'ready' | 'review' | 'draft' | 'blocked' | 'unknown';
-
-/** The head commit's checks as a whole; a PR with no checks has none. */
-export type CiState = 'passing' | 'failing' | 'pending';
-
-/** An open PR that requests the user's review. */
-export interface ReviewRequest {
-  /** `owner/name`. */
-  repo: string;
-  number: number;
-  title: string;
-  url: string;
-  author: string;
-  isDraft: boolean;
-  updatedAt: string;
-  ticket: string | null;
-  /** The PR's head branch; empty until the merge lookup has answered. */
-  branch: string;
-  merge: MergeState;
-  /** Why a `blocked` PR cannot merge, in a word or two; null otherwise. */
-  mergeReason: string | null;
-  /** Your last review asked for changes or commented, and the author has pushed since. */
-  needsReReview: boolean;
-  /** Your latest review on the PR is an approval. */
-  approved: boolean;
-  /** Null when the PR has no checks, or the lookup that carries them failed. */
-  ci: CiState | null;
-}
-
-export interface ReviewsState {
-  items: ReviewRequest[];
-  /** Why the last fetch failed; `items` then still holds the last good list. */
-  error: string | null;
-  fetchedAt: string | null;
-  /** A fetch is running; the panel disables its refresh button until it finishes. */
-  refreshing: boolean;
-}
-
-export interface PrReview {
-  login: string;
-  /** APPROVED, CHANGES_REQUESTED, COMMENTED, DISMISSED, or PENDING. */
-  state: string;
-  at: string | null;
-}
-
-/** One comment in a pull request's review thread. */
-export interface PrThreadComment {
-  author: string;
-  body: string;
-  at: string;
-  /** Opens the comment on GitHub. */
-  url: string;
-}
-
-/** A thread of review comments on a line of the diff. */
-export interface PrThread {
-  path: string;
-  /** The line it is on now, or where it was before the code moved; null for a comment on the whole file. */
-  line: number | null;
-  resolved: boolean;
-  /** The code it was written on has since changed. */
-  outdated: boolean;
-  comments: PrThreadComment[];
-}
-
-export interface PrDetails {
-  url: string;
-  title: string;
-  author: string;
-  head: string;
-  base: string;
-  isDraft: boolean;
-  additions: number;
-  deletions: number;
-  changedFiles: number;
-  /** Null when no review is required. */
-  reviewDecision: ReviewDecision | null;
-  mergeable: MergeableState;
-  createdAt: string;
-  updatedAt: string;
-  /** Each reviewer's latest review. */
-  reviews: PrReview[];
-  /** Users and teams whose review is still requested. */
-  requested: string[];
-  checks: { passed: number; failed: number; pending: number; failing: string[] };
-  /** The description as written, in GitHub markdown, cut at `MAX_PR_BODY` characters. */
-  body: string;
-  labels: string[];
-  /** Conversation comments, not counting review comments on code. */
-  comments: number;
-  /** The files with the most changes first, at most `PR_FILES_SHOWN`. */
-  files: PrFile[];
-  /** Newest first, at most `PR_COMMITS_SHOWN`. */
-  commits: PrCommit[];
-  commitCount: number;
-}
-
-export interface PrFile {
-  path: string;
-  additions: number;
-  deletions: number;
-}
-
-export interface PrCommit {
-  sha: string;
-  headline: string;
-  author: string;
-  date: string;
-}
-
-export const PR_FILES_SHOWN = 10;
-export const PR_COMMITS_SHOWN = 6;
 
 export type ControlToClient =
   | { type: 'state'; workspaces: Workspace[]; statuses: Record<string, WorkspaceStatus>; waiting: Record<string, WaitingOn>; reviews: ReviewsState }

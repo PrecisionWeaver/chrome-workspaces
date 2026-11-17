@@ -1,5 +1,6 @@
 import { listFollowingTabs, listGroupOrder, nextGroupMove } from '../../../shared/workspaces/tab-order';
-import type { ControlToHelper, Workspace } from '../../../shared/protocol/protocol';
+import type { ControlToHelper } from '../../../shared/protocol/protocol';
+import type { Workspace } from '../../../shared/protocol/workspace';
 
 export interface OrderSyncDeps {
   workspaces(): readonly Workspace[];

@@ -2,7 +2,7 @@ import { chmodSync, mkdtempSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { ReviewRequest } from '../../../shared/protocol/protocol';
+import type { ReviewRequest } from '../../../shared/protocol/pull-requests';
 import { connectControl, gitRepo, opened, startHarness, type Harness } from '../../testing/harness';
 import { waitFor } from '../../testing/wait-for';
 

@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import type { SystemProcess } from '../../../shared/protocol/protocol';
+import type { SystemProcess } from '../../../shared/protocol/system';
 
 const execFileAsync = promisify(execFile);
 

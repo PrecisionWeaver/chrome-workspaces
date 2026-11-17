@@ -1,4 +1,5 @@
-import type { ClientMessage, Workspace } from '../../../shared/protocol/protocol';
+import type { ClientMessage } from '../../../shared/protocol/protocol';
+import type { Workspace } from '../../../shared/protocol/workspace';
 import { connectSession, type SessionLink, type SessionTerminal } from '../terminal/terminal-session';
 
 export interface SessionAttachmentOptions {

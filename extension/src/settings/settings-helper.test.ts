@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AdminAction, ControlToHelper, UpdateStatus } from '../../../shared/protocol/protocol';
+import type { AdminAction, ControlToHelper } from '../../../shared/protocol/protocol';
+import type { UpdateStatus } from '../../../shared/protocol/system';
 import { installChrome } from '../../testing/chrome-mock';
 import { makeSession, makeSnapshot } from '../../testing/fixtures';
 import { createArming } from '../ui/dom';

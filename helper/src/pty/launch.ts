@@ -1,4 +1,5 @@
-import { MODEL_PATTERN, MONITOR_SESSION, SHELL_SESSION, type Workspace } from '../../../shared/protocol/protocol';
+import { MODEL_PATTERN, MONITOR_SESSION, SHELL_SESSION } from '../../../shared/protocol/protocol';
+import type { Workspace } from '../../../shared/protocol/workspace';
 import type { SessionSpec } from './session';
 
 // The id is interpolated into a shell command, so only a bare session uuid is accepted.

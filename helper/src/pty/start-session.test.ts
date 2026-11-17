@@ -2,7 +2,8 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { MONITOR_SESSION, SHELL_SESSION, type Workspace } from '../../../shared/protocol/protocol';
+import { MONITOR_SESSION, SHELL_SESSION } from '../../../shared/protocol/protocol';
+import type { Workspace } from '../../../shared/protocol/workspace';
 import type { Session, SessionSpec } from './session';
 import { startSession, type StartSessionDeps } from './start-session';
 

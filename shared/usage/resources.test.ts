@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ResourceSample } from '../protocol/protocol';
+import type { ResourceSample } from '../protocol/system';
 import { combineHistory, topConsumers } from './resources';
 import { makeSession } from '../../extension/testing/fixtures';
 

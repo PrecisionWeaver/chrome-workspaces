@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import type { HistoryEntry, Workspace } from '../../../shared/protocol/protocol';
+import type { HistoryEntry, Workspace } from '../../../shared/protocol/workspace';
 
 export const MAX_HISTORY = 50;
 

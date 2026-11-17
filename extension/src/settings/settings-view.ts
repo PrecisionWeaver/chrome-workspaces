@@ -1,4 +1,5 @@
-import type { ControlToClient, ControlToHelper, SystemSnapshot } from '../../../shared/protocol/protocol';
+import type { ControlToClient, ControlToHelper } from '../../../shared/protocol/protocol';
+import type { SystemSnapshot } from '../../../shared/protocol/system';
 import { $, createArming, el, wireBack } from '../ui/dom';
 import { keepFocus } from '../ui/focus';
 import { type CardLayout, columnCountFor, keysOf, layoutCards, layoutFromKeys, placeCards } from './settings-layout';

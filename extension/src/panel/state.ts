@@ -1,4 +1,5 @@
-import type { HistoryEntry, ReviewsState, WaitingOn, Workspace, WorkspaceStatus } from '../../../shared/protocol/protocol';
+import type { HistoryEntry, WaitingOn, Workspace, WorkspaceStatus } from '../../../shared/protocol/workspace';
+import type { ReviewsState } from '../../../shared/protocol/pull-requests';
 import { select, shownIn, type Selection } from '../background/selection';
 import { showOnly } from '../background/windows';
 

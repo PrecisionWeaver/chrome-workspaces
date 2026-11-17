@@ -1,5 +1,5 @@
 import { errorMessage } from '../../../shared/protocol/errors';
-import type { ReviewRequest, ReviewsState } from '../../../shared/protocol/protocol';
+import type { ReviewRequest, ReviewsState } from '../../../shared/protocol/pull-requests';
 import { mergeStatusQuery } from './review-queries';
 import { type Lookup, parseMergeStatuses, parseReviewRequests } from './review-parse';
 

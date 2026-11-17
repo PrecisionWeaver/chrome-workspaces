@@ -1,4 +1,4 @@
-import type { SystemSnapshot, UpdateStatus } from '../../../shared/protocol/protocol';
+import type { SystemSnapshot, UpdateStatus } from '../../../shared/protocol/system';
 import { el } from '../ui/dom';
 import { formatCpu, formatDuration, formatKb } from '../ui/format';
 import { actions, card, guarded, plain, row, type SettingsContext } from './settings-parts';

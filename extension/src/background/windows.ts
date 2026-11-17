@@ -1,4 +1,5 @@
-import type { ControlToHelper, Workspace } from '../../../shared/protocol/protocol';
+import type { ControlToHelper } from '../../../shared/protocol/protocol';
+import type { Workspace } from '../../../shared/protocol/workspace';
 import { similarity } from '../../../shared/workspaces/pairing';
 import { showsPage } from '../../../shared/workspaces/tab-urls';
 import { takeReviewTab } from './tabs';

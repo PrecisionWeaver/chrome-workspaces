@@ -1,4 +1,4 @@
-import type { WaitingOn, WorkspaceStatus } from '../protocol/protocol';
+import type { WaitingOn, WorkspaceStatus } from '../protocol/workspace';
 
 export type AttentionKind = 'needs_input' | 'finished';
 

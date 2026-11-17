@@ -1,5 +1,7 @@
 import { vi } from 'vitest';
-import type { ControlToHelper, GitCommit, GitFile, GitState, WaitingOn, WorkspaceStatus } from '../../shared/protocol/protocol';
+import type { ControlToHelper } from '../../shared/protocol/protocol';
+import type { WaitingOn, WorkspaceStatus } from '../../shared/protocol/workspace';
+import type { GitCommit, GitFile, GitState } from '../../shared/protocol/git';
 import { createGitView, type GitView } from '../src/source-control/git-view';
 import { closeMenu } from '../src/ui/menu';
 import { installChrome } from './chrome-mock';

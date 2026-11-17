@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
-import type { ReviewsState, SystemSnapshot, UsageWorkspace } from '../../../shared/protocol/protocol';
+import type { SystemSnapshot, UsageWorkspace } from '../../../shared/protocol/system';
+import type { ReviewsState } from '../../../shared/protocol/pull-requests';
 import { findWarnings, type GuardrailWarning } from '../../../shared/usage/guardrails';
 import { costOf, isRealModel, rateFor } from '../../../shared/usage/pricing';
 import { localDay } from '../../../shared/usage/usage';

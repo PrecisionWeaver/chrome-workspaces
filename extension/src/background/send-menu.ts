@@ -1,4 +1,5 @@
-import type { ControlToHelper, Workspace } from '../../../shared/protocol/protocol';
+import type { ControlToHelper } from '../../../shared/protocol/protocol';
+import type { Workspace } from '../../../shared/protocol/workspace';
 
 const SEND_PARENT = 'send-to-workspace';
 const MAX_MENU_WORKSPACES = 20;

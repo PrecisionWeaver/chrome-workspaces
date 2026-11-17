@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Workspace } from '../../../shared/protocol/protocol';
+import type { Workspace } from '../../../shared/protocol/workspace';
 import { makeWorkspace } from '../../testing/fixtures';
 import { createWorkspaceDrag, type WorkspaceDrag } from './workspace-drag';
 

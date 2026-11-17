@@ -1,6 +1,8 @@
 import { SearchAddon } from '@xterm/addon-search';
 import { ticketUrl } from '../../shared/lib/jira';
-import type { ControlToClient, ReviewRequest, Workspace } from '../../shared/protocol/protocol';
+import type { ControlToClient } from '../../shared/protocol/protocol';
+import type { Workspace } from '../../shared/protocol/workspace';
+import type { ReviewRequest } from '../../shared/protocol/pull-requests';
 import { createActivitySection } from './activity/activity-section';
 import { followAppearance } from './app/appearance';
 import { connectControl } from './app/helper-client';

@@ -1,4 +1,4 @@
-import type { SystemSnapshot } from '../../../shared/protocol/protocol';
+import type { SystemSnapshot } from '../../../shared/protocol/system';
 import { combineHistory, topConsumers } from '../../../shared/usage/resources';
 import { el, hoverTip } from '../ui/dom';
 import { formatCpu, formatKb, resourceTotal } from '../ui/format';

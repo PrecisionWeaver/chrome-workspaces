@@ -1,5 +1,5 @@
 import { CALL_WINDOW_MS, CLAUDE_GROUP_TITLE, groupOwner, type BrowserCall } from '../../../shared/workspaces/claude-groups';
-import type { Workspace } from '../../../shared/protocol/protocol';
+import type { Workspace } from '../../../shared/protocol/workspace';
 
 // Claude groups waiting for the browser call that opened them, by group id → when first seen.
 const unplaced = new Map<number, number>();

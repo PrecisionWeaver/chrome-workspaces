@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest';
-import type { SystemSession } from '../../../shared/protocol/protocol';
+import type { SystemSession } from '../../../shared/protocol/system';
 import { makeSession, makeSnapshot } from '../../testing/fixtures';
 import { resourcesChart } from './settings-resources';
 

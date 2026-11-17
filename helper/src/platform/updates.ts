@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import type { UpdateStatus } from '../../../shared/protocol/protocol';
+import type { UpdateStatus } from '../../../shared/protocol/system';
 import { errorMessage } from '../../../shared/protocol/errors';
 
 const execFileAsync = promisify(execFile);

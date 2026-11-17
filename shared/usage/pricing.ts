@@ -1,4 +1,4 @@
-import type { TokenTotals } from '../protocol/protocol';
+import type { TokenTotals } from '../protocol/system';
 
 /** Dollars per million input and output tokens for one model family. */
 export interface Rate {

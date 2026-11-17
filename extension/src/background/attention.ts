@@ -1,5 +1,6 @@
 import { attentionEvents, describeWaiting, needsInputCount } from '../../../shared/workspaces/attention';
-import type { ControlToClient, WaitingOn, Workspace, WorkspaceStatus } from '../../../shared/protocol/protocol';
+import type { ControlToClient } from '../../../shared/protocol/protocol';
+import type { WaitingOn, Workspace, WorkspaceStatus } from '../../../shared/protocol/workspace';
 
 export interface AttentionDeps {
   workspaces(): readonly Workspace[];

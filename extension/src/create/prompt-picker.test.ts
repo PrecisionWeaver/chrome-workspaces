@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { beforeEach, describe, expect, it } from 'vitest';
-import type { Prompt } from '../../../shared/protocol/protocol';
+import type { Prompt } from '../../../shared/protocol/workspace';
 import { createPromptPicker } from './prompt-picker';
 
 const prompt = (section: string, text: string): Prompt => ({ section, text });

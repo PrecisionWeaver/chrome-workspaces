@@ -1,4 +1,4 @@
-import type { Prompt } from '../../../shared/protocol/protocol';
+import type { Prompt } from '../../../shared/protocol/workspace';
 import { el, promptCard } from '../ui/dom';
 
 export interface PromptPickerOptions {

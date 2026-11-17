@@ -1,4 +1,4 @@
-import type { Workspace } from '../../../shared/protocol/protocol';
+import type { Workspace } from '../../../shared/protocol/workspace';
 
 export interface WorkspaceDragOptions {
   /** The list as it is now, to find where a drop lands. */
