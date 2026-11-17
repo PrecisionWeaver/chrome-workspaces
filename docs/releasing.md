@@ -25,7 +25,7 @@ git branch -D release/vX.Y.Z    # a squash merge leaves the branch looking unmer
 
 `main` takes no direct pushes and no local merges, so the old fast-forward (`git merge --ff-only release/vX.Y.Z && git push`) is not available; the pull request is the only way in.
 
-Merging to `main` triggers `.github/workflows/release.yml`. If `package.json`'s version has no tag, it installs, checks (format, types, tests), builds, zips `extension/dist`, and runs `gh release create vX.Y.Z --generate-notes` with the zip attached. A push whose version is already tagged does nothing, so ordinary commits never publish.
+Merging to `main` triggers `.github/workflows/release.yml`. If `package.json`'s version has no tag, it installs, checks (format, types, tests), builds, zips `extension/dist`, attests the zip's build provenance, and runs `gh release create vX.Y.Z --generate-notes` with the zip attached. Anyone can check a downloaded zip came from that workflow with `gh attestation verify chrome-workspaces-extension-vX.Y.Z.zip --repo PrecisionWeaver/chrome-workspaces`. A push whose version is already tagged does nothing, so ordinary commits never publish.
 
 ## Choosing the bump
 
@@ -35,7 +35,7 @@ Merging to `main` triggers `.github/workflows/release.yml`. If `package.json`'s 
 
 ## Notes
 
-- Release notes are auto-generated from commits since the last tag. Write commit subjects that read well, since they become the changelog.
+- Release notes are auto-generated from the pull requests merged since the last tag. Write PR titles that read well, since they become the changelog. `.github/release.yml` files each one under a heading by its label (`enhancement`, `bug`, `documentation`, `dependencies`); an unlabelled PR lands in Other changes.
 - A test checks that both version files match.
 - To redo a bad release, delete the GitHub release and the tag (`git push origin :refs/tags/vX.Y.Z`), fix, bump again.
 - The in-app updater fast-forwards to the newest `vX.Y.Z` tag, so merged work reaches users only once it is released.

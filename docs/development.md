@@ -18,9 +18,9 @@ Run `format`, `check`, `typecheck`, `test:coverage` and `build:extension` before
 
 ## Workflow
 
-- Work on a feature branch (`feat/...`, `fix/...`, `chore/...`), open a pull request, and merge it on GitHub once CI passes. Do not commit on `main`, and do not push to it: it takes changes only through a merged pull request, release commits included ([releasing.md](releasing.md)).
+- Work on a feature branch (`feat/...`, `fix/...`, `chore/...`), open a pull request, and merge it on GitHub once CI passes. Do not commit on `main`, and do not push to it: it takes changes only through a merged pull request, release commits included ([releasing.md](releasing.md)). A repository ruleset enforces this: `main` needs a pull request whose `check` job (ci.yml) passed, merges by squash only, and refuses force-pushes and deletion. Merged branches are deleted on GitHub automatically.
 - Commit when asked; push and merge when asked. Delete merged branches once the user agrees.
-- `.github/workflows/ci.yml` runs the Biome check, typecheck, tests with coverage and the build on every pull request and every push, `main` included; `release.yml` runs the same checks again when a merge to `main` has a version that is not tagged yet, before it cuts the release.
+- `.github/workflows/ci.yml` runs the Biome check, typecheck, tests with coverage and the build on every pull request and every push, `main` included; `release.yml` runs the same checks again when a merge to `main` has a version that is not tagged yet, before it cuts the release. CodeQL (GitHub's default setup, configured in the repository settings rather than a workflow file) also scans every pull request, and Dependabot opens security fixes as soon as an advisory lands, besides its monthly updates.
 - To release, see [releasing.md](releasing.md).
 
 ## Conventions

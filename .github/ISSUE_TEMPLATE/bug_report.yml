@@ -1,0 +1,50 @@
+name: Bug report
+description: Something in the panel or the helper does not work as it should.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open a workspace for acme/app
+        2. ...
+  - type: input
+    id: version
+    attributes:
+      label: Chrome Workspaces version
+      description: Shown in Settings in the panel, or `version` in package.json.
+      placeholder: v0.28.0
+    validations:
+      required: true
+  - type: input
+    id: chrome
+    attributes:
+      label: Chrome version
+      description: chrome://version
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: npm run doctor output
+      description: Run it in your clone and paste the result.
+      render: text
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Anything from the helper log or the panel's console. Remove tokens and private paths first.
