@@ -5,6 +5,10 @@ on:
   pull_request:
   push:
 
+# CI only reads the code, so the token gets no write access.
+permissions:
+  contents: read
+
 jobs:
   check:
     runs-on: macos-latest
