@@ -3,6 +3,7 @@
 A Chrome side-panel extension and a local Node helper that pair each Chrome window or tab group with a `claude` terminal. macOS only.
 
 Read before changing things:
+
 - [docs/architecture.md](docs/architecture.md): how the pieces fit, and the non-obvious behaviour.
 - [docs/development.md](docs/development.md): commands, workflow, conventions.
 - [docs/releasing.md](docs/releasing.md): cutting a release.
