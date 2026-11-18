@@ -1,9 +1,17 @@
 name: ci
 
-# Typecheck, test and build every pull request and every push, main included: release.yml checks main only when it cuts a release.
+# Lint, typecheck, test and build every pull request, and every push to main (a pull request has its own run, so no other push needs one).
+# It runs on Linux: GitHub's macOS runners are capacity-constrained and have left runs queued for many minutes. The tests don't need macOS:
+# launchd, plutil and the like are behind mocks or skipped off macOS (see scripts/setup-files.test.ts), and the PTY and git code runs the same.
+# A newer push to a branch cancels its older run; main's runs are never cancelled.
 on:
   pull_request:
   push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 # CI only reads the code, so the token gets no write access.
 permissions:
@@ -11,7 +19,7 @@ permissions:
 
 jobs:
   check:
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0

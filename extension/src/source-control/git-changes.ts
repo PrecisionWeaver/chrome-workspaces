@@ -1,7 +1,8 @@
 import type { GitFile, GitState } from '../../../shared/protocol/git';
 import { confirmButton, el } from '../ui/dom';
 import { keepFocus } from '../ui/focus';
-import { fileRow, openWorking } from './git-diff';
+import { fileRow } from './git-diff';
+import { openTab } from './git-tabs';
 import type { GitViewContext } from './git-view';
 
 /** The files in the index, which a commit would take. */
@@ -40,7 +41,20 @@ function drawChanges(ctx: GitViewContext): void {
     const bulk = el('span', '', 'git-bulk');
     bulk.append(...all);
     heading.append(bulk);
-    changesEl.append(heading, ...files.map((f) => fileRow(letterOf(f), f.path, f.from, () => openWorking(ctx, f.path), ctx.fresh.has(f.path), each(f))));
+    changesEl.append(
+      heading,
+      ...files.map((f) =>
+        fileRow(
+          letterOf(f),
+          f.path,
+          f.from,
+          () => openTab(ctx, f.path),
+          ctx.fresh.has(f.path),
+          each(f),
+          () => openTab(ctx, f.path, true),
+        ),
+      ),
+    );
   };
   const stage = (paths: string[], on: boolean) => ctx.workspaceId && ctx.send({ type: 'gitStage', id: ctx.workspaceId, paths, stage: on });
   // Discarding cannot be undone, so the button asks twice; an untracked file is deleted outright, and says so.

@@ -281,10 +281,10 @@ describe('describeFailure', () => {
   });
 });
 
-describe('a PR that needs another look', () => {
+describe('PRs you reviewed', () => {
   const reviews = (...nodes: ReturnType<typeof review>[]) => ({ latestReviews: { nodes } });
 
-  it('lists a PR you reviewed only when it needs re-review, and flags one already on the list', async () => {
+  it('lists every PR you reviewed with where your review stands, also one already on the list', async () => {
     const requested = JSON.stringify([pr(1, 'Requested', '2026-10-03T00:00:00Z')]);
     const reviewed = JSON.stringify([
       pr(1, 'Requested', '2026-10-03T00:00:00Z'),
@@ -304,21 +304,34 @@ describe('a PR that needs another look', () => {
       { fetchReviewed: async () => [reviewed] },
     );
     await poller.refresh();
-    expect(poller.state().items.map((r) => [r.number, r.needsReReview])).toEqual([
-      [1, true],
-      [2, true],
+    expect(poller.state().items.map((r) => [r.number, r.myReview])).toEqual([
+      [1, 'new-commits'],
+      [2, 'rereview'],
+      [3, 'changes-requested'],
     ]);
   });
 
-  it('leaves reviewed PRs out when the merge lookup cannot say whether they changed', async () => {
+  it('leaves out a PR found only through your reviews whose review the lookup could not read', async () => {
+    const reviewed = JSON.stringify([pr(3, 'Unread', '2026-10-01T00:00:00Z')]);
+    const poller = new ReviewsPoller(
+      async () => [GH],
+      async () => answer('me', lookup(URL1)),
+      0,
+      { fetchReviewed: async () => [reviewed] },
+    );
+    await poller.refresh();
+    expect(poller.state().items.map((r) => r.number)).toEqual([2, 1]);
+  });
+
+  it('leaves reviewed PRs out when there is no lookup to say where your review stands', async () => {
     const reviewed = JSON.stringify([pr(2, 'Pushed since', '2026-10-02T00:00:00Z')]);
     const poller = new ReviewsPoller(async () => [GH], undefined, 0, { fetchReviewed: async () => [reviewed] });
     await poller.refresh();
     expect(poller.state().items.map((r) => r.number)).toEqual([2, 1]);
-    expect(poller.state().items.every((r) => !r.needsReReview)).toBe(true);
+    expect(poller.state().items.every((r) => r.myReview === 'none')).toBe(true);
   });
 
-  it('keeps the flag from the last good lookup when a later one fails', async () => {
+  it('keeps your review from the last good lookup when a later one fails', async () => {
     let fail = false;
     const poller = new ReviewsPoller(
       async () => [GH],
@@ -331,7 +344,7 @@ describe('a PR that needs another look', () => {
     await poller.refresh();
     fail = true;
     await poller.refresh();
-    expect(poller.state().items.find((r) => r.number === 1)?.needsReReview).toBe(true);
+    expect(poller.state().items.find((r) => r.number === 1)?.myReview).toBe('new-commits');
   });
 });
 

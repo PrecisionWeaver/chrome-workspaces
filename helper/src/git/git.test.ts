@@ -1,8 +1,8 @@
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { git } from '../../testing/git';
+import { copyTree, git } from '../../testing/git';
 import { createGitService, parseLog, parseNameStatus, parseStatus } from './git';
 
 let template: string | undefined;
@@ -19,7 +19,7 @@ function repo(): string {
     git(template, 'commit', '-qam', 'second: add two');
   }
   const dir = mkdtempSync(join(tmpdir(), 'cw-git-'));
-  cpSync(template, dir, { recursive: true });
+  copyTree(template, dir);
   return dir;
 }
 

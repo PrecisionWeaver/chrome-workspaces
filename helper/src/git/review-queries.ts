@@ -8,10 +8,8 @@ export function ghWatchedPrs(repos: readonly string[]): string {
   return `gh search prs ${repoFlags(repos)} --state=open ${GH_FIELDS} --limit 100`;
 }
 
-/** PRs you have already reviewed, which no longer match a review request; they are listed only if they need another look. */
-export function ghReviewedPrs(repos: readonly string[]): string {
-  return `gh search prs ${repoFlags(repos)} --state=open --reviewed-by=@me ${GH_FIELDS} --limit 50`;
-}
+/** Open PRs you have already reviewed, in any repo: they no longer match a review request once you have. */
+export const ghReviewedPrs = `gh search prs --state=open --reviewed-by=@me ${GH_FIELDS} --limit 50`;
 
 const SAFE_NAME = /^[\w.-]+$/;
 
@@ -25,7 +23,7 @@ export function ghOwnPrs(repos: readonly string[]): string {
 
 /**
  * One GraphQL request for what `gh search` does not report: every PR's merge state, the commit your latest review
- * was on, and the head commit's checks as one rolled-up state (the individual check runs are what makes a big query time out).
+ * was on, who is asked to review it now, and the head commit's checks as one rolled-up state (the individual check runs are what makes a big query time out).
  */
 export function mergeStatusQuery(items: readonly ReviewRequest[]): string {
   const lookups = items.flatMap((item, index) => {
@@ -34,6 +32,7 @@ export function mergeStatusQuery(items: readonly ReviewRequest[]): string {
     return [
       `r${index}: repository(owner: "${owner}", name: "${name}") { pullRequest(number: ${item.number}) { url headRefName mergeStateStatus reviewDecision headRefOid ` +
         'latestReviews(first: 100) { nodes { author { login } state commit { oid } } } ' +
+        'reviewRequests(first: 20) { nodes { requestedReviewer { ... on User { login } } } } ' +
         'commits(last: 1) { nodes { commit { statusCheckRollup { state } } } } } }',
     ];
   });

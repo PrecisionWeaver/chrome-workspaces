@@ -1,8 +1,8 @@
-import { cpSync, existsSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { gitTrimmed } from '../../testing/git';
+import { copyTree, gitTrimmed } from '../../testing/git';
 import { applyUpdate, checkUpdates } from './updates';
 
 const git = gitTrimmed;
@@ -30,7 +30,7 @@ let template: string | undefined;
 function setup() {
   template ??= build();
   const root = mkdtempSync(join(tmpdir(), 'cw-upd-'));
-  cpSync(template, root, { recursive: true });
+  copyTree(template, root);
   const origin = join(root, 'origin.git');
   const seed = join(root, 'seed');
   const installed = join(root, 'installed');

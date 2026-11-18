@@ -1,6 +1,6 @@
 import type { ControlToHelper } from '../../../shared/protocol/protocol';
 import type { Workspace } from '../../../shared/protocol/workspace';
-import type { CiState, MergeState, ReviewRequest, ReviewsState } from '../../../shared/protocol/pull-requests';
+import type { CiState, MergeState, MyReview, ReviewRequest, ReviewsState } from '../../../shared/protocol/pull-requests';
 import { $, el } from '../ui/dom';
 import { collapsible } from '../ui/collapsible';
 import { ref, relative, byline } from './pr-view';
@@ -20,9 +20,9 @@ export interface Launcher {
   renderReviews(state: ReviewsState, workspaces: readonly Workspace[]): void;
 }
 
-type Facet = 'author' | 'repo' | 'status';
-const FACETS: readonly Facet[] = ['author', 'repo', 'status'];
-const FACET_LABELS: Record<Facet, string> = { author: 'Authors', repo: 'Repos', status: 'Status' };
+type Facet = 'author' | 'repo' | 'status' | 'mine';
+const FACETS: readonly Facet[] = ['author', 'repo', 'status', 'mine'];
+const FACET_LABELS: Record<Facet, string> = { author: 'Authors', repo: 'Repos', status: 'Status', mine: 'My review' };
 const MERGE_LABELS: Record<MergeState, string> = {
   ready: 'Can merge',
   review: 'Ready for review',
@@ -36,15 +36,34 @@ const MERGE_TITLES: Partial<Record<MergeState, string>> = {
   draft: 'Draft: not up for review yet',
 };
 
+const MY_REVIEW_LABELS: Record<MyReview, string> = {
+  rereview: 'Re-review to merge',
+  'new-commits': 'New commits',
+  'changes-requested': 'Changes requested',
+  commented: 'Commented',
+  approved: 'Approved',
+  none: 'Not reviewed',
+};
+const MY_REVIEW_TITLES: Record<Exclude<MyReview, 'none'>, string> = {
+  rereview: 'Your review is needed again before this can merge',
+  'new-commits': 'You commented on this PR, and the author has pushed since',
+  'changes-requested': 'You asked for changes; waiting on the author',
+  commented: 'You commented on this PR',
+  approved: 'You approved this PR',
+};
+
 const CI_LABELS: Record<CiState, string> = { passing: 'Checks passing', failing: 'Checks failing', pending: 'Checks running' };
 
 /** What a request is filtered on for a facet; a PR that cannot merge is filtered by why, such as Conflicts. */
-const facetValue = (item: ReviewRequest, facet: Facet): string =>
-  facet === 'status' ? (item.merge === 'blocked' && item.mergeReason ? item.mergeReason : MERGE_LABELS[item.merge]) : item[facet];
+function facetValue(item: ReviewRequest, facet: Facet): string {
+  if (facet === 'status') return item.merge === 'blocked' && item.mergeReason ? item.mergeReason : MERGE_LABELS[item.merge];
+  return facet === 'mine' ? MY_REVIEW_LABELS[item.myReview] : item[facet];
+}
 
 /** Every word of the query must appear somewhere in the request. */
 function matches(item: ReviewRequest, query: string): boolean {
-  const haystack = `${ref(item)} ${item.repo} ${item.title} ${item.author} ${item.ticket ?? ''} ${item.branch}${item.isDraft ? ' draft' : ''}`.toLowerCase();
+  const haystack =
+    `${ref(item)} ${item.repo} ${item.title} ${item.author} ${item.ticket ?? ''} ${item.branch}${item.isDraft ? ' draft' : ''}${item.myReview === 'none' ? '' : ` ${MY_REVIEW_LABELS[item.myReview]}`}`.toLowerCase();
   return query.split(/\s+/).every((word) => haystack.includes(word));
 }
 
@@ -61,7 +80,7 @@ export function createLauncher({ send, create, closeCreate, selectedUrl, openWor
   let lastReviews: ReviewsState = { items: [], error: null, fetchedAt: null, refreshing: false };
   let lastWorkspaces: readonly Workspace[] = [];
   // Deselected values are stored rather than selected ones, so new authors and repos show up.
-  const hidden: Record<Facet, Set<string>> = { author: new Set(), repo: new Set(), status: new Set() };
+  const hidden: Record<Facet, Set<string>> = { author: new Set(), repo: new Set(), status: new Set(), mine: new Set() };
   let openFacet: Facet | null = null;
 
   // Registered before the new-workspace view's own Escape handler, so closing a facet list is not also a close.
@@ -92,7 +111,7 @@ export function createLauncher({ send, create, closeCreate, selectedUrl, openWor
 
   function setHidden(facet: Facet, values: Iterable<string>, hide: boolean): void {
     for (const value of values) hidden[facet][hide ? 'add' : 'delete'](value);
-    void chrome.storage.local.set({ reviewsHidden: { author: [...hidden.author], repo: [...hidden.repo], status: [...hidden.status] } });
+    void chrome.storage.local.set({ reviewsHidden: Object.fromEntries(FACETS.map((key) => [key, [...hidden[key]]])) });
     renderReviews(lastReviews, lastWorkspaces);
   }
 
@@ -104,7 +123,7 @@ export function createLauncher({ send, create, closeCreate, selectedUrl, openWor
     renderReviews(lastReviews, lastWorkspaces);
   });
 
-  /** Updates the Authors and Repos buttons, and the checklist for whichever is open. */
+  /** Updates the facet buttons, and the checklist for whichever is open. */
   function renderFacets(items: readonly ReviewRequest[]): void {
     for (const button of facetButtons) {
       const facet = button.dataset.facet as Facet;
@@ -175,15 +194,11 @@ export function createLauncher({ send, create, closeCreate, selectedUrl, openWor
           merge.title = MERGE_TITLES[item.merge] ?? `Cannot merge yet: ${item.mergeReason ?? 'blocked'}`;
           head.append(merge);
         }
-        if (item.approved) {
-          const approved = el('span', 'Approved', 'approved');
-          approved.title = 'You approved this PR';
-          head.append(approved);
-        }
-        if (item.needsReReview) {
-          const again = el('span', 'New commits', 'rereview');
-          again.title = 'You reviewed this PR, and the author has pushed since';
-          head.append(again);
+        if (item.myReview !== 'none') {
+          const mine = el('span', MY_REVIEW_LABELS[item.myReview], 'mine');
+          mine.dataset.state = item.myReview;
+          mine.title = MY_REVIEW_TITLES[item.myReview];
+          head.append(mine);
         }
         // "Can merge" already says the checks pass, and a blocked PR's reason may already say they fail.
         if (item.ci && item.merge !== 'ready' && !(item.ci === 'failing' && item.mergeReason === 'Checks failing')) {

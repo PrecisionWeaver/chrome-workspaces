@@ -8,6 +8,7 @@ import { commit, renderChanges, renderSave, stagedFiles } from './git-changes';
 import { renderCommits, showBranches } from './git-commits';
 import { listDiffFiles, renderDiff } from './git-diff';
 import { renderStatus } from './git-status';
+import { emptyTabs, renderTabs, syncTabs, type TabSet } from './git-tabs';
 
 export interface GitViewOptions {
   send(message: ControlToHelper): boolean;
@@ -52,6 +53,7 @@ export interface GitViewContext extends GitViewOptions {
   readonly diffTitle: HTMLHeadingElement;
   readonly diffMeta: HTMLDivElement;
   readonly diffFiles: HTMLDivElement;
+  readonly diffTabs: HTMLDivElement;
   readonly diffBody: HTMLDivElement;
   readonly saveBox: HTMLDivElement;
   readonly messageInput: HTMLTextAreaElement;
@@ -59,6 +61,8 @@ export interface GitViewContext extends GitViewOptions {
 
   workspaceId: string | null;
   state: GitState | null;
+  /** The working-tree files open in tabs for this workspace. */
+  tabs: TabSet;
   /** What the pane knows beyond status: the branch's pull request and its checks. */
   pr: { pr: BranchPr; checks: PrDetails['checks'] | null } | null;
   /** The branch the last checks answer was for; a lookup that found no PR means one can be made. */
@@ -79,6 +83,8 @@ export interface GitViewContext extends GitViewOptions {
   refCard: HTMLElement | null;
   /** Redraws the whole section. */
   render(): void;
+  /** Closes the diff view, telling the panel. */
+  closeDiff(): void;
 }
 
 const POLL_MS = 5000;
@@ -118,12 +124,14 @@ export function createGitView(options: GitViewOptions): GitView {
     diffTitle: $<HTMLHeadingElement>('diff-title'),
     diffMeta: $<HTMLDivElement>('diff-meta'),
     diffFiles: $<HTMLDivElement>('diff-files'),
+    diffTabs: $<HTMLDivElement>('diff-tabs'),
     diffBody: $<HTMLDivElement>('diff-body'),
     saveBox: $<HTMLDivElement>('git-save'),
     messageInput: $<HTMLTextAreaElement>('git-message'),
     saveButton: $<HTMLButtonElement>('git-save-btn'),
     workspaceId: null,
     state: null,
+    tabs: emptyTabs(),
     pr: null,
     checksBranch: null,
     pushing: false,
@@ -136,7 +144,10 @@ export function createGitView(options: GitViewOptions): GitView {
     openPath: null,
     refCard: null,
     render,
+    closeDiff: close,
   };
+  // Each workspace keeps its own tabs while another is in view.
+  const tabSets = new Map<string, TabSet>();
 
   const collapsed = () => section.classList.contains('collapsed');
 
@@ -171,6 +182,7 @@ export function createGitView(options: GitViewOptions): GitView {
     ctx.comparing = false;
     ctx.openSha = ctx.openPath = null;
     ctx.diffSection.hidden = true;
+    renderTabs(ctx);
   }
 
   function close(): void {
@@ -217,7 +229,9 @@ export function createGitView(options: GitViewOptions): GitView {
     setWorkspace(workspace) {
       const id = workspace?.id ?? null;
       if (id === ctx.workspaceId) return;
+      if (ctx.workspaceId) tabSets.set(ctx.workspaceId, ctx.tabs);
       ctx.workspaceId = id;
+      ctx.tabs = (id && tabSets.get(id)) || emptyTabs();
       ctx.state = null;
       error = null;
       ctx.pr = null;
@@ -234,6 +248,7 @@ export function createGitView(options: GitViewOptions): GitView {
       // The old workspace's answer will be ignored, so do not wait for it.
       setRefreshing(false);
       closeQuietly();
+      renderTabs(ctx);
       render();
       refresh();
     },
@@ -241,6 +256,7 @@ export function createGitView(options: GitViewOptions): GitView {
       if (message.id !== ctx.workspaceId) return;
       setRefreshing(false);
       const { state } = message;
+      const before = previous;
       ctx.state = state;
       error = message.error;
       // A different branch has different checks, so ask again at once.
@@ -254,6 +270,7 @@ export function createGitView(options: GitViewOptions): GitView {
         // After the first answer, a file whose status differs from the last answer is highlighted: it is what claude just touched.
         if (loaded) for (const f of state.files) if (previous.get(f.path) !== `${f.index}${f.worktree}`) ctx.fresh.add(f.path);
         previous = new Map(state.files.map((f) => [f.path, `${f.index}${f.worktree}`]));
+        syncTabs(ctx, loaded ? before : previous, previous);
         loaded = true;
         if (ctx.fresh.size) {
           clearTimeout(freshTimer);
