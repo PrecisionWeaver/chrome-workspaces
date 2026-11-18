@@ -1,4 +1,4 @@
-import type { CiState, MergeState, ReviewRequest } from '../../../shared/protocol/pull-requests';
+import type { CiState, MergeState, MyReview, ReviewRequest } from '../../../shared/protocol/pull-requests';
 
 const BLOCKED_REASONS: Record<string, string> = {
   BLOCKED: 'Blocked',
@@ -19,7 +19,7 @@ function standing(mergeStateStatus: string, reviewDecision: string | null): Stan
   return { merge: 'unknown', mergeReason: null };
 }
 
-export type Lookup = Standing & Pick<ReviewRequest, 'branch' | 'needsReReview' | 'approved' | 'ci'>;
+export type Lookup = Standing & Pick<ReviewRequest, 'branch' | 'myReview' | 'ci'>;
 
 interface PullRequestNode {
   url: string;
@@ -28,6 +28,8 @@ interface PullRequestNode {
   reviewDecision: string | null;
   headRefOid?: string;
   latestReviews?: { nodes?: { author?: { login: string } | null; state: string; commit?: { oid: string } | null }[] } | null;
+  /** A team asked for review has a name and no login. */
+  reviewRequests?: { nodes?: { requestedReviewer?: { login?: string } | null }[] } | null;
   commits?: { nodes?: { commit?: { statusCheckRollup?: { state: string } | null } | null }[] } | null;
 }
 
@@ -39,25 +41,23 @@ function ciOf(pr: PullRequestNode): CiState | null {
   return state === undefined ? null : (CI_STATES[state] ?? 'pending');
 }
 
-/** Your latest review on the PR, if you have one. */
-function viewerReview(pr: PullRequestNode, viewer: string | undefined) {
-  return pr.latestReviews?.nodes?.find((review) => viewer !== undefined && review.author?.login.toLowerCase() === viewer.toLowerCase());
-}
+const sameLogin = (login: string | undefined, viewer: string | undefined): boolean =>
+  viewer !== undefined && login !== undefined && login.toLowerCase() === viewer.toLowerCase();
 
 /**
- * Your latest review asked for changes or commented, and the PR's head has moved on from the commit it was on. An approval
- * does not count: a push after one is new work, not your comments answered. A missing commit on either side is no answer.
+ * Where your review stands; see `MyReview`. A pending review is your own unsent draft, so it counts as none. An approval stays
+ * an approval after a push, since a push does not undo it unless GitHub dismisses it. A missing commit on either side is no push.
  */
-function needsReReview(pr: PullRequestNode, viewer: string | undefined): boolean {
-  const mine = viewerReview(pr, viewer);
-  if (!mine || (mine.state !== 'CHANGES_REQUESTED' && mine.state !== 'COMMENTED')) return false;
+function myReview(pr: PullRequestNode, viewer: string | undefined): MyReview {
+  const mine = pr.latestReviews?.nodes?.find((review) => sameLogin(review.author?.login, viewer));
+  if (!mine || mine.state === 'PENDING') return 'none';
   const reviewed = mine.commit?.oid ?? '';
-  return reviewed !== '' && !!pr.headRefOid && reviewed !== pr.headRefOid;
-}
-
-/** Your latest review on the PR is an approval. */
-function approvedByViewer(pr: PullRequestNode, viewer: string | undefined): boolean {
-  return viewerReview(pr, viewer)?.state === 'APPROVED';
+  const pushed = reviewed !== '' && !!pr.headRefOid && reviewed !== pr.headRefOid;
+  const askedAgain = pr.reviewRequests?.nodes?.some((request) => sameLogin(request.requestedReviewer?.login, viewer)) ?? false;
+  if (askedAgain || mine.state === 'DISMISSED' || (mine.state === 'CHANGES_REQUESTED' && pushed)) return 'rereview';
+  if (mine.state === 'COMMENTED') return pushed ? 'new-commits' : 'commented';
+  if (mine.state === 'CHANGES_REQUESTED') return 'changes-requested';
+  return mine.state === 'APPROVED' ? 'approved' : 'none';
 }
 
 /** Reads the response of `mergeStatusQuery`; PRs missing from it, e.g. in a repo the token cannot see, stay unknown. */
@@ -73,8 +73,7 @@ export function parseMergeStatuses(json: string): Map<string, Lookup> {
     result.set(pr.url, {
       ...standing(pr.mergeStateStatus, pr.reviewDecision),
       branch: pr.headRefName ?? '',
-      needsReReview: needsReReview(pr, viewer),
-      approved: approvedByViewer(pr, viewer),
+      myReview: myReview(pr, viewer),
       ci: ciOf(pr),
     });
   }
@@ -119,8 +118,7 @@ export function parseReviewRequests(jsons: readonly string[]): ReviewRequest[] {
       branch: '',
       merge: (pr.isDraft ? 'draft' : 'unknown') as MergeState,
       mergeReason: null,
-      needsReReview: false,
-      approved: false,
+      myReview: 'none' as MyReview,
       ci: null,
     }))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));

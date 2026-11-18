@@ -29,8 +29,7 @@ const review: ReviewRequest = {
   branch: 'feature/x',
   merge: 'unknown',
   mergeReason: null,
-  needsReReview: false,
-  approved: false,
+  myReview: 'none',
   ci: null,
 };
 

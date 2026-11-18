@@ -55,8 +55,8 @@ export class ReviewsPoller {
 
   /**
    * `fetchMerge` runs `mergeStatusQuery`'s result; without it, or if it fails, merge states stay unknown.
-   * `fetchReviewed` finds PRs you already reviewed, which are listed only when they need another look, and that is
-   * learned from `fetchMerge`, so they are left out without it.
+   * `fetchReviewed` finds PRs you already reviewed; where your review stands is learned from `fetchMerge`, so they are
+   * left out without it.
    */
   constructor(
     private readonly fetchJson: () => Promise<string[]>,
@@ -190,21 +190,24 @@ export class ReviewsPoller {
     // A PR whose lookup failed, or that GitHub has not finished working out (it answers UNKNOWN while it computes a
     // PR's mergeability), keeps what the last good lookup said rather than losing its badge until the next poll.
     const before = new Map(this.current.items.map((item) => [item.url, item]));
-    return items
-      .map((item) => {
-        const fresh = statuses.get(item.url);
-        const last = before.get(item.url);
-        // The review and check signals are the lookup's whenever it answered, whatever the merge state says.
-        const signals = fresh
-          ? { branch: fresh.branch, needsReReview: fresh.needsReReview, approved: fresh.approved, ci: fresh.ci }
-          : { branch: last?.branch ?? '', needsReReview: last?.needsReReview ?? false, approved: last?.approved ?? false, ci: last?.ci ?? null };
-        // A draft is a draft whatever else GitHub reports; the search result already says so.
-        if (item.isDraft) return { ...item, ...signals };
-        if (fresh && fresh.merge !== 'unknown') return { ...item, ...fresh };
-        if (last && last.merge !== 'unknown' && last.merge !== 'draft') return { ...item, ...signals, merge: last.merge, mergeReason: last.mergeReason };
-        return fresh ? { ...item, ...fresh } : { ...item, ...signals };
-      })
-      .filter((item) => !reviewedOnly.has(item.url) || item.needsReReview);
+    return (
+      items
+        .map((item) => {
+          const fresh = statuses.get(item.url);
+          const last = before.get(item.url);
+          // The review and check signals are the lookup's whenever it answered, whatever the merge state says.
+          const signals = fresh
+            ? { branch: fresh.branch, myReview: fresh.myReview, ci: fresh.ci }
+            : { branch: last?.branch ?? '', myReview: last?.myReview ?? ('none' as const), ci: last?.ci ?? null };
+          // A draft is a draft whatever else GitHub reports; the search result already says so.
+          if (item.isDraft) return { ...item, ...signals };
+          if (fresh && fresh.merge !== 'unknown') return { ...item, ...fresh };
+          if (last && last.merge !== 'unknown' && last.merge !== 'draft') return { ...item, ...signals, merge: last.merge, mergeReason: last.mergeReason };
+          return fresh ? { ...item, ...fresh } : { ...item, ...signals };
+        })
+        // A PR found only through your reviews, whose review could never be read, would show no sign of why it is listed.
+        .filter((item) => !reviewedOnly.has(item.url) || item.myReview !== 'none')
+    );
   }
 
   start(intervalMs: number): void {

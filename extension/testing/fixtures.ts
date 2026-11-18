@@ -82,8 +82,7 @@ export function makeReview(overrides: Partial<ReviewRequest> = {}): ReviewReques
     branch: 'feature/add-the-thing',
     merge: 'review',
     mergeReason: null,
-    needsReReview: false,
-    approved: false,
+    myReview: 'none',
     ci: null,
     ...overrides,
   };

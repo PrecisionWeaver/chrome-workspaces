@@ -16,6 +16,13 @@ export type MergeState = 'ready' | 'review' | 'draft' | 'blocked' | 'unknown';
 /** The head commit's checks as a whole; a PR with no checks has none. */
 export type CiState = 'passing' | 'failing' | 'pending';
 
+/**
+ * Where your own review on a PR stands. `rereview` means your review is what stands in the way of a merge: you asked for
+ * changes and the author has pushed since, your review was dismissed, or you have been asked to review again.
+ * `new-commits` means you commented and the author has pushed since.
+ */
+export type MyReview = 'none' | 'rereview' | 'new-commits' | 'changes-requested' | 'commented' | 'approved';
+
 /** An open PR that requests the user's review. */
 export interface ReviewRequest {
   /** `owner/name`. */
@@ -32,10 +39,7 @@ export interface ReviewRequest {
   merge: MergeState;
   /** Why a `blocked` PR cannot merge, in a word or two; null otherwise. */
   mergeReason: string | null;
-  /** Your last review asked for changes or commented, and the author has pushed since. */
-  needsReReview: boolean;
-  /** Your latest review on the PR is an approval. */
-  approved: boolean;
+  myReview: MyReview;
   /** Null when the PR has no checks, or the lookup that carries them failed. */
   ci: CiState | null;
 }

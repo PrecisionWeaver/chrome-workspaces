@@ -93,8 +93,8 @@ const reviewSearches = [
 // gh exits non-zero when GraphQL reports an error for any PR, but its stdout still holds the rest.
 const ghMergeStates = (query: string) => gh('gh api graphql -f query="$CW_QUERY"', { env: { CW_QUERY: query }, keepStdout: true });
 const reviews = new ReviewsPoller(() => Promise.all(reviewSearches.map((search) => gh(search))), ghMergeStates, undefined, {
-  // PRs you reviewed no longer match a review request, so they are looked for in the repos you have configured.
-  fetchReviewed: async () => (ownRepos.length ? [await gh(ghReviewedPrs(ownRepos))] : []),
+  // PRs you reviewed no longer match a review request, so they are looked for separately, in every repo.
+  fetchReviewed: async () => [await gh(ghReviewedPrs)],
 });
 const prompts = () => readAllPrompts([config.promptsFile, ...config.promptsFiles]);
 const templates = () => readTemplatesFile(config.templatesFile);
