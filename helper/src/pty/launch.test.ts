@@ -52,13 +52,26 @@ describe('launchSpec', () => {
 
   it('adds the status hooks through the environment, so the path is never parsed as shell syntax', () => {
     const spec = launchSpec(workspace, { shell: '/bin/zsh', resumeId: RESUME, hooksFile: '/Users/me/.chrome-workspaces/hooks.json' });
-    expect(spec.args[3]).toBe(`${start(` --resume ${RESUME} --settings "$CW_HOOKS"`)}; exec /bin/zsh -l -i`);
+    expect(spec.args[3]).toContain(`${start(` --resume ${RESUME} --settings "$CW_HOOKS"`)} ||`);
     expect(spec.env).toMatchObject({ CW_HOOKS: '/Users/me/.chrome-workspaces/hooks.json' });
     expect(launchSpec(workspace, { shell: '/bin/zsh', resumeId: null, hooksFile: null }).env).not.toHaveProperty('CW_HOOKS');
   });
 
   it('resumes a known Claude session by id', () => {
-    expect(launchSpec(workspace, { shell: '/bin/zsh', resumeId: RESUME }).args[3]).toBe(`${start(` --resume ${RESUME}`)}; exec /bin/zsh -l -i`);
+    expect(launchSpec(workspace, { shell: '/bin/zsh', resumeId: RESUME }).args[3]).toContain(`${start(` --resume ${RESUME}`)} ||`);
+  });
+
+  it('attaches to the session instead when a resume fails because it is still running in the background', () => {
+    const command = launchSpec(workspace, { shell: '/bin/zsh', resumeId: RESUME }).args[3]!;
+    expect(command).toBe(
+      `${start(` --resume ${RESUME}`)} || { claude agents --json 2>/dev/null | grep -q '"sessionId": "${RESUME}"' && claude attach 169128c8; }; exec /bin/zsh -l -i`,
+    );
+  });
+
+  it('falls back to attach after a wrapper command too, and never for a new conversation', () => {
+    const wrapped = launchSpec(workspace, { shell: '/bin/zsh', resumeId: RESUME, command: 'hr' }).args[3]!;
+    expect(wrapped).toContain(`else claude --resume ${RESUME}; fi || { claude agents --json`);
+    expect(launchSpec(workspace, { shell: '/bin/zsh', resumeId: null }).args[3]).not.toContain('attach');
   });
 
   it('ignores a resume id that is not a plain session uuid', () => {
@@ -75,8 +88,8 @@ describe('launchSpec', () => {
   });
 
   it('puts the model before the resume id', () => {
-    expect(launchSpec({ ...workspace, model: 'opus[1m]' }, { shell: '/bin/zsh', resumeId: RESUME }).args[3]).toBe(
-      `${start(` --model 'opus[1m]' --resume ${RESUME}`)}; exec /bin/zsh -l -i`,
+    expect(launchSpec({ ...workspace, model: 'opus[1m]' }, { shell: '/bin/zsh', resumeId: RESUME }).args[3]).toContain(
+      `${start(` --model 'opus[1m]' --resume ${RESUME}`)} ||`,
     );
   });
 
@@ -94,7 +107,7 @@ describe('launchSpec', () => {
 
   it('resumes rather than re-sending the prompt', () => {
     const spec = launchSpec({ ...workspace, prompt: 'go' }, { shell: '/bin/zsh', resumeId: RESUME });
-    expect(spec.args[3]).toBe(`${start(` --resume ${RESUME}`)}; exec /bin/zsh -l -i`);
+    expect(spec.args[3]).toContain(`${start(` --resume ${RESUME}`)} ||`);
     expect(spec.env).not.toHaveProperty('CW_PROMPT');
   });
 });

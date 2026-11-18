@@ -53,8 +53,13 @@ export function launchSpec(
   let args = extra.map((arg) => ` '${arg}'`).join('');
   if (model && MODEL_PATTERN.test(model)) args += ` --model '${model}'`;
   let cleanup = '';
-  if (resumeId && SESSION_UUID.test(resumeId)) args += ` --resume ${resumeId}`;
-  else if (workspace.prompt) {
+  let attach = '';
+  if (resumeId && SESSION_UUID.test(resumeId)) {
+    args += ` --resume ${resumeId}`;
+    // A session still running in the background (claude keeps one alive when its terminal goes, as at a helper restart)
+    // cannot be resumed, so a failed resume attaches to it when claude lists it. The short id is the uuid's first eight characters.
+    attach = ` || { claude agents --json 2>/dev/null | grep -q '"sessionId": "${resumeId}"' && claude attach ${resumeId.slice(0, 8)}; }`;
+  } else if (workspace.prompt) {
     // The shell expands the prompt from the environment, so its text is never parsed as shell syntax.
     env.CW_PROMPT = workspace.prompt;
     args += ' "$CW_PROMPT"';
@@ -70,7 +75,7 @@ export function launchSpec(
   return {
     id: workspace.id,
     command: shell,
-    args: ['-l', '-i', '-c', `${claude}; ${cleanup}exec ${shell} -l -i`],
+    args: ['-l', '-i', '-c', `${claude}${attach}; ${cleanup}exec ${shell} -l -i`],
     cwd: cwd ?? workspace.cwd,
     env,
   };
