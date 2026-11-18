@@ -28,8 +28,6 @@ export async function runAction(context: ActionContext, request: AdminAction): P
     case 'restartSession': {
       const session = sessions.get(request.id);
       if (!session) return { ok: true, message: 'No session was running; it starts when the workspace is opened.', reset: [request.id] };
-      // Silenced first, so a panel attached to it is not told the shell exited (which closes the panel).
-      session.silence();
       sessions.remove(request.id);
       return { ok: true, message: 'Session ended. It starts again, resuming the conversation, when the workspace is opened.', reset: [request.id] };
     }

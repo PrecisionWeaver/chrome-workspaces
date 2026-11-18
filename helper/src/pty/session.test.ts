@@ -28,6 +28,31 @@ describe('Session', () => {
     expect(exitCode).toBe(0);
   });
 
+  it('reports an exit to an attached client when the shell ends by itself', async () => {
+    sessions = new SessionManager(10_000);
+    const session = sessions.create({ id: 'brief', command: '/bin/sh', args: ['-c', 'sleep 0.1; exit 3'], cwd: tmpdir() });
+    let exitCode: number | null = null;
+    session.attach(
+      () => {},
+      (code) => (exitCode = code),
+    );
+    await waitFor(() => exitCode !== null);
+    expect(exitCode).toBe(3);
+  });
+
+  it('does not report an exit to a client of a session that is removed on purpose, since a panel reads one as its shell ending and closes', async () => {
+    sessions = new SessionManager(10_000);
+    const session = sessions.create({ id: 'archived', command: '/bin/cat', args: [], cwd: tmpdir() });
+    let exitCode: number | null = null;
+    session.attach(
+      () => {},
+      (code) => (exitCode = code),
+    );
+    sessions.remove('archived');
+    await waitFor(() => session.exited);
+    expect(exitCode).toBeNull();
+  });
+
   it('marks saved scrollback as a replay and live output as not', async () => {
     sessions = new SessionManager(10_000);
     const session = sessions.create({ id: 'cat', command: '/bin/cat', args: [], cwd: tmpdir() });
