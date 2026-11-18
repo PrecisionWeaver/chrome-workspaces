@@ -9,6 +9,6 @@ The short version:
 - Change a message in `shared/protocol/protocol.ts` first; both sides then type-check against it.
 - Put pure logic in `shared/` or a small module with its test beside it (`foo.ts`, `foo.test.ts`), and keep `docs/features.md` and `docs/configuration.md` in step with the feature.
 - Use placeholder names (`acme/app`, `PROJ-123`) in tests and fixtures.
-- Pull request titles become the squash commit subjects and the release notes, so write them to be read, and label the PR `enhancement`, `bug` or `documentation` so the notes file it under the right heading; see [docs/releasing.md](docs/releasing.md). Release notes live on the [Releases page](../../releases).
+- Pull request titles become the squash commit subjects, so write them to be read; see [docs/releasing.md](docs/releasing.md).
 
 Report security problems as described in [SECURITY.md](SECURITY.md), not in a public issue.

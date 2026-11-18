@@ -1,6 +1,6 @@
 # Releasing
 
-Releases are tags plus a GitHub Release with generated notes. Nothing is packaged: the helper and extension are installed from a clone (`npm install`, `npm run install-app`), and GitHub's automatic source archives are not an install path, since they have no `.git` for the in-app updater.
+A release is a `vX.Y.Z` tag on `main`; there are no GitHub Releases and nothing is packaged: the helper and extension are installed from a clone (`npm install`, `npm run install-app`), and GitHub's automatic source archives are not an install path, since they have no `.git` for the in-app updater.
 
 ## Cut a release
 
@@ -25,7 +25,7 @@ git branch -D release/vX.Y.Z    # a squash merge leaves the branch looking unmer
 
 `main` takes no direct pushes and no local merges, so the old fast-forward (`git merge --ff-only release/vX.Y.Z && git push`) is not available; the pull request is the only way in.
 
-Merging to `main` triggers `.github/workflows/release.yml`. If `package.json`'s version has no tag, it installs, checks (format, types, tests), builds, and runs `gh release create vX.Y.Z --generate-notes`. A push whose version is already tagged does nothing, so ordinary commits never publish.
+Merging to `main` triggers `.github/workflows/release.yml`. If `package.json`'s version has no tag, it installs, checks (format, types, tests), builds, and pushes the tag `vX.Y.Z`. A push whose version is already tagged does nothing, so ordinary commits never tag.
 
 ## Choosing the bump
 
@@ -35,7 +35,7 @@ Merging to `main` triggers `.github/workflows/release.yml`. If `package.json`'s 
 
 ## Notes
 
-- Release notes are auto-generated from the pull requests merged since the last tag. Write PR titles that read well, since they become the changelog. `.github/release.yml` files each one under a heading by its label (`enhancement`, `bug`, `documentation`, `dependencies`); an unlabelled PR lands in Other changes.
+- There are no release notes; the history is the merged pull requests (`git log vA..vB`). Write PR titles that read well, since they become the squash commit subjects.
 - A test checks that both version files match.
-- To redo a bad release, delete the GitHub release and the tag (`git push origin :refs/tags/vX.Y.Z`), fix, bump again.
+- To redo a bad release, delete the tag (`git push origin :refs/tags/vX.Y.Z`), fix, bump again.
 - The in-app updater fast-forwards to the newest `vX.Y.Z` tag, so merged work reaches users only once it is released.

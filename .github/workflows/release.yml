@@ -1,6 +1,6 @@
 name: release
 
-# Publishes a GitHub release whenever main carries a version that has no tag yet.
+# Tags main with vX.Y.Z whenever it carries a version that has no tag yet. The in-app updater follows these tags; no GitHub Release is created.
 # Bump the version with `npm run release -- <patch|minor|major>`; see docs/releasing.md.
 # It runs on Linux like ci.yml: nothing here needs macOS, and GitHub's macOS runners queue for many minutes.
 on:
@@ -38,8 +38,8 @@ jobs:
           npm run typecheck
           npm run test:coverage
           npm run build:extension
-      - name: Publish
+      - name: Tag
         if: steps.version.outputs.exists != 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh release create "${{ steps.version.outputs.tag }}" --target "$GITHUB_SHA" --generate-notes --title "${{ steps.version.outputs.tag }}"
+        run: |
+          git tag "${{ steps.version.outputs.tag }}" "$GITHUB_SHA"
+          git push origin "${{ steps.version.outputs.tag }}"
