@@ -24,6 +24,15 @@ function isPathList(value: unknown): boolean {
   return Array.isArray(value) && value.length <= 500 && value.every((p) => typeof p === 'string' && p.length > 0 && p.length <= 1024);
 }
 
+// The editable config fields: short strings, none of them containing a line break.
+function isConfigEditValues(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null) return false;
+  const v = value as Record<string, unknown>;
+  return ['defaultCwd', 'defaultModel', 'claudeCommand', 'promptsFile'].every(
+    (key) => typeof v[key] === 'string' && (v[key] as string).length <= 1024 && !/[\r\n]/.test(v[key] as string),
+  );
+}
+
 // A terminal's size; node-pty throws on zero or a non-number, and nothing real is this large.
 function isTerminalSize(value: unknown): boolean {
   return Number.isInteger(value) && (value as number) > 0 && (value as number) <= 1000;
@@ -123,7 +132,10 @@ export function isControlToHelper(value: unknown): value is ControlToHelper {
     case 'systemLog':
     case 'exportData':
     case 'checkUpdates':
+    case 'getConfigEdit':
       return true;
+    case 'saveConfigEdit':
+      return isConfigEditValues(m.values) && (m.prompts === null || (typeof m.prompts === 'string' && m.prompts.length <= 600_000));
     case 'admin':
       return isAdminAction(m.request);
     case 'git':

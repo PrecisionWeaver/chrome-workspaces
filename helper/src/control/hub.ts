@@ -4,6 +4,8 @@ import { workspaceShellSession } from '../../../shared/protocol/protocol';
 import type { ControlToClient, ControlToHelper } from '../../../shared/protocol/protocol';
 import type { PastSession, Prompt, Repo, WaitingOn, Workspace, WorkspaceStatus } from '../../../shared/protocol/workspace';
 import type { ReviewsState } from '../../../shared/protocol/pull-requests';
+import type { ConfigEdit, ConfigEditValues } from '../../../shared/protocol/system';
+import type { SaveResult } from '../platform/config-edit';
 import { isControlToHelper } from './messages';
 import type { AdminService } from '../admin/admin';
 import type { Template } from '../../../shared/workspaces/templates';
@@ -47,6 +49,8 @@ export interface ControlHubOptions {
   repos: () => Repo[];
   git: GitService;
   admin: AdminService;
+  /** The Settings config editor: the editable fields with the prompts note, and saving them (which applies them). */
+  configEdit: { read(): ConfigEdit; save(values: ConfigEditValues, prompts: string | null): SaveResult };
   history: HistoryStore;
   /** The claude session a workspace is on, to resume if it is restored. */
   resumeId: (id: string) => string | null;

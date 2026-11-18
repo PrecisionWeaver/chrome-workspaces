@@ -3,7 +3,7 @@ import type { ActivityItem } from '../sessions/activity';
 import type { TimelineEvent } from '../sessions/timeline';
 import type { BranchPr, GitBranch, GitCommitFile, GitCompare, GitResultAction, GitState } from './git';
 import type { PrDetails, PrThread, ReviewsState } from './pull-requests';
-import type { SystemSnapshot, UpdateStatus } from './system';
+import type { ConfigEdit, ConfigEditValues, SystemSnapshot, UpdateStatus } from './system';
 import type { HistoryEntry, PastSession, Prompt, Repo, WaitingOn, Workspace, WorkspaceColor, WorkspaceStatus } from './workspace';
 
 // The messages the helper and the extension exchange, and the constants both sides agree on; the data they carry is in the files beside this one.
@@ -97,6 +97,10 @@ export type ControlToClient =
   | { type: 'system'; snapshot: SystemSnapshot | null; error: string | null }
   | { type: 'adminResult'; action: AdminAction['action']; ok: boolean; message: string }
   | { type: 'systemLog'; text: string }
+  /** Reply to `getConfigEdit`, to the client that asked. */
+  | { type: 'configEdit'; edit: ConfigEdit | null; error: string | null }
+  /** Reply to `saveConfigEdit`: whether it was saved and applied, and the fields as they now stand. */
+  | { type: 'configSaved'; ok: boolean; message: string; edit: ConfigEdit | null }
   | { type: 'exportData'; json: string }
   /** The workspace's session was replaced; a panel attached to it should attach again. */
   | { type: 'sessionReset'; id: string }
@@ -168,6 +172,10 @@ export type ControlToHelper =
   | { type: 'system' }
   | { type: 'admin'; request: AdminAction }
   | { type: 'systemLog' }
+  /** The fields Settings can edit, with the prompts note's text. */
+  | { type: 'getConfigEdit' }
+  /** Writes the editable fields to config.json and applies them to new workspaces; `prompts` replaces the note's text, null leaves it. */
+  | { type: 'saveConfigEdit'; values: ConfigEditValues; prompts: string | null }
   /** Fetches and reports whether a newer version of the app is available. */
   | { type: 'checkUpdates' }
   /** What the workspace's claude has recently done, from its transcript. */

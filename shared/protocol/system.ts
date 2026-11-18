@@ -184,3 +184,20 @@ export interface UpdateStatus {
   /** Why it cannot be updated, or that it is already current. */
   reason: string | null;
 }
+
+/** The config fields Settings can edit, as written in the file; an empty string leaves the field unset. */
+export interface ConfigEditValues {
+  defaultCwd: string;
+  defaultModel: string;
+  claudeCommand: string;
+  promptsFile: string;
+}
+
+/** What the Settings editor opens with: the editable fields, and the text of the prompts note they name. */
+export interface ConfigEdit {
+  values: ConfigEditValues;
+  /** Where the note is, once `~` is expanded. */
+  promptsPath: string;
+  /** The note's text; null when the file does not exist yet. */
+  prompts: string | null;
+}

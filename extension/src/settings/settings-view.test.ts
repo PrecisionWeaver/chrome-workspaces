@@ -1113,8 +1113,30 @@ describe('the cards', () => {
       expect(facts.Jira).toBe('none');
       expect(facts['Ignored entries']).toBeUndefined();
       expect(text('.settings-note', card('Configuration'))[0]).toBe(
-        'Read from /Users/me/.chrome-workspaces/config.json. Edit it and restart the helper to change these.',
+        'Read from /Users/me/.chrome-workspaces/config.json. Edit sets the default directory, model, command and prompts; for the rest, edit the file and restart the helper.',
       );
+    });
+
+    it('opens the editor from Edit in place of the cards, applies what the helper sends, and closes with Settings', async () => {
+      await open();
+      button('Edit', card('Configuration')).click();
+      expect(sentOfType('getConfigEdit')).toHaveLength(1);
+      expect($('settings-body').hidden).toBe(true);
+      const editor = document.querySelector<HTMLFormElement>('.config-editor')!;
+      expect(editor.hidden).toBe(false);
+      view.setConfigEdit({
+        type: 'configEdit',
+        edit: { values: { defaultCwd: '~/code', defaultModel: '', claudeCommand: '', promptsFile: '' }, promptsPath: '/p.md', prompts: null },
+        error: null,
+      });
+      expect(editor.querySelector('input')!.value).toBe('~/code');
+      view.setConfigSaved({ type: 'configSaved', ok: true, message: 'Saved.', edit: null });
+      expect($('settings-result').textContent).toBe('Saved.');
+      expect($('settings-body').hidden).toBe(false);
+      button('Edit', card('Configuration')).click();
+      view.close();
+      expect(editor.hidden).toBe(true);
+      expect($('settings-body').hidden).toBe(false);
     });
 
     it('says none for empty lists, and claude’s own model by default', async () => {

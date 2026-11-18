@@ -4,6 +4,7 @@ import { $, createArming, el, wireBack } from '../ui/dom';
 import { keepFocus } from '../ui/focus';
 import { type CardLayout, columnCountFor, keysOf, layoutCards, layoutFromKeys, placeCards } from './settings-layout';
 import { configCard, dataCard } from './settings-data';
+import { type ConfigEditor, createConfigEditor } from './settings-config-edit';
 import type { PrefsHandle, SettingsContext } from './settings-parts';
 import { setupCard, setupChecklist, shownWarnings, warningsCard } from './settings-attention';
 import { preferencesCard } from './settings-preferences';
@@ -32,6 +33,8 @@ export interface SettingsView {
   setTimeline(message: Extract<ControlToClient, { type: 'timeline' }>): void;
   setUpdates(message: Extract<ControlToClient, { type: 'updates' }>): void;
   setResult(message: Extract<ControlToClient, { type: 'adminResult' }>): void;
+  setConfigEdit(message: Extract<ControlToClient, { type: 'configEdit' }>): void;
+  setConfigSaved(message: Extract<ControlToClient, { type: 'configSaved' }>): void;
   setLog(text: string): void;
   download(json: string): void;
 }
@@ -74,6 +77,7 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       void savePrefs(change);
     },
   };
+  const configEditor: ConfigEditor = createConfigEditor({ host: section, cards: body, send, showResult: (result) => showResult(result) });
   const sessions: SessionsState = newSessionsState();
   const helper: HelperState = newHelperState();
 
@@ -111,7 +115,7 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       preferencesCard(prefsHandle, switchShortcut),
       helperCard(ctx, helper, snapshot),
       dataCard(ctx, snapshot),
-      configCard(snapshot),
+      configCard(snapshot, () => configEditor.open(snapshot?.helper.configPath ?? '')),
     ];
     columnsNow = columnCountFor(body.clientWidth);
     // Where the cards were put last time stays put while the cards and columns are the same, so a refresh never shuffles them.
@@ -186,6 +190,7 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
   function close(): void {
     if (!isOpen) return;
     isOpen = false;
+    configEditor.close();
     section.hidden = true;
     clearInterval(pollTimer);
     onToggle();
@@ -233,6 +238,12 @@ export function createSettingsView({ send, onToggle }: SettingsViewOptions): Set
       void readShortcut();
       error = message.error;
       if (isOpen) render();
+    },
+    setConfigEdit(message) {
+      configEditor.setEdit(message);
+    },
+    setConfigSaved(message) {
+      configEditor.setSaved(message);
     },
     setResult(message) {
       showResult(message);

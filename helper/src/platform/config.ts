@@ -49,7 +49,7 @@ export interface HelperConfig {
   problems: string[];
 }
 
-const DEFAULT_PROMPTS_FILE = '~/.chrome-workspaces/prompts.md';
+export const DEFAULT_PROMPTS_FILE = '~/.chrome-workspaces/prompts.md';
 
 const KNOWN_KEYS = new Set([
   'extensionId',
@@ -70,7 +70,7 @@ const KNOWN_KEYS = new Set([
 // Repo names reach a `gh` command line, so only plain `owner/name` is accepted.
 const REPO_NAME = /^[\w.-]+\/[\w.-]+$/;
 // The command is interpolated into the launch line, so it must be a bare command name.
-const COMMAND_NAME = /^[\w.+-]{1,64}$/;
+export const COMMAND_NAME = /^[\w.+-]{1,64}$/;
 // Each argument is single-quoted on the launch line; the pattern keeps quotes, spaces and expansions out.
 const CLAUDE_ARG = /^[\w.+=:,/@~-]{1,256}$/;
 
@@ -159,7 +159,7 @@ export function parseConfig(text: string, file: string): HelperConfig {
 
 const positive = (value: unknown): number | null => (typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null);
 
-function expandHome(path: string): string {
+export function expandHome(path: string): string {
   return path.startsWith('~/') ? join(homedir(), path.slice(2)) : path;
 }
 

@@ -1,18 +1,31 @@
 import type { WebSocket } from 'ws';
 import type { ControlToHelper } from '../../../shared/protocol/protocol';
+import { errorMessage } from '../../../shared/protocol/errors';
 import type { HubContext } from './hub';
 
-export type AdminRequest = Extract<ControlToHelper, { type: 'system' | 'admin' | 'systemLog' | 'timeline' | 'exportData' | 'checkUpdates' }>;
+export type AdminRequest = Extract<
+  ControlToHelper,
+  { type: 'system' | 'admin' | 'systemLog' | 'timeline' | 'exportData' | 'checkUpdates' | 'getConfigEdit' | 'saveConfigEdit' }
+>;
 
-const ADMIN_REQUESTS: ReadonlySet<string> = new Set(['system', 'admin', 'systemLog', 'timeline', 'exportData', 'checkUpdates']);
+const ADMIN_REQUESTS: ReadonlySet<string> = new Set([
+  'system',
+  'admin',
+  'systemLog',
+  'timeline',
+  'exportData',
+  'checkUpdates',
+  'getConfigEdit',
+  'saveConfigEdit',
+]);
 
 export function isAdminRequest(message: ControlToHelper): message is AdminRequest {
   return ADMIN_REQUESTS.has(message.type);
 }
 
-/** Answers what Settings asks of the helper: the snapshot, its actions, the log, a session's timeline, the export and the update check. */
+/** Answers what Settings asks of the helper: the snapshot, its actions, the log, a session's timeline, the export, the update check and the config editor. */
 export function handleAdmin(hub: HubContext, message: AdminRequest, ws: WebSocket): void {
-  const { admin, reviews, store } = hub.options;
+  const { admin, reviews, store, configEdit } = hub.options;
   switch (message.type) {
     case 'system':
       hub.answer(
@@ -51,6 +64,24 @@ export function handleAdmin(hub: HubContext, message: AdminRequest, ws: WebSocke
     case 'exportData':
       hub.sendTo(ws, { type: 'exportData', json: admin.exportData() });
       break;
+    case 'getConfigEdit':
+      try {
+        hub.sendTo(ws, { type: 'configEdit', edit: configEdit.read(), error: null });
+      } catch (error) {
+        hub.sendTo(ws, { type: 'configEdit', edit: null, error: errorMessage(error) });
+      }
+      break;
+    case 'saveConfigEdit': {
+      const result = configEdit.save(message.values, message.prompts);
+      let edit = null;
+      try {
+        edit = configEdit.read();
+      } catch {
+        // The reply still says whether the save worked; the editor keeps what it has.
+      }
+      hub.sendTo(ws, { type: 'configSaved', ok: result.ok, message: result.message, edit });
+      break;
+    }
     case 'checkUpdates':
       hub.answer(
         ws,

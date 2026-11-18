@@ -14,7 +14,10 @@ import type { PanelState } from './state';
 export interface MessageViews {
   creator: Pick<CreateView, 'setPrompts' | 'setTemplates' | 'setRepos' | 'setPrDetails' | 'setPrThreads'>;
   git: Pick<GitView, 'setState' | 'setCommit' | 'setDiff' | 'setResult' | 'setBranches' | 'setChecks' | 'setCompare' | 'refresh'>;
-  settings: Pick<SettingsView, 'setTimeline' | 'setUpdates' | 'setSystem' | 'setResult' | 'setLog' | 'download' | 'warningCount' | 'setupRemaining'>;
+  settings: Pick<
+    SettingsView,
+    'setTimeline' | 'setUpdates' | 'setSystem' | 'setResult' | 'setConfigEdit' | 'setConfigSaved' | 'setLog' | 'download' | 'warningCount' | 'setupRemaining'
+  >;
   activity: Pick<ActivitySection, 'setActivity'>;
   workspaceList: Pick<WorkspaceList, 'render' | 'showSessions'>;
 }
@@ -52,6 +55,8 @@ export function createMessageHandler({ state, views, session, showNotice, render
       showUsage(message.snapshot);
     }
     if (message.type === 'adminResult') settings.setResult(message);
+    if (message.type === 'configEdit') settings.setConfigEdit(message);
+    if (message.type === 'configSaved') settings.setConfigSaved(message);
     if (message.type === 'systemLog') settings.setLog(message.text);
     if (message.type === 'exportData') settings.download(message.json);
     if (message.type === 'sessionReset' && session.attachedId() === message.id) {

@@ -9,6 +9,7 @@ import { activityFile, readActivity } from './claude/activity';
 import { createAdmin } from './admin/admin';
 import { defaultIsManaged, defaultRunShell, defaultSpawnDetached } from './admin/shell';
 import { createApi } from './transport/api';
+import { readConfigEdit, saveConfigEdit } from './platform/config-edit';
 import { DATA_DIR, HOST, loadConfig, SESSIONS_DIR, PORT, SCROLLBACK_LIMIT } from './platform/config';
 import { ControlHub } from './control/hub';
 import {
@@ -49,6 +50,7 @@ process.on('uncaughtExceptionMonitor', (error) => console.error(`crashed: ${erro
 process.on('unhandledRejection', (reason) => console.error(`unhandled: ${reason instanceof Error ? (reason.stack ?? reason.message) : String(reason)}`));
 
 const config = loadConfig();
+const CONFIG_FILE = join(DATA_DIR, 'config.json');
 const shell = process.env.SHELL ?? '/bin/zsh';
 pruneUploads(join(DATA_DIR, 'uploads'));
 const LOG_FILE = join(DATA_DIR, 'helper.log');
@@ -115,7 +117,7 @@ const admin = createAdmin({
     dataDir: DATA_DIR,
     uploadDir: join(DATA_DIR, 'uploads'),
     logFile: LOG_FILE,
-    configFile: join(DATA_DIR, 'config.json'),
+    configFile: CONFIG_FILE,
     workspacesFile: join(DATA_DIR, 'workspaces.json'),
     hooksFile,
   },
@@ -163,7 +165,10 @@ const resumeOverride = new Map<string, string>();
 const control = new ControlHub({
   store,
   sessions,
-  defaultCwd: config.defaultCwd,
+  // A getter, so a save from Settings reaches the next workspace.
+  get defaultCwd() {
+    return config.defaultCwd;
+  },
   statuses,
   waiting,
   reviews,
@@ -177,6 +182,10 @@ const control = new ControlHub({
   repos: () => listRepos(config.repoRoots),
   git,
   admin,
+  configEdit: {
+    read: () => readConfigEdit(CONFIG_FILE, config),
+    save: (values, promptsText) => saveConfigEdit(CONFIG_FILE, config, values, promptsText),
+  },
   history,
   resumeId: (id) => sessionState.get(id)?.claudeSessionId ?? store.get(id)?.resume ?? null,
   pastSessions: (id) => listWorkspaceSessions(SESSIONS_DIR, id, store.get(id)?.cwd ?? null),
@@ -210,7 +219,21 @@ const server = await startServer({
   sessions,
   control,
   uploadDir: join(DATA_DIR, 'uploads'),
-  api: createApi({ auth, store, control, sessions, defaultCwd: config.defaultCwd, statuses, waiting, history, reviews, repoDirs: config.repoDirs, git }),
+  api: createApi({
+    auth,
+    store,
+    control,
+    sessions,
+    get defaultCwd() {
+      return config.defaultCwd;
+    },
+    statuses,
+    waiting,
+    history,
+    reviews,
+    repoDirs: config.repoDirs,
+    git,
+  }),
   onUnknownSession: (id) =>
     startSession(id, {
       shell,

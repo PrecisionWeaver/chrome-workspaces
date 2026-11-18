@@ -968,3 +968,77 @@
 .resources-swatch.cpu {
   background: var(--good);
 }
+
+/* The config editor, which replaces the cards while it is open. */
+
+.config-editor {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  padding: 14px 20px 24px;
+  overflow-y: auto;
+}
+
+.config-editor[hidden] {
+  display: none;
+}
+
+.config-editor > * {
+  max-width: 640px;
+}
+
+.config-editor h3 {
+  margin: 0;
+}
+
+.config-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.config-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.config-label {
+  font-weight: 500;
+}
+
+.config-hint {
+  color: var(--faint);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.config-field input,
+.config-prompts {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--bg);
+  font-family: var(--mono);
+  font-size: 12.5px;
+}
+
+.config-prompts {
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.config-field input:focus,
+.config-prompts:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.config-field input:disabled,
+.config-prompts:disabled {
+  opacity: 0.6;
+}
