@@ -512,6 +512,78 @@ button.git-branch-name:hover {
   color: var(--muted);
 }
 
+#diff-tabs {
+  display: flex;
+  margin-bottom: 8px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border);
+}
+
+.diff-tab {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 200px;
+  padding: 4px 4px 4px 10px;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.diff-tab:hover {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.diff-tab.active {
+  border-bottom-color: var(--accent);
+  color: var(--text);
+}
+
+.diff-tab.preview .diff-tab-name {
+  font-style: italic;
+}
+
+/* A file that no longer differs from HEAD. */
+.diff-tab.clean {
+  opacity: 0.55;
+}
+
+.diff-tab-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diff-tab .git-letter {
+  margin-left: 0;
+}
+
+.diff-tab-close {
+  flex: none;
+  padding: 0 5px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: inherit;
+  font-size: 14px;
+  line-height: 1.2;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.diff-tab:hover .diff-tab-close,
+.diff-tab.active .diff-tab-close,
+.diff-tab-close:focus-visible {
+  opacity: 1;
+}
+
+.diff-tab-close:hover {
+  background: var(--accent-soft);
+}
+
 #diff-layout {
   flex: 1;
   min-height: 0;
