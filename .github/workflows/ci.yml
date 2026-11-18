@@ -1,8 +1,9 @@
 name: ci
 
-# Lint and typecheck on Linux, tests and the build on macOS (the helper is macOS-only), and a `check` job that needs both:
-# `check` is the one status the repository ruleset requires. A pull request is checked by its own run, so a push runs only on main.
-# The macOS runners are the scarce ones, so a newer push to a branch cancels its older run; main's runs are never cancelled.
+# Lint, typecheck, test and build every pull request, and every push to main (a pull request has its own run, so no other push needs one).
+# It runs on Linux: GitHub's macOS runners are capacity-constrained and have left runs queued for many minutes. The tests don't need macOS:
+# launchd, plutil and the like are behind mocks or skipped off macOS (see scripts/setup-files.test.ts), and the PTY and git code runs the same.
+# A newer push to a branch cancels its older run; main's runs are never cancelled.
 on:
   pull_request:
   push:
@@ -17,7 +18,7 @@ permissions:
   contents: read
 
 jobs:
-  lint:
+  check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -29,24 +30,5 @@ jobs:
       - run: |
           npm run check
           npm run typecheck
-
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 24
-          cache: npm
-      - run: npm ci
-      - run: |
           npm run test:coverage
           npm run build:extension
-
-  # A job that needs a failed one is skipped, and a skipped required check counts as passing, so this runs always and fails itself.
-  check:
-    needs: [lint, test]
-    if: ${{ always() }}
-    runs-on: ubuntu-latest
-    steps:
-      - run: test "${{ needs.lint.result }}" = success && test "${{ needs.test.result }}" = success
