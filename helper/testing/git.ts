@@ -7,3 +7,11 @@ export function git(cwd: string, ...args: string[]): string {
 
 /** `git`, with the trailing newline taken off. */
 export const gitTrimmed = (cwd: string, ...args: string[]): string => git(cwd, ...args).trim();
+
+/**
+ * Copies the contents of one folder into another that exists. `cp -R` rather than `fs.cpSync`, which on CI sometimes
+ * failed with ENOENT on the copy's own `.git/objects` while the folder it had just made was there.
+ */
+export function copyTree(from: string, into: string): void {
+  execFileSync('cp', ['-R', `${from}/.`, into]);
+}
