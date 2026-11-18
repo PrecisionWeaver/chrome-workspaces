@@ -141,8 +141,32 @@ describe('isControlToHelper', () => {
     bad({ type: 'prThreads', url: 'https://github.com/acme/app' });
   });
 
+  it('validates a config save: four short single-line strings, and prompts text or null', () => {
+    const values = { defaultCwd: '~/code', defaultModel: 'opus', claudeCommand: 'claude', promptsFile: '' };
+    ok({ type: 'saveConfigEdit', values, prompts: null });
+    ok({ type: 'saveConfigEdit', values, prompts: '**Review**\n- check it' });
+    bad({ type: 'saveConfigEdit', values, prompts: 5 });
+    bad({ type: 'saveConfigEdit', values, prompts: 'x'.repeat(600_001) });
+    bad({ type: 'saveConfigEdit', values: { ...values, claudeCommand: 'a\nb' }, prompts: null });
+    bad({ type: 'saveConfigEdit', values: { ...values, defaultCwd: 'x'.repeat(1025) }, prompts: null });
+    bad({ type: 'saveConfigEdit', values: { ...values, defaultModel: 3 }, prompts: null });
+    bad({ type: 'saveConfigEdit', values: { defaultCwd: '' }, prompts: null });
+    bad({ type: 'saveConfigEdit', prompts: null });
+  });
+
   it('takes the argument-free requests as they are', () => {
-    for (const type of ['forgetAll', 'system', 'systemLog', 'exportData', 'checkUpdates', 'listPrompts', 'listTemplates', 'listRepos', 'refreshReviews']) {
+    for (const type of [
+      'forgetAll',
+      'system',
+      'systemLog',
+      'exportData',
+      'checkUpdates',
+      'getConfigEdit',
+      'listPrompts',
+      'listTemplates',
+      'listRepos',
+      'refreshReviews',
+    ]) {
       ok({ type });
     }
   });
@@ -207,6 +231,8 @@ const CONTROL_SAMPLES: { [T in ControlToHelper['type']]: Extract<ControlToHelper
   admin: { type: 'admin', request: { action: 'checkGh' } },
   systemLog: { type: 'systemLog' },
   checkUpdates: { type: 'checkUpdates' },
+  getConfigEdit: { type: 'getConfigEdit' },
+  saveConfigEdit: { type: 'saveConfigEdit', values: { defaultCwd: '', defaultModel: '', claudeCommand: '', promptsFile: '' }, prompts: null },
   timeline: { type: 'timeline', id: WS },
   activity: { type: 'activity', id: null },
   exportData: { type: 'exportData' },

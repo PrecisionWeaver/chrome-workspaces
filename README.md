@@ -29,7 +29,7 @@ npm install
 npm run install-app -- --default-cwd ~/code --repo-root ~/code
 ```
 
-The helper and extension run from the clone; there is no separate download. That sets up, builds and starts the helper, then lists the Chrome steps: load `extension/dist` as an unpacked extension and click the toolbar icon. `npm run doctor` checks an install; `npm run uninstall` removes one. [docs/setup.md](docs/setup.md) has the details, and the HTTP API for scripting workspaces.
+The helper and extension run from the clone; there is no separate download. That sets up, builds and starts the helper, then lists the Chrome steps: set the side panel to the left (`chrome://settings/appearance`; an extension can't choose its side), load `extension/dist` as an unpacked extension, and click the toolbar icon. `npm run doctor` checks an install; `npm run uninstall` removes one. [docs/setup.md](docs/setup.md) has the details, and the HTTP API for scripting workspaces.
 
 ## Documentation
 

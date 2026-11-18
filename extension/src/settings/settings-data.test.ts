@@ -60,10 +60,13 @@ describe('dataCard', () => {
 describe('configCard', () => {
   it('shows the effective config, and says where it was read from', () => {
     const snapshot = makeSnapshot();
-    const card = configCard({
-      ...snapshot,
-      config: { ...snapshot.config, defaultCwd: '/Users/me', claudeArgs: ['--verbose'], defaultModel: null, repoDirs: { 'acme/app': '/code/app' } },
-    });
+    const card = configCard(
+      {
+        ...snapshot,
+        config: { ...snapshot.config, defaultCwd: '/Users/me', claudeArgs: ['--verbose'], defaultModel: null, repoDirs: { 'acme/app': '/code/app' } },
+      },
+      () => {},
+    );
     expect(card.dataset.key).toBe('Configuration');
     expect(card.textContent).toContain(`Read from ${snapshot.helper.configPath}`);
     expect(card.textContent).toContain('/Users/me');
@@ -74,8 +77,15 @@ describe('configCard', () => {
 
   it('lists the entries the helper ignored, in red, only when there are some', () => {
     const snapshot = makeSnapshot();
-    expect(configCard(snapshot).querySelector('.bad')).toBeNull();
-    const card = configCard({ ...snapshot, setup: { ...snapshot.setup, configProblems: ['defaultModel is not a model name.'] } });
+    expect(configCard(snapshot, () => {}).querySelector('.bad')).toBeNull();
+    const card = configCard({ ...snapshot, setup: { ...snapshot.setup, configProblems: ['defaultModel is not a model name.'] } }, () => {});
     expect(card.querySelector('.bad')?.textContent).toBe('defaultModel is not a model name.');
+  });
+
+  it('has an Edit button that opens the editor', () => {
+    const edited: string[] = [];
+    const card = configCard(makeSnapshot(), () => edited.push('edit'));
+    button(card, 'Edit').click();
+    expect(edited).toEqual(['edit']);
   });
 });

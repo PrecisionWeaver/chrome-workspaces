@@ -23,8 +23,8 @@ export function dataCard(ctx: SettingsContext, s: SystemSnapshot): HTMLElement {
   );
 }
 
-/** The effective config, read-only: what the helper read from its file and where it came from. */
-export function configCard(s: SystemSnapshot): HTMLElement {
+/** The effective config: what the helper read from its file and where it came from, with a button to edit the fields that apply at once. */
+export function configCard(s: SystemSnapshot, onEdit: () => void): HTMLElement {
   const { config, helper, setup } = s;
   const map = (record: Record<string, string>) =>
     Object.keys(record).length
@@ -34,7 +34,11 @@ export function configCard(s: SystemSnapshot): HTMLElement {
       : 'none';
   return card(
     'Configuration',
-    el('p', `Read from ${helper.configPath}. Edit it and restart the helper to change these.`, 'settings-note'),
+    el(
+      'p',
+      `Read from ${helper.configPath}. Edit sets the default directory, model, command and prompts; for the rest, edit the file and restart the helper.`,
+      'settings-note',
+    ),
     ...(setup.configProblems.length ? [row('Ignored entries', el('span', setup.configProblems.join('\n'), 'bad'))] : []),
     row('Default directory', mono(config.defaultCwd)),
     row('Prompts file', mono(config.promptsFile)),
@@ -56,5 +60,6 @@ export function configCard(s: SystemSnapshot): HTMLElement {
       ),
     ),
     row('Warn above', `${config.limits.memoryWarnMb} MB per workspace · servers idle ${config.limits.idleServerHours} h`),
+    actions(plain('Edit', onEdit, 'Change the default directory, model, command and prompts file, and the prompts note itself')),
   );
 }

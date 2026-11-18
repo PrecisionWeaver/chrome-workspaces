@@ -9,12 +9,12 @@ const ws = {} as WebSocket;
 const REVIEWS = { items: [], error: null, fetchedAt: null, refreshing: false };
 
 /** A hub that records what it was asked to send, around an admin service a test fills in. */
-function fakeHub(admin: Record<string, unknown>, workspaces: string[] = []) {
+function fakeHub(admin: Record<string, unknown>, workspaces: string[] = [], configEdit: Record<string, unknown> = {}) {
   const toAsker: ControlToClient[] = [];
   const toAll: ControlToClient[] = [];
   const pending: Promise<unknown>[] = [];
   const hub = {
-    options: { admin, reviews: { state: () => REVIEWS }, store: { get: (id: string) => (workspaces.includes(id) ? { id } : undefined) } },
+    options: { admin, configEdit, reviews: { state: () => REVIEWS }, store: { get: (id: string) => (workspaces.includes(id) ? { id } : undefined) } },
     clientCount: 2,
     send: (message: ControlToClient) => toAll.push(message) > 0,
     sendTo: (_ws: WebSocket, message: ControlToClient) => void toAsker.push(message),
@@ -36,7 +36,7 @@ function fakeHub(admin: Record<string, unknown>, workspaces: string[] = []) {
 
 describe('isAdminRequest', () => {
   it('claims what Settings asks, and nothing else', () => {
-    const types: ControlToHelper['type'][] = ['system', 'admin', 'systemLog', 'timeline', 'exportData', 'checkUpdates'];
+    const types: ControlToHelper['type'][] = ['system', 'admin', 'systemLog', 'timeline', 'exportData', 'checkUpdates', 'getConfigEdit', 'saveConfigEdit'];
     for (const type of types) expect(isAdminRequest({ type } as ControlToHelper)).toBe(true);
     expect(isAdminRequest({ type: 'listRepos' })).toBe(false);
     expect(isAdminRequest({ type: 'git', id: 'ws-0123abcd' })).toBe(false);
@@ -105,5 +105,42 @@ describe('handleAdmin', () => {
     const failing = fakeHub({ checkUpdates: async () => Promise.reject(new Error('not a git checkout')) });
     await failing.ask({ type: 'checkUpdates' });
     expect(failing.toAsker).toEqual([{ type: 'updates', status: null, error: 'not a git checkout' }]);
+  });
+});
+
+describe('handleAdmin config editor', () => {
+  const edit = { values: { defaultCwd: '', defaultModel: '', claudeCommand: '', promptsFile: '' }, promptsPath: '/p.md', prompts: null };
+  const values = { defaultCwd: '', defaultModel: 'opus', claudeCommand: '', promptsFile: '' };
+
+  it('answers getConfigEdit with the fields, or why they could not be read', async () => {
+    const good = fakeHub({}, [], { read: () => edit });
+    await good.ask({ type: 'getConfigEdit' });
+    expect(good.toAsker).toEqual([{ type: 'configEdit', edit, error: null }]);
+    const bad = fakeHub({}, [], {
+      read: () => {
+        throw new Error('config.json is not valid JSON');
+      },
+    });
+    await bad.ask({ type: 'getConfigEdit' });
+    expect(bad.toAsker).toEqual([{ type: 'configEdit', edit: null, error: 'config.json is not valid JSON' }]);
+  });
+
+  it('saves, then answers with the outcome and the fields as they now stand', async () => {
+    const saves: unknown[] = [];
+    const hub = fakeHub({}, [], { read: () => edit, save: (...args: unknown[]) => (saves.push(args), { ok: true, message: 'Saved.' }) });
+    await hub.ask({ type: 'saveConfigEdit', values, prompts: 'note' });
+    expect(saves).toEqual([[values, 'note']]);
+    expect(hub.toAsker).toEqual([{ type: 'configSaved', ok: true, message: 'Saved.', edit }]);
+  });
+
+  it('reports a refused save, and still answers when the fields cannot be read back', async () => {
+    const hub = fakeHub({}, [], {
+      read: () => {
+        throw new Error('gone');
+      },
+      save: () => ({ ok: false, message: 'Default model "x" is not a model name.' }),
+    });
+    await hub.ask({ type: 'saveConfigEdit', values, prompts: null });
+    expect(hub.toAsker).toEqual([{ type: 'configSaved', ok: false, message: 'Default model "x" is not a model name.', edit: null }]);
   });
 });

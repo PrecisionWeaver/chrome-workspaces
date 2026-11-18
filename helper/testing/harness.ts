@@ -204,6 +204,10 @@ export async function startHarness(): Promise<Harness> {
     repos: () => fakes.repos,
     git,
     admin,
+    configEdit: {
+      read: () => ({ values: { defaultCwd: '', defaultModel: '', claudeCommand: '', promptsFile: '' }, promptsPath: join(dir, 'prompts.md'), prompts: null }),
+      save: () => ({ ok: true, message: 'Saved.' }),
+    },
     history,
     resumeId: (id) => fakes.resumeIds[id] ?? null,
     pastSessions: (id) => fakes.pastSessions[id] ?? [],
