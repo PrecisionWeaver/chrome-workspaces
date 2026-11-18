@@ -10,7 +10,7 @@
 
 ## Install
 
-The helper is installed from a clone of this repo. The release zip holds only the built extension, so it cannot run the helper on its own.
+Install from a clone of this repo: the extension needs the helper, and releases carry no separate download.
 
 ```bash
 git clone https://github.com/PrecisionWeaver/chrome-workspaces.git

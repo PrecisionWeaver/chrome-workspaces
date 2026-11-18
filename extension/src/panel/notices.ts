@@ -33,7 +33,7 @@ export function createNotices(): Notices {
     noticeEl.replaceChildren(
       el(
         'span',
-        'The helper is not installed. It is not part of the extension zip: clone the repo, run npm install and npm run install-app in it, then restart Chrome.',
+        'The helper is not installed. It comes from the repo, not the extension: clone it, run npm install and npm run install-app in it, then restart Chrome.',
       ),
       copy,
     );

@@ -10,9 +10,6 @@ on:
 
 permissions:
   contents: write
-  # For the build provenance attestation on the zip.
-  id-token: write
-  attestations: write
 
 jobs:
   release:
@@ -41,16 +38,8 @@ jobs:
           npm run typecheck
           npm run test:coverage
           npm run build:extension
-      - name: Package the extension
-        if: steps.version.outputs.exists != 'true'
-        run: (cd extension/dist && zip -qr "../../chrome-workspaces-extension-${{ steps.version.outputs.tag }}.zip" .)
-      - name: Attest the zip
-        if: steps.version.outputs.exists != 'true'
-        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
-        with:
-          subject-path: chrome-workspaces-extension-${{ steps.version.outputs.tag }}.zip
       - name: Publish
         if: steps.version.outputs.exists != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${{ steps.version.outputs.tag }}" "chrome-workspaces-extension-${{ steps.version.outputs.tag }}.zip" --target "$GITHUB_SHA" --generate-notes --title "${{ steps.version.outputs.tag }}"
+        run: gh release create "${{ steps.version.outputs.tag }}" --target "$GITHUB_SHA" --generate-notes --title "${{ steps.version.outputs.tag }}"
