@@ -11,6 +11,9 @@ import { createLedgerSync } from './ledger-sync';
 
 const hour = 60 * 60 * 1000;
 
+/** File creation times on Linux are coarse (a few milliseconds), so a fork made straight after its parent could share the parent's. */
+const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 20));
+
 /** A transcript line for one million-token message written at `at` epoch milliseconds. */
 const line = (id: string, at: number) =>
   JSON.stringify({
@@ -139,6 +142,7 @@ describe('createLedgerSync', () => {
     await sync.refreshLive(first, { id: 'ws-1' });
     sync.recordLive(first, { id: 'ws-1', name: 'acme/app' });
     // A fork's file is created now, so the first conversation is what it may have copied.
+    await tick();
     const fork = transcript('fork.jsonl', [['m1', endedAt]]);
     expect(sync.earlierEnded(fork, 'ws-1')).toBe(endedAt);
     expect(sync.earlierEnded(fork, 'ws-other')).toBeNull();
@@ -210,6 +214,7 @@ describe('the usage ledger through the service', () => {
     const copiedAt = Date.now() - hour;
     h.transcripts[workspace.id] = transcript('first.jsonl', [['m1', copiedAt]]);
     await usage();
+    await tick();
     // The fork's file is created now, holding the earlier message with its own date, then a new one.
     h.transcripts[workspace.id] = transcript('fork.jsonl', [
       ['m1', copiedAt],
