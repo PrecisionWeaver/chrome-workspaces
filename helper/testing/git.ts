@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 
-/** A committer, so a test repository can commit, and no background maintenance, which rewrites `.git` while a test copies it. */
-const CONFIG = ['-c', 'user.name=T', '-c', 'user.email=t@example.com', '-c', 'commit.gpgsign=false', '-c', 'maintenance.auto=false', '-c', 'gc.auto=0'];
+/** A committer, so a test repository can commit. */
+const CONFIG = ['-c', 'user.name=T', '-c', 'user.email=t@example.com', '-c', 'commit.gpgsign=false'];
 
 /** Runs git in `cwd` as a test committer and returns its stdout as it is. */
 export function git(cwd: string, ...args: string[]): string {
