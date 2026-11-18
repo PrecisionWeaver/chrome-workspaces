@@ -19,13 +19,7 @@ In **Review requests**, show at a glance whether you have reviewed a PR, and whe
 
 ```ts
 /** Where your own review on the PR stands. */
-export type MyReview =
-  | "none"
-  | "rereview"
-  | "new-commits"
-  | "changes-requested"
-  | "commented"
-  | "approved";
+export type MyReview = 'none' | 'rereview' | 'new-commits' | 'changes-requested' | 'commented' | 'approved';
 myReview: MyReview;
 ```
 

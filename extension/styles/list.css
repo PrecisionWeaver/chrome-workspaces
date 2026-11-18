@@ -621,8 +621,7 @@ body.collapsed #new .label {
 }
 
 .review .merge,
-.review .approved,
-.review .rereview,
+.review .mine,
 .review .ci {
   padding: 0 5px;
   border-radius: 8px;
@@ -651,14 +650,26 @@ body.collapsed #new .label {
   color: var(--wait);
 }
 
-.review .approved {
-  background: color-mix(in srgb, var(--good) 18%, transparent);
-  color: var(--good);
+.review .mine[data-state='rereview'] {
+  background: color-mix(in srgb, var(--bad) 16%, transparent);
+  color: var(--bad);
+  font-weight: 600;
 }
 
-.review .rereview {
+.review .mine[data-state='new-commits'] {
   background: color-mix(in srgb, var(--wait) 16%, transparent);
   color: var(--wait);
+}
+
+.review .mine[data-state='changes-requested'],
+.review .mine[data-state='commented'] {
+  border: 1px solid var(--border-strong);
+  color: var(--muted);
+}
+
+.review .mine[data-state='approved'] {
+  background: color-mix(in srgb, var(--good) 18%, transparent);
+  color: var(--good);
 }
 
 .review .ci.passing {

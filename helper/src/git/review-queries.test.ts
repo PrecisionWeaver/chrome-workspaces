@@ -19,8 +19,9 @@ describe('ghOwnPrs', () => {
 });
 
 describe('ghReviewedPrs', () => {
-  it('searches for your reviews in the given repos', () => {
-    expect(ghReviewedPrs(['acme/api', 'acme/web-app'])).toContain('--repo acme/api --repo acme/web-app --state=open --reviewed-by=@me');
+  it('searches for your reviews in every repo', () => {
+    expect(ghReviewedPrs).toContain('gh search prs --state=open --reviewed-by=@me');
+    expect(ghReviewedPrs).not.toContain('--repo');
   });
 });
 
@@ -33,13 +34,14 @@ describe('mergeStatusQuery', () => {
     expect(query).not.toContain('mutation');
   });
 
-  it('asks for the viewer, the reviewed commit and the rolled-up checks, not each check run', () => {
+  it('asks for the viewer, the reviewed commit, who is asked to review and the rolled-up checks, not each check run', () => {
     const query = mergeStatusQuery(parseReviewRequests([GH]));
     expect(query).toContain('viewer { login }');
     expect(query).toContain('headRefOid');
     expect(query).toContain('headRefName');
     expect(query).toContain('latestReviews(first: 100) { nodes { author { login } state commit { oid } } }');
     expect(query).toContain('statusCheckRollup { state }');
+    expect(query).toContain('reviewRequests(first: 20) { nodes { requestedReviewer { ... on User { login } } } }');
     expect(query).not.toContain('contexts');
   });
 });

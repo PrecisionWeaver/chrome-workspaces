@@ -86,26 +86,38 @@ describe('the list', () => {
     expect(badges.map((badge) => badge?.dataset.state ?? null)).toEqual(['ready', 'review', 'draft', 'blocked', 'blocked', null]);
   });
 
-  it('flags a PR that has new commits since your review, and shows its checks', async () => {
+  it('shows the checks as a tag', async () => {
     await start();
     launcher.renderReviews(
       state([
-        makeReview({ number: 1, needsReReview: true, ci: 'failing' }),
+        makeReview({ number: 1, ci: 'failing' }),
         makeReview({ number: 2, ci: 'passing' }),
         makeReview({ number: 3, ci: 'pending' }),
         makeReview({ number: 4 }),
       ]),
       [],
     );
-    expect(rows().map((row) => row.querySelector('.rereview')?.textContent ?? null)).toEqual(['New commits', null, null, null]);
     expect(rows().map((row) => row.querySelector<HTMLElement>('.ci')?.className ?? null)).toEqual(['ci failing', 'ci passing', 'ci pending', null]);
     expect(rows().map((row) => row.querySelector('.ci')?.textContent ?? null)).toEqual(['Checks failing', 'Checks passing', 'Checks running', null]);
   });
 
-  it('marks a PR you approved', async () => {
+  it('shows where your review stands, and nothing when you have not reviewed', async () => {
     await start();
-    launcher.renderReviews(state([makeReview({ number: 1, approved: true }), makeReview({ number: 2 })]), []);
-    expect(rows().map((row) => row.querySelector('.approved')?.textContent ?? null)).toEqual(['Approved', null]);
+    launcher.renderReviews(
+      state([
+        makeReview({ number: 1, myReview: 'rereview' }),
+        makeReview({ number: 2, myReview: 'new-commits' }),
+        makeReview({ number: 3, myReview: 'changes-requested' }),
+        makeReview({ number: 4, myReview: 'commented' }),
+        makeReview({ number: 5, myReview: 'approved' }),
+        makeReview({ number: 6, myReview: 'none' }),
+      ]),
+      [],
+    );
+    const pills = rows().map((row) => row.querySelector<HTMLElement>('.mine'));
+    expect(pills.map((pill) => pill?.textContent ?? null)).toEqual(['Re-review to merge', 'New commits', 'Changes requested', 'Commented', 'Approved', null]);
+    expect(pills.map((pill) => pill?.dataset.state ?? null)).toEqual(['rereview', 'new-commits', 'changes-requested', 'commented', 'approved', null]);
+    expect(pills[0]!.title).toBe('Your review is needed again before this can merge');
   });
 
   it('leaves out a checks tag that Can merge, or a Checks failing reason, already says', async () => {
@@ -245,6 +257,15 @@ describe('searching', () => {
     expect(refs()).toEqual(['app#3']);
   });
 
+  it('finds a PR by where your review stands', async () => {
+    await start();
+    launcher.renderReviews(state([makeReview({ number: 1, url: 'u1', myReview: 'rereview' }), makeReview({ number: 2, url: 'u2', myReview: 'approved' })]), []);
+    search('re-review');
+    expect(refs()).toEqual(['app#1']);
+    search('approved');
+    expect(refs()).toEqual(['app#2']);
+  });
+
   it('shows how many matched out of how many, and everything again when cleared', async () => {
     await start();
     launcher.renderReviews(state(items), []);
@@ -277,7 +298,7 @@ describe('searching', () => {
   });
 });
 
-describe('filtering by author, repo and status', () => {
+describe('filtering by author, repo, status and your review', () => {
   const items = [
     makeReview({ number: 1, url: 'u1', author: 'alice', repo: 'acme/app', merge: 'ready' }),
     makeReview({ number: 2, url: 'u2', author: 'bob', repo: 'acme/api', merge: 'review' }),
@@ -345,6 +366,27 @@ describe('filtering by author, repo and status', () => {
     expect(refs()).toEqual(['app#1', 'api#2']);
   });
 
+  it('filters on your review, with Not reviewed for a PR you have not', async () => {
+    await start();
+    launcher.renderReviews(
+      state([
+        makeReview({ number: 1, url: 'u1', myReview: 'rereview' }),
+        makeReview({ number: 2, url: 'u2', myReview: 'approved' }),
+        makeReview({ number: 3, url: 'u3', myReview: 'none' }),
+      ]),
+      [],
+    );
+    facetButton('mine').click();
+    expect(options_().map((row) => row.querySelector('.facet-name')?.textContent)).toEqual(['Approved', 'Not reviewed', 'Re-review to merge']);
+    for (const row of options_().slice(0, 2)) {
+      const box = row.querySelector('input') as HTMLInputElement;
+      box.checked = false;
+      box.dispatchEvent(new Event('change'));
+    }
+    expect(refs()).toEqual(['app#1']);
+    expect(facetButton('mine').textContent).toBe('My review 1/3');
+  });
+
   it('has All and None to tick or untick every value at once', async () => {
     await start();
     launcher.renderReviews(state(items), []);
@@ -393,7 +435,7 @@ describe('filtering by author, repo and status', () => {
     launcher.renderReviews(state(items), []);
     facetButton('author').click();
     (document.querySelector('.facet-bulk button:nth-child(2)') as HTMLButtonElement).click();
-    expect(fake.storage.local.reviewsHidden).toEqual({ author: ['alice', 'bob'], repo: [], status: [] });
+    expect(fake.storage.local.reviewsHidden).toEqual({ author: ['alice', 'bob'], repo: [], status: [], mine: [] });
 
     document.body.innerHTML = '';
     loadPanelHtml();
