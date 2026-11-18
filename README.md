@@ -1,6 +1,5 @@
 # Chrome Workspaces
 
-[![release](https://github.com/PrecisionWeaver/chrome-workspaces/actions/workflows/release.yml/badge.svg?branch=main)](https://github.com/PrecisionWeaver/chrome-workspaces/actions/workflows/release.yml)
 [![ci](https://github.com/PrecisionWeaver/chrome-workspaces/actions/workflows/ci.yml/badge.svg)](https://github.com/PrecisionWeaver/chrome-workspaces/actions/workflows/ci.yml)
 [![Dependabot Updates](https://github.com/PrecisionWeaver/chrome-workspaces/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/PrecisionWeaver/chrome-workspaces/actions/workflows/dependabot/dependabot-updates)
 
@@ -24,11 +23,13 @@ All of it is in [docs/features.md](docs/features.md).
 Requires macOS, Google Chrome, Node 24+ and Claude Code. `gh` is optional, for review requests.
 
 ```bash
+git clone https://github.com/PrecisionWeaver/chrome-workspaces.git
+cd chrome-workspaces
 npm install
 npm run install-app -- --default-cwd ~/code --repo-root ~/code
 ```
 
-That sets up, builds and starts the helper, then lists the Chrome steps: load `extension/dist` as an unpacked extension and click the toolbar icon. `npm run doctor` checks an install; `npm run uninstall` removes one. [docs/setup.md](docs/setup.md) has the details, and the HTTP API for scripting workspaces.
+The helper and extension run from the clone; there is no separate download. That sets up, builds and starts the helper, then lists the Chrome steps: load `extension/dist` as an unpacked extension and click the toolbar icon. `npm run doctor` checks an install; `npm run uninstall` removes one. [docs/setup.md](docs/setup.md) has the details, and the HTTP API for scripting workspaces.
 
 ## Documentation
 

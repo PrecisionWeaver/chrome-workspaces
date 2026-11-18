@@ -1,6 +1,6 @@
 # Releasing
 
-Releases are tags plus a GitHub Release carrying a zip of the built extension. The helper is installed from a clone (`npm install`, `npm run setup`), so it is not packaged.
+Releases are tags plus a GitHub Release with generated notes. Nothing is packaged: the helper and extension are installed from a clone (`npm install`, `npm run install-app`), and GitHub's automatic source archives are not an install path, since they have no `.git` for the in-app updater.
 
 ## Cut a release
 
@@ -25,7 +25,7 @@ git branch -D release/vX.Y.Z    # a squash merge leaves the branch looking unmer
 
 `main` takes no direct pushes and no local merges, so the old fast-forward (`git merge --ff-only release/vX.Y.Z && git push`) is not available; the pull request is the only way in.
 
-Merging to `main` triggers `.github/workflows/release.yml`. If `package.json`'s version has no tag, it installs, checks (format, types, tests), builds, zips `extension/dist`, attests the zip's build provenance, and runs `gh release create vX.Y.Z --generate-notes` with the zip attached. Anyone can check a downloaded zip came from that workflow with `gh attestation verify chrome-workspaces-extension-vX.Y.Z.zip --repo PrecisionWeaver/chrome-workspaces`. A push whose version is already tagged does nothing, so ordinary commits never publish.
+Merging to `main` triggers `.github/workflows/release.yml`. If `package.json`'s version has no tag, it installs, checks (format, types, tests), builds, and runs `gh release create vX.Y.Z --generate-notes`. A push whose version is already tagged does nothing, so ordinary commits never publish.
 
 ## Choosing the bump
 
