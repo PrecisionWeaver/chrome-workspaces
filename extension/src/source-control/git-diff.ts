@@ -4,10 +4,18 @@ import type { GitViewContext } from './git-view';
 
 const MAX_DIFF_LINES = 4000;
 
-const LETTER_TONE: Record<string, string> = { M: 'mod', A: 'add', U: 'add', D: 'del', R: 'ren', C: 'ren', T: 'mod' };
+export const LETTER_TONE: Record<string, string> = { M: 'mod', A: 'add', U: 'add', D: 'del', R: 'ren', C: 'ren', T: 'mod' };
 
 /** A file in a list: name, folder and status letter, with optional actions that show on hover. */
-export function fileRow(letter: string, path: string, from: string | undefined, onClick: () => void, fresh = false, actions: HTMLElement[] = []): HTMLElement {
+export function fileRow(
+  letter: string,
+  path: string,
+  from: string | undefined,
+  onClick: () => void,
+  fresh = false,
+  actions: HTMLElement[] = [],
+  onPin?: () => void,
+): HTMLElement {
   const row = el('div', '', `git-file${fresh ? ' fresh' : ''}`);
   row.tabIndex = 0;
   row.setAttribute('role', 'button');
@@ -24,6 +32,7 @@ export function fileRow(letter: string, path: string, from: string | undefined, 
   }
   row.append(el('span', letter, `git-letter ${LETTER_TONE[letter] ?? ''}`));
   row.addEventListener('click', onClick);
+  if (onPin) row.addEventListener('dblclick', onPin);
   row.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' && event.target === row) onClick();
   });
@@ -36,6 +45,8 @@ function showDiffView(ctx: GitViewContext, title: string, meta: string): void {
   ctx.diffMeta.textContent = meta;
   ctx.diffFiles.replaceChildren();
   ctx.diffFiles.hidden = true;
+  // Only a working-tree file has tabs; opening one draws the strip again.
+  ctx.diffTabs.hidden = true;
   ctx.diffBody.replaceChildren(el('div', 'Loading…', 'git-empty'));
   ctx.diffSection.hidden = false;
   const wasOpen = ctx.isOpen;
