@@ -51,10 +51,10 @@ describe('agentPlist', () => {
     logFile: '/Users/me/.chrome-workspaces/helper.log',
   });
 
-  it('is a property list launchd can read, with paths escaped', () => {
+  // plutil ships with macOS and is what launchd's own tools use to read one, so this runs only there (CI runs on Linux).
+  it.skipIf(process.platform !== 'darwin')('is a property list launchd can read, with paths escaped', () => {
     const file = join(mkdtempSync(join(tmpdir(), 'cw-plist-')), 'agent.plist');
     writeFileSync(file, plist);
-    // plutil ships with macOS and is what launchd's own tools use to read one.
     const parsed = JSON.parse(execFileSync('plutil', ['-convert', 'json', '-o', '-', file], { encoding: 'utf8' }));
     expect(parsed).toEqual({
       Label: 'com.chrome-workspaces.helper',
