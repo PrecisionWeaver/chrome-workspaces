@@ -693,6 +693,29 @@ describe('links and search in the terminal', () => {
   });
 });
 
+describe('focusing the terminal', () => {
+  const press = (init: KeyboardEventInit) => document.dispatchEvent(new KeyboardEvent('keydown', { cancelable: true, ...init }));
+
+  it('moves focus into the terminal on ⌘I or Ctrl+I, while one is showing', async () => {
+    await boot();
+    const focus = vi.spyOn(term(), 'focus');
+    press({ key: 'i', metaKey: true });
+    expect(focus).not.toHaveBeenCalled();
+    $('terminal').hidden = false;
+    press({ key: 'i', metaKey: true });
+    press({ key: 'I', ctrlKey: true });
+    expect(focus).toHaveBeenCalledTimes(2);
+    press({ key: 'i', metaKey: true, shiftKey: true });
+    expect(focus).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps the key from the shell, which would read Ctrl+I as Tab', async () => {
+    await boot();
+    expect(term().keyHandler!(new KeyboardEvent('keydown', { key: 'i', ctrlKey: true }))).toBe(false);
+    expect(term().keyHandler!(new KeyboardEvent('keydown', { key: 'i', metaKey: true }))).toBe(false);
+  });
+});
+
 describe('the command palette', () => {
   const press = (init: KeyboardEventInit) => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', cancelable: true, ...init }));
   const labels = () =>

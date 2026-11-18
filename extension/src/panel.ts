@@ -226,6 +226,8 @@ term.attachCustomKeyEventHandler((event) => {
   if (isShortcut(event, 'k')) return false;
   // ⌘F / Ctrl+F likewise belongs to the find box.
   if (isShortcut(event, 'f')) return false;
+  // ⌘I / Ctrl+I focuses the terminal, which the terminal would otherwise read as a Tab.
+  if (isShortcut(event, 'i')) return false;
   return shiftEnterNewline(event, session.send);
 });
 
@@ -261,6 +263,11 @@ document.addEventListener('keydown', (event) => {
   if (isShortcut(event, 'f') && !terminalEl.hidden) {
     event.preventDefault();
     finder.open();
+  }
+  // Back to typing to claude, from wherever in the panel focus has wandered.
+  if (isShortcut(event, 'i') && !terminalEl.hidden) {
+    event.preventDefault();
+    term.focus();
   }
 });
 

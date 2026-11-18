@@ -122,7 +122,7 @@ Settings has **Theme** (system, dark or light), **Density** (comfortable or comp
 
 ## Find and links
 
-`⌘F` (or `Ctrl+F`) opens a find box over the workspace terminal: it finds as you type, `Enter` steps to the next match, `Shift+Enter` to the previous, `Esc` closes it. A URL in either terminal is a link; click it to open it in a new tab.
+`⌘F` (or `Ctrl+F`) opens a find box over the workspace terminal: it finds as you type, `Enter` steps to the next match, `Shift+Enter` to the previous, `Esc` closes it. `⌘I` (or `Ctrl+I`) puts the cursor back in the workspace terminal from anywhere in the panel, such as after clicking a file or a review request. A URL in either terminal is a link; click it to open it in a new tab.
 
 ## Collapse
 
