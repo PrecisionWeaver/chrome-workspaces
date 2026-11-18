@@ -2,6 +2,7 @@ name: release
 
 # Publishes a GitHub release whenever main carries a version that has no tag yet.
 # Bump the version with `npm run release -- <patch|minor|major>`; see docs/releasing.md.
+# It runs on Linux like ci.yml: nothing here needs macOS, and GitHub's macOS runners queue for many minutes.
 on:
   push:
     branches: [main]
@@ -15,7 +16,7 @@ permissions:
 
 jobs:
   release:
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
