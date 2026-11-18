@@ -1,17 +1,24 @@
 name: ci
 
-# Typecheck, test and build every pull request and every push, main included: release.yml checks main only when it cuts a release.
+# Lint and typecheck on Linux, tests and the build on macOS (the helper is macOS-only), and a `check` job that needs both:
+# `check` is the one status the repository ruleset requires. A pull request is checked by its own run, so a push runs only on main.
+# The macOS runners are the scarce ones, so a newer push to a branch cancels its older run; main's runs are never cancelled.
 on:
   pull_request:
   push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 # CI only reads the code, so the token gets no write access.
 permissions:
   contents: read
 
 jobs:
-  check:
-    runs-on: macos-latest
+  lint:
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -22,5 +29,24 @@ jobs:
       - run: |
           npm run check
           npm run typecheck
+
+  test:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: |
           npm run test:coverage
           npm run build:extension
+
+  # A job that needs a failed one is skipped, and a skipped required check counts as passing, so this runs always and fails itself.
+  check:
+    needs: [lint, test]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: test "${{ needs.lint.result }}" = success && test "${{ needs.test.result }}" = success
