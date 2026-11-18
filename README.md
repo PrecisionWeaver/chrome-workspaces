@@ -1,6 +1,5 @@
 # Chrome Workspaces
 
-[![release](https://github.com/PrecisionWeaver/chrome-workspaces/actions/workflows/release.yml/badge.svg?branch=main)](https://github.com/PrecisionWeaver/chrome-workspaces/actions/workflows/release.yml)
 [![ci](https://github.com/PrecisionWeaver/chrome-workspaces/actions/workflows/ci.yml/badge.svg)](https://github.com/PrecisionWeaver/chrome-workspaces/actions/workflows/ci.yml)
 [![Dependabot Updates](https://github.com/PrecisionWeaver/chrome-workspaces/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/PrecisionWeaver/chrome-workspaces/actions/workflows/dependabot/dependabot-updates)
 
