@@ -235,7 +235,8 @@ export function createCreateView({ send, onToggle, here, ticketLink }: CreateVie
     tabsInput.value = request?.url ?? '';
     tabsInput.setCustomValidity('');
     void chrome.storage.local.get(['useThisWindow', 'newRepo', 'newModel', 'newWorktree']).then(({ useThisWindow, newRepo, newModel, newWorktree }) => {
-      target.select(useThisWindow === true && windowId !== undefined ? 'here' : 'new');
+      // This window unless a new one was chosen last time: a new window opens without the side panel, which looks like it closed.
+      target.select(useThisWindow !== false && windowId !== undefined ? 'here' : 'new');
       worktreeBox.checked = newWorktree === true;
       syncBranch();
       modelSelect.value = typeof newModel === 'string' ? newModel : '';
