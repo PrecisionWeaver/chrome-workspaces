@@ -22,7 +22,7 @@
 
 ## Window or group
 
-**New window**, or **This window**. Joining a window that already holds a workspace gives the new one its own tab group beside it, so several terminals can share a window. Pick one from the list or by clicking a tab in its group; its badge takes the group's color. Switching collapses the window's other groups and shows the new one's; expand any by hand and it stays that way until the next switch. Merging windows into tab groups keeps their workspaces. A workspace that was a tab group and finds its window gone (Chrome restarted without restoring it) reopens as a group in the window other groups share, else the focused one, not in a window of its own. A workspace sharing a window without a group of its own takes the unclaimed group there that holds its tabs when you switch to it.
+**New window**, or **This window**. It starts on **This window**, or on **New window** if that is what you chose last time (a new window opens without the side panel). Joining a window that already holds a workspace gives the new one its own tab group beside it, so several terminals can share a window. Pick one from the list or by clicking a tab in its group; its badge takes the group's color. Switching collapses the window's other groups and shows the new one's; expand any by hand and it stays that way until the next switch. Merging windows into tab groups keeps their workspaces. A workspace that was a tab group and finds its window gone (Chrome restarted without restoring it) reopens as a group in the window other groups share, else the focused one, not in a window of its own. A workspace sharing a window without a group of its own takes the unclaimed group there that holds its tabs when you switch to it.
 
 ## From a review request
 

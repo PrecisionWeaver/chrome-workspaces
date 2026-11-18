@@ -412,13 +412,19 @@ describe('model, colour and window controls', () => {
     expect(thisWindow.title).toBe('');
   });
 
-  it('starts in this window only if that was chosen last time and it is possible', async () => {
-    fake.storage.local.useThisWindow = true;
+  it('starts in this window when it is possible, unless a new window was chosen last time', async () => {
     await open();
     expect(document.querySelector('#create-window .active')?.getAttribute('data-value')).toBe('new');
+    // Nothing saved yet: a new window opens without the side panel, which looks like the extension closed.
     here = { windowId: 5, workspace: undefined };
     await open();
     expect(document.querySelector('#create-window .active')?.getAttribute('data-value')).toBe('here');
+    here = { windowId: 5, workspace: makeWorkspace({ windowId: 5 }) };
+    await open();
+    expect(document.querySelector('#create-window .active')?.getAttribute('data-value')).toBe('here');
+    fake.storage.local.useThisWindow = false;
+    await open();
+    expect(document.querySelector('#create-window .active')?.getAttribute('data-value')).toBe('new');
   });
 });
 
