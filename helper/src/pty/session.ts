@@ -136,8 +136,14 @@ export class SessionManager {
     return [...this.sessions.values()];
   }
 
+  /**
+   * Ends a session on purpose (archived, restarted, resumed elsewhere). A panel attached to it is not told, since it reads
+   * an exit as its shell ending and closes the side panel, when it is about to move to another workspace.
+   */
   remove(id: string): void {
-    this.sessions.get(id)?.kill();
+    const session = this.sessions.get(id);
+    session?.silence();
+    session?.kill();
     this.sessions.delete(id);
     // A session ended on purpose (archived, restarted, resumed elsewhere) is not the one to bring back.
     this.saved?.drop(id);

@@ -182,8 +182,6 @@ const control = new ControlHub({
   pastSessions: (id) => listWorkspaceSessions(SESSIONS_DIR, id, store.get(id)?.cwd ?? null),
   resumeWith: (id, sessionId) => {
     resumeOverride.set(id, sessionId);
-    // Silenced first, so a panel attached to it is not told the shell exited (which closes the panel).
-    sessions.get(id)?.silence();
     sessions.remove(id);
   },
   workingDir,
