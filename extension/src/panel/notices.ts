@@ -2,7 +2,8 @@ import { errorMessage } from '../../../shared/protocol/errors';
 import { getHelper, isHostMissing, startHelper } from '../app/helper-client';
 import { $, el } from '../ui/dom';
 
-export const INSTALL_COMMAND = 'npm run install-app';
+export const INSTALL_COMMAND =
+  'git clone https://github.com/PrecisionWeaver/chrome-workspaces.git && cd chrome-workspaces && npm install && npm run install-app';
 
 /** The notice bar above the terminal: a plain message, or what to do about a helper that is not running. */
 export interface Notices {
@@ -29,7 +30,13 @@ export function createNotices(): Notices {
       copy.textContent = 'Copied';
     };
     noticeEl.hidden = false;
-    noticeEl.replaceChildren(el('span', `The helper is not installed. In the chrome-workspaces folder, run ${INSTALL_COMMAND}, then restart Chrome.`), copy);
+    noticeEl.replaceChildren(
+      el(
+        'span',
+        'The helper is not installed. It is not part of the extension zip: clone the repo, run npm install and npm run install-app in it, then restart Chrome.',
+      ),
+      copy,
+    );
   }
 
   function showOffline(): void {

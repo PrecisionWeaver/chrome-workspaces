@@ -63,7 +63,7 @@ describe('the helper offline', () => {
     notices.showOffline();
     await flush();
     expect(notice().textContent).toContain('The helper is not installed.');
-    expect(notice().textContent).toContain(INSTALL_COMMAND);
+    expect(notice().textContent).toContain('clone the repo');
     const writeText = vi.fn(async () => {});
     vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } });
     action().click();

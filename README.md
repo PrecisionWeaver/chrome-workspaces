@@ -24,11 +24,13 @@ All of it is in [docs/features.md](docs/features.md).
 Requires macOS, Google Chrome, Node 24+ and Claude Code. `gh` is optional, for review requests.
 
 ```bash
+git clone https://github.com/PrecisionWeaver/chrome-workspaces.git
+cd chrome-workspaces
 npm install
 npm run install-app -- --default-cwd ~/code --repo-root ~/code
 ```
 
-That sets up, builds and starts the helper, then lists the Chrome steps: load `extension/dist` as an unpacked extension and click the toolbar icon. `npm run doctor` checks an install; `npm run uninstall` removes one. [docs/setup.md](docs/setup.md) has the details, and the HTTP API for scripting workspaces.
+The helper runs from the clone; the release zip holds only the built extension. That sets up, builds and starts the helper, then lists the Chrome steps: load `extension/dist` as an unpacked extension and click the toolbar icon. `npm run doctor` checks an install; `npm run uninstall` removes one. [docs/setup.md](docs/setup.md) has the details, and the HTTP API for scripting workspaces.
 
 ## Documentation
 

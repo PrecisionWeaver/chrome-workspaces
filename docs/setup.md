@@ -10,7 +10,11 @@
 
 ## Install
 
+The helper is installed from a clone of this repo. The release zip holds only the built extension, so it cannot run the helper on its own.
+
 ```bash
+git clone https://github.com/PrecisionWeaver/chrome-workspaces.git
+cd chrome-workspaces
 npm install
 npm run install-app -- --default-cwd ~/code --repo-root ~/code
 ```
@@ -36,7 +40,7 @@ npm run doctor
 
 It checks Node, the config, the extension ID and build, the native-messaging host, the LaunchAgent, whether the helper answers, `claude`, `gh` and the status hooks, and says how to fix each. It works when the panel can't reach the helper.
 
-If Chrome can't find the native host, the panel's notice says the helper is not installed and offers to copy `npm run install-app`. Run it from the project folder and fully restart Chrome (`npm run setup` alone also registers the host).
+If Chrome can't find the native host, the panel's notice says the helper is not installed and offers to copy the clone-and-install commands. Run them (or `npm run install-app` in an existing clone) and fully restart Chrome (`npm run setup` alone also registers the host).
 
 ## Running the helper
 
