@@ -1,5 +1,5 @@
-import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readdirSync, readFileSync } from 'node:fs';
+import { spawn, spawnSync } from 'node:child_process';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -97,6 +97,60 @@ describe('hooks/session-state.ts', () => {
     // A subagent's call can arrive after claude's Stop.
     fire(data, { hook_event_name: 'PostToolUse', session_id: ID, tool_name: 'Read', agent_id: 'a1', agent_type: 'Explore' });
     expect(read(data)).toMatchObject({ status: 'idle', last_event: 'Stop' });
+  });
+
+  it('returns to working when the subagent that raised a permission prompt carries on', () => {
+    const data = mkdtempSync(join(tmpdir(), 'cw-hook-'));
+    fire(data, { hook_event_name: 'UserPromptSubmit', session_id: ID });
+    fire(data, { hook_event_name: 'Notification', session_id: ID, agent_id: 'a1', notification_type: 'permission_prompt', message: 'Needs Bash' });
+    expect(read(data)).toMatchObject({ status: 'needs_input', waiting_agent_id: 'a1' });
+    // Another subagent's call does not answer it.
+    fire(data, { hook_event_name: 'PreToolUse', session_id: ID, tool_name: 'Read', agent_id: 'a2' });
+    expect(read(data).status).toBe('needs_input');
+    fire(data, { hook_event_name: 'PreToolUse', session_id: ID, tool_name: 'Bash', agent_id: 'a1' });
+    const state = read(data);
+    expect(state.status).toBe('working');
+    expect(state.waiting).toBeUndefined();
+    expect(state.waiting_agent_id).toBeUndefined();
+  });
+
+  it('waits for the lock another hook holds before changing the session file, and clears one a dead hook left', async () => {
+    const data = mkdtempSync(join(tmpdir(), 'cw-hook-'));
+    fire(data, { hook_event_name: 'UserPromptSubmit', session_id: ID });
+    const lock = join(sessions(data), `${ID}.json.lock`);
+    writeFileSync(lock, '');
+    const child = spawn(process.execPath, [HOOK_SCRIPT], { env: { ...process.env, CW_DATA_DIR: data, CW_WORKSPACE_ID: 'ws-0123abcd' } });
+    const done = new Promise<void>((resolve) => child.on('close', () => resolve()));
+    child.stdin.end(JSON.stringify({ hook_event_name: 'Stop', session_id: ID }));
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    // Held: the hook has not written its change yet.
+    expect(read(data).status).toBe('working');
+    rmSync(lock);
+    await done;
+    expect(read(data).status).toBe('idle');
+    expect(existsSync(lock)).toBe(false);
+
+    // A lock nobody will release is old enough to be taken as a dead hook's.
+    writeFileSync(lock, '');
+    const old = new Date(Date.now() - 10_000);
+    utimesSync(lock, old, old);
+    fire(data, { hook_event_name: 'UserPromptSubmit', session_id: ID });
+    expect(read(data).status).toBe('working');
+    expect(existsSync(lock)).toBe(false);
+  });
+
+  it('keeps every change when hooks of parallel tool calls run at once', async () => {
+    const data = mkdtempSync(join(tmpdir(), 'cw-hook-'));
+    fire(data, { hook_event_name: 'UserPromptSubmit', session_id: ID });
+    const run = (event: unknown) =>
+      new Promise<void>((resolve) => {
+        const child = spawn(process.execPath, [HOOK_SCRIPT], { env: { ...process.env, CW_DATA_DIR: data, CW_WORKSPACE_ID: 'ws-0123abcd' } });
+        child.on('close', () => resolve());
+        child.stdin.end(JSON.stringify(event));
+      });
+    const other = { hook_event_name: 'PostToolUse', session_id: ID, tool_name: 'Read' };
+    await Promise.all([run({ ...other, tool_name: 'mcp__claude-in-chrome__navigate' }), ...Array.from({ length: 12 }, () => run(other))]);
+    expect(read(data).browser_at).toEqual(expect.any(String));
   });
 
   it('notes a Claude in Chrome tool call, and no other tool', () => {

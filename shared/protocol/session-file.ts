@@ -38,6 +38,8 @@ export interface SessionFile {
   status?: HookStatus;
   /** Set while `status` is `needs_input`: what the Notification said claude waits on. */
   waiting?: WaitingOn;
+  /** The subagent that raised the notification `waiting` came from; its next tool call means the prompt was answered. */
+  waiting_agent_id?: string;
   status_since?: string;
   last_event?: string;
   started_at?: string;
