@@ -406,7 +406,9 @@ body.collapsed #new .label {
 }
 
 .ws:hover .remove,
-.ws:hover .pop-out {
+.ws:hover .pop-out,
+.ws:focus-within .remove,
+.ws:focus-within .pop-out {
   visibility: visible;
 }
 
@@ -604,6 +606,17 @@ body.collapsed #new .label {
 
 .review:hover {
   background: var(--surface);
+}
+
+.review:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.review-empty {
+  padding: 8px;
+  color: var(--faint);
+  list-style: none;
 }
 
 .review.selected {

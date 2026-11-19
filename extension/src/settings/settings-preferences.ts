@@ -27,9 +27,14 @@ export function preferencesCard(prefs: PrefsHandle, switchShortcut: string): HTM
   const change = plain('Change', () => void chrome.tabs.create({ url: 'chrome://extensions/shortcuts' }), "Chrome's shortcuts page, where the keys are bound");
   const shortcut = row('Switch workspaces', switchShortcut || 'not bound');
   shortcut.append(change);
+  // These keys work anywhere in the panel but are bound in code, so nothing else on screen mentions them.
+  const keys = row('Keys', '⌘K palette · ⌘F find · ⌘I terminal · ⇧⏎ new line');
+  keys.title =
+    'Ctrl instead of ⌘ outside macOS. ⌘K opens the command palette, which finds every workspace and action; ⇧⏎ types a new line in claude without sending.';
   return card(
     'Preferences',
     shortcut,
+    keys,
     choice('Theme', THEMES, prefs.get().theme, (theme) => {
       prefs.set({ theme });
     }),

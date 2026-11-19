@@ -38,6 +38,30 @@ describe('a plain notice', () => {
   });
 });
 
+describe('a message that something failed', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('goes after ten seconds, and a newer one restarts the wait', () => {
+    vi.useFakeTimers();
+    notices.show('Could not add big.bin');
+    vi.advanceTimersByTime(6000);
+    notices.show('Could not add other.bin');
+    vi.advanceTimersByTime(6000);
+    expect(notice().textContent).toBe('Could not add other.bin');
+    vi.advanceTimersByTime(4000);
+    expect(notice().hidden).toBe(true);
+  });
+
+  it('does not take down the offline notice that replaced it', () => {
+    vi.useFakeTimers();
+    notices.show('Could not add big.bin');
+    notices.showOffline();
+    vi.advanceTimersByTime(20_000);
+    expect(notice().hidden).toBe(false);
+    expect(notice().textContent).toContain('Helper not running.');
+  });
+});
+
 describe('the helper offline', () => {
   it('says the helper is not running, with a button to start it', () => {
     notices.showOffline();

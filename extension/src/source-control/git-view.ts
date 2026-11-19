@@ -106,6 +106,8 @@ export function createGitView(options: GitViewOptions): GitView {
 
   let error: string | null = null;
   let loaded = false;
+  /** Whether the helper has answered for this workspace yet. */
+  let answered = false;
   // A status request is out; the refresh button waits for its answer.
   let refreshing = false;
   let refreshTimer: ReturnType<typeof setTimeout> | undefined;
@@ -196,6 +198,8 @@ export function createGitView(options: GitViewOptions): GitView {
     errorEl.textContent = error ?? '';
     renderStatus(ctx);
     renderChanges(ctx);
+    // Before the first answer the pane would be blank, which reads as "nothing here".
+    if (!answered && ctx.workspaceId !== null) ctx.changesEl.replaceChildren(el('div', 'Loading…', 'git-empty'));
     renderCommits(ctx);
   }
 
@@ -243,6 +247,7 @@ export function createGitView(options: GitViewOptions): GitView {
       noticeEl.hidden = true;
       ctx.messageInput.value = '';
       loaded = false;
+      answered = false;
       previous = new Map();
       ctx.fresh.clear();
       // The old workspace's answer will be ignored, so do not wait for it.
@@ -256,6 +261,7 @@ export function createGitView(options: GitViewOptions): GitView {
       if (message.id !== ctx.workspaceId) return;
       setRefreshing(false);
       const { state } = message;
+      answered = true;
       const before = previous;
       ctx.state = state;
       error = message.error;
