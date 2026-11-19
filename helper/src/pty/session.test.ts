@@ -115,17 +115,22 @@ describe('Session', () => {
   it('does not leak the launching Claude session into the shell', async () => {
     process.env.CLAUDECODE = '1';
     process.env.CLAUDE_CODE_CHILD_SESSION = 'parent';
-    sessions = new SessionManager(10_000);
-    const session = sessions.create({
-      id: 'env',
-      command: '/bin/sh',
-      args: ['-c', 'echo "[$CLAUDECODE][$CLAUDE_CODE_CHILD_SESSION][$KEEP_ME]"'],
-      cwd: tmpdir(),
-      env: { KEEP_ME: 'kept' },
-    });
-    await waitFor(() => session.exited);
-    delete process.env.CLAUDECODE;
-    delete process.env.CLAUDE_CODE_CHILD_SESSION;
+    let session: ReturnType<SessionManager['create']>;
+    try {
+      sessions = new SessionManager(10_000);
+      session = sessions.create({
+        id: 'env',
+        command: '/bin/sh',
+        args: ['-c', 'echo "[$CLAUDECODE][$CLAUDE_CODE_CHILD_SESSION][$KEEP_ME]"'],
+        cwd: tmpdir(),
+        env: { KEEP_ME: 'kept' },
+      });
+      await waitFor(() => session.exited);
+    } finally {
+      // A failure above must not leave the parent's variables set for the tests after this one.
+      delete process.env.CLAUDECODE;
+      delete process.env.CLAUDE_CODE_CHILD_SESSION;
+    }
 
     let output = '';
     session.attach(
