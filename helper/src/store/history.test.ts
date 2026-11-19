@@ -1,7 +1,7 @@
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ControlToClient } from '../../../shared/protocol/protocol';
 import { HistoryStore, MAX_HISTORY } from './history';
 import { launchSpec } from '../pty/launch';
@@ -34,6 +34,19 @@ describe('HistoryStore', () => {
     const damaged = file();
     writeFileSync(damaged, '{ not json');
     expect(new HistoryStore(damaged).list()).toEqual([]);
+  });
+
+  it('keeps a damaged file aside and says so', () => {
+    const damaged = file();
+    writeFileSync(damaged, '{ not json');
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      new HistoryStore(damaged).list();
+      expect(error).toHaveBeenCalledWith(expect.stringContaining('is damaged'));
+      expect(readFileSync(`${damaged}.damaged`, 'utf8')).toBe('{ not json');
+    } finally {
+      error.mockRestore();
+    }
   });
 });
 

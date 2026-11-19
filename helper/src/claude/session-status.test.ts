@@ -10,6 +10,7 @@ import {
   pruneSessions,
   readSessionStatus,
   sameStatuses,
+  watchSessionStatus,
   type WorkspaceSession,
 } from './session-status';
 import { existsSync, utimesSync } from 'node:fs';
@@ -389,5 +390,23 @@ describe('a transcript filed under another project folder than the one recorded'
     expect(locateTranscript({ session_id: ID_NEW, transcript_path: own })).toBe(own);
     expect(locateTranscript({ session_id: '../x', transcript_path: join(root, '-acme-app', 'gone.jsonl') })).toBeNull();
     expect(locateTranscript({ session_id: ID_NEW, transcript_path: undefined })).toBeNull();
+  });
+});
+
+describe('watchSessionStatus', () => {
+  it('reports a steady stream of changes at least every max wait, instead of waiting for it to pause', async () => {
+    const dir = stateDir({});
+    const calls: number[] = [];
+    const stop = watchSessionStatus(dir, () => calls.push(Date.now()), 100, 300);
+    try {
+      // A write every 30 ms never leaves the 100 ms pause a plain debounce waits for.
+      for (let i = 0; i < 30; i++) {
+        writeFileSync(join(dir, 'a.json'), String(i));
+        await new Promise((resolve) => setTimeout(resolve, 30));
+      }
+      expect(calls.length).toBeGreaterThanOrEqual(2);
+    } finally {
+      stop();
+    }
   });
 });

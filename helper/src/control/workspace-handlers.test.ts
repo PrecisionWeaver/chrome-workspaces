@@ -132,6 +132,24 @@ describe('workspace requests over the control channel', () => {
     ws.close();
   });
 
+  it('ignores a second create for a PR whose workspace is still being made, instead of reporting a worktree error', async () => {
+    const repoDir = gitRepo();
+    h.reviews.push(review);
+    h.repoDirs['acme/web-app'] = repoDir;
+    const { ws, messages } = connectControl(h);
+    await opened(ws);
+    const create = JSON.stringify({ type: 'create', name: 'web-app#482', windowId: null, pr: PR, worktree: 'pr-482' });
+    // A double-click: the second arrives while the first is still making the worktree.
+    ws.send(create);
+    ws.send(create);
+    await waitFor(() => messages.some((m) => m.type === 'open'));
+    ws.send(create);
+    await waitFor(() => messages.some((m) => m.type === 'focus'));
+    expect(h.store.list()).toHaveLength(1);
+    expect(messages.some((m) => m.type === 'createError')).toBe(false);
+    ws.close();
+  });
+
   it('creates a prompt-only workspace in the default directory', async () => {
     const { ws } = connectControl(h);
     await opened(ws);

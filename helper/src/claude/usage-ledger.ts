@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { errorMessage } from '../../../shared/protocol/errors';
 import { addTokens } from '../../../shared/usage/usage';
 import type { UsageBucket } from './tokens';
 
@@ -103,8 +104,14 @@ export class UsageLedger {
     try {
       const { entries } = JSON.parse(readFileSync(this.file, 'utf8')) as { entries?: LedgerEntry[] };
       return new Map((Array.isArray(entries) ? entries : []).map((e) => [e.transcript, e]));
-    } catch {
-      // A damaged file starts the ledger again rather than stopping the helper; live transcripts are counted back in.
+    } catch (error) {
+      // A damaged file starts the ledger again rather than stopping the helper; live transcripts are counted back in. The old file is kept aside.
+      console.error(`usage: ${this.file} is damaged (${errorMessage(error)}); starting again, the old file is kept as ${this.file}.damaged`);
+      try {
+        renameSync(this.file, `${this.file}.damaged`);
+      } catch {
+        // Nothing more to do: the next save replaces it.
+      }
       return new Map();
     }
   }

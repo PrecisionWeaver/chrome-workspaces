@@ -106,9 +106,14 @@ export class ControlHub implements HubContext {
       try {
         message = JSON.parse(raw.toString());
       } catch {
+        console.error('control: dropped a message that is not JSON');
         return;
       }
-      if (!isControlToHelper(message)) return;
+      if (!isControlToHelper(message)) {
+        const type = typeof message === 'object' && message !== null ? (message as { type?: unknown }).type : undefined;
+        console.error(`control: dropped an invalid ${typeof type === 'string' ? type.slice(0, 40) : 'unknown'} message`);
+        return;
+      }
       try {
         this.handle(message, ws);
       } catch (error) {

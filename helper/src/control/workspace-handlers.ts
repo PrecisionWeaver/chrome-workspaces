@@ -52,13 +52,30 @@ export function handleWorkspace(hub: HubContext, message: WorkspaceRequest, ws: 
   }
 }
 
+/** Pull requests whose workspace is being made, by hub: a second `create` for one arriving meanwhile would otherwise make a second workspace. */
+const creating = new WeakMap<HubContext, Set<string>>();
+
 async function createWorkspace(hub: HubContext, message: Extract<ControlToHelper, { type: 'create' }>, ws: WebSocket): Promise<void> {
-  const { store, defaultCwd, repoDirs, reviews, git } = hub.options;
-  const existing = message.pr ? store.findByPr(message.pr) : undefined;
+  const { pr } = message;
+  if (!pr) return makeWorkspace(hub, message, ws);
+  const existing = hub.options.store.findByPr(pr);
   if (existing) {
     hub.send({ type: 'focus', id: existing.id });
     return;
   }
+  const pending = creating.get(hub) ?? new Set<string>();
+  creating.set(hub, pending);
+  if (pending.has(pr)) return;
+  pending.add(pr);
+  try {
+    await makeWorkspace(hub, message, ws);
+  } finally {
+    pending.delete(pr);
+  }
+}
+
+async function makeWorkspace(hub: HubContext, message: Extract<ControlToHelper, { type: 'create' }>, ws: WebSocket): Promise<void> {
+  const { store, defaultCwd, repoDirs, reviews, git } = hub.options;
   const chosen = message.cwd && isAbsolute(message.cwd) && isDirectory(message.cwd) ? message.cwd : null;
   // A PR workspace starts in its repo's configured directory unless one was picked.
   const base = message.pr ? prWorkspace(message.pr, { reviews: reviews.state().items, repoDirs, defaultCwd }) : { cwd: defaultCwd };
