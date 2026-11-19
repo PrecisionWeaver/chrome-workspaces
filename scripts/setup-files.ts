@@ -1,3 +1,4 @@
+import { doubleQuote } from '../shared/lib/double-quote';
 import { NATIVE_HOST_NAME } from '../shared/protocol/protocol';
 
 /** The contents of the files `setup` writes, kept apart from the writing so they can be tested. */
@@ -10,7 +11,7 @@ export function mergedConfig(existing: Record<string, unknown>, set: { extension
 
 /** The script Chrome runs as the native-messaging host. Chrome launches it with an unknown cwd and a minimal PATH, so both are pinned. */
 export function hostWrapperScript(repo: string, node: string): string {
-  return `#!/bin/sh\ncd "${repo}" && exec "${node}" --import tsx helper/src/native-host.ts\n`;
+  return `#!/bin/sh\ncd ${doubleQuote(repo)} && exec ${doubleQuote(node)} --import tsx helper/src/native-host.ts\n`;
 }
 
 /** The manifest that lets this extension, and no other, start the native-messaging host. */

@@ -40,6 +40,8 @@ describe('isControlToHelper', () => {
     ok({ type: 'pair', id: 'ws1', windowId: 3 });
     ok({ type: 'pair', id: 'ws1', windowId: 3, groupId: 7 });
     bad({ type: 'pair', id: 'ws1', windowId: '3' });
+    bad({ type: 'pair', id: 'ws1', windowId: -1 });
+    bad({ type: 'pair', id: 'ws1', windowId: 0 });
     bad({ type: 'pair', id: 'ws1', windowId: 3, groupId: 1.5 });
     ok({ type: 'unpair', windowId: 3 });
     bad({ type: 'unpair' });

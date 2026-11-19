@@ -32,6 +32,15 @@ describe('mergeStatusQuery', () => {
     expect(query).toContain('r0: repository(owner: "acme", name: "web-app") { pullRequest(number: 2)');
     expect(query).toContain('r1: repository(owner: "acme", name: "web-app") { pullRequest(number: 1)');
     expect(query).not.toContain('mutation');
+    // A number that is not a plain positive integer is not put into the query.
+    const odd = mergeStatusQuery([
+      { ...one, number: 1.5 },
+      { ...one, number: -3 },
+      { ...one, number: Number.NaN },
+    ]);
+    expect(odd).not.toContain('r0:');
+    expect(odd).not.toContain('r1:');
+    expect(odd).not.toContain('r2:');
   });
 
   it('asks for the viewer, the reviewed commit, who is asked to review and the rolled-up checks, not each check run', () => {

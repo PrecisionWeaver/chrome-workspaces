@@ -8,8 +8,9 @@ import { isPullRequestUrl } from '../git/pr-workspace';
 // A claude session id, which reaches `claude --resume` on a shell line.
 const SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
+/** A Chrome window or tab group id: a positive integer (`-1` means none, and is never a workspace's). */
 function isWindowId(value: unknown): value is number {
-  return Number.isInteger(value);
+  return Number.isInteger(value) && (value as number) > 0;
 }
 
 function isWebUrl(value: unknown): value is string {

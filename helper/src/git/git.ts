@@ -268,7 +268,17 @@ export function createGitService(): GitService {
         if (head?.stdout) return cap(head.stdout);
         return cap((await run(cwd, ['diff', '--no-color', '--cached', '--', path])).stdout);
       }
-      // Untracked: shown whole, as an addition. Exit code 1 only means the files differ.
+      // Untracked: shown whole, as an addition. A symlink in the repository could point anywhere, and `--no-index` would follow it out.
+      const { root } = await locate(cwd);
+      let real: string;
+      try {
+        real = realpathSync(resolve(cwd, path));
+      } catch {
+        throw new Error('not a path in the repository');
+      }
+      const top = realpathSync(root);
+      if (real !== top && !real.startsWith(`${top}/`)) throw new Error('not a path in the repository');
+      // Exit code 1 only means the files differ.
       return cap((await run(cwd, ['diff', '--no-color', '--no-index', '--', '/dev/null', path], [0, 1])).stdout);
     },
 
