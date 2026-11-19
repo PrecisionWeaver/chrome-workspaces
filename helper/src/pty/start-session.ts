@@ -47,7 +47,9 @@ export function startSession(id: string, deps: StartSessionDeps): Session | unde
   const resumeId = deps.resumeOverride.get(id) ?? deps.claudeSessionId(id) ?? workspace.resume ?? null;
   deps.resumeOverride.delete(id);
   // Resuming starts where claude was, which may be a worktree it moved into; a new conversation starts in the workspace's directory.
-  const cwd = resumeId ? (deps.launchDirectory ?? launchDirectory)(workspace.cwd, deps.workingDir(id)) : undefined;
+  const resumeDir = resumeId ? (deps.launchDirectory ?? launchDirectory)(workspace.cwd, deps.workingDir(id)) : undefined;
+  // The workspace's directory may be gone (a pruned worktree): a shell that cannot start there ends at once, and the panel would read that as the workspace closing.
+  const cwd = resumeDir ?? (isDirectory(workspace.cwd) ? undefined : defaultCwd);
   const spec = launchSpec(workspace, {
     shell,
     resumeId,

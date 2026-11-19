@@ -28,7 +28,7 @@ export function ghOwnPrs(repos: readonly string[]): string {
 export function mergeStatusQuery(items: readonly ReviewRequest[]): string {
   const lookups = items.flatMap((item, index) => {
     const [owner, name] = item.repo.split('/');
-    if (!owner || !name || !SAFE_NAME.test(owner) || !SAFE_NAME.test(name)) return [];
+    if (!owner || !name || !SAFE_NAME.test(owner) || !SAFE_NAME.test(name) || !Number.isInteger(item.number) || item.number <= 0) return [];
     return [
       `r${index}: repository(owner: "${owner}", name: "${name}") { pullRequest(number: ${item.number}) { url headRefName mergeStateStatus reviewDecision headRefOid ` +
         'latestReviews(first: 100) { nodes { author { login } state commit { oid } } } ' +

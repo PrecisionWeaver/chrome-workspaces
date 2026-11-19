@@ -64,9 +64,10 @@ describe('changes', () => {
     expect($('git-save').hidden).toBe(true);
   });
 
-  it('shows nothing until git has answered', () => {
+  it('says it is loading until git has answered, with no file rows', () => {
     h.view.setWorkspace(makeWorkspace({ id: 'ws-a' }));
-    expect($('git-changes').children).toHaveLength(0);
+    expect($('git-changes').textContent).toBe('Loading…');
+    expect($('git-changes').querySelector('.git-file')).toBeNull();
   });
 
   it('stages and unstages one file or all of them', async () => {

@@ -1,7 +1,7 @@
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { UsageBucket } from './tokens';
 import { type LedgerEntry, UsageLedger } from './usage-ledger';
 
@@ -86,5 +86,18 @@ describe('UsageLedger', () => {
     const path = file();
     writeFileSync(path, '{ not json');
     expect(new UsageLedger(path).list()).toEqual([]);
+  });
+
+  it('keeps a damaged file aside and says so, instead of overwriting it without a word', () => {
+    const path = file();
+    writeFileSync(path, '{ not json');
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      new UsageLedger(path).list();
+      expect(error).toHaveBeenCalledWith(expect.stringContaining('is damaged'));
+      expect(readFileSync(`${path}.damaged`, 'utf8')).toBe('{ not json');
+    } finally {
+      error.mockRestore();
+    }
   });
 });

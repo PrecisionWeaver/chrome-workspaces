@@ -2,6 +2,8 @@ import { errorMessage } from '../../../shared/protocol/errors';
 import { getHelper, isHostMissing, startHelper } from '../app/helper-client';
 import { $, el } from '../ui/dom';
 
+const MESSAGE_MS = 10_000;
+
 export const INSTALL_COMMAND =
   'git clone https://github.com/PrecisionWeaver/chrome-workspaces.git && cd chrome-workspaces && npm install && npm run install-app';
 
@@ -16,9 +18,15 @@ export interface Notices {
 export function createNotices(): Notices {
   const noticeEl = $<HTMLDivElement>('notice');
 
+  let clearTimer: ReturnType<typeof setTimeout> | undefined;
+
   function show(text: string | null): void {
+    clearTimeout(clearTimer);
     noticeEl.hidden = text === null;
     noticeEl.textContent = text ?? '';
+    // A message about something that failed (a workspace that was not made, a file not added) is not about the helper's state, which clears the
+    // bar itself, so it goes after a while rather than staying until the connection next changes.
+    if (text !== null) clearTimer = setTimeout(() => show(null), MESSAGE_MS);
   }
 
   // Chrome finds no native host until install-app has registered it, so there is nothing for Start helper to start.
@@ -29,6 +37,7 @@ export function createNotices(): Notices {
       void navigator.clipboard.writeText(INSTALL_COMMAND);
       copy.textContent = 'Copied';
     };
+    clearTimeout(clearTimer);
     noticeEl.hidden = false;
     noticeEl.replaceChildren(
       el(
@@ -53,6 +62,7 @@ export function createNotices(): Notices {
         start.disabled = false;
       });
     };
+    clearTimeout(clearTimer);
     noticeEl.hidden = false;
     noticeEl.replaceChildren(message, start);
     // A helper that was never installed is not "not running"; say so up front.

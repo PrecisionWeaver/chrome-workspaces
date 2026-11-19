@@ -32,6 +32,18 @@ describe('loading', () => {
     expect(h.sent).toHaveLength(2);
   });
 
+  it('says it is loading until the helper answers, then shows what it found', () => {
+    h.view.setWorkspace(GIT_WORKSPACE);
+    expect($('git-changes').textContent).toBe('Loading…');
+    h.setState(gitState());
+    expect($('git-changes').textContent).not.toContain('Loading');
+    // A folder that is not a repository is an answer too.
+    h.view.setWorkspace(makeWorkspace({ id: 'ws-b' }));
+    expect($('git-changes').textContent).toBe('Loading…');
+    h.setState(null, 'not a git repository', 'ws-b');
+    expect($('git-changes').textContent).not.toContain('Loading');
+  });
+
   it('shows nothing, and asks for nothing, without a workspace', () => {
     h.view.setWorkspace(undefined);
     h.view.refresh();

@@ -164,7 +164,19 @@ export function createLauncher({ send, create, closeCreate, selectedUrl, openWor
     );
   }
 
+  /** What the last draw was made from, outside the view's own search and facets (which always redraw): a state message that changes none of it leaves the rows as they are. */
+  let drawnKey = '';
+
+  /** Redraws only when the reviews, the workspaces they match or the selected row differ from the last draw; every hook event sends a state message. */
+  function renderIfChanged(state: ReviewsState, workspaces: readonly Workspace[]): void {
+    const key = `${JSON.stringify(state)}|${workspaces.map((ws) => `${ws.id}=${ws.pr ?? ''}=${ws.name}`).join(',')}|${selectedUrl() ?? ''}`;
+    if (key === drawnKey) return;
+    renderReviews(state, workspaces);
+    drawnKey = key;
+  }
+
   function renderReviews(state: ReviewsState, workspaces: readonly Workspace[]): void {
+    drawnKey = '';
     lastReviews = state;
     lastWorkspaces = workspaces;
     const query = reviewsSearch.value.trim().toLowerCase();
@@ -177,12 +189,17 @@ export function createLauncher({ send, create, closeCreate, selectedUrl, openWor
     reviewsError.hidden = state.error === null;
     reviewsError.textContent = state.error?.split('\n')[0] ?? '';
     reviewsError.title = state.error ?? '';
+    const empty = items.length === 0 ? emptyReviewsMessage(state, query) : null;
     reviewsList.replaceChildren(
+      ...(empty ? [el('li', empty, 'review-empty')] : []),
       ...items.map((item) => {
         const existing = workspaces.find((ws) => ws.pr === item.url);
         const row = document.createElement('li');
         row.className = `review${item.url === selectedUrl() ? ' selected' : ''}`;
         row.title = `${item.title}\n${item.repo} by ${item.author}${existing ? `\nWorkspace: ${existing.name}` : ''}`;
+        // Reachable and openable from the keyboard, like the workspace rows.
+        row.tabIndex = 0;
+        row.setAttribute('role', 'button');
 
         const head = document.createElement('span');
         head.className = 'ref';
@@ -216,15 +233,28 @@ export function createLauncher({ send, create, closeCreate, selectedUrl, openWor
 
         const when = byline(relative(item.updatedAt), item.author);
         row.append(head, itemTitle, when);
-        row.addEventListener('click', () => {
+        const open = () => {
           if (item.url === selectedUrl()) closeCreate();
           else if (existing) openWorkspace(existing);
           else create(item);
+        };
+        row.addEventListener('click', open);
+        row.addEventListener('keydown', (event) => {
+          if (event.key !== 'Enter' && event.key !== ' ') return;
+          event.preventDefault();
+          open();
         });
         return row;
       }),
     );
   }
 
-  return { renderReviews };
+  return { renderReviews: renderIfChanged };
+}
+
+/** What the list says when it has no rows: still loading, nothing to review, or everything filtered out. */
+function emptyReviewsMessage(state: ReviewsState, query: string): string {
+  if (state.items.length > 0) return query ? 'No review requests match.' : 'No review requests match the filters.';
+  if (state.fetchedAt === null) return state.error ? 'Could not load review requests.' : 'Loading review requests…';
+  return 'No review requests.';
 }

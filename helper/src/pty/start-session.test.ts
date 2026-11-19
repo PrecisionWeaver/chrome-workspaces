@@ -74,12 +74,19 @@ describe('startSession', () => {
 
   it("starts claude in the workspace's directory for a new conversation, asking git for no directory", () => {
     const launchDirectory = vi.fn();
-    const { start, created, log } = setup([workspace()], { launchDirectory });
+    const repo = mkdtempSync(join(tmpdir(), 'cw-start-'));
+    const { start, created, log } = setup([workspace({ cwd: repo })], { launchDirectory });
     start('ws-0123abcd');
-    expect(created[0]).toMatchObject({ id: 'ws-0123abcd', cwd: '/repo' });
+    expect(created[0]).toMatchObject({ id: 'ws-0123abcd', cwd: repo });
     expect(created[0].args.join(' ')).not.toContain('--resume');
     expect(launchDirectory).not.toHaveBeenCalled();
-    expect(log).toHaveBeenCalledWith('started acme/app in /repo');
+    expect(log).toHaveBeenCalledWith(`started acme/app in ${repo}`);
+  });
+
+  it("starts claude in the default directory when the workspace's own is gone, so the shell does not end at once", () => {
+    const { start, created, deps } = setup([workspace({ cwd: '/no/such/dir' })]);
+    start('ws-0123abcd');
+    expect(created[0].cwd).toBe(deps.defaultCwd);
   });
 
   it("resumes the picked conversation first, then the hooks' one, then the workspace's own, in the directory claude was last in", () => {

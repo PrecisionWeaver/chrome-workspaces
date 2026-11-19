@@ -96,7 +96,8 @@ describe('control channel', () => {
     expect(h.sessions.get(`shell-${a.id}`)).toBeUndefined();
   });
 
-  it('survives a request the store could not save', async () => {
+  // Root can write into a read-only folder, so there is no failed save to survive.
+  it.skipIf(process.getuid?.() === 0)('survives a request the store could not save', async () => {
     const a = h.store.create({ name: 'a', cwd: h.defaultCwd });
     const { ws, messages } = connectControl(h);
     await opened(ws);

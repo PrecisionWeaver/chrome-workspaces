@@ -1,6 +1,7 @@
 import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, rmSync, statSync, watch } from 'node:fs';
 import { tailLines } from './tail';
 import { dirname, join } from 'node:path';
+import { errorMessage } from '../../../shared/protocol/errors';
 import { parseActivityLine } from '../../../shared/sessions/activity';
 import type { PastSession, WaitingOn, WorkspaceStatus } from '../../../shared/protocol/workspace';
 import type { SessionFile } from '../../../shared/protocol/session-file';
@@ -26,6 +27,7 @@ function isInside(path: string, directory: string): boolean {
 
 const SESSION_ID = /^[A-Za-z0-9_-]+$/;
 const MISS_MS = 60_000;
+const MAX_LOCATED = 1000;
 const located = new Map<string, { path: string | null; at: number }>();
 
 /**
@@ -42,6 +44,10 @@ export function locateTranscript(session: Pick<SessionFile, 'session_id' | 'tran
   if (existsSync(recorded)) return recorded;
   const id = session.session_id;
   if (!id || !SESSION_ID.test(id)) return null;
+  if (located.size > MAX_LOCATED) {
+    for (const [key, entry] of located) if (!entry.path && now - entry.at >= MISS_MS) located.delete(key);
+    if (located.size > MAX_LOCATED) located.clear();
+  }
   const seen = located.get(id);
   if (seen && (seen.path ? existsSync(seen.path) : now - seen.at < MISS_MS)) return seen.path;
   let found: string | null = null;
@@ -92,6 +98,17 @@ function followContinuations(session: SessionFile, strays: ReadonlyMap<string, S
 
 const LIVE_STATUSES = new Set(['needs_input', 'working', 'idle']);
 
+let lastReadFailure = '';
+
+/** Says once, until it changes, why the sessions folder could not be read. */
+function reportReadFailure(dir: string, error: unknown): void {
+  if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
+  const message = `sessions: cannot read ${dir}: ${errorMessage(error)}`;
+  if (message === lastReadFailure) return;
+  lastReadFailure = message;
+  console.error(message);
+}
+
 /**
  * The hook in hooks/session-state.ts writes one file per Claude session; this groups them by workspace.
  * With `workspaceCwds` (workspace id → directory), a session started elsewhere is not the workspace's:
@@ -105,7 +122,9 @@ export function readSessionStatus(dir: string, workspaceCwds: ReadonlyMap<string
   let names: string[];
   try {
     names = readdirSync(dir).filter((name) => name.endsWith('.json'));
-  } catch {
+  } catch (error) {
+    // No folder yet is normal until the first hook runs; anything else (permissions, say) would otherwise read as "no sessions".
+    reportReadFailure(dir, error);
     return new Map();
   }
 
@@ -254,13 +273,24 @@ export function continuedInSession(path: string): string | null {
   return lastTranscriptField(path, 'continuedInSessionId');
 }
 
-/** Calls `onChange` (debounced) whenever a session's state file changes. Returns a stop function. */
-export function watchSessionStatus(dir: string, onChange: () => void, debounceMs = 200): () => void {
+/**
+ * Calls `onChange` (debounced) whenever a session's state file changes. Returns a stop function.
+ * Events closer together than `debounceMs` are folded into one call, but never held back longer than `maxWaitMs`: parallel subagents can
+ * fire hook events without a pause, and status and activity would otherwise stand still for as long as they keep going.
+ */
+export function watchSessionStatus(dir: string, onChange: () => void, debounceMs = 200, maxWaitMs = 1000): () => void {
   if (!existsSync(dir)) return () => {};
   let timer: NodeJS.Timeout | undefined;
+  let firstAt = 0;
+  const fire = () => {
+    firstAt = 0;
+    onChange();
+  };
   const watcher = watch(dir, () => {
     clearTimeout(timer);
-    timer = setTimeout(onChange, debounceMs);
+    const now = Date.now();
+    if (!firstAt) firstAt = now;
+    timer = setTimeout(fire, Math.max(0, Math.min(debounceMs, firstAt + maxWaitMs - now)));
   });
   // An error event nobody listens to is thrown; status would go stale quietly, so say why instead.
   watcher.on('error', (error) => console.error(`watching ${dir} failed: ${error.message}`));

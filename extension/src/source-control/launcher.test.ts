@@ -65,6 +65,48 @@ describe('the list', () => {
     expect(rows()[0]!.title).toBe('First change\nacme/app by octocat');
   });
 
+  it('says when there is nothing to show: still loading, no requests, or all filtered out', async () => {
+    await start();
+    const message = () => $('reviews-list').textContent;
+    launcher.renderReviews(state([]), []);
+    expect(message()).toBe('Loading review requests…');
+    launcher.renderReviews(state([], { error: 'gh is not signed in' }), []);
+    expect(message()).toBe('Could not load review requests.');
+    launcher.renderReviews(state([], { fetchedAt: '2026-10-01T00:00:00Z' }), []);
+    expect(message()).toBe('No review requests.');
+    launcher.renderReviews(state([a, b], { fetchedAt: '2026-10-01T00:00:00Z' }), []);
+    search('zzz');
+    expect(message()).toBe('No review requests match.');
+    expect(rows()).toHaveLength(0);
+  });
+
+  it('opens a row from the keyboard', async () => {
+    await start();
+    launcher.renderReviews(state([a]), []);
+    const [row] = rows();
+    expect(row.tabIndex).toBe(0);
+    expect(row.getAttribute('role')).toBe('button');
+    row.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+    expect(options.create).not.toHaveBeenCalled();
+    row.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    expect(options.create).toHaveBeenCalledWith(a);
+  });
+
+  it('leaves the rows alone when nothing they show has changed, and redraws when something has', async () => {
+    await start();
+    const items = state([a, b], { fetchedAt: '2026-10-01T00:00:00Z' });
+    launcher.renderReviews(items, []);
+    const before = rows();
+    launcher.renderReviews({ ...items }, []);
+    expect(rows()[0]).toBe(before[0]);
+    launcher.renderReviews(items, [makeWorkspace({ pr: 'u1' })]);
+    expect(rows()[0]).not.toBe(before[0]);
+    options.selectedUrl.mockReturnValue('u2');
+    const drawn = rows();
+    launcher.renderReviews(items, [makeWorkspace({ pr: 'u1' })]);
+    expect(rows()[1]).not.toBe(drawn[1]);
+  });
+
   it('shows a merge badge for each state but unknown, with an explanation', async () => {
     await start();
     launcher.renderReviews(

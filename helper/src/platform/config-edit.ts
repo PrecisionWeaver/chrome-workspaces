@@ -1,5 +1,5 @@
 import { chmodSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { basename, dirname } from 'node:path';
 import type { ConfigEdit, ConfigEditValues } from '../../../shared/protocol/system';
 import { errorMessage } from '../../../shared/protocol/errors';
 import { MODEL_PATTERN } from '../../../shared/protocol/protocol';
@@ -57,7 +57,11 @@ export function configEditProblems(values: ConfigEditValues, prompts: string | n
     problems.push(`Command "${values.claudeCommand}" must be a bare command name, with no spaces or path.`);
   if (prompts !== null) {
     if (Buffer.byteLength(prompts) > PROMPTS_MAX_BYTES) problems.push('The prompts note is over 512 KB.');
-    const folder = dirname(expandHome(values.promptsFile || DEFAULT_PROMPTS_FILE));
+    const target = expandHome(values.promptsFile || DEFAULT_PROMPTS_FILE);
+    // The note's text is written to this path, so it must look like a note: not a shell profile or a key file.
+    if (!/\.(md|markdown|txt)$/i.test(target) || basename(target).startsWith('.'))
+      problems.push('The prompts file must be a .md or .txt file whose name does not start with a dot.');
+    const folder = dirname(target);
     if (!isDirectory(folder)) problems.push(`The prompts file's folder ${folder} does not exist.`);
   }
   return problems;

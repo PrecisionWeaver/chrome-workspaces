@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { errorMessage } from '../../../shared/protocol/errors';
 import { dirname } from 'node:path';
 import type { HistoryEntry, Workspace } from '../../../shared/protocol/workspace';
 
@@ -67,8 +68,14 @@ export class HistoryStore {
       const { entries } = JSON.parse(readFileSync(this.file, 'utf8')) as { entries?: HistoryEntry[] };
       // Entries written before pin and color were kept load with them unset.
       return Array.isArray(entries) ? entries.slice(0, MAX_HISTORY).map((e) => ({ ...e, pinned: e.pinned ?? false, color: e.color ?? null })) : [];
-    } catch {
-      // History is a convenience: a damaged file starts it again rather than stopping the helper.
+    } catch (error) {
+      // History is a convenience: a damaged file starts it again rather than stopping the helper. It is kept aside, not overwritten, in case it can be mended.
+      console.error(`history: ${this.file} is damaged (${errorMessage(error)}); starting again, the old file is kept as ${this.file}.damaged`);
+      try {
+        renameSync(this.file, `${this.file}.damaged`);
+      } catch {
+        // Nothing more to do: the next save replaces it.
+      }
       return [];
     }
   }

@@ -60,6 +60,13 @@ describe('configEditProblems', () => {
   it('refuses a note that is too large or whose folder does not exist', () => {
     expect(configEditProblems(blankValues(), 'x'.repeat(512 * 1024 + 1))).toEqual(['The prompts note is over 512 KB.']);
     expect(configEditProblems({ ...blankValues(), promptsFile: join(dir, 'nope', 'p.md') }, 'text')[0]).toContain('does not exist');
+    // The text is written to the path, so it must look like a note.
+    for (const bad of [join(dir, '.zshrc'), join(dir, 'authorized_keys'), join(dir, '.hidden.md')]) {
+      expect(configEditProblems({ ...blankValues(), promptsFile: bad }, 'text')).toEqual([
+        'The prompts file must be a .md or .txt file whose name does not start with a dot.',
+      ]);
+    }
+    expect(configEditProblems({ ...blankValues(), promptsFile: join(dir, 'team.txt') }, 'text')).toEqual([]);
   });
 });
 

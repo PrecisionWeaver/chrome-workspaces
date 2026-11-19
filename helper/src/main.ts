@@ -266,6 +266,8 @@ function shutdown(signal: NodeJS.Signals): void {
     console.error(`could not save scrollback: ${errorMessage(error)}`);
   }
   sessions.killAll();
+  // A request still in flight (a `gh pr create`, say) must not keep the helper from stopping: launchd would only kill it later.
+  setTimeout(() => process.exit(0), 5000).unref();
   void server.close().then(() => process.exit(0));
 }
 process.on('SIGINT', shutdown);

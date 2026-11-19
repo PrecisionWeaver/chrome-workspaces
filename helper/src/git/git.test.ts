@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -100,6 +100,14 @@ describe('git service', () => {
     expect((await service.diff(dir, 'a.txt', null)).diff).toContain('+three');
     writeFileSync(join(dir, 'new.txt'), 'brand new\n');
     expect((await service.diff(dir, 'new.txt', null)).diff).toContain('+brand new');
+  });
+
+  it('does not follow an untracked symlink out of the repository', async () => {
+    const dir = repo();
+    const outside = join(mkdtempSync(join(tmpdir(), 'cw-outside-')), 'secret.txt');
+    writeFileSync(outside, 'top secret\n');
+    symlinkSync(outside, join(dir, 'link.txt'));
+    await expect(service.diff(dir, 'link.txt', null)).rejects.toThrow('not a path in the repository');
   });
 
   it('reports a linked worktree by name, with its own branch and history, and links it to the main tree', async () => {

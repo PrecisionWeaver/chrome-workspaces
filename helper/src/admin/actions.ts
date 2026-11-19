@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { existsSync, readdirSync, rmSync, truncateSync } from 'node:fs';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
+import { doubleQuote } from '../../../shared/lib/double-quote';
 import { errorMessage } from '../../../shared/protocol/errors';
 import type { AdminAction } from '../../../shared/protocol/protocol';
 import type { UpdateStatus } from '../../../shared/protocol/system';
@@ -64,7 +65,7 @@ export async function runAction(context: ActionContext, request: AdminAction): P
       return pruneWorktrees(options.store.list());
     case 'applyUpdate': {
       if (!options.repoDir) return { ok: false, message: 'This copy of the app is not a git checkout, so it cannot update itself.' };
-      const outcome = await applyUpdate(options.repoDir, (command) => options.runShell(`cd "${options.repoDir}" && ${command}`));
+      const outcome = await applyUpdate(options.repoDir, (command) => options.runShell(`cd ${doubleQuote(options.repoDir as string)} && ${command}`));
       // The new code only runs after a restart, which ends every terminal, so it is left to launchd and only when it manages us.
       if (outcome.ok && outcome.restart && !(await options.isManaged())) {
         return { ok: true, message: `${outcome.message.split(' The helper')[0]} Restart the helper by hand, then reload the extension.` };

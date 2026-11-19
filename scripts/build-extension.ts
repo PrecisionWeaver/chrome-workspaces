@@ -12,6 +12,8 @@ await build({
   bundle: true,
   format: 'esm',
   target: 'chrome120',
+  // xterm is most of the bundle; the extension is loaded from disk, so size is load time, not download.
+  minify: true,
   outdir: OUT,
 });
 
