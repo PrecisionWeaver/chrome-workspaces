@@ -1,6 +1,6 @@
 # Configuration
 
-Optional fields in `~/.chrome-workspaces/config.json` (preserved by `setup`). Restart the helper after editing the file. `defaultCwd`, `defaultModel`, `claudeCommand` and `promptsFile` can instead be changed from Settings' **Configuration** card (**Edit**), which saves them to this file and applies them without a restart; the other fields need the file and a restart.
+Optional fields in `~/.chrome-workspaces/config.json` (preserved by `setup`). Restart the helper after editing the file. `defaultCwd`, `defaultModel`, `claudeCommand` and `promptsFile` can instead be changed from Settings' **Configuration** card (**Edit**), which saves them to this file and applies them without a restart (an edited prompts note is only written to a `.md` or `.txt` file whose name does not start with a dot); the other fields need the file and a restart.
 
 An entry the helper can't use (an unknown key, a wrong type, a repo name that isn't `owner/name`) is ignored and named in Settings' **Getting started** checklist and in `helper.log`. Broken JSON stops the helper, and the log says which file.
 
