@@ -195,6 +195,44 @@ describe('readSessionStatus', () => {
   });
 });
 
+describe('a prompt that was refused', () => {
+  const since = '2026-11-20T15:31:33.983Z';
+  const waiting = (transcript: string[]) => {
+    const dir = mkdtempSync(join(tmpdir(), 'cw-refused-'));
+    const path = join(dir, `${ID_OLD}.jsonl`);
+    writeFileSync(path, transcript.join('\n'));
+    return stateDir({
+      [`${ID_OLD}.json`]: {
+        session_id: ID_OLD,
+        cw_workspace_id: 'ws-a',
+        status: 'needs_input',
+        status_since: since,
+        transcript_path: path,
+        waiting: { type: 'permission_prompt', message: 'Claude needs your permission' },
+      },
+    });
+  };
+  const message = (type: string, timestamp: string, content: unknown) => JSON.stringify({ type, timestamp, message: { content } });
+  const refusal = message('user', '2026-11-20T15:35:42.600Z', [{ type: 'text', text: '[Request interrupted by user for tool use]' }]);
+
+  it('is idle once the transcript records the interruption, with nothing waited on', () => {
+    const result = readSessionStatus(waiting([message('assistant', '2026-11-20T15:31:27.763Z', []), refusal])).get('ws-a');
+    expect(result?.status).toBe('idle');
+    expect(result?.waiting).toBeNull();
+  });
+
+  it('keeps waiting while the newest message came before the prompt, or is not an interruption', () => {
+    const before = message('assistant', '2026-11-20T15:31:27.763Z', [{ type: 'tool_use' }]);
+    expect(readSessionStatus(waiting([before])).get('ws-a')?.status).toBe('needs_input');
+    const result = message('user', '2026-11-20T15:35:42.600Z', [{ type: 'tool_result', content: 'ok' }]);
+    expect(readSessionStatus(waiting([before, refusal, result])).get('ws-a')?.status).toBe('needs_input');
+  });
+
+  it('keeps waiting when the transcript is missing or has only a cut-off line', () => {
+    expect(readSessionStatus(waiting(['{"type":"user","timest'])).get('ws-a')?.status).toBe('needs_input');
+  });
+});
+
 describe('lastTranscriptCwd', () => {
   const transcript = (lines: string[]) => {
     const dir = mkdtempSync(join(tmpdir(), 'cw-transcript-'));
