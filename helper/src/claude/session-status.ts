@@ -153,6 +153,8 @@ export function readSessionStatus(dir: string, workspaceCwds: ReadonlyMap<string
   const result = new Map<string, WorkspaceSession>();
   for (const [workspaceId, session] of newest) {
     let status = LIVE_STATUSES.has(session.status ?? '') ? (session.status as WorkspaceStatus) : null;
+    // Refusing a prompt fires no hook, so the session would stay red until the next prompt; its transcript says it was turned down.
+    if (status === 'needs_input' && session.status_since && interruptedSince(locateTranscript(session), session.status_since)) status = 'idle';
     // claude is idle once it has answered, even with a subagent still running in the background.
     if (status === 'idle' && hasRunningSubagent(join(dir, `${session.session_id}.events.jsonl`))) status = 'working';
     const browserAt = session.browser_at ? Date.parse(session.browser_at) : NaN;
@@ -237,6 +239,34 @@ const TRANSCRIPT_TAIL_BYTES = 256 * 1024;
 const transcriptTail = (path: string): string[] | null => tailLines(path, TRANSCRIPT_TAIL_BYTES);
 
 const transcriptFields = new StatCache<string | null>();
+const interruptions = new StatCache<boolean>();
+
+/** Claude writes this user message when a prompt is refused or Esc stops a turn. */
+const INTERRUPT_MARK = '[Request interrupted by user';
+
+/** Whether the transcript's newest message is claude being interrupted after `since` (an ISO time), with nothing said or done since. */
+function interruptedSince(path: string | null, since: string): boolean {
+  if (!path) return false;
+  return interruptions.get(
+    path,
+    () => {
+      const lines = transcriptTail(path);
+      if (!lines) return false;
+      for (let i = lines.length - 1; i >= 0; i--) {
+        try {
+          const line = JSON.parse(lines[i]) as { type?: string; timestamp?: string; message?: { content?: unknown } };
+          if (line.type !== 'user' && line.type !== 'assistant') continue;
+          if (!line.timestamp || line.timestamp <= since) return false;
+          return line.type === 'user' && JSON.stringify(line.message?.content ?? '').includes(INTERRUPT_MARK);
+        } catch {
+          // A line cut off by a write in progress.
+        }
+      }
+      return false;
+    },
+    `interrupted:${since}:${path}`,
+  );
+}
 
 /** The value of `field` on the newest transcript line that has a string for it. */
 function lastTranscriptField(path: string, field: string): string | null {
