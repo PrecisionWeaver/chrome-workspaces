@@ -146,6 +146,11 @@
   text-align: right;
 }
 
+.kv-end .v {
+  margin-left: auto;
+  text-align: right;
+}
+
 .kv:has(> .settings-btn) {
   align-items: center;
 }
