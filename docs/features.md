@@ -26,7 +26,7 @@
 
 ## From a review request
 
-Clicking a review request opens the same view with the PR's details above it: branches, size, review and check status, labels, the description rendered as markdown, collapsed lists of the biggest files and latest commits, and its **review comments** (collapsed under their count like the files and commits; open threads first, resolved ones folded inside; read-only, each links to GitHub where you can reply). It is named for the PR, starts in its repo, uses From prompt with `PR-URL` and `PROJ-XXX` filled in, and has the PR's URL filled into Tabs, so it opens first unless you change it. Everything else works as for any new workspace.
+Clicking a review request opens the same view with the PR's details above it: branches, size, review and check status, labels, the description rendered as markdown, collapsed lists of the biggest files and latest commits, and its **review comments** (collapsed under their count like the files and commits; open threads first, resolved ones folded inside; read-only, each links to GitHub where you can reply). It is named for the PR, starts in its repo, uses From prompt with `PR-URL` and `PROJ-XXX` filled in, and has the PR's URL filled into Tabs, so it opens first unless you change it. The details card has a fixed height and scrolls inside, so the form below it stays put while the details and comments load. The top bar (Back, and a **Create** button that does the same as the one at the bottom) stays pinned while the view scrolls. Everything else works as for any new workspace.
 
 ## Source control
 
