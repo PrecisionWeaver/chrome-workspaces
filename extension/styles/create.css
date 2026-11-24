@@ -7,6 +7,16 @@
   padding: 14px 20px 24px;
 }
 
+/* Pinned to the top while the view scrolls, so Back and Create are always in reach; it bleeds over the view's padding to hide what passes under it. */
+#create-bar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  margin: -14px -20px 12px;
+  padding: 14px 20px 8px;
+  background: var(--bg);
+}
+
 #create-bar #create-close {
   margin-right: auto;
 }
@@ -31,7 +41,10 @@
 
 /* PR details */
 
+/* A fixed height, scrolling inside, so the card filling in (details, then comments) never moves the prompts below it. */
 #create-details {
+  height: clamp(200px, 38vh, 340px);
+  overflow-y: auto;
   margin-bottom: 20px;
   padding: 14px;
   border: 1px solid var(--border);
@@ -748,7 +761,8 @@
   line-height: 1.55;
 }
 
-#create-submit {
+#create-submit,
+#create-submit-top {
   background: var(--accent);
   color: var(--on-accent);
   border: 1px solid var(--accent);
@@ -757,6 +771,7 @@
   font-weight: 600;
 }
 
-#create-submit:hover {
+#create-submit:hover,
+#create-submit-top:hover {
   filter: brightness(1.08);
 }
